@@ -7,17 +7,21 @@ Reglas de seguridad (ver security.py):
   * El comando de lanzamiento sale de la biblioteca del usuario, nunca de la petición.
 """
 import json
+import os
+import re
+import subprocess
 import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import apps, art, launcher, procs, security
+from . import apps, art, fsbrowse, launcher, procs, saves, security
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
 
 
+DEFAULT_BACKUP_ROOT = "~/Juegos/_Partidas"        # donde van los respaldos de un juego que no tiene carpeta propia
 PAD_KEYS = {"l", "r", "u", "d", "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "START", "SELECT", "MODE"}
 
 
@@ -29,10 +33,13 @@ class ApiError(Exception):
 
 class Api:
     def __init__(self, store, token: str, detectors=(), port: int = 0, launch_fn=launcher.launch, scan_fn=procs.scan, bus=None,
-                 catalog=None, app_launch_fn=apps.launch):
+                 catalog=None, app_launch_fn=apps.launch, fs_roots=None, open_fn=None, backup_root=DEFAULT_BACKUP_ROOT):
         self.store, self.token, self.detectors, self.launch_fn, self.scan_fn = store, token, list(detectors), launch_fn, scan_fn
         self.bus = bus or EventBus()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
+        self.fs_roots, self.backup_root = fs_roots, backup_root
+        self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
+                                                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self.desktop_visible = True          # lo actualiza el vigilante de ventanas de KWin (D-Bus); por defecto se asume activo
         self._gate_t, self._gate_v = 0.0, True
         self.gamemode = None                       # lo asigna el servicio (gamemode.GameMode)
@@ -51,6 +58,12 @@ class Api:
             "/menu": ("POST", True, lambda q: self.toggle_menu() or {"ok": True}),
             "/menu/state": ("POST", True, self.set_menu_state),
             "/gamemode": ("GET", True, lambda q: self.gamemode.status() if self.gamemode else {"enabled": False, "active": False}),
+            "/fs/list": ("GET", True, self.fs_list),
+            "/saves": ("GET", True, self.saves_info),
+            "/saves/config": ("POST", True, self.saves_config),
+            "/saves/backup": ("POST", True, self.saves_backup),
+            "/saves/restore": ("POST", True, self.saves_restore),
+            "/saves/open": ("POST", True, self.saves_open),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -92,6 +105,7 @@ class Api:
                         body = json.loads(self.rfile.read(n) or b"{}")
                         if isinstance(body, dict):
                             q.update({k: v for k, v in body.items() if isinstance(v, (str, int, bool))})
+                            q["_body"] = body                       # las rutas que reciben listas leen el cuerpo completo
                     self._send(200, fn(q))
                 except ApiError as e:
                     self._send(e.code, {"error": e.msg})
@@ -219,6 +233,112 @@ class Api:
     def running_games(self) -> list:
         """Nombres de los juegos en marcha que activan el modo juego (los de la nube no consumen este equipo)."""
         return [g.get("name", g["id"]) for g in self.running_list() if not g.get("cloud")]
+
+    # --- partidas y explorador de carpetas
+    def _roots(self):
+        return self.fs_roots if self.fs_roots is not None else fsbrowse.allowed_roots()
+
+    def _allowed(self, path: str) -> bool:
+        real = os.path.realpath(os.path.expanduser(path))
+        return any(real == r or real.startswith(r.rstrip("/") + "/") for r in fsbrowse._real_roots(self._roots()))
+
+    def fs_list(self, q):
+        try:
+            exts = [e if e.startswith(".") else "." + e for e in q.get("ext", "").split(",") if e]
+            return fsbrowse.list_dir(q.get("path") or None, self._roots(), hidden=str(q.get("hidden", "0")) == "1",
+                                     files=str(q.get("files", "0")) == "1", exts=exts)
+        except fsbrowse.FsError as e:
+            raise ApiError(403, str(e))
+
+    def _port_for(self, q):
+        g, p = self.store.find_port(q.get("id", ""), q.get("port", ""))
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        return g, p or {}
+
+    def _saves_cfg(self, g, p):
+        """Dónde están las partidas y a dónde van los respaldos. Lo que el usuario eligió manda sobre lo de la biblioteca;
+        va aparte (state) para que sobreviva a que la biblioteca se regenere (Steam, Heroic, Lutris)."""
+        ov = (self.store.state.get("saves") or {}).get(g["id"]) or {}
+        spec = ov.get("spec") or p.get("saves") or {}
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", g.get("name", g["id"])).strip("-") or g["id"]
+        dest = ov.get("backup_dir") or p.get("backup_dir") or os.path.join(os.path.expanduser(self.backup_root), slug)
+        return spec, dest, slug
+
+    def saves_info(self, q):
+        g, p = self._port_for(q)
+        spec, dest, slug = self._saves_cfg(g, p)
+        found = saves.slots(spec) if spec else []
+        return {"configured": bool(saves.roots(spec)), "spec": spec, "folder": saves.folder(spec) if spec else "",
+                "slots": [{"name": x["name"], "mtime": x["mtime"]} for x in found], "backupDir": dest,
+                "backups": saves.list_backups(dest, slug), "lastBackup": self.store.state.get("backups", {}).get(g["id"], 0)}
+
+    def saves_config(self, q):
+        g, _ = self._port_for(q)
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        spec = {}
+        for key in ("dirs", "files"):
+            vals = body.get(key)
+            if vals is not None:
+                if not isinstance(vals, list) or not all(isinstance(v, str) for v in vals):
+                    raise ApiError(400, "«%s» debe ser una lista de rutas" % key)
+                spec[key] = vals
+        if isinstance(body.get("glob"), str):
+            spec["glob"] = body["glob"]
+        if isinstance(body.get("name"), str):
+            spec["name"] = body["name"][:60]
+        backup_dir = body.get("backup_dir") if isinstance(body.get("backup_dir"), str) else ""
+        # el explorador solo deja elegir dentro del home y los discos externos; aquí se vuelve a exigir (no se fía del cliente)
+        for path in [x for key in ("dirs", "files") for x in spec.get(key, [])] + ([spec["glob"]] if "glob" in spec else []) + \
+                ([backup_dir] if backup_dir else []):
+            static = re.split(r"[*?\[]", os.path.expanduser(path), maxsplit=1)[0]
+            if not os.path.isabs(static) or ".." in static.split("/") or not self._allowed(static or "/"):
+                raise ApiError(403, "carpeta fuera de las permitidas: %s" % path)
+        with self.store.lock:
+            ov = self.store.state.setdefault("saves", {})
+            if spec:
+                ov.setdefault(g["id"], {})["spec"] = spec
+            if backup_dir:
+                ov.setdefault(g["id"], {})["backup_dir"] = backup_dir
+            if not spec and not backup_dir:
+                ov.pop(g["id"], None)                               # sin datos: vuelve a lo que traiga la biblioteca
+            self.store.save_state()
+        return {"ok": True}
+
+    def saves_backup(self, q):
+        g, p = self._port_for(q)
+        spec, dest, slug = self._saves_cfg(g, p)
+        try:
+            out = saves.backup(spec, dest, slug, {"game": g["id"], "name": g.get("name", "")})
+        except saves.SaveError as e:
+            raise ApiError(409, str(e))
+        with self.store.lock:
+            self.store.state.setdefault("backups", {})[g["id"]] = int(time.time())
+            self.store.save_state()
+        return {"ok": True, "file": out.name}
+
+    def saves_restore(self, q):
+        g, p = self._port_for(q)
+        spec, dest, slug = self._saves_cfg(g, p)
+        name = q.get("file", "")
+        if not name or "/" in name or name.startswith(".") or not name.endswith(".tar.gz"):
+            raise ApiError(400, "archivo no válido")                 # solo el nombre de un respaldo de ESTE juego, nunca una ruta
+        archive = os.path.join(dest, name)
+        if not os.path.isfile(archive):
+            raise ApiError(404, "ese respaldo no existe")
+        try:
+            return {"ok": True, **saves.restore(archive, spec, dest, slug)}
+        except saves.SaveError as e:
+            raise ApiError(409, str(e))
+
+    def saves_open(self, q):
+        g, p = self._port_for(q)
+        spec, _, _ = self._saves_cfg(g, p)
+        path = saves.folder(spec) if spec else ""
+        if not path or not os.path.isdir(path):
+            raise ApiError(404, "no hay carpeta de partidas")
+        self.open_fn(path)
+        return {"ok": True}
 
     # --- mando
     def pad_gate(self) -> bool:
