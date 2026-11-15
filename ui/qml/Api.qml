@@ -99,6 +99,9 @@ QtObject {
     function savesBackup(g, done) { call("POST", "/saves/backup?" + _q(g), done) }
     function savesRestore(g, file, done) { call("POST", "/saves/restore?" + _q(g) + "&file=" + encodeURIComponent(file), done) }
     function savesOpen(g, done) { call("POST", "/saves/open?" + _q(g), done) }
+    function importFind(done) { call("GET", "/import/find", done) }
+    function importPreview(path, done) { call("GET", "/import/preview?path=" + encodeURIComponent(path), done) }
+    function importApply(path, done) { call("POST", "/import/apply?path=" + encodeURIComponent(path), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) refresh(); done(st, b) }, body) }
     function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) refresh(); done(st, b) }) }

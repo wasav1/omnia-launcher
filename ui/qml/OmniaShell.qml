@@ -12,10 +12,13 @@ Rectangle {
     property alias backend: api
     property string overlay: ""             // "saves" (panel de partidas) | "add" (asistente de añadir juego) | ""
     property var overlayGame: null
+    property string importPath: ""
     property string pendingSavesId: ""      // juego recién añadido: al aparecer en la biblioteca se abre su panel de partidas
     function openSaves(g) { if (g) { overlayGame = g; overlay = "saves" } }
     function openAdd() { overlay = "add" }
-    function closeOverlay() { overlay = ""; overlayGame = null; shell.forceActiveFocus() }
+    // El cierre se difiere: los paneles avisan «terminé» desde dentro de la respuesta de la API, y destruirlos ahí mismo
+    // (con listas vivas) hacía caer la interfaz (Qt: segfault en ~QQuickItemView durante el borrado diferido del Loader).
+    function closeOverlay() { Qt.callLater(function () { overlay = ""; overlayGame = null; shell.forceActiveFocus() }) }
     Api { id: api }
     onMenuOpenChanged: api.reportMenu(menuOpen)       // el núcleo da el mando al menú mientras esté abierto, haya o no ventanas
     Timer { interval: 5000; running: !api.covered; repeat: true; onTriggered: api.refresh() }   // tapada: no hace falta sondear
@@ -89,13 +92,18 @@ Rectangle {
             api: shell.backend
             onFinished: shell.closeOverlay()
             onAdded: function (id) { shell.pendingSavesId = id; shell.closeOverlay() }
+            onImportRequested: function (path) { shell.importPath = path; shell.overlay = "import" }
         }
+    }
+    Component {
+        id: importComp
+        ImportPanel { api: shell.backend; path: shell.importPath; onFinished: shell.closeOverlay(); onImported: shell.closeOverlay() }
     }
     Loader {
         anchors.fill: parent
         z: 90
         active: shell.overlay !== ""
-        sourceComponent: shell.overlay === "saves" ? savesComp : addComp
+        sourceComponent: shell.overlay === "saves" ? savesComp : (shell.overlay === "import" ? importComp : addComp)
     }
     Connections {
         target: api

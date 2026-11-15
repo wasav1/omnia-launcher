@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import apps, art, fsbrowse, launcher, manual, procs, saves, security, templates
+from . import apps, art, fsbrowse, importer, launcher, manual, procs, saves, security, templates
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -64,6 +64,9 @@ class Api:
             "/game/add": ("POST", True, self.game_add),
             "/game/remove": ("POST", True, self.game_remove),
             "/saves/suggest": ("GET", True, self.saves_suggest),
+            "/import/find": ("GET", True, lambda q: {"candidates": importer.find_legacy()}),
+            "/import/preview": ("GET", True, self.import_preview),
+            "/import/apply": ("POST", True, self.import_apply),
             "/saves": ("GET", True, self.saves_info),
             "/saves/config": ("POST", True, self.saves_config),
             "/saves/backup": ("POST", True, self.saves_backup),
@@ -269,6 +272,32 @@ class Api:
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", g.get("name", g["id"])).strip("-") or g["id"]
         dest = ov.get("backup_dir") or p.get("backup_dir") or os.path.join(os.path.expanduser(self.backup_root), slug)
         return spec, dest, slug
+
+    def _import_plan(self, q):
+        path = q.get("path", "")
+        if not path or not self._allowed(path):
+            raise ApiError(403, "ruta fuera de las carpetas permitidas")
+        try:
+            return importer.plan(importer.load(path), self.store.games())
+        except importer.ImportError_ as e:
+            raise ApiError(400, str(e))
+
+    @staticmethod
+    def _public(plan_):
+        return {"summary": plan_["summary"], "warnings": plan_["warnings"],
+                "items": [{k: v for k, v in i.items() if k != "entry"} for i in plan_["items"]]}
+
+    def import_preview(self, q):
+        return self._public(self._import_plan(q))              # solo lectura: no escribe nada
+
+    def import_apply(self, q):
+        plan_ = self._import_plan(q)                            # el servidor recalcula el plan: no se fía de lo que traiga el cliente
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        ids = body.get("ids")
+        if ids is not None and not (isinstance(ids, list) and all(isinstance(x, str) for x in ids)):
+            raise ApiError(400, "«ids» debe ser una lista")
+        added = importer.apply(self.store, plan_, ids)
+        return {"ok": True, "added": added, "count": len(added)}
 
     def game_add(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}

@@ -6,9 +6,11 @@ FocusScope {
     property var api
     signal finished
     signal added(string id)
+    signal importRequested(string path)
 
     property string stage: "kind"           // kind | name | done
     property var tpls: []
+    property string legacyPath: ""          // biblioteca anterior encontrada (disco de Bazzite), si la hay
     property var sel: null                  // el tipo elegido
     property string file: ""
     property string name: ""
@@ -21,6 +23,7 @@ FocusScope {
         })
         out.push({ id: "_win", text: "Juego de Windows (.exe) con Proton", sub: "Elige el .exe; se ejecuta con umu-launcher", needs: "exe", ext: [".exe"], kind: "windows" })
         out.push({ id: "_nat", text: "Juego nativo u otro ejecutable", sub: "Elige el archivo que lo arranca", needs: "exe", ext: [], kind: "native" })
+        if (legacyPath !== "") out.unshift({ id: "_import", text: "Importar mi biblioteca anterior…", sub: "Trae tus ports y emuladores de Bazzite, con vista previa", needs: "", ext: [] })
         return out
     }
     readonly property var rows: {
@@ -34,6 +37,7 @@ FocusScope {
         if (stage === "kind") {
             if (i >= kinds.length) { ag.finished(); return }
             sel = kinds[i]
+            if (sel.id === "_import") { ag.importRequested(legacyPath); return }
             browser.active = true
         } else if (stage === "name") {
             if (i === 1) { stage = "kind"; return }
@@ -50,7 +54,11 @@ FocusScope {
     }
     function back() { if (stage === "name") stage = "kind"; else ag.finished() }
 
-    Component.onCompleted: { api.templates(function (st, b) { if (st === 200) tpls = b.templates }); forceActiveFocus() }
+    Component.onCompleted: {
+        api.templates(function (st, b) { if (st === 200) tpls = b.templates })
+        api.importFind(function (st, b) { if (st === 200 && b.candidates.length > 0) legacyPath = b.candidates[0].path })
+        forceActiveFocus()
+    }
     focus: true
     Keys.onPressed: function (e) {
         if (browser.active) return
