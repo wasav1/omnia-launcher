@@ -32,7 +32,7 @@ package_omnia-core() {
 
 package_omnia-ui() {
   pkgdesc="Estantería de Omnia: escritorio de juegos en capa de fondo (QML)"
-  depends=(omnia-core qt6-declarative qt6-wayland layer-shell-qt kirigami)
+  depends=(omnia-core qt6-declarative qt6-wayland qt6-5compat layer-shell-qt kirigami)
   cd "$pkgbase-$pkgver"
   install -Dm755 ui/omnia-ui "$pkgdir/usr/bin/omnia-ui"
   install -d "$pkgdir/usr/share/omnia/ui"

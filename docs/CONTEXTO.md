@@ -43,6 +43,10 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
   steamgriddb.key}`, `~/.local/share/omnia/art`.
 
 ## 4. Decisiones y hallazgos clave
+- **Referencia visual (15/11):** material en `~/Juegos/PROTOTIPO OMNIA/` (9 capturas, PDF de 33 páginas y respaldos).
+  Inventario, diferencias y etapas en `docs/REFERENCIA-PROTOTIPO.md`. Recuperar primero la UI de Omnia y después desarrollar
+  el tema/layout instalable de Plasma en el mismo repo; panel/dock nativos, Anillos excluido. Los respaldos del 14/11
+  contienen código más antiguo que el conservado en el repo; contrastar antes de portar.
 - **Layer-shell:** la superficie de fondo queda sobre el escritorio de Plasma y bajo las ventanas. El «Mostrar escritorio»
   nativo oculta toda superficie layer externa → script KWin `omnia-showdesktop` (atajo `OmniaShowDesktop`, minimiza y
   restaura); Meta+D se reasigna vía KGlobalAccel (`setForeignShortcut`, firma busctl `asai`).
@@ -71,7 +75,28 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 **Hecho y probado:** arquitectura, Win+D, tecla Windows, mando, modo juego, historial, partidas (respaldo/restauración),
 juegos manuales, plantillas, importador, rescate de partidas de Bazzite (Gopher64: 4 archivos, Longshot: 14 → ya colocadas).
 
+**Adaptación visual en curso (código de desarrollo; sin empaquetar ni aplicar al escritorio):** `OmniaShell.qml` y
+`GameCard.qml` se reescribieron sobre el lienzo 1920×1080, tomando proporciones, tonos, jerarquía tipográfica, insignias
+y escalas de tarjetas del prototipo. Se copiaron al UI los componentes auxiliares preservados del plasmoide original
+(escena, broche, iconos de plataforma y mando, ondas, MPRIS y sensores). El core entrega campos seguros de presentación,
+historial y ports sin exponer comandos de lanzamiento. La ventana normal se revisó a 1280×720; escala el carrusel y las
+tarjetas según referencia, usa los iconos de plataforma y ordena filtros Switch 2, PC, Switch, N64. Se corrigieron el
+solapamiento del reloj y el texto largo de GPU. Las operaciones de partidas ahora usan el port seleccionado, aunque el
+panel central aún queda en «Consultando partidas…» pese a que el endpoint responde 200 desde la API; queda por corregir.
+
+La fidelidad visual exacta y la paridad funcional siguen pendientes de revisión renderizada a 1920×1080. Falta completar selector y
+ciclo de arte SteamGridDB, energía, cambio de salida de audio, métricas reales de almacenamiento/batería y curva de
+temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. No mostrar métricas de ejemplo como reales.
+
+**Prototipo visual:** `docs/prototipo-visual.html` muestra una propuesta navegable del escritorio Omnia a 16:9, con shelf,
+panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
+ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
+
 **Pendiente:**
+- Resolver por qué la consulta QML de partidas queda pendiente aunque el endpoint responda correctamente.
+- Revisar la captura a 1920×1080 contra el PNG de referencia.
+- Implementar y revisar menú contextual, selector de arte, energía, audio, métricas, paridad Big Menu/mando y navegación
+  del PDF; luego desarrollar el tema/layout instalable opcional de Plasma.
 - Instalar los últimos paquetes y aplicar el importador en la sesión real (solo probado contra un core temporal).
 - Abrir Longshot (¿carga las 6 ranuras?) y un juego N64; comprobar que Gopher64 use la **NVIDIA GTX 1650 Ti** (Vulkan lista
   primero la Intel UHD); si no, lanzar con `prime-run`.
@@ -90,6 +115,25 @@ juegos manuales, plantillas, importador, rescate de partidas de Bazzite (Gopher6
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-15 — Reemplazada la composición aproximada por un port basado en el lienzo y los componentes QML del prototipo;
+  añadidos metadatos seguros de presentación/ports en `/library`, navegación de ports en partidas y dependencia `qt6-5compat`
+  para tintar iconos. Revisada ventana 1280×720; pendiente corregir la consulta QML de partidas y validar a 1920×1080.
+  Sin instalación, commit ni push.
+
+- 2026-11-15 — Creada maqueta visual interactiva `docs/prototipo-visual.html` con vistas de estantería, Big Menu y energía;
+  documentadas en la sección 5 sus limitaciones y que el panel/dock representan componentes nativos de Plasma. Sin cambios
+  en el launcher, servicios ni escritorio instalado.
+
+- 2026-11-15 — Primer corte de adaptación visual en `OmniaShell.qml` y `GameCard.qml`: composición con ficha, reloj,
+  ranuras reales, estado, filtros, búsqueda y tarjetas seleccionadas ampliadas. Se conserva el control de mando actual; no
+  se añaden todavía MPRIS, telemetría, selector de arte ni acciones de energía. Vista previa abierta con biblioteca real;
+  `qmllint` y `git diff --check` limpios. Se ajustaron las etiquetas sw1/sw2 y la fecha al español. Paquetes instalados y
+  escritorio siguen sin cambios. La escala de la tarjeta seleccionada se adapta a ventanas de menor altura.
+
+- 2026-11-15 — Revisadas las capturas y documentación de `PROTOTIPO OMNIA`; inventario con hashes y plan de adaptación en
+  `REFERENCIA-PROTOTIPO.md`. Detectada divergencia entre respaldos antiguos y código del repo; registrada la futura separación
+  launcher/tema/layout. Revisión documental, sin cambios en servicios o configuración del escritorio.
 
 - 2026-11-15 — Se crea este documento. Importador adapta Gopher64 Flatpak → nativo (commit `fff2f54`); partidas N64 restauradas
   en `~/.local/share/gopher64/saves`; paquetes reconstruidos.

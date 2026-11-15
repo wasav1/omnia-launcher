@@ -152,13 +152,28 @@ class Api:
         for g in self.store.games():
             ports = [p for p in g.get("ports", []) if games_refresh.port_installed(p)]
             if ports:
+                snap = self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}
+                platform = g.get("platform", "")
+                platform_accents = {"n64": "#d9a441", "sw1": "#e8604f", "sw2": "#58a6f0", "pc": "#6fc3c9"}
+                port_rows = []
+                for p in ports:
+                    port_rows.append({"id": p["id"], "name": p["name"], "running": self._is_running(g, p, cmds),
+                                      "chips": list(p.get("chips") or []), "description": p.get("s", ""),
+                                      "canLaunch": games_refresh.port_installed(p), "canBackup": bool(p.get("saves"))})
+                session = (self.store.state.get("sessions") or {}).get(g["id"]) or {}
+                btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
-                            **(self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}),
-                            "ports": [{"id": p["id"], "name": p["name"], "running": self._is_running(g, p, cmds)} for p in ports],
+                            "sub": g.get("sub", ""), "description": g.get("s", ""), "chips": list(g.get("chips") or []),
+                            "pal": g.get("pal") or ["#10150f", "#1f3328", "#18271f", "#0d1510", platform_accents.get(platform, "#e6d9a0")],
+                            "acc": g.get("acc") or platform_accents.get(platform, "#e6d9a0"), "font": g.get("font", "Hanken Grotesk"),
+                            "added": int(g.get("added", 0) or 0), "lastSessionSecs": int(session.get("last_secs", 0) or 0),
+                            "lastBackup": int(btime or 0), "lastPlayed": snap["lastPlayed"], "totalSecs": snap["totalSecs"],
+                            "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
+                            "ports": port_rows,
                             "running": any(self._is_running(g, p, cmds) for p in ports),
                             **self._art(g),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
-        out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))      # lo último jugado primero; el resto, alfabético
+        out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
         return {"games": out}
 
     @staticmethod

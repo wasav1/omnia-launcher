@@ -1,236 +1,576 @@
 import QtQuick
+import QtQuick.Controls
 
-// Estantería de Omnia (primer corte): tarjetas de los juegos detectados, selección con teclado o ratón y lanzamiento.
+// Estantería a escala lógica 1920x1080, fiel al lienzo del prototipo.
 Rectangle {
     id: shell
-    color: "#0b1f16"
+    color: "#0b0d0c"
     focus: true
 
-    property int bottomInset: 0          // en modo escritorio la capa cubre también la zona del panel: se deja ese margen
-    property bool menuOpen: false          // Big Menu abierto (lo abre la tecla Windows, o el evento «MENU»)
-    property bool embedMenu: false         // en ventana normal el menú va dentro; como escritorio, en su propia ventana de capa
+    property int bottomInset: 0
+    property bool menuOpen: false
+    property bool embedMenu: false
     property alias backend: api
-    property string overlay: ""             // "saves" (panel de partidas) | "add" (asistente de añadir juego) | ""
+    property string overlay: ""
     property var overlayGame: null
+    property string overlayPort: ""
     property string importPath: ""
-    property string pendingSavesId: ""      // juego recién añadido: al aparecer en la biblioteca se abre su panel de partidas
-    function openSaves(g) { if (g) { overlayGame = g; overlay = "saves" } }
-    function openAdd() { overlay = "add" }
-    // El cierre se difiere: los paneles avisan «terminé» desde dentro de la respuesta de la API, y destruirlos ahí mismo
-    // (con listas vivas) hacía caer la interfaz (Qt: segfault en ~QQuickItemView durante el borrado diferido del Loader).
-    function closeOverlay() { Qt.callLater(function () { overlay = ""; overlayGame = null; shell.forceActiveFocus() }) }
-    Api { id: api }
-    onMenuOpenChanged: api.reportMenu(menuOpen)       // el núcleo da el mando al menú mientras esté abierto, haya o no ventanas
-    Timer { interval: 5000; running: !api.covered; repeat: true; onTriggered: api.refresh() }   // tapada: no hace falta sondear
-
-    readonly property var current: (api.games.length > 0 && list.currentIndex >= 0 && list.currentIndex < api.games.length)
-                                   ? api.games[list.currentIndex] : null
+    property string pendingSavesId: ""
+    property string selectedId: ""
+    property string filterKey: "all"
+    property string searchText: ""
+    property bool searchOpen: false
+    property string focusZone: "shelf"       // head | shelf | hero | player
+    property int focusIndex: 0
+    property var portSelection: ({})
+    property var saveInfo: null
+    property string saveFor: ""
+    property bool contextOpen: false
+    property point contextPoint: Qt.point(-1, -1)
+    property int contextIndex: 0
     property real nowSecs: Date.now() / 1000
-    Timer { interval: 30000; running: !api.covered; repeat: true; triggeredOnStart: true; onTriggered: shell.nowSecs = Date.now() / 1000 }
+    property string clockText: Qt.formatTime(new Date(), "h:mm AP")
+    property bool powerRequested: false
 
-    function dur(secs) {
-        const m = Math.floor(secs / 60)
-        if (secs < 60) return secs + " s"
-        if (m < 60) return m + " min"
-        const h = Math.floor(m / 60), r = m % 60
-        return h + " h" + (r ? " " + r + " min" : "")
+    readonly property real scaleFactor: Math.min(width / 1920, height / 1080)
+    readonly property var filterOptions: {
+        const out = [{ key: "all", label: "Todos" }]
+        let fav = false, hidden = false
+        for (let i = 0; i < api.games.length; i++) {
+            const g = api.games[i]
+            if (g.fav) fav = true
+            if (g.hidden) hidden = true
+        }
+        if (fav) out.push({ key: "fav", label: "★ Favoritos" })
+        const seen = {}
+        const platforms = []
+        for (let i = 0; i < api.games.length; i++) {
+            const key = norm(api.games[i].platform || "")
+            if (!key || seen[key]) continue
+            seen[key] = true
+            platforms.push({ key: key, label: platformLabel(api.games[i]) })
+        }
+        const order = { sw2: 0, pc: 1, sw1: 2, n64: 3 }
+        platforms.sort(function(a, b) { return (order[a.key] === undefined ? 9 : order[a.key]) - (order[b.key] === undefined ? 9 : order[b.key]) })
+        out.push.apply(out, platforms)
+        if (hidden) out.push({ key: "hidden", label: "Ocultos" })
+        return out
     }
-    function ago(ts) {
-        const d = Math.max(0, nowSecs - ts)
-        if (d < 90) return "hace un momento"
-        if (d < 3600) return "hace " + Math.floor(d / 60) + " min"
-        if (d < 86400) return "hace " + Math.floor(d / 3600) + " h"
-        const dias = Math.floor(d / 86400)
-        return dias === 1 ? "ayer" : "hace " + dias + " días"
+    readonly property var visibleGames: filteredAndSorted()
+    readonly property var current: (visibleGames.length && list.currentIndex >= 0 && list.currentIndex < visibleGames.length) ? visibleGames[list.currentIndex] : null
+    readonly property var selectedPort: {
+        if (!current || !current.ports || !current.ports.length) return null
+        const i = portSelection[current.id] === undefined ? 0 : Math.min(portSelection[current.id], current.ports.length - 1)
+        return current.ports[i]
     }
-    function playLine(g) {
-        if (!g) return ""
-        if (g.playingSince > 0) return "Jugando ahora · desde hace " + dur(Math.max(0, Math.floor(nowSecs - g.playingSince)))
-        if (g.plays === 0) return "Aún sin partidas"
-        return "Última vez " + ago(g.lastPlayed) + "  ·  " + dur(g.totalSecs) + " en total  ·  " + g.plays + (g.plays === 1 ? " partida" : " partidas")
-    }
-    property string clockText: Qt.formatTime(new Date(), "hh:mm")
-    Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: shell.clockText = Qt.formatTime(new Date(), "hh:mm") }
+    readonly property int selectedPortIndex: current && portSelection[current.id] !== undefined ? Math.min(portSelection[current.id], current.ports.length - 1) : 0
+    readonly property var contextItems: current ? [
+        { label: "Jugar", icon: "▶" },
+        { label: "Respaldar partidas", icon: "▣" },
+        { label: "Abrir carpeta", icon: "▱" },
+        { label: "Cambiar arte", icon: "↻" },
+        { label: "Elegir arte (SteamGridDB)…", icon: "▧" },
+        { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: current.fav ? "★" : "☆" },
+        { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: "◉" }
+    ].concat(searchText !== "" ? [{ label: "Borrar filtro de búsqueda", icon: "⌕" }] : []) : []
 
-    Component.onCompleted: forceActiveFocus()
+    function norm(s) { return (s || "").toString().toLocaleLowerCase() }
+    function platformLabel(g) {
+        const p = norm(g.platform || "")
+        if (p === "n64") return "N64"
+        if (p === "sw1") return "Switch"
+        if (p === "sw2") return "Switch 2"
+        if (p === "pc") return "PC"
+        return g.platform || g.src || "Juegos"
+    }
+    function platformColor(key) {
+        const k = norm(key)
+        if (k === "n64") return "#d9a441"
+        if (k === "sw1") return "#e8604f"
+        if (k === "sw2") return "#58a6f0"
+        if (k === "pc") return "#6fc3c9"
+        if (k === "fav") return "#e6d9a0"
+        if (k === "hidden") return "#a59f8f"
+        return current ? current.acc : "#e6d9a0"
+    }
+    function platformIcon(g) {
+        if (!g) return "pc"
+        if (g.platform !== "pc" || !g.src) return g.platform
+        const src = norm(g.src)
+        if (src === "steam") return "steam"
+        if (src === "heroic") return "heroic"
+        if (src === "lutris") return "lutris"
+        if (src.indexOf("geforce") >= 0) return "gfn"
+        if (src === "hydra") return "hydra"
+        return "pc"
+    }
+    function filteredAndSorted() {
+        const out = [], q = norm(searchText).trim()
+        for (let i = 0; i < api.games.length; i++) {
+            const g = api.games[i]
+            if (filterKey === "fav") { if (!g.fav || g.hidden) continue }
+            else if (filterKey === "hidden") { if (!g.hidden) continue }
+            else { if (g.hidden || (filterKey !== "all" && norm(g.platform) !== filterKey)) continue }
+            if (q) {
+                let hay = norm(g.name + " " + (g.sub || "") + " " + (g.description || ""))
+                for (let p = 0; p < (g.ports || []).length; p++) hay += " " + norm(g.ports[p].name)
+                if (hay.indexOf(q) < 0) continue
+            }
+            out.push(g)
+        }
+        if (filterKey === "all" || filterKey === "fav") {
+            const fav = [], fresh = [], rest = []
+            for (let i = 0; i < out.length; i++) {
+                const g = out[i]
+                if (g.fav && filterKey === "all") fav.push(g)
+                else if (g.added > Date.now() / 1000 - 14 * 86400 && !g.lastPlayed) fresh.push(g)
+                else rest.push(g)
+            }
+            fresh.sort(function(a,b) { return b.added - a.added })
+            out.length = 0
+            if (filterKey === "all") {
+                const recent = rest.filter(function(g) { return g.lastPlayed > 0 }).sort(function(a,b) { return b.lastPlayed-a.lastPlayed })
+                const old = rest.filter(function(g) { return !g.lastPlayed }).sort(function(a,b) { return a.name.localeCompare(b.name) })
+                out.push.apply(out, recent.slice(0,1)); out.push.apply(out, fav); out.push.apply(out, fresh)
+                for (let i=0;i<recent.length;i++) if (i>0) out.push(recent[i])
+                out.push.apply(out, old)
+            } else out.push.apply(out, fav.concat(fresh, rest))
+        }
+        return out
+    }
+    function chooseFilter(key) {
+        const keep = current ? current.id : selectedId
+        filterKey = key
+        Qt.callLater(function() { restoreSelection(keep) })
+    }
+    function restoreSelection(id) {
+        let idx = -1
+        for (let i = 0; i < visibleGames.length; i++) if (visibleGames[i].id === id) idx = i
+        list.currentIndex = idx >= 0 ? idx : (visibleGames.length ? 0 : -1)
+    }
+    function selectPort(i) {
+        if (!current || current.ports.length < 2) return
+        const m = Object.assign({}, portSelection)
+        m[current.id] = (i + current.ports.length) % current.ports.length
+        portSelection = m
+        saveFor = ""; saveInfo = null; loadSaves()
+    }
+    function stepPort(delta) { if (current && current.ports.length > 1) selectPort(selectedPortIndex + delta) }
+    function loadSaves() {
+        if (!current || !selectedPort || saveFor === current.id + ":" + selectedPort.id) return
+        const gid = current.id, pid = selectedPort.id
+        saveFor = gid + ":" + pid; saveInfo = null
+        api.savesInfo(current, function(st, body) {
+            if (!shell.current || shell.current.id !== gid || !shell.selectedPort || shell.selectedPort.id !== pid) return
+            shell.saveInfo = st === 200 ? body : { slots: [], error: body.error || "No se pudieron consultar las partidas (" + st + ")" }
+        }, pid)
+    }
+    function launchCurrent() { if (current && selectedPort) api.launch(current, selectedPort.id) }
+    function backupCurrent() {
+        if (!current || !selectedPort) return
+        api.savesBackup(current, function(st,b) {
+            api.toast = st === 200 ? "Respaldo creado" : (b.error || "No se pudo respaldar")
+            saveFor = ""; loadSaves(); api.refresh()
+        }, selectedPort.id)
+    }
+    function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.toast = b.error || "No se pudo abrir la carpeta" }, selectedPort.id) }
+    function toggleFavorite() { if (current) api.toggleFav(current) }
+    function toggleHidden() { if (current) api.call("POST", "/game/hide?id=" + encodeURIComponent(current.id), function(st) { if (st === 200) api.refresh() }) }
+    function setSearchOpen(on) { searchOpen = on; if (on) Qt.callLater(function() { searchField.forceActiveFocus() }); else shell.forceActiveFocus() }
+    function showContext(x, y) { if (!current || api.gameMode) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
+    function activateContext(i) {
+        contextOpen = false
+        if (i === 0) launchCurrent()
+        else if (i === 1) backupCurrent()
+        else if (i === 2) openSaveFolder()
+        else if (i === 3) api.toast = "El ciclo de arte se conectará con SteamGridDB"
+        else if (i === 4) api.toast = "El selector de SteamGridDB se conectará en esta etapa"
+        else if (i === 5) toggleFavorite()
+        else if (i === 6) toggleHidden()
+        else if (i === 7) { searchText = ""; setSearchOpen(false) }
+    }
+    function moveFilter(delta) {
+        const n = filterOptions.length
+        if (!n) return
+        let i = filterOptions.findIndex(function(x) { return x.key === filterKey })
+        chooseFilter(filterOptions[(Math.max(0,i) + delta + n) % n].key)
+    }
+    function relativeTime(ts) {
+        if (!ts) return "nunca"
+        const d = new Date(ts * 1000), now = new Date(nowSecs * 1000), fmt = Qt.locale("es_MX")
+        const hm = (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+        if (d.getTime() >= start) return "hoy " + hm
+        if (d.getTime() >= start - 86400000) return "ayer " + hm
+        return d.getDate() + " " + ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][d.getMonth()]
+    }
+    function duration(s) {
+        const m = Math.floor((s || 0) / 60), h = Math.floor(m / 60)
+        return h ? h + " h " + (m % 60) + " min" : Math.max(1,m) + " min"
+    }
+    function clockDate(d) { return d.toLocaleDateString(Qt.locale("es_MX"), "dddd d 'de' MMMM").toUpperCase() }
 
-    // Mando: los mismos gestos que el teclado. La confirmación es siempre «A» (en Nintendo, el botón derecho).
+    Api { id: api }
+    onMenuOpenChanged: api.reportMenu(menuOpen)
+    onCurrentChanged: { if (current) { selectedId = current.id; loadSaves() } else { saveFor = ""; saveInfo = null } }
+    onVisibleGamesChanged: Qt.callLater(function() { shell.restoreSelection(shell.selectedId) })
+    Timer { interval: 6000; running: !api.covered; repeat: true; onTriggered: api.refresh() }
+    Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: { shell.nowSecs = Date.now()/1000; shell.clockText = Qt.formatTime(new Date(), "h:mm AP") } }
+    Component.onCompleted: { forceActiveFocus(); if (visibleGames.length) list.currentIndex = 0 }
+
     Connections {
         target: api
         function onPadKey(key) {
-            if (key === "MENU") { shell.menuOpen = !shell.menuOpen; return }
-            if (shell.menuOpen || shell.overlay !== "") return  // con el menú o un panel abierto, los botones son suyos
-            if (key === "X") { shell.openSaves(shell.current); return }
-            if (key === "SELECT") { shell.openAdd(); return }
-            if (key === "r") list.incrementCurrentIndex()
-            else if (key === "l") list.decrementCurrentIndex()
-            else if (key === "RB") list.currentIndex = Math.min(api.games.length - 1, list.currentIndex + 5)
-            else if (key === "LB") list.currentIndex = Math.max(0, list.currentIndex - 5)
-            else if (key === "A") api.launch(shell.current)
-            else if (key === "Y") api.toggleFav(shell.current)
-        }
-    }
-    Keys.onPressed: function (e) {
-        if (e.key === Qt.Key_Right) { list.incrementCurrentIndex(); e.accepted = true }
-        else if (e.key === Qt.Key_Left) { list.decrementCurrentIndex(); e.accepted = true }
-        else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) { api.launch(current); e.accepted = true }
-        else if (e.key === Qt.Key_F) { api.toggleFav(current); e.accepted = true }
-        else if (e.key === Qt.Key_P) { shell.openSaves(current); e.accepted = true }
-        else if (e.key === Qt.Key_N) { shell.openAdd(); e.accepted = true }
-        else if (e.key === Qt.Key_Home) { list.currentIndex = 0; e.accepted = true }
-        else if (e.key === Qt.Key_End) { list.currentIndex = Math.max(0, api.games.length - 1); e.accepted = true }
-    }
-
-    // --- paneles: partidas de un juego y asistente de añadir juego
-    Component {
-        id: savesComp
-        SavesPanel { api: shell.backend; game: shell.overlayGame; onFinished: shell.closeOverlay() }
-    }
-    Component {
-        id: addComp
-        AddGame {
-            api: shell.backend
-            onFinished: shell.closeOverlay()
-            onAdded: function (id) { shell.pendingSavesId = id; shell.closeOverlay() }
-            onImportRequested: function (path) { shell.importPath = path; shell.overlay = "import" }
-        }
-    }
-    Component {
-        id: importComp
-        ImportPanel { api: shell.backend; path: shell.importPath; onFinished: shell.closeOverlay(); onImported: shell.closeOverlay() }
-    }
-    Loader {
-        anchors.fill: parent
-        z: 90
-        active: shell.overlay !== ""
-        sourceComponent: shell.overlay === "saves" ? savesComp : (shell.overlay === "import" ? importComp : addComp)
-    }
-    Connections {
-        target: api
-        function onGamesChanged() {
-            if (shell.pendingSavesId === "") return
-            for (let i = 0; i < api.games.length; i++) if (api.games[i].id === shell.pendingSavesId) {
-                shell.pendingSavesId = ""
-                shell.openSaves(api.games[i])
+            if (key === "MENU" || key === "START") { shell.menuOpen = !shell.menuOpen; return }
+            if (shell.menuOpen) return
+            if (shell.contextOpen) {
+                if (key === "u") shell.contextIndex = (shell.contextIndex - 1 + shell.contextItems.length) % shell.contextItems.length
+                else if (key === "d") shell.contextIndex = (shell.contextIndex + 1) % shell.contextItems.length
+                else if (key === "A") shell.activateContext(shell.contextIndex)
+                else if (key === "B" || key === "SELECT") shell.contextOpen = false
                 return
             }
+            if (key === "SELECT" || key === "MODE") { shell.showContext(-1,-1); return }
+            if (key === "X") { shell.backupCurrent(); return }
+            if (key === "Y") { if (music.item) music.item.playPause(); return }
+            if (key === "LB") { shell.moveFilter(-1); return }
+            if (key === "RB") { shell.moveFilter(1); return }
+            if (key === "LT") { shell.stepPort(-1); return }
+            if (key === "RT") { shell.stepPort(1); return }
+            if (shell.searchOpen) return
+            if (key === "l") list.decrementCurrentIndex()
+            else if (key === "r") list.incrementCurrentIndex()
+            else if (key === "u") shell.focusZone = "hero"
+            else if (key === "d") shell.focusZone = "shelf"
+            else if (key === "A") shell.launchCurrent()
+            else if (key === "B") { if (shell.overlay) shell.closeOverlay() }
         }
     }
-
-    // --- Big Menu incrustado (solo en modo ventana)
-    Loader {
-        active: shell.embedMenu
-        anchors.fill: parent
-        z: 100
-        sourceComponent: BigMenu {
-            api: shell.backend
-            open: shell.menuOpen
-            visible: shell.menuOpen
-            onCloseRequested: { shell.menuOpen = false; shell.forceActiveFocus() }
+    Keys.onPressed: function(e) {
+        if (contextOpen) {
+            if (e.key === Qt.Key_Up) contextIndex = (contextIndex - 1 + contextItems.length) % contextItems.length
+            else if (e.key === Qt.Key_Down) contextIndex = (contextIndex + 1) % contextItems.length
+            else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) activateContext(contextIndex)
+            else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Menu) contextOpen = false
+            e.accepted = true; return
         }
+        if (e.key === Qt.Key_Right) { list.incrementCurrentIndex(); e.accepted = true }
+        else if (e.key === Qt.Key_Left) { list.decrementCurrentIndex(); e.accepted = true }
+        else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { launchCurrent(); e.accepted = true }
+        else if (e.key === Qt.Key_Menu) { showContext(-1,-1); e.accepted = true }
+        else if (e.key === Qt.Key_F5) { api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st === 200 ? "Biblioteca actualizada" : "No se pudo actualizar" }); e.accepted = true }
+        else if (e.key === Qt.Key_Slash || (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier))) { setSearchOpen(!searchOpen); e.accepted = true }
+        else if (e.key === Qt.Key_F) { toggleFavorite(); e.accepted = true }
+        else if (e.key === Qt.Key_H) { toggleHidden(); e.accepted = true }
+        else if (e.key === Qt.Key_Tab) { moveFilter(e.modifiers & Qt.ControlModifier ? -1 : 1); e.accepted = true }
+        else if (e.key === Qt.Key_Escape && (searchOpen || searchText)) { searchText = ""; setSearchOpen(false); e.accepted = true }
+        else if (e.key === Qt.Key_PageUp) { stepPort(-1); e.accepted = true }
+        else if (e.key === Qt.Key_PageDown) { stepPort(1); e.accepted = true }
+        else if (e.key === Qt.Key_Space) { if (music.item) music.item.playPause(); e.accepted = true }
+        else if (e.key === Qt.Key_N) { openAdd(); e.accepted = true }
     }
 
-    // --- telón: fondo del juego seleccionado (SteamGridDB) con un velo que mantiene legibles los textos
-    Backdrop {
-        id: backdrop
-        anchors.fill: parent
-        source: shell.current && shell.current.fondo ? shell.current.fondo : ""
-    }
+    function openSaves(g) { if (g) { overlayGame = g; overlayPort = selectedPort ? selectedPort.id : ""; overlay = "saves" } }
+    function openAdd() { overlay = "add" }
+    function closeOverlay() { Qt.callLater(function() { overlay = ""; overlayGame = null; shell.forceActiveFocus() }) }
+    Component { id: savesComp; SavesPanel { api: shell.backend; game: shell.overlayGame; portId: shell.overlayPort; onFinished: shell.closeOverlay() } }
+    Component { id: addComp; AddGame {
+        api: shell.backend
+        onFinished: shell.closeOverlay()
+        onAdded: function(id) { shell.pendingSavesId=id; shell.closeOverlay() }
+        onImportRequested: function(path) { shell.importPath=path; shell.overlay="import" }
+    } }
+    Component { id: importComp; ImportPanel { api: shell.backend; path: shell.importPath; onFinished: shell.closeOverlay(); onImported: shell.closeOverlay() } }
+    Loader { anchors.fill: parent; z: 90; active: shell.overlay !== ""; sourceComponent: shell.overlay === "saves" ? savesComp : (shell.overlay === "import" ? importComp : addComp) }
+    Connections { target: api; function onGamesChanged() {
+        if (shell.pendingSavesId === "") return
+        for (let i=0;i<api.games.length;i++) if (api.games[i].id === shell.pendingSavesId) { shell.pendingSavesId=""; shell.openSaves(api.games[i]); return }
+    } }
+    Loader { id: music; source: "MusicSource.qml"; active: true }
+    Loader { id: sensors; source: "SensorsSource.qml"; active: true }
+
+    // Telón de arte desenfocado y película del juego seleccionado.
+    Backdrop { anchors.fill: parent; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(0.04, 0.12, 0.09, 0.80) }
-            GradientStop { position: 0.45; color: Qt.rgba(0.04, 0.12, 0.09, 0.55) }
-            GradientStop { position: 1.0; color: Qt.rgba(0.04, 0.12, 0.09, 0.94) }
-        }
+        color: shell.current && shell.current.pal && shell.current.pal.length ? shell.current.pal[0] : "#10150f"
+        opacity: 0.44
+        Behavior on color { ColorAnimation { duration: 900 } }
+    }
+    Rectangle { anchors.fill: parent; color: "#59000000" }
+    Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: parent.width * 0.78
+        gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: "#aa000000" } GradientStop { position: 1; color: "#00000000" } }
+    }
+    Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: parent.height * 0.52
+        gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "#b3000000" } }
     }
 
-    // --- cabecera
-    Row {
-        anchors { top: parent.top; left: parent.left; margins: 48 }
-        spacing: 16
-        Text { text: "Omnia"; color: "#e6d9a0"; font.pixelSize: 34; font.bold: true }
-        Text { text: api.games.length > 0 ? api.games.length + " juegos" : ""; color: "#c9bf8a"; font.pixelSize: 20; y: 12 }
-        Rectangle {
-            y: 8; height: 34; width: addTxt.width + 28; radius: 17
-            color: addArea.containsMouse ? Qt.rgba(0.9, 0.85, 0.63, 0.22) : Qt.rgba(1, 1, 1, 0.08)
-            Text { id: addTxt; anchors.centerIn: parent; text: "＋ Añadir juego"; color: "#e6d9a0"; font.pixelSize: 15 }
-            MouseArea { id: addArea; anchors.fill: parent; hoverEnabled: true; onClicked: shell.openAdd() }
-        }
-    }
-    Column {
-        anchors { top: parent.top; right: parent.right; margins: 48 }
-        spacing: 2
-        Text { anchors.right: parent.right; text: shell.clockText; color: "#e6d9a0"; font.pixelSize: 34 }
-        Text { anchors.right: parent.right; visible: api.padOn; text: "🎮 " + api.padName; color: "#c9bf8a"; font.pixelSize: 15 }
-        Text { anchors.right: parent.right; visible: api.gameMode; text: "⚡ Modo juego"; color: "#7fd69f"; font.pixelSize: 15; font.bold: true }
-    }
+    Item {
+        id: canvas
+        readonly property real s: shell.scaleFactor
+        width: 1920; height: shell.height / s; scale: s; transformOrigin: Item.TopLeft; clip: true
+        property color acc: shell.current && shell.current.acc ? shell.current.acc : "#e6d9a0"
+        property color ink: "#f3efe3"
+        property color ink2: "#d6d0bf"
+        property color ink3: "#a59f8f"
+        property string hud: "Rajdhani"
+        property string body: "Hanken Grotesk"
 
-    // --- estantería
-    ListView {
-        id: list
-        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -30 - shell.bottomInset / 2 }
-        height: 340
-        orientation: ListView.Horizontal
-        spacing: 24
-        model: api.games
-        clip: false
-        highlightRangeMode: ListView.StrictlyEnforceRange
-        preferredHighlightBegin: width / 2 - 110
-        preferredHighlightEnd: width / 2 + 110
-        highlightMoveDuration: 220
-        keyNavigationEnabled: false          // las flechas las gestiona shell, para no perder el foco de teclado
-        delegate: GameCard {
-            required property var modelData
-            required property int index
-            anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-            game: modelData
-            current: ListView.isCurrentItem
-            onActivated: { if (ListView.isCurrentItem) api.launch(modelData); else list.currentIndex = index }
-        }
-    }
-
-    // --- estados vacíos
-    Text {
-        visible: !api.ok || api.games.length === 0
-        anchors.centerIn: parent
-        width: parent.width * 0.6; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-        color: "#c9bf8a"; font.pixelSize: 24
-        text: !api.ok ? api.error : "No se detectó ningún juego instalado.\nInstala algo en Steam, Heroic o Lutris y aparecerá aquí."
-    }
-
-    // --- ficha del juego seleccionado
-    Column {
-        visible: shell.current !== null
-        anchors { left: parent.left; bottom: parent.bottom; margins: 48; bottomMargin: 48 + shell.bottomInset }
-        spacing: 10
-        Text { text: shell.current ? shell.current.name : ""; color: "#f4efd8"; font.pixelSize: 40; font.bold: true }
-        Text { text: shell.playLine(shell.current); color: shell.current && shell.current.playingSince > 0 ? "#7fd69f" : "#c9bf8a"; font.pixelSize: 18 }
+        // Filtros en píldoras, a las coordenadas de referencia del prototipo.
         Row {
-            spacing: 14
-            Rectangle {
-                width: playTxt.width + 56; height: 52; radius: 26
-                color: playArea.containsMouse ? "#3aa06a" : "#2e8b57"
-                Text { id: playTxt; anchors.centerIn: parent; text: shell.current && shell.current.running ? "En ejecución" : "Jugar"; color: "white"; font.pixelSize: 22; font.bold: true }
-                MouseArea { id: playArea; anchors.fill: parent; hoverEnabled: true; onClicked: api.launch(shell.current) }
+            id: header; x: 84; y: 54; spacing: 10
+            Repeater { model: shell.filterOptions
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    property bool active: shell.filterKey === modelData.key
+                    height: 34; radius: 17; width: label.implicitWidth + (modelData.key === "all" ? 26 : 32)
+                    color: active ? "#ebffffff" : "#59000000"; border.width: active ? 0 : 1; border.color: "#47f3efe3"
+                    Row { id: label; anchors.centerIn: parent; spacing: 7
+                        PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
+                        Text { visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: modelData.label; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === index; anchors.fill: parent; anchors.margins: -4; radius: 22; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                    MouseArea { anchors.fill: parent; onClicked: shell.chooseFilter(modelData.key) }
+                }
             }
             Rectangle {
-                width: partTxt.width + 40; height: 52; radius: 26; color: partArea.containsMouse ? "#2a4a3a" : "#1c3a2c"
-                Text { id: partTxt; anchors.centerIn: parent; text: "Partidas"; color: "#e6d9a0"; font.pixelSize: 18 }
-                MouseArea { id: partArea; anchors.fill: parent; hoverEnabled: true; onClicked: shell.openSaves(shell.current) }
+                width: 34; height: 34; radius: 17; color: searchOpen ? "#ebffffff" : "#59000000"; border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
+                Text { anchors.centerIn: parent; text: "⌕"; color: searchOpen ? "#10150f" : canvas.ink; font.pixelSize: 21 }
+                MouseArea { anchors.fill: parent; onClicked: shell.setSearchOpen(!searchOpen) }
+            }
+            Rectangle { width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Text { anchors.centerIn: parent; text: "⏻"; color: canvas.ink; font.pixelSize: 18 }
+                MouseArea { anchors.fill: parent; onClicked: { shell.menuOpen = true; api.loadApps() } }
+            }
+            Rectangle { width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Text { anchors.centerIn: parent; text: "↻"; color: canvas.ink; font.pixelSize: 18 }
+                MouseArea { anchors.fill: parent; onClicked: api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st===200 ? "Biblioteca actualizada" : "No se pudo actualizar" }) }
+            }
+            Rectangle { visible: api.padOn; width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Text { anchors.centerIn: parent; text: "◖"; color: canvas.ink; font.pixelSize: 18 }
+                MouseArea { anchors.fill: parent; onClicked: api.toast = "Salida de audio" }
+            }
+        }
+        Rectangle {
+            id: searchBox; x: 84; y: 54; width: 610; height: 34; radius: 17; z: 5; clip: true
+            opacity: shell.searchOpen ? 1 : 0; visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: 180 } }
+            color: "#99000000"; border.width: 1; border.color: shell.searchOpen ? "#e6d9a0" : "#47f3efe3"
+            TextInput { id: searchField; x: 17; width: parent.width - 150; height: parent.height; text: shell.searchText; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 18; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true
+                onTextChanged: shell.searchText = text
+                Keys.onEscapePressed: { shell.searchText = ""; shell.setSearchOpen(false) }
+                Keys.onReturnPressed: shell.forceActiveFocus()
+                Keys.onEnterPressed: shell.forceActiveFocus()
+            }
+            Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
+            Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + " juegos" : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
+            Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "✕"; color: canvas.ink; visible: shell.searchText !== ""
+                MouseArea { anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
+            }
+        }
+
+        // Ficha del juego: icono/origen, estado, logo o título, descripción, chips, ports y Jugar.
+        Column {
+            id: hero; x: 84; y: 116; width: 650; spacing: 8
+            opacity: api.gameMode ? 0.12 : 1; Behavior on opacity { NumberAnimation { duration: 300 } }
+            Row { spacing: 10
+                PlatIcon { key: shell.platformIcon(current); color: shell.platformColor(current ? current.platform : "pc"); size: 20; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: current ? (platformLabel(current) + (current.platform === "pc" && current.src ? " · " + current.src : "")) : "OMNIA"; color: shell.platformColor(current ? current.platform : "pc"); font.family: canvas.hud; font.pixelSize: 20; font.weight: Font.DemiBold; font.letterSpacing: 2; anchors.verticalCenter: parent.verticalCenter }
+            }
+            Text { visible: !!current; text: current ? (current.plays > 0 ? platformLabel(current).toUpperCase() + " · " + shell.relativeTime(current.lastPlayed).toUpperCase() : platformLabel(current).toUpperCase() + " · SIN JUGAR") : ""; color: "#8de5c9"; font.family: canvas.hud; font.pixelSize: 16; font.letterSpacing: 3 }
+            Item {
+                width: 520; height: 154
+                Image { anchors.fill: parent; source: current && current.logo ? current.logo : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; sourceSize.width: 1000; visible: status === Image.Ready }
+                Text { visible: !current || !current.logo; anchors.fill: parent; verticalAlignment: Text.AlignTop; text: current ? current.name : "Tu biblioteca"; color: canvas.ink; font.family: current && current.font ? current.font : "Hanken Grotesk"; font.pixelSize: 58; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideNone }
+            }
+            Text { visible: !!current; text: current ? (selectedPort && selectedPort.description ? selectedPort.description : (current.description || current.sub || "")) : ""; color: canvas.ink2; font.family: canvas.body; font.pixelSize: 20; elide: Text.ElideRight }
+            Row { visible: !!current; spacing: 18
+                Repeater { model: current ? (selectedPort ? selectedPort.chips.concat(current.chips || []) : (current.chips || [])) : []
+                    delegate: Row { required property string modelData; spacing: 8
+                        Rectangle { width: 8; height: 8; radius: 4; color: canvas.acc; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: modelData; color: canvas.ink; font.family: canvas.body; font.pixelSize: 18 }
+                    }
+                }
+            }
+            Row { visible: current && current.ports.length > 1; spacing: 10; height: 36
+                Text { text: "PORT"; color: canvas.ink3; font.family: canvas.hud; font.pixelSize: 15; font.letterSpacing: 3; anchors.verticalCenter: parent.verticalCenter }
+                Repeater { model: current ? current.ports : []
+                    delegate: Rectangle { required property var modelData; required property int index
+                        height: 34; width: portName.implicitWidth + 28; radius: 17
+                        color: index === selectedPortIndex ? canvas.acc : "#59000000"; border.width: index === selectedPortIndex ? 0 : 1; border.color: "#47f3efe3"
+                        Row { id: portName; anchors.centerIn: parent; spacing: 6
+                            Rectangle { visible: modelData.running; width: 8; height: 8; radius: 4; color: "#6fd66f"; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: modelData.name; color: index === selectedPortIndex ? "#10150f" : canvas.ink; font.family: canvas.hud; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: shell.selectPort(index) }
+                    }
+                }
             }
             Rectangle {
-                width: 52; height: 52; radius: 26; color: favArea.containsMouse ? "#2a4a3a" : "#1c3a2c"
-                border.color: "#e6d9a0"; border.width: shell.current && shell.current.fav ? 2 : 0
-                Text { anchors.centerIn: parent; text: shell.current && shell.current.fav ? "★" : "☆"; color: "#e6d9a0"; font.pixelSize: 28 }
-                MouseArea { id: favArea; anchors.fill: parent; hoverEnabled: true; onClicked: api.toggleFav(shell.current) }
+                id: playButton; height: 48; radius: 24; width: playText.implicitWidth + 52; color: "#a5efc2"
+                Row { id: playText; anchors.centerIn: parent; spacing: 10
+                    Text { text: "▶"; color: "#10150f"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: current && current.running ? "En ejecución" : (selectedPort && current.ports.length > 1 ? "Jugar con " + selectedPort.name : "Jugar"); color: "#10150f"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === (current && current.ports ? current.ports.length : 0); anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { anchors.fill: parent; onClicked: shell.launchCurrent() }
+            }
+            PadGuide { visible: api.padOn; width: 650; padName: api.padName; iconSize: 24; fontPx: 14; spacing: 8; textColor: canvas.ink2; fontFamily: canvas.hud
+                hints: [{k:"A",t:"Jugar"},{k:"X",t:"Respaldar"},{k:"LB+RB",t:"Filtro"},{k:"LT+RT",t:"Port"},{k:"SELECT",t:"Opciones"},{k:"START",t:"Big Menú"}]
+            }
+        }
+
+        // Reloj, mando, ranuras reales y ficha.
+        Item { x: 760; y: 80; width: 700; height: 140; opacity: api.gameMode ? 0.12 : 1
+            Row { id: clockDigits; spacing: 0
+                Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getHours()%12)||12 } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold }
+                Text { text: ":"; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold; opacity: new Date(shell.nowSecs*1000).getSeconds()%2 ? .2 : .85 }
+                Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getMinutes()<10?"0":"")+d.getMinutes() } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold }
+            }
+            Text { x: clockDigits.width + 12; y: 60; text: new Date(shell.nowSecs*1000).getHours()<12 ? "AM" : "PM"; color: canvas.acc; font.family: canvas.hud; font.pixelSize: 32; font.weight: Font.DemiBold; font.letterSpacing: 4 }
+            Text { y: 112; text: clockDate(new Date(shell.nowSecs*1000)); color: canvas.ink2; font.family: canvas.hud; font.pixelSize: 22; font.letterSpacing: 3 }
+        }
+        Rectangle { x: 1130; y: 118; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
+            Row { id: padLabel; anchors.centerIn: parent; spacing: 8
+                Text { text: "⌘"; color: api.padOn ? canvas.acc : "#80f3efe3"; font.pixelSize: 17; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
+            }
+        }
+        Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; opacity: api.gameMode ? .12:1
+            Column { width: parent.width; spacing: 0
+                Row { width: parent.width; spacing: 14; height: 22
+                    Text { id: saveHead; text: "PARTIDAS · " + (saveInfo && saveInfo.slots.length ? saveInfo.slots.length + " RANURAS" : "NINGUNA"); color: canvas.acc; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 3.2 }
+                    Rectangle { width: parent.width-saveHead.implicitWidth-14; height:1; color:"#47f3efe3"; anchors.verticalCenter:parent.verticalCenter }
+                }
+                Item { width:1; height:8 }
+                Item { width:parent.width; height:70
+                    Row { visible: saveInfo && saveInfo.slots.length; width:parent.width
+                        Repeater { model: saveInfo ? saveInfo.slots.slice(0,6) : []
+                            delegate: Item { required property var modelData; required property int index; width: parent.width/Math.max(1,saveInfo.slots.length); height:70
+                                Rectangle { visible:index>0; width:1; height:56; color:"#47f3efe3" }
+                                Column { x:index>0?14:0; spacing:2
+                                    Rectangle { width:13; height:13; radius:7; color:modelData.used ? canvas.acc : "transparent"; border.width:2; border.color:modelData.used?canvas.ink:canvas.ink3 }
+                                    Item { width:1;height:4 }
+                                    Text { text:modelData.name; color:modelData.used?canvas.ink:canvas.ink3; font.family:canvas.hud; font.pixelSize:17; font.weight:Font.DemiBold }
+                                    Text { text:modelData.used ? shell.relativeTime(modelData.mtime) : "vacía"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:14 }
+                                }
+                            }
+                        }
+                    }
+                    Text { visible: !saveInfo || !saveInfo.slots.length; width:560; wrapMode:Text.WordWrap; text:saveInfo ? (saveInfo.error || "Aún no hay partidas. Aparecerán aquí cuando juegues.") : "Consultando partidas…"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:19 }
+                }
+                Row { spacing:10; height:30
+                    Text { text:"☷"; color:canvas.ink3; font.pixelSize:18; anchors.verticalCenter:parent.verticalCenter }
+                    Text { text:"Más opciones: clic derecho · botón Select del mando"; color:canvas.ink3; font.family:canvas.body; font.pixelSize:16; anchors.verticalCenter:parent.verticalCenter }
+                }
+                Item { width:1;height:14 }
+                Row { width:parent.width; spacing:14; height:22
+                    Text { id: infoHead; text:"FICHA"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:16; font.weight:Font.DemiBold; font.letterSpacing:3.2 }
+                    Rectangle { width:parent.width-infoHead.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
+                }
+                Item { width:1;height:10 }
+                Row { width:parent.width
+                    Repeater { model: current ? [
+                        {v: current.plays ? shell.relativeTime(current.lastPlayed) : "nunca", l:"ÚLTIMA SESIÓN", w:150},
+                        {v:"—", l:"EN DISCO", w:120},
+                        {v:"por defecto", l:"AJUSTES", w:220},
+                        {v: shell.relativeTime(current.lastBackup), l:"ÚLTIMO RESPALDO", w:150}
+                    ] : []
+                        delegate: Column { required property var modelData; width:modelData.w; spacing:3
+                            Text { width:parent.width-10;text:modelData.v;color:canvas.ink;font.family:canvas.hud;font.pixelSize:22;font.weight:Font.DemiBold;elide:Text.ElideRight }
+                            Text { text:modelData.l;color:canvas.ink3;font.family:canvas.hud;font.pixelSize:14;font.letterSpacing:2.5;font.weight:Font.Medium }
+                        }
+                    }
+                }
+            }
+        }
+
+        // MPRIS, broche y monitor del sistema con módulos KDE reales.
+        Item { id: player; x:1530; y:48; width:320; height:156; visible: music.item && music.item.available && !api.gameMode; opacity:visible?1:0
+            Column { anchors.horizontalCenter:parent.horizontalCenter; width:parent.width; spacing:4
+                Text { width:parent.width; horizontalAlignment:Text.AlignHCenter; elide:Text.ElideRight; text:music.item?music.item.track:""; color:canvas.ink;font.family:canvas.hud;font.pixelSize:21;font.weight:Font.DemiBold }
+                Text { width:parent.width; horizontalAlignment:Text.AlignHCenter; elide:Text.ElideRight; text:music.item?music.item.artist:""; color:canvas.ink2;font.family:canvas.hud;font.pixelSize:17 }
+                Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:8
+                    Repeater { model:3; delegate: Rectangle { required property int index; width:index===1?46:38;height:width;radius:width/2;color:index===1?canvas.acc:"transparent"
+                        Text { anchors.centerIn:parent;text:index===0?"|◀":index===2?"▶|":(music.item&&music.item.playing?"Ⅱ":"▶");color:index===1?"#10150f":canvas.ink;font.pixelSize:16 }
+                        MouseArea { anchors.fill:parent;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
+                    } }
+                }
+                Row { width:parent.width; spacing:10; height:20
+                    Text { text:music.item?formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:14 }
+                    Rectangle { width:parent.width-100;height:4;radius:2;color:"#2effffff";anchors.verticalCenter:parent.verticalCenter
+                        Rectangle { height:parent.height;width:music.item&&music.item.length>0?parent.width*Math.min(1,music.item.position/music.item.length):0;color:canvas.acc;radius:2 }
+                    }
+                    Text { text:music.item?formatTrackTime(music.item.length):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:14 }
+                }
+            }
+        }
+        function formatTrackTime(s) { s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
+        Clasp { x:1530; y:212; color:canvas.acc; opacity:.9 }
+        Item { id:hud; x:1530;y:246;width:320;height:440; visible:sensors.item !== null && !api.gameMode
+            Column { width:parent.width; spacing:0
+                Row { width:parent.width;spacing:14;height:24
+                    Text { id:hudTitle;text:"SISTEMA";color:canvas.acc;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
+                    Rectangle { width:parent.width-hudTitle.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
+                }
+                HudRow { label:"CPU";sub:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—";extraColor:sensors.item&&sensors.item.cpuTemp>=88?"#e2604f":canvas.ink2;acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?sensors.item.gpu:0;vtext:Math.round(sensors.item?sensors.item.gpu:0)+" %";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C":"—";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"VRAM";sub:sensors.item?Math.round(sensors.item.vramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100:0;vtext:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"JUEGOS";sub:"Btrfs";pct:0;vtext:"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"BATERÍA";sub:"";pct:0;vtext:"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                Item { width:parent.width;height:62
+                    Canvas { width:parent.width;height:34;property var h:sensors.item?[sensors.item.cpuTemp]:[];onHChanged:requestPaint();onPaint:{let c=getContext("2d");c.reset();if(h.length){c.strokeStyle=canvas.acc;c.lineWidth=2;c.beginPath();c.moveTo(0,17);c.lineTo(width,17);c.stroke()}} }
+                    Text { y:38;text:"TEMP. CPU · 60 S";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:15;font.letterSpacing:2.5 }
+                }
+            }
+        }
+
+        // Carrusel del prototipo: tarjeta activa en x=230, 290x435; laterales 190x285.
+        Item { id:shelfWrap; x:0; width:1920; height:640; y:canvas.height-136-height; clip:true
+            Item { id:track; x:230-list.currentIndex*210; height:parent.height; Behavior on x { NumberAnimation { duration:550;easing.type:Easing.OutCubic } }
+                Row { id:cardsRow; spacing:20; anchors.bottom:parent.bottom
+                    Repeater { model:shell.visibleGames
+                        delegate: Item { id:slot; required property var modelData; required property int index
+                            readonly property bool selected:index===list.currentIndex
+                            width:selected?290:190;height:435;z:selected?5:0
+                            Behavior on width { NumberAnimation { duration:420;easing.type:Easing.OutBack;easing.overshoot:.8 } }
+                            readonly property real cx:x+track.x+width/2
+                            opacity:Math.max(0,Math.min(1,cx/300,(1920-cx)/380))
+                            Loader { anchors.fill:parent;active:Math.abs(slot.index-list.currentIndex)<=9
+                                sourceComponent: Component { GameCard { anchors.bottom:parent.bottom; width:slot.width;height:slot.selected?435:285; game:slot.modelData;current:slot.selected;api:shell.backend
+                                    platformLabel:shell.platformLabel(slot.modelData);platformColor:shell.platformColor(slot.modelData.platform);iconKey:shell.platformIcon(slot.modelData);coordinateRoot:canvas
+                                    onActivated: { if(slot.selected) shell.launchCurrent(); else list.currentIndex=slot.index }
+                                    onContextRequested: function(px,py) { if(!slot.selected)list.currentIndex=slot.index; shell.showContext(px,py) }
+                                } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ListView { id:list; visible:false; width:1;height:1;model:shell.visibleGames;currentIndex:0 }
+
+        MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.RightButton;onClicked:function(m){shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
+        Item { anchors.fill:parent;z:35;visible:contextOpen
+            MouseArea { anchors.fill:parent;acceptedButtons:Qt.LeftButton|Qt.RightButton;onClicked:shell.contextOpen=false }
+            Rectangle { id:ctx; width:360;height:shell.contextItems.length*50+28;radius:20
+                x:contextPoint.x<0?560:Math.max(20,Math.min(1920-width-20,contextPoint.x)); y:contextPoint.y<0?470:Math.max(100,Math.min(canvas.height-height-130,contextPoint.y))
+                color:"#ff0d1510";border.width:1;border.color:"#73e6d9a0"
+                MouseArea { anchors.fill:parent;acceptedButtons:Qt.AllButtons }
+                Column { x:12;y:14;width:parent.width-24
+                    Repeater { model:shell.contextItems;delegate:Rectangle { required property var modelData;required property int index;height:50;width:parent.width;radius:14
+                        color:index===shell.contextIndex?canvas.acc:(hover.containsMouse?"#1fffffff":"transparent")
+                        Text { x:17;anchors.verticalCenter:parent.verticalCenter;text:modelData.icon;color:index===shell.contextIndex?"#10150f":canvas.ink;font.pixelSize:20 }
+                        Text { x:56;anchors.verticalCenter:parent.verticalCenter;text:modelData.label;color:index===shell.contextIndex?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:18 }
+                        MouseArea { id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
+                    } }
+                }
             }
         }
     }
-    Text {
-        anchors { right: parent.right; bottom: parent.bottom; margins: 48; bottomMargin: 48 + shell.bottomInset }
-        horizontalAlignment: Text.AlignRight
-        color: api.toast ? "#f4efd8" : "#8c8560"; font.pixelSize: 17
-        text: api.toast ? api.toast : "← → elegir  ·  Enter jugar  ·  F favorito  ·  P partidas  ·  N añadir juego"
-    }
+    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;visible:shell.menuOpen;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
+    Text { anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 } text:api.toast;color:canvas.acc;font.family:"Rajdhani";font.pixelSize:15 }
 }

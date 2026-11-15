@@ -1,83 +1,96 @@
 import QtQuick
 import QtQuick.Effects
 
-// Tarjeta de un juego. Sin arte todavía: color propio por título (como hacía el prototipo cuando no había portada).
+// Tarjeta de biblioteca del prototipo: portada limpia, insignias finas y elevación al pasar.
 Item {
     id: card
     property var game
     property bool current: false
+    property string platformLabel: ""
+    property color platformColor: "#6fc3c9"
+    property string iconKey: "pc"
+    property var api
+    property Item coordinateRoot
     signal activated
+    signal contextRequested(real x, real y)
 
-    readonly property real hue: {
-        var h = 0, n = card.game ? card.game.name : ""
-        for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) % 360
-        return h / 360
-    }
+    width: current ? 290 : 190
+    height: current ? 435 : 285
+    z: current ? 5 : 0
+    opacity: 1
+    Behavior on height { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+    transform: Translate { y: hoverArea.containsMouse && !card.current ? -10 : 0; Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } } }
 
-    width: 220; height: 300
-    scale: current ? 1.0 : 0.88
-    opacity: current ? 1.0 : 0.6
-    Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-    Behavior on opacity { NumberAnimation { duration: 160 } }
-
-    Rectangle {
-        anchors.fill: parent; radius: 18
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.hsla(card.hue, 0.45, 0.30, 1) }
-            GradientStop { position: 1.0; color: Qt.hsla(card.hue, 0.50, 0.12, 1) }
-        }
-    }
-    // portada real (SteamGridDB) con esquinas redondeadas; si no hay, queda el degradado de arriba
     Item {
-        id: cover
+        id: artLayer
         anchors.fill: parent
-        visible: !!(card.game && card.game.portada) && img.status === Image.Ready
+        clip: true
+        Rectangle { anchors.fill: parent; color: "#171b18" }
+        Scene {
+            anchors.fill: parent
+            pal: card.game && card.game.pal ? card.game.pal : ["#10150f", "#1f3328", "#18271f", "#0d1510", "#e6d9a0"]
+            big: false
+            visible: cover.status !== Image.Ready
+        }
         Image {
-            id: img
-            anchors.fill: parent; visible: false; asynchronous: true; cache: true
+            id: cover
+            anchors.fill: parent
             source: card.game && card.game.portada ? card.game.portada : ""
             fillMode: Image.PreserveAspectCrop
-            sourceSize.width: 440
+            asynchronous: true
+            smooth: true
+            sourceSize.width: 600
+            visible: false
         }
-        Rectangle { id: mask; anchors.fill: parent; radius: 18; visible: false; layer.enabled: true }
-        MultiEffect { anchors.fill: parent; source: img; maskEnabled: true; maskSource: mask }
-    }
-    Text {      // inicial grande de fondo (solo sin portada)
-        visible: !cover.visible
-        anchors.centerIn: parent; anchors.verticalCenterOffset: -20
-        text: card.game ? card.game.name.charAt(0).toUpperCase() : ""
-        color: Qt.rgba(1, 1, 1, 0.10); font.pixelSize: 150; font.bold: true
-    }
-    Rectangle {
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: 120; radius: 18
-        gradient: Gradient {      // oscurece hacia abajo para que el título se lea sobre cualquier portada
-            GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.0) }
-            GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0.72) }
-            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.92) }
+        Rectangle { id: coverMask; anchors.fill: parent; radius: 18; visible: false; layer.enabled: true }
+        MultiEffect { anchors.fill: parent; source: cover; maskEnabled: true; maskSource: coverMask; visible: cover.status === Image.Ready }
+        Rectangle {
+            visible: cover.status !== Image.Ready
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: parent.height * .44
+            gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "#d9000000" } }
         }
         Column {
+            visible: cover.status !== Image.Ready
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 14 }
-            spacing: 4
-            Text { width: parent.width; elide: Text.ElideRight; text: card.game ? card.game.name : ""; color: "#f4efd8"; font.pixelSize: 19; font.bold: true }
-            Text { text: card.game ? card.game.src : ""; color: "#c9bf8a"; font.pixelSize: 14 }
+            spacing: 3
+            Text { width: parent.width; text: card.game ? card.game.name : ""; color: "#f3efe3"; font.family: card.game && card.game.font ? card.game.font : "Hanken Grotesk"; font.pixelSize: card.current ? 35 : 24; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Text { width: parent.width; text: card.game ? card.game.sub || card.game.src : ""; color: "#d6d0bf"; font.family: "Hanken Grotesk"; font.pixelSize: card.current ? 20 : 17; elide: Text.ElideRight }
         }
     }
-    Text {
-        visible: !!(card.game && card.game.fav)
-        anchors { top: parent.top; right: parent.right; margins: 12 }
-        text: "★"; color: "#e6d9a0"; font.pixelSize: 26
+    Rectangle { anchors.fill: parent; radius: 18; color: "transparent"; border.width: 1; border.color: current ? "#d9ffffff" : "#38ffffff" }
+
+    Rectangle {
+        x: 12; y: 12; height: 26; radius: 13; color: "#8c000000"
+        width: originRow.implicitWidth + 18
+        Row { id: originRow; anchors.centerIn: parent; spacing: 5
+            PlatIcon { key: card.iconKey; size: 17; color: card.platformColor; anchors.verticalCenter: parent.verticalCenter }
+            Text { text: card.game && card.game.platform === "pc" && card.game.src ? "PC · " + card.game.src : card.platformLabel; color: card.platformColor; font.family: "Rajdhani"; font.pixelSize: 15; font.weight: Font.Bold; font.letterSpacing: .9; anchors.verticalCenter: parent.verticalCenter }
+        }
+    }
+    Text { visible: !!(card.game && card.game.fav); anchors { right: parent.right; top: parent.top; margins: 10 } text: "★"; color: "#e6d9a0"; font.pixelSize: 22; style: Text.Outline; styleColor: "#99000000" }
+    Rectangle {
+        visible: !!(game && game.added > 0 && game.added > Date.now()/1000 - 14*86400 && !game.lastPlayed)
+        anchors { right: parent.right; top: parent.top; topMargin: current ? 12 : 16; rightMargin: (game && game.fav ? 40 : 12) + (current ? 0 : 4) }
+        height: current ? 26 : 14; radius: height/2; width: current ? newText.implicitWidth + 18 : 14
+        color: "#6fd08c"; border.width: current ? 0 : 2; border.color: "#cc0c1a10"
+        Text { id: newText; visible: card.current; anchors.centerIn: parent; text: "NUEVO"; color: "#0c1a10"; font.family: "Rajdhani"; font.pixelSize: 14; font.weight: Font.Bold; font.letterSpacing: 1.2 }
     }
     Rectangle {
-        visible: !!(card.game && card.game.running)
-        anchors { top: parent.top; left: parent.left; margins: 12 }
-        width: runTxt.width + 18; height: 26; radius: 13; color: "#2e8b57"
-        Text { id: runTxt; anchors.centerIn: parent; text: "En ejecución"; color: "white"; font.pixelSize: 13 }
+        visible: !!(game && game.ports && game.ports.length > 1)
+        anchors { right: parent.right; bottom: parent.bottom; margins: 12 }
+        height: 26; radius: 13; color: "#8c000000"; width: portsText.implicitWidth + 18
+        Text { id: portsText; anchors.centerIn: parent; text: (game && game.ports ? game.ports.length : 0) + " ports"; color: "#f3efe3"; font.family: "Rajdhani"; font.pixelSize: 15; font.weight: Font.Bold; font.letterSpacing: .9 }
     }
-    Rectangle {      // borde por encima de la portada y del degradado
-        anchors.fill: parent; radius: 18; color: "transparent"
-        border.width: card.current ? 3 : 1
-        border.color: card.current ? "#e6d9a0" : Qt.rgba(1, 1, 1, 0.15)
+    MouseArea {
+        id: hoverArea
+        anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                const p = card.coordinateRoot ? card.mapToItem(card.coordinateRoot, mouse.x, mouse.y) : Qt.point(mouse.x, mouse.y)
+                card.contextRequested(p.x, p.y)
+            } else card.activated()
+        }
     }
-    MouseArea { anchors.fill: parent; onClicked: card.activated() }
 }

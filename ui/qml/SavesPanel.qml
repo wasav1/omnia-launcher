@@ -5,6 +5,7 @@ FocusScope {
     id: sp
     property var api
     property var game
+    property string portId: ""
     signal finished
 
     property var info: null
@@ -15,8 +16,8 @@ FocusScope {
     readonly property bool isManual: !!game && game.id.indexOf("manual-") === 0
 
     function reload() {
-        api.savesInfo(game, function (st, b) { if (st === 200) info = b })
-        api.savesSuggest(game, function (st, b) { suggestions = st === 200 ? b.suggestions : [] })
+        api.savesInfo(game, function (st, b) { if (st === 200) info = b }, portId)
+        api.savesSuggest(game, function (st, b) { suggestions = st === 200 ? b.suggestions : [] }, portId)
     }
     function ago(ts) {
         if (!ts) return "nunca"
@@ -62,16 +63,16 @@ FocusScope {
     function run(i) {
         const r = rows[i]
         if (!r) return
-        if (r.kind === "backup") api.savesBackup(game, function (st, b) { say(st === 200 ? "Respaldo creado: " + b.file : (b.error || "error " + st)); reload() })
+        if (r.kind === "backup") api.savesBackup(game, function (st, b) { say(st === 200 ? "Respaldo creado: " + b.file : (b.error || "error " + st)); reload() }, portId)
         else if (r.kind === "restore") { stage = "restore"; list.reset() }
         else if (r.kind === "pick") { pendingFile = r.file; note = ""; stage = "confirm"; list.reset() }
         else if (r.kind === "yes") api.savesRestore(game, pendingFile, function (st, b) {
             say(st === 200 ? "Restaurado (" + b.restored + " archivos)" + (b.safety ? ". Antes se guardó: " + b.safety : "") : (b.error || "error " + st))
-            stage = "main"; reload() })
+            stage = "main"; reload() }, portId)
         else if (r.kind === "back") stage = stage === "confirm" ? "restore" : "main"
         else if (r.kind === "browse") browser.active = true
-        else if (r.kind === "suggest") api.savesConfig(game, { dirs: [r.path] }, function (st, b) { say(st === 200 ? "Carpeta configurada" : (b.error || "error " + st)); reload() })
-        else if (r.kind === "open") api.savesOpen(game, function (st, b) { if (st !== 200) say(b.error || "error " + st) })
+        else if (r.kind === "suggest") api.savesConfig(game, { dirs: [r.path] }, function (st, b) { say(st === 200 ? "Carpeta configurada" : (b.error || "error " + st)); reload() }, portId)
+        else if (r.kind === "open") api.savesOpen(game, function (st, b) { if (st !== 200) say(b.error || "error " + st) }, portId)
         else if (r.kind === "remove") api.removeGame(game, function (st, b) { if (st === 200) sp.finished(); else say(b.error || "error " + st) })
         else if (r.kind === "close") sp.finished()
     }
@@ -126,7 +127,7 @@ FocusScope {
             startPath: sp.info && sp.info.folder ? sp.info.folder : ""
             onChosen: function (path) {
                 browser.active = false
-                sp.api.savesConfig(sp.game, { dirs: [path] }, function (st, b) { sp.say(st === 200 ? "Carpeta configurada: " + path : (b.error || "error " + st)); sp.reload() })
+                sp.api.savesConfig(sp.game, { dirs: [path] }, function (st, b) { sp.say(st === 200 ? "Carpeta configurada: " + path : (b.error || "error " + st)); sp.reload() }, sp.portId)
                 sp.forceActiveFocus()
             }
             onCancelled: { browser.active = false; sp.forceActiveFocus() }
