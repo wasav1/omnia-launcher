@@ -79,13 +79,34 @@ def _exe(port: dict) -> str:
     return port.get("check") or (launch[-1] if launch else "")
 
 
+def _adapt_gopher64(port: dict, g64: dict, new_home: str) -> bool:
+    """Si el comando es el del Flatpak de Gopher64 y ahora está instalado de otra forma (nativo), lo adapta: el comando y la
+    carpeta de partidas. Devuelve si cambió algo. El Flatpak se deja tal cual (los comandos del prototipo ya lo usan)."""
+    launch = port.get("launch") or []
+    if templates.FLATPAK_G64 not in launch or not launch or g64["argv"][:1] == ["flatpak"]:
+        return False
+    rom = launch[-1]
+    old_dir = "%s/.var/app/%s/data/gopher64/saves" % (new_home, templates.FLATPAK_G64)
+    port["launch"] = g64["argv"] + ["--fullscreen", rom]
+    files = (port.get("saves") or {}).get("files")
+    if files:
+        port["saves"] = {**port["saves"], "files": [f.replace(old_dir, g64["saves"]) for f in files]}
+    return True
+
+
 def plan(legacy: dict, current_games: list, new_home: str | None = None, user: str | None = None,
-         exists=os.path.exists, gopher64_installed=None) -> dict:
+         exists=os.path.exists, gopher64=None) -> dict:
     new_home, user = new_home or str(Path.home()), user or Path.home().name
     mp = make_mapper(new_home, user)
     have = {g.get("id") for g in current_games}
     items, warnings = [], []
-    g64_used = False
+    g64_used = adapted = False
+    if gopher64 is None:                                     # se detecta lo que haya instalado; False = no hay ninguno
+        try:
+            gopher64 = templates.gopher64_install()
+        except templates.TemplateError:
+            gopher64 = False
+    g64 = gopher64 or None
     for g in legacy.get("games", []):
         gid = str(g.get("id", ""))
         if not gid:
@@ -122,6 +143,8 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
             shown = "%s · %s" % (name, p.get("name", "")) if multi else name
             uses_g64 = any("gopher64" in str(a) for a in mapped["launch"])
             g64_used = g64_used or uses_g64
+            if uses_g64 and g64:
+                adapted = _adapt_gopher64(mapped, g64, new_home) or adapted
             entry = {"id": new_id, "name": shown, "sub": PLATFORM_LABEL.get(g.get("platform"), g.get("sub", "")),
                      "platform": g.get("platform", "pc"), "src": PLATFORM_LABEL.get(g.get("platform"), "Manual"),
                      "art": {"slug": new_id, "sgdb": (g.get("art") or {}).get("sgdb") or name},
@@ -129,16 +152,10 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
             items.append({"id": new_id, "legacyId": gid, "name": shown, "status": "existing" if new_id in have else "new",
                           "reason": "ya está en tu biblioteca" if new_id in have else "", "src": entry["src"], "entry": entry,
                           "hasSaves": bool(mapped.get("saves"))})
-    if g64_used:
-        installed = gopher64_installed
-        if installed is None:
-            try:
-                templates.gopher64_install()
-                installed = True
-            except templates.TemplateError:
-                installed = False
-        if not installed:
-            warnings.append("Gopher64 no está instalado: los juegos de N64 aparecerán, pero no arrancarán hasta instalarlo.")
+    if g64_used and not g64:
+        warnings.append("Gopher64 no está instalado: los juegos de N64 aparecerán, pero no arrancarán hasta instalarlo.")
+    elif adapted:
+        warnings.append("Se detectó tu Gopher64 (%s): los juegos de N64 se adaptan a él." % ("nativo" if g64["argv"][0] != "flatpak" else "Flatpak"))
     order = {"new": 0, "existing": 1, "skip": 2}
     items.sort(key=lambda i: (order[i["status"]], i["name"].casefold()))
     summary = {s: sum(1 for i in items if i["status"] == s) for s in order}

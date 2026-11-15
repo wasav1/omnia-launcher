@@ -28,7 +28,7 @@ class Plan(unittest.TestCase):
                 port("nx2navi", "/var/home/wsaenz/Juegos/NX/nx2navi")]},
             {"id": "n64-mk", "name": "Mario Kart 64", "platform": "n64", "ports": [
                 {"id": "mk-g64", "name": "Gopher64", "launch": ["flatpak", "run", "io.github.gopher64.gopher64", "--fullscreen", "/var/home/wsaenz/Juegos/N64/mk.z64"],
-                 "check": "/var/home/wsaenz/Juegos/N64/mk.z64", "saves": {"files": ["/var/home/wsaenz/.var/app/g/saves/*-AAA.*"]}}]},
+                 "check": "/var/home/wsaenz/Juegos/N64/mk.z64", "saves": {"files": ["/var/home/wsaenz/.var/app/io.github.gopher64.gopher64/data/gopher64/saves/*-AAA.*"]}}]},
             {"id": "majora", "name": "Majora", "platform": "n64", "ports": [port("g64", "/home/wsaenz/Juegos/N64/mj.z64"), {"id": "recomp", "name": "Recomp"}]},
             {"id": "roto", "name": "Sin archivo", "platform": "pc", "ports": [port("x", "/var/home/wsaenz/Juegos/falta/x")]},
             {"id": "pc-steam-1", "name": "Un Steam", "auto": "pc", "src": "Steam", "ports": [port("s", "/x")]},
@@ -37,8 +37,8 @@ class Plan(unittest.TestCase):
             {"id": "gfn-x", "name": "Nube", "src": "GeForce NOW", "ports": [port("g", "/x")]},
         ]}
 
-    def plan(self, current=(), g64=True):
-        return importer.plan(self.legacy, list(current), new_home=self.home, user="wsaenz", exists=self.exists, gopher64_installed=g64)
+    def plan(self, current=(), g64=False):
+        return importer.plan(self.legacy, list(current), new_home=self.home, user="wsaenz", exists=self.exists, gopher64=g64)
 
     def by(self, p):
         return {i["name"]: i for i in p["items"]}
@@ -77,8 +77,27 @@ class Plan(unittest.TestCase):
         self.assertEqual(mp("~/a"), "/home/nuevo/a")
 
     def test_aviso_si_falta_gopher64(self):
-        self.assertTrue(any("Gopher64" in w for w in self.plan(g64=False)["warnings"]))
-        self.assertEqual(self.plan(g64=True)["warnings"], [])
+        self.assertTrue(any("no está instalado" in w for w in self.plan(g64=False)["warnings"]))
+
+    def test_con_gopher64_nativo_se_adapta_el_comando_y_las_partidas(self):
+        nativo = {"argv": ["gopher64"], "saves": self.home + "/.local/share/gopher64/saves"}
+        p = self.plan(g64=nativo)
+        e = self.by(p)["Mario Kart 64"]["entry"]["ports"][0]
+        self.assertEqual(e["launch"], ["gopher64", "--fullscreen", self.home + "/Juegos/N64/mk.z64"])
+        self.assertEqual(e["saves"]["files"], [self.home + "/.local/share/gopher64/saves/*-AAA.*"])     # la carpeta nativa, no la del Flatpak
+        self.assertTrue(any("nativo" in w for w in p["warnings"]))
+        self.assertFalse(any("no está instalado" in w for w in p["warnings"]))
+
+    def test_con_gopher64_flatpak_no_se_toca_nada(self):
+        flat = {"argv": ["flatpak", "run", "io.github.gopher64.gopher64"], "saves": self.home + "/.var/app/io.github.gopher64.gopher64/data/gopher64/saves"}
+        e = self.by(self.plan(g64=flat))["Mario Kart 64"]["entry"]["ports"][0]
+        self.assertEqual(e["launch"][:3], ["flatpak", "run", "io.github.gopher64.gopher64"])
+        self.assertIn(".var/app/io.github.gopher64.gopher64/data/gopher64/saves", e["saves"]["files"][0])
+
+    def test_lo_que_no_es_gopher64_no_se_adapta(self):
+        nativo = {"argv": ["gopher64"], "saves": "/x"}
+        e = self.by(self.plan(g64=nativo))["Ocarina · Longshot"]["entry"]["ports"][0]
+        self.assertEqual(e["launch"], [self.home + "/Juegos/Longshot/longshot"])
 
     def test_lo_ya_importado_se_marca_y_no_se_repite(self):
         p = self.plan(current=[{"id": "manual-n64-mk"}])
@@ -119,7 +138,7 @@ class Aplicar(unittest.TestCase):
                                  {"id": "b", "name": "B", "platform": "pc", "ports": [{"id": "p", "name": "P", "launch": [str(exe)], "check": str(exe)}]}]}
 
     def plan(self):
-        return importer.plan(self.legacy, self.store.games(), new_home=str(self.tmp), user="nadie", gopher64_installed=True)
+        return importer.plan(self.legacy, self.store.games(), new_home=str(self.tmp), user="nadie", gopher64=False)
 
     def test_aplica_solo_lo_nuevo_y_respeta_lo_demas(self):
         self.assertEqual(sorted(importer.apply(self.store, self.plan())), ["manual-a", "manual-b"])
