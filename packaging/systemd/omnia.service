@@ -1,0 +1,14 @@
+[Unit]
+Description=Omnia: biblioteca unificada de juegos
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omnia-core
+Restart=on-failure
+RestartSec=3
+# Los juegos van en scopes propios (systemd-run), no dependen de este servicio.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,5 +1,8 @@
 """Sincroniza la biblioteca con lo que detectan los detectores: añade lo nuevo y quita lo desinstalado."""
 import os
+import threading
+
+_LOCK = threading.Lock()      # el refresco periódico y el de la API no deben pisarse
 
 
 def port_installed(p: dict) -> bool:
@@ -9,6 +12,11 @@ def port_installed(p: dict) -> bool:
 
 def refresh(store, detectors) -> dict:
     """Solo toca los juegos cuyo "auto" coincide con un detector que se ejecutó; las entradas manuales no se tocan."""
+    with _LOCK:
+        return _refresh(store, detectors)
+
+
+def _refresh(store, detectors) -> dict:
     games = store.games()
     added = removed = 0
     for det in detectors:
