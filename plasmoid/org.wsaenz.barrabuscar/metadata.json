@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Id": "org.wsaenz.barrabuscar",
+        "Name": "Buscador de juegos del launcher",
+        "Description": "Campo de búsqueda de juegos centrado en la pantalla; solo se muestra con el escritorio a la vista",
+        "Icon": "search",
+        "Authors": [ { "Name": "wsaenz" } ],
+        "Version": "1.0",
+        "License": "GPL-2.0+",
+        "Category": "Windows and Tasks"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

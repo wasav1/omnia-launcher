@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.bak
+*.log
+# datos del usuario: nunca al repo
+library.json
+state.json
+config.json
+*.key
+arte/

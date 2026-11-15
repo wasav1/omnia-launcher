@@ -1,0 +1,13 @@
+{
+  "KPlugin": {
+    "Id": "snapassist",
+    "Name": "Snap Assist (estantería)",
+    "Description": "Al fijar una ventana a la mitad izquierda/derecha, muestra las demás ventanas y la elegida ocupa el espacio libre (como Windows).",
+    "Authors": [{"Name": "wsaenz"}],
+    "Version": "1.0",
+    "License": "GPL"
+  },
+  "KPackageStructure": "KWin/Script",
+  "X-Plasma-API": "javascript",
+  "X-Plasma-MainScript": "code/main.js"
+}

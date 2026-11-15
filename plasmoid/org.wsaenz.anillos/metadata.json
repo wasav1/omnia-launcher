@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Id": "org.wsaenz.anillos",
+        "Name": "Anillos del sistema",
+        "Description": "Uso y temperatura de CPU, GPU NVIDIA, RAM y VRAM en anillos",
+        "Icon": "utilities-system-monitor",
+        "Authors": [ { "Name": "wsaenz" } ],
+        "Version": "1.0",
+        "License": "GPL-2.0+",
+        "Category": "System Information"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Id": "org.wsaenz.estanteria",
+        "Name": "Estantería de juegos",
+        "Description": "Escritorio de juegos: estantería con portadas de SteamGridDB, ficha, monitor del PC, reloj y reproductor",
+        "Icon": "applications-games",
+        "Authors": [ { "Name": "wsaenz" } ],
+        "Version": "1.0",
+        "License": "GPL-2.0+",
+        "Category": "Games"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

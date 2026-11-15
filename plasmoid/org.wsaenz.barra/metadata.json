@@ -1,0 +1,21 @@
+{
+    "KPlugin": {
+        "Id": "org.wsaenz.barra",
+        "Name": "Barra del launcher",
+        "Description": "Botón del Big Menu, navegación del launcher y aplicación activa (junto al menú global de Plasma)",
+        "Icon": "view-app-grid",
+        "Authors": [
+            {
+                "Name": "wsaenz"
+            }
+        ],
+        "Version": "1.0",
+        "License": "GPL-2.0+",
+        "Category": "Windows and Tasks"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": [
+        "org.kde.plasma.launchermenu"
+    ]
+}
