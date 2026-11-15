@@ -16,6 +16,30 @@ Rectangle {
 
     readonly property var current: (api.games.length > 0 && list.currentIndex >= 0 && list.currentIndex < api.games.length)
                                    ? api.games[list.currentIndex] : null
+    property real nowSecs: Date.now() / 1000
+    Timer { interval: 30000; running: !api.covered; repeat: true; triggeredOnStart: true; onTriggered: shell.nowSecs = Date.now() / 1000 }
+
+    function dur(secs) {
+        const m = Math.floor(secs / 60)
+        if (secs < 60) return secs + " s"
+        if (m < 60) return m + " min"
+        const h = Math.floor(m / 60), r = m % 60
+        return h + " h" + (r ? " " + r + " min" : "")
+    }
+    function ago(ts) {
+        const d = Math.max(0, nowSecs - ts)
+        if (d < 90) return "hace un momento"
+        if (d < 3600) return "hace " + Math.floor(d / 60) + " min"
+        if (d < 86400) return "hace " + Math.floor(d / 3600) + " h"
+        const dias = Math.floor(d / 86400)
+        return dias === 1 ? "ayer" : "hace " + dias + " días"
+    }
+    function playLine(g) {
+        if (!g) return ""
+        if (g.playingSince > 0) return "Jugando ahora · desde hace " + dur(Math.max(0, Math.floor(nowSecs - g.playingSince)))
+        if (g.plays === 0) return "Aún sin partidas"
+        return "Última vez " + ago(g.lastPlayed) + "  ·  " + dur(g.totalSecs) + " en total  ·  " + g.plays + (g.plays === 1 ? " partida" : " partidas")
+    }
     property string clockText: Qt.formatTime(new Date(), "hh:mm")
     Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: shell.clockText = Qt.formatTime(new Date(), "hh:mm") }
 
@@ -126,6 +150,7 @@ Rectangle {
         anchors { left: parent.left; bottom: parent.bottom; margins: 48; bottomMargin: 48 + shell.bottomInset }
         spacing: 10
         Text { text: shell.current ? shell.current.name : ""; color: "#f4efd8"; font.pixelSize: 40; font.bold: true }
+        Text { text: shell.playLine(shell.current); color: shell.current && shell.current.playingSince > 0 ? "#7fd69f" : "#c9bf8a"; font.pixelSize: 18 }
         Row {
             spacing: 14
             Rectangle {

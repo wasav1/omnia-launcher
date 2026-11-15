@@ -36,6 +36,7 @@ class Api:
         self.desktop_visible = True          # lo actualiza el vigilante de ventanas de KWin (D-Bus); por defecto se asume activo
         self._gate_t, self._gate_v = 0.0, True
         self.gamemode = None                       # lo asigna el servicio (gamemode.GameMode)
+        self.sessions = None                       # lo asigna el servicio (sessions.Sessions)
         self.menu_open, self._last_poll = False, 0.0       # el Big Menu abierto lo comunica la UI; _last_poll evita un estado atascado
         self.routes = {
             "/health": ("GET", False, self.health),
@@ -130,10 +131,12 @@ class Api:
             ports = [p for p in g.get("ports", []) if games_refresh.port_installed(p)]
             if ports:
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
+                            **(self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}),
                             "ports": [{"id": p["id"], "name": p["name"], "running": self._is_running(g, p, cmds)} for p in ports],
                             "running": any(self._is_running(g, p, cmds) for p in ports),
                             **self._art(g),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
+        out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))      # lo último jugado primero; el resto, alfabético
         return {"games": out}
 
     @staticmethod
@@ -207,15 +210,15 @@ class Api:
             self.store.save_state()
         return {"ok": True, "on": on}
 
+    def running_list(self, cmds=None) -> list:
+        """Juegos de la biblioteca en marcha (dicts de la biblioteca), con un solo repaso de los procesos."""
+        cmds = self.scan_fn() if cmds is None else cmds
+        return [g for g in self.store.games()
+                if any(games_refresh.port_installed(p) and self._is_running(g, p, cmds) for p in g.get("ports", []))]
+
     def running_games(self) -> list:
-        """Nombres de los juegos de la biblioteca en marcha (los de la nube no cuentan: no consumen este equipo)."""
-        cmds, out = self.scan_fn(), []
-        for g in self.store.games():
-            if g.get("cloud"):
-                continue
-            if any(games_refresh.port_installed(p) and self._is_running(g, p, cmds) for p in g.get("ports", [])):
-                out.append(g.get("name", g["id"]))
-        return out
+        """Nombres de los juegos en marcha que activan el modo juego (los de la nube no consumen este equipo)."""
+        return [g.get("name", g["id"]) for g in self.running_list() if not g.get("cloud")]
 
     # --- mando
     def pad_gate(self) -> bool:

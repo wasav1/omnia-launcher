@@ -1,4 +1,5 @@
 """Biblioteca y estado del usuario, en JSON con escritura atómica."""
+import copy
 import json
 import os
 import threading
@@ -28,7 +29,8 @@ def write_json_atomic(path: Path, obj, mode: int = 0o600) -> None:
 
 
 STATE_DEFAULT = {"last_played": {}, "sessions": {}, "art": {}, "backups": {},
-                 "apps_used": {}, "apps_fav": None, "game_fav": [], "game_hidden": []}
+                 "apps_used": {}, "apps_fav": None, "game_fav": [], "game_hidden": [],
+                 "active_sessions": {}, "history": []}
 
 
 class Store:
@@ -38,7 +40,7 @@ class Store:
         self.state_file = self.dir / "state.json"
         self.lock = threading.RLock()
         self._library = load_json(self.lib_file, {"games": []})
-        self.state = {**STATE_DEFAULT, **load_json(self.state_file, {})}
+        self.state = {**copy.deepcopy(STATE_DEFAULT), **load_json(self.state_file, {})}   # copia profunda: los dict internos no se comparten
 
     # --- biblioteca
     def games(self) -> list:

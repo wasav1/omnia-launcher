@@ -6,6 +6,7 @@ import signal
 import threading
 
 from . import __version__, art, gamemode, pad, paths, security
+from .sessions import Sessions
 from .dbus import DesktopService
 from .api import Api
 from .games import refresh as games_refresh
@@ -46,17 +47,21 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5):
         stop.wait(60)
 
 
-def gamemode_worker(api, mode, stop: threading.Event, every: float = 2.0):
-    """Entra y sale del modo juego según los juegos en marcha. Al parar el servicio, deja todo como estaba."""
+def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 2.0):
+    """Un solo sondeo de los juegos en marcha alimenta el modo juego y el historial de sesiones. Al parar el servicio,
+    el modo juego suelta lo congelado y las sesiones en curso se cierran."""
     try:
         while not stop.wait(every):
             try:
-                if mode.update(api.running_games()):
+                running = api.running_list()
+                sessions.update({g["id"]: g.get("name", g["id"]) for g in running})
+                if mode.update([g.get("name", g["id"]) for g in running if not g.get("cloud")]):
                     api.bus.set_gamemode(mode.status())
             except Exception:
-                log.exception("fallo en el modo juego")
+                log.exception("fallo en el modo juego o en el historial")
     finally:
         mode.shutdown()
+        sessions.shutdown()
         api.bus.set_gamemode(mode.status())
 
 
@@ -88,8 +93,13 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     if resumed:
         log.warning("modo juego: reanudados %d procesos que quedaron congelados", resumed)
     api.gamemode = mode
+    sessions = Sessions(store)
+    closed = sessions.recover()                     # sesiones que quedaron abiertas si el servicio murió en mitad de una partida
+    if closed:
+        log.warning("historial: cerradas %d sesiones que quedaron abiertas", closed)
+    api.sessions = sessions
     threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
-    gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, stop), name="omnia-gamemode")
+    gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, sessions, stop), name="omnia-gamemode")
     gm_thread.start()
     reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
     reader.start()
