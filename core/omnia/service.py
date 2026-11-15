@@ -83,7 +83,8 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     token = security.new_token()
     dets = detectors if detectors is not None else default_detectors()
     try:
-        api = Api(store, token, dets, port=args.port)
+        backup_root = (cfg.get("saves") or {}).get("backup_root") if isinstance(cfg.get("saves"), dict) else None
+        api = Api(store, token, dets, port=args.port, **({"backup_root": backup_root} if isinstance(backup_root, str) and backup_root else {}))
     except OSError as e:
         log.error("no se pudo abrir el puerto %d: %s", args.port, e)
         return 1

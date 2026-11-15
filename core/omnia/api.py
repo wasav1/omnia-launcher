@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import apps, art, fsbrowse, launcher, procs, saves, security
+from . import apps, art, fsbrowse, launcher, manual, procs, saves, security, templates
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -38,6 +38,7 @@ class Api:
         self.bus = bus or EventBus()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
+        self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
                                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self.desktop_visible = True          # lo actualiza el vigilante de ventanas de KWin (D-Bus); por defecto se asume activo
@@ -59,6 +60,10 @@ class Api:
             "/menu/state": ("POST", True, self.set_menu_state),
             "/gamemode": ("GET", True, lambda q: self.gamemode.status() if self.gamemode else {"enabled": False, "active": False}),
             "/fs/list": ("GET", True, self.fs_list),
+            "/templates": ("GET", True, lambda q: {"templates": templates.catalog()}),
+            "/game/add": ("POST", True, self.game_add),
+            "/game/remove": ("POST", True, self.game_remove),
+            "/saves/suggest": ("GET", True, self.saves_suggest),
             "/saves": ("GET", True, self.saves_info),
             "/saves/config": ("POST", True, self.saves_config),
             "/saves/backup": ("POST", True, self.saves_backup),
@@ -264,6 +269,28 @@ class Api:
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", g.get("name", g["id"])).strip("-") or g["id"]
         dest = ov.get("backup_dir") or p.get("backup_dir") or os.path.join(os.path.expanduser(self.backup_root), slug)
         return spec, dest, slug
+
+    def game_add(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        try:
+            g = manual.add_game(self.store, body, self._roots(), gopher64=getattr(self, "gopher64_override", None))
+        except manual.ManualError as e:
+            raise ApiError(400, str(e))
+        return {"ok": True, "id": g["id"], "suggest": templates.suggest_dirs(g["ports"][0].get("cwd", ""))}
+
+    def game_remove(self, q):
+        if not manual.remove_game(self.store, q.get("id", "")):
+            raise ApiError(404, "solo se pueden quitar los juegos añadidos a mano")
+        return {"ok": True}
+
+    def saves_suggest(self, q):
+        g, p = self._port_for(q)
+        gid = g["id"]
+        if gid.startswith("steam-") and gid[6:].isdigit():
+            found = templates.steam_suggestions(g.get("name", ""), gid[6:], p.get("check", ""), self.steam_root)
+        else:
+            found = templates.suggest_dirs(p.get("cwd") or os.path.dirname(p.get("check", "")))
+        return {"suggestions": [{"path": x["path"], "label": x["label"]} for x in found if self._allowed(x["path"])]}
 
     def saves_info(self, q):
         g, p = self._port_for(q)

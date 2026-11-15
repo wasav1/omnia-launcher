@@ -37,7 +37,7 @@ QtObject {
         } catch (e) { return "" }
     }
 
-    function call(method, path, done) {
+    function call(method, path, done, body) {
         if (!token) token = readToken()
         let x = new XMLHttpRequest()
         x.onreadystatechange = function () {
@@ -49,7 +49,7 @@ QtObject {
         }
         x.open(method, "http://127.0.0.1:" + port + path)
         x.setRequestHeader("Authorization", "Bearer " + token)
-        x.send(method === "POST" ? "{}" : null)
+        x.send(method === "POST" ? (body ? JSON.stringify(body) : "{}") : null)
     }
 
     function refresh() {
@@ -88,6 +88,21 @@ QtObject {
             if (done) done(status === 200)
         })
     }
+    // --- partidas, explorador de carpetas y juegos manuales (cada función avisa con done(status, cuerpo))
+    function fsList(path, files, exts, done) {
+        call("GET", "/fs/list?path=" + encodeURIComponent(path || "") + "&files=" + (files ? "1" : "0") + "&ext=" + encodeURIComponent((exts || []).join(",")), done)
+    }
+    function _q(g) { return "id=" + encodeURIComponent(g.id) + "&port=" + encodeURIComponent(g.ports && g.ports.length ? g.ports[0].id : "") }
+    function savesInfo(g, done) { call("GET", "/saves?" + _q(g), done) }
+    function savesSuggest(g, done) { call("GET", "/saves/suggest?" + _q(g), done) }
+    function savesConfig(g, body, done) { call("POST", "/saves/config?" + _q(g), done, body) }
+    function savesBackup(g, done) { call("POST", "/saves/backup?" + _q(g), done) }
+    function savesRestore(g, file, done) { call("POST", "/saves/restore?" + _q(g) + "&file=" + encodeURIComponent(file), done) }
+    function savesOpen(g, done) { call("POST", "/saves/open?" + _q(g), done) }
+    function templates(done) { call("GET", "/templates", done) }
+    function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) refresh(); done(st, b) }, body) }
+    function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
+
     function reportMenu(open) { call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
     function toggleAppFav(a) {
         call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { loadApps() })

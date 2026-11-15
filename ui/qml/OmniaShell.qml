@@ -10,6 +10,12 @@ Rectangle {
     property bool menuOpen: false          // Big Menu abierto (lo abre la tecla Windows, o el evento «MENU»)
     property bool embedMenu: false         // en ventana normal el menú va dentro; como escritorio, en su propia ventana de capa
     property alias backend: api
+    property string overlay: ""             // "saves" (panel de partidas) | "add" (asistente de añadir juego) | ""
+    property var overlayGame: null
+    property string pendingSavesId: ""      // juego recién añadido: al aparecer en la biblioteca se abre su panel de partidas
+    function openSaves(g) { if (g) { overlayGame = g; overlay = "saves" } }
+    function openAdd() { overlay = "add" }
+    function closeOverlay() { overlay = ""; overlayGame = null; shell.forceActiveFocus() }
     Api { id: api }
     onMenuOpenChanged: api.reportMenu(menuOpen)       // el núcleo da el mando al menú mientras esté abierto, haya o no ventanas
     Timer { interval: 5000; running: !api.covered; repeat: true; onTriggered: api.refresh() }   // tapada: no hace falta sondear
@@ -50,7 +56,9 @@ Rectangle {
         target: api
         function onPadKey(key) {
             if (key === "MENU") { shell.menuOpen = !shell.menuOpen; return }
-            if (shell.menuOpen) return                          // con el menú abierto, los botones son suyos
+            if (shell.menuOpen || shell.overlay !== "") return  // con el menú o un panel abierto, los botones son suyos
+            if (key === "X") { shell.openSaves(shell.current); return }
+            if (key === "SELECT") { shell.openAdd(); return }
             if (key === "r") list.incrementCurrentIndex()
             else if (key === "l") list.decrementCurrentIndex()
             else if (key === "RB") list.currentIndex = Math.min(api.games.length - 1, list.currentIndex + 5)
@@ -64,8 +72,41 @@ Rectangle {
         else if (e.key === Qt.Key_Left) { list.decrementCurrentIndex(); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) { api.launch(current); e.accepted = true }
         else if (e.key === Qt.Key_F) { api.toggleFav(current); e.accepted = true }
+        else if (e.key === Qt.Key_P) { shell.openSaves(current); e.accepted = true }
+        else if (e.key === Qt.Key_N) { shell.openAdd(); e.accepted = true }
         else if (e.key === Qt.Key_Home) { list.currentIndex = 0; e.accepted = true }
         else if (e.key === Qt.Key_End) { list.currentIndex = Math.max(0, api.games.length - 1); e.accepted = true }
+    }
+
+    // --- paneles: partidas de un juego y asistente de añadir juego
+    Component {
+        id: savesComp
+        SavesPanel { api: shell.backend; game: shell.overlayGame; onFinished: shell.closeOverlay() }
+    }
+    Component {
+        id: addComp
+        AddGame {
+            api: shell.backend
+            onFinished: shell.closeOverlay()
+            onAdded: function (id) { shell.pendingSavesId = id; shell.closeOverlay() }
+        }
+    }
+    Loader {
+        anchors.fill: parent
+        z: 90
+        active: shell.overlay !== ""
+        sourceComponent: shell.overlay === "saves" ? savesComp : addComp
+    }
+    Connections {
+        target: api
+        function onGamesChanged() {
+            if (shell.pendingSavesId === "") return
+            for (let i = 0; i < api.games.length; i++) if (api.games[i].id === shell.pendingSavesId) {
+                shell.pendingSavesId = ""
+                shell.openSaves(api.games[i])
+                return
+            }
+        }
     }
 
     // --- Big Menu incrustado (solo en modo ventana)
@@ -102,6 +143,12 @@ Rectangle {
         spacing: 16
         Text { text: "Omnia"; color: "#e6d9a0"; font.pixelSize: 34; font.bold: true }
         Text { text: api.games.length > 0 ? api.games.length + " juegos" : ""; color: "#c9bf8a"; font.pixelSize: 20; y: 12 }
+        Rectangle {
+            y: 8; height: 34; width: addTxt.width + 28; radius: 17
+            color: addArea.containsMouse ? Qt.rgba(0.9, 0.85, 0.63, 0.22) : Qt.rgba(1, 1, 1, 0.08)
+            Text { id: addTxt; anchors.centerIn: parent; text: "＋ Añadir juego"; color: "#e6d9a0"; font.pixelSize: 15 }
+            MouseArea { id: addArea; anchors.fill: parent; hoverEnabled: true; onClicked: shell.openAdd() }
+        }
     }
     Column {
         anchors { top: parent.top; right: parent.right; margins: 48 }
@@ -160,6 +207,11 @@ Rectangle {
                 MouseArea { id: playArea; anchors.fill: parent; hoverEnabled: true; onClicked: api.launch(shell.current) }
             }
             Rectangle {
+                width: partTxt.width + 40; height: 52; radius: 26; color: partArea.containsMouse ? "#2a4a3a" : "#1c3a2c"
+                Text { id: partTxt; anchors.centerIn: parent; text: "Partidas"; color: "#e6d9a0"; font.pixelSize: 18 }
+                MouseArea { id: partArea; anchors.fill: parent; hoverEnabled: true; onClicked: shell.openSaves(shell.current) }
+            }
+            Rectangle {
                 width: 52; height: 52; radius: 26; color: favArea.containsMouse ? "#2a4a3a" : "#1c3a2c"
                 border.color: "#e6d9a0"; border.width: shell.current && shell.current.fav ? 2 : 0
                 Text { anchors.centerIn: parent; text: shell.current && shell.current.fav ? "★" : "☆"; color: "#e6d9a0"; font.pixelSize: 28 }
@@ -171,6 +223,6 @@ Rectangle {
         anchors { right: parent.right; bottom: parent.bottom; margins: 48; bottomMargin: 48 + shell.bottomInset }
         horizontalAlignment: Text.AlignRight
         color: api.toast ? "#f4efd8" : "#8c8560"; font.pixelSize: 17
-        text: api.toast ? api.toast : "← → elegir   ·   Enter jugar   ·   F favorito"
+        text: api.toast ? api.toast : "← → elegir  ·  Enter jugar  ·  F favorito  ·  P partidas  ·  N añadir juego"
     }
 }
