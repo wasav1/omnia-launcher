@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# omnia-ui [--window]   Interfaz de Omnia. Por defecto es el escritorio (capa de fondo); --window usa una ventana normal.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)/qml"
+TOKEN="${OMNIA_TOKEN_FILE:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omnia/token}"
+PORT_ARG=(); [ -n "${OMNIA_PORT:-}" ] && PORT_ARG=(--port "$OMNIA_PORT")   # solo para pruebas
+export QML_XHR_ALLOW_FILE_READ=1                     # la UI lee el token de la sesión (archivo 0600 del usuario)
+if [ "${1:-}" = "--window" ]; then
+  exec qml6 "$DIR/main-window.qml" -- --token "$TOKEN" "${PORT_ARG[@]}"
+fi
+export QT_WAYLAND_SHELL_INTEGRATION=layer-shell      # sin esto Qt crea una ventana normal en vez de una capa
+exec qml6 "$DIR/main.qml" -- --token "$TOKEN" "${PORT_ARG[@]}"

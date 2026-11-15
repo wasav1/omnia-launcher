@@ -4,7 +4,7 @@ import logging
 import signal
 import threading
 
-from . import __version__, paths, security
+from . import __version__, art, paths, security
 from .api import Api
 from .games import refresh as games_refresh
 from .games.registry import default_detectors
@@ -16,6 +16,32 @@ log = logging.getLogger("omnia")
 def load_config() -> dict:
     cfg = load_json(paths.config_dir() / "config.json", {})
     return cfg if isinstance(cfg, dict) else {}
+
+
+def art_worker(store, stop: threading.Event, pause: float = 1.5):
+    """Descarga en segundo plano el arte que falte, con pausa entre juegos. Solo si hay clave de SteamGridDB."""
+    warned = False
+    while not stop.is_set():
+        key = art.load_key()
+        if key:
+            if not art.key_permissions_ok() and not warned:
+                log.warning("la clave de SteamGridDB es legible por otros usuarios: chmod 600 %s", art.key_path())
+                warned = True
+            client = art.Client(key)
+            for g in store.games():
+                slug = (g.get("art") or {}).get("slug") or g.get("id", "")
+                if all(art.cached(slug, k) for k in art.KINDS):
+                    continue
+                if stop.is_set():
+                    return
+                try:
+                    got = art.fetch_game(client, g)
+                    if got:
+                        log.info("arte de %s: %s", g.get("name"), ", ".join(got))
+                except art.ArtError as e:
+                    log.warning("arte de %s: %s", g.get("name"), e)
+                stop.wait(pause)
+        stop.wait(60)
 
 
 def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
@@ -41,6 +67,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
         log.error("no se pudo abrir el puerto %d: %s", args.port, e)
         return 1
     api.serve()
+    threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
     log.info("omnia-core %s escuchando en 127.0.0.1:%d", __version__, api.port)
     try:
         while True:

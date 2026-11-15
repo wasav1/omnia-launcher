@@ -11,7 +11,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import launcher, procs, security
+from . import art, launcher, procs, security
 from .games.base import Detector
 from .games import refresh as games_refresh
 
@@ -110,8 +110,19 @@ class Api:
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
                             "ports": [{"id": p["id"], "name": p["name"], "running": self._is_running(g, p, cmds)} for p in ports],
                             "running": any(self._is_running(g, p, cmds) for p in ports),
+                            **self._art(g),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         return {"games": out}
+
+    @staticmethod
+    def _art(g):
+        slug = (g.get("art") or {}).get("slug") or g["id"]
+        out = {}
+        for kind in art.KINDS:
+            f = art.cached(slug, kind)
+            if f:
+                out[kind] = "file://" + f
+        return out
 
     def refresh(self, q):
         return games_refresh.refresh(self.store, self.detectors)
