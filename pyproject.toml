@@ -12,6 +12,7 @@ dependencies = []
 [project.scripts]
 omnia-core = "omnia.service:main"
 omnia-setup = "omnia.setup:main"
+omnia-first-run = "omnia.firstrun:main"
 
 [tool.setuptools.packages.find]
 where = ["core"]

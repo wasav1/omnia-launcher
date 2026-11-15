@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Omnia: primer arranque
+Comment=Configura KDE para Omnia la primera vez (pide tu consentimiento) y arranca sus servicios
+Exec=omnia-first-run
+Terminal=false
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2
+NoDisplay=true

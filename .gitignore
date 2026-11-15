@@ -8,3 +8,5 @@ state.json
 config.json
 *.key
 arte/
+*.pkg.tar.zst
+packaging/arch/out/

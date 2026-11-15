@@ -1,0 +1,14 @@
+[Unit]
+Description=Omnia: interfaz (escritorio de juegos)
+Wants=omnia.service
+After=omnia.service graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omnia-ui
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
