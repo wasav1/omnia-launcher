@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Id": "omnia-showdesktop",
+        "Name": "Omnia: mostrar escritorio",
+        "Description": "Win+D minimiza las ventanas normales sin ocultar el escritorio de Omnia (capa de fondo)",
+        "Authors": [{ "Name": "Omnia" }],
+        "License": "GPL-3.0-or-later",
+        "EnabledByDefault": false
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}
