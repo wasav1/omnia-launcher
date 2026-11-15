@@ -186,6 +186,40 @@ class ApiMando(unittest.TestCase):
         self.call("/emit?k=A", "POST")
         self.assertEqual(self.call("/events?since=-1")[1]["seq"], 1)
 
+    def test_la_tecla_windows_abre_el_menu_aunque_el_mando_este_silenciado(self):
+        self.call("/desktop?visible=0", "POST")                            # ventana encima: el mando no actúa…
+        self.assertEqual(self.call("/menu", "POST")[0], 200)               # …pero la tecla Windows sí abre el menú
+        self.assertEqual([e["key"] for e in self.call("/events?since=0&wait=2")[1]["events"]], ["MENU"])
+        self.assertEqual(self.call("/menu", "POST", token=False)[0], 401)
+
+    def test_el_menu_abierto_da_el_mando_al_menu_aunque_haya_ventanas(self):
+        self.call("/desktop?visible=0", "POST")                            # una ventana con foco: el mando no actúa
+        self.call("/emit?k=A", "POST")
+        self.assertEqual(self.call("/events?since=-1")[1]["seq"], 0)
+        self.call("/menu/state?open=1", "POST")                            # la UI avisa de que el Big Menu está abierto
+        self.call("/events?since=-1")                                      # la UI está viva (sondea /events)
+        self.call("/emit?k=d", "POST")
+        self.assertEqual(self.call("/events?since=-1")[1]["seq"], 1)       # ahora sí llega
+        self.call("/menu/state?open=0", "POST")                            # se cierra: vuelve la regla de las ventanas
+        self.call("/emit?k=d", "POST")
+        self.assertEqual(self.call("/events?since=-1")[1]["seq"], 1)
+
+    def test_menu_abierto_pero_ui_muerta_no_deja_el_mando_atascado(self):
+        self.call("/desktop?visible=0", "POST")
+        self.call("/menu/state?open=1", "POST")
+        self.api._last_poll = time.time() - 120                            # la UI dejó de sondear (se cerró o cayó)
+        self.call("/emit?k=A", "POST")
+        self.assertEqual(self.call("/events?since=-1")[1]["seq"], 0)
+
+    def test_menu_abierto_no_salta_el_filtro_de_juego_abierto(self):
+        self.store.set_games([{"id": "g", "name": "G", "ports": [{"id": "p", "name": "x", "launch": ["x"], "check": str(self.tmp), "proc": "juego.exe"}]}])
+        self.cmds = ["wine /x/juego.exe"]
+        self.api._gate_t = 0
+        self.call("/menu/state?open=1", "POST")
+        self.call("/events?since=-1")
+        self.call("/emit?k=A", "POST")
+        self.assertEqual(self.call("/events?since=-1")[1]["seq"], 0)       # con un juego en marcha el mando sigue siendo suyo
+
     def test_escritorio_tapado_silencia_el_mando(self):
         self.call("/desktop?visible=0", "POST")
         self.call("/emit?k=A", "POST")

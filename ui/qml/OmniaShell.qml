@@ -7,7 +7,11 @@ Rectangle {
     focus: true
 
     property int bottomInset: 0          // en modo escritorio la capa cubre también la zona del panel: se deja ese margen
+    property bool menuOpen: false          // Big Menu abierto (lo abre la tecla Windows, o el evento «MENU»)
+    property bool embedMenu: false         // en ventana normal el menú va dentro; como escritorio, en su propia ventana de capa
+    property alias backend: api
     Api { id: api }
+    onMenuOpenChanged: api.reportMenu(menuOpen)       // el núcleo da el mando al menú mientras esté abierto, haya o no ventanas
     Timer { interval: 5000; running: !api.covered; repeat: true; onTriggered: api.refresh() }   // tapada: no hace falta sondear
 
     readonly property var current: (api.games.length > 0 && list.currentIndex >= 0 && list.currentIndex < api.games.length)
@@ -21,6 +25,8 @@ Rectangle {
     Connections {
         target: api
         function onPadKey(key) {
+            if (key === "MENU") { shell.menuOpen = !shell.menuOpen; return }
+            if (shell.menuOpen) return                          // con el menú abierto, los botones son suyos
             if (key === "r") list.incrementCurrentIndex()
             else if (key === "l") list.decrementCurrentIndex()
             else if (key === "RB") list.currentIndex = Math.min(api.games.length - 1, list.currentIndex + 5)
@@ -36,6 +42,19 @@ Rectangle {
         else if (e.key === Qt.Key_F) { api.toggleFav(current); e.accepted = true }
         else if (e.key === Qt.Key_Home) { list.currentIndex = 0; e.accepted = true }
         else if (e.key === Qt.Key_End) { list.currentIndex = Math.max(0, api.games.length - 1); e.accepted = true }
+    }
+
+    // --- Big Menu incrustado (solo en modo ventana)
+    Loader {
+        active: shell.embedMenu
+        anchors.fill: parent
+        z: 100
+        sourceComponent: BigMenu {
+            api: shell.backend
+            open: shell.menuOpen
+            visible: shell.menuOpen
+            onCloseRequested: { shell.menuOpen = false; shell.forceActiveFocus() }
+        }
     }
 
     // --- telón: fondo del juego seleccionado (SteamGridDB) con un velo que mantiene legibles los textos

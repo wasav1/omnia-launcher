@@ -8,15 +8,17 @@ from pathlib import Path
 from unittest import mock
 
 from omnia import setup
-from omnia.setup import META_D, NATIVE, OURS, SetupError
+from omnia.setup import LAUNCHER, META_ALONE, META_D, NATIVE, OMENU, OURS, SetupError
 
 
 class FakeKde:
     """KDE simulado: el atajo de Omnia solo existe cuando el script está activo y KWin se recargó."""
 
     def __init__(self, native=(META_D,), plugin=False, installed=True, watch=False):
-        self.keys = {NATIVE: list(native), OURS: []}
+        self.ALT_F1 = 150994992
+        self.keys = {NATIVE: list(native), OURS: [], LAUNCHER: [META_ALONE, self.ALT_F1], OMENU: []}
         self.plugins = {"omnia-showdesktop": plugin, "omnia-watch": watch}
+        self.meta = ""
         self.installed = set(self.plugins) if installed else set()
         self.loaded = False
         self.calls = []
@@ -24,7 +26,7 @@ class FakeKde:
             self.loaded = True
 
     def shortcut_keys(self, a):
-        return list(self.keys.get(a, [])) if (a != OURS or self.loaded) else []
+        return list(self.keys.get(a, [])) if (a not in (OURS, OMENU) or self.loaded) else []
 
     def set_shortcut_keys(self, a, keys):
         self.calls.append(("set", a, list(keys)))
@@ -33,7 +35,7 @@ class FakeKde:
         self.keys[a] = [k for k in keys if k not in taken]
 
     def action_exists(self, a):
-        return a != OURS or self.loaded
+        return a not in (OURS, OMENU) or self.loaded
 
     def plugin_enabled(self, n):
         return self.plugins[n]
@@ -41,6 +43,13 @@ class FakeKde:
     def set_plugin_enabled(self, n, on):
         self.calls.append(("plugin", n, on))
         self.plugins[n] = on
+
+    def meta_shortcut(self):
+        return self.meta
+
+    def set_meta_shortcut(self, v):
+        self.calls.append(("meta", v))
+        self.meta = v or ""
 
     def reload_kwin(self):
         self.calls.append(("reload",))
@@ -61,6 +70,12 @@ class LlamadasDBus(unittest.TestCase):
         self.cmds = []
         self.be = setup.KdeBackend()
         self.be._run = lambda *c: (self.cmds.append(list(c)) or "ai 1 268435524")
+
+    def test_escribir_la_tecla_windows_usa_kwriteconfig(self):
+        self.be.set_meta_shortcut("a,b,c,d")
+        self.be.set_meta_shortcut(None)
+        self.assertEqual(self.cmds[0][0], "kwriteconfig6")
+        self.assertEqual(self.cmds[1][-1], "--delete")
 
     def test_leer_usa_firma_as(self):
         self.assertEqual(self.be.shortcut_keys(NATIVE), [META_D])
@@ -102,6 +117,32 @@ class Setup(unittest.TestCase):
         be = FakeKde(native=(META_D, 12345))
         setup.apply(be, self.cfg, wait=0.5)
         self.assertEqual(be.keys[NATIVE], [12345])
+
+    def test_la_tecla_windows_pasa_del_lanzador_de_plasma_a_omnia_y_vuelve(self):
+        be = FakeKde()
+        setup.apply(be, self.cfg, wait=0.5)
+        self.assertEqual(be.keys[LAUNCHER], [be.ALT_F1])                  # Alt+F1 se conserva
+        self.assertEqual(be.keys[OMENU], [META_ALONE])
+        setup.undo(be, self.cfg)
+        self.assertEqual(be.keys[LAUNCHER], [META_ALONE, be.ALT_F1])      # volvió, aunque el simulado rechace duplicados
+        self.assertEqual(be.keys[OMENU], [])
+
+    def test_limpia_el_ajuste_antiguo_que_no_funcionaba(self):
+        be = FakeKde()
+        be.meta = setup.OMNIA_META
+        setup.apply(be, self.cfg, wait=0.5)
+        self.assertEqual(be.meta, "")
+        self.assertIn(("meta", None), be.calls)
+
+    def test_copia_antigua_sin_lanzador_no_rompe_el_undo(self):
+        be = FakeKde()
+        setup.apply(be, self.cfg, wait=0.5)
+        bf = self.cfg / "setup-backup.json"
+        d = json.loads(bf.read_text())
+        d.pop("launcher_keys_before")
+        bf.write_text(json.dumps(d))
+        setup.undo(be, self.cfg)                                          # no sabe qué teclas tenía: no inventa
+        self.assertEqual(be.keys[OMENU], [])
 
     def test_idempotente_y_no_pisa_la_copia_original(self):
         be = FakeKde()

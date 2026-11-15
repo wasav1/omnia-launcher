@@ -13,6 +13,8 @@ QtObject {
     property string toast: ""
     property bool covered: false          // una ventana maximizada o a pantalla completa tapa el escritorio
     property bool shelfActive: true       // el mando es de la estantería (ninguna ventana normal tiene el foco)
+    property var apps: []
+    property var appGroups: []
     property bool padOn: false
     property string padName: ""
     property int padSeq: -1
@@ -71,6 +73,23 @@ QtObject {
             toast = status === 200 ? "" : (body.error || "error " + status)
             refresh()
         })
+    }
+
+    // --- aplicaciones (Big Menu)
+    function loadApps() {
+        call("GET", "/apps", function (status, body) {
+            if (status === 200) { apps = body.apps; appGroups = body.groups }
+        })
+    }
+    function launchApp(a, done) {
+        call("POST", "/app/launch?id=" + encodeURIComponent(a.id), function (status, body) {
+            if (status !== 200) toast = body.error || "error " + status
+            if (done) done(status === 200)
+        })
+    }
+    function reportMenu(open) { call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function toggleAppFav(a) {
+        call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { loadApps() })
     }
 
     function toggleFav(g) {

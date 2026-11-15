@@ -12,7 +12,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import art, launcher, procs, security
+from . import apps, art, launcher, procs, security
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -28,11 +28,14 @@ class ApiError(Exception):
 
 
 class Api:
-    def __init__(self, store, token: str, detectors=(), port: int = 0, launch_fn=launcher.launch, scan_fn=procs.scan, bus=None):
+    def __init__(self, store, token: str, detectors=(), port: int = 0, launch_fn=launcher.launch, scan_fn=procs.scan, bus=None,
+                 catalog=None, app_launch_fn=apps.launch):
         self.store, self.token, self.detectors, self.launch_fn, self.scan_fn = store, token, list(detectors), launch_fn, scan_fn
         self.bus = bus or EventBus()
+        self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.desktop_visible = True          # lo actualiza el vigilante de ventanas de KWin (D-Bus); por defecto se asume activo
         self._gate_t, self._gate_v = 0.0, True
+        self.menu_open, self._last_poll = False, 0.0       # el Big Menu abierto lo comunica la UI; _last_poll evita un estado atascado
         self.routes = {
             "/health": ("GET", False, self.health),
             "/library": ("GET", True, self.library),
@@ -40,6 +43,11 @@ class Api:
             "/game/fav": ("POST", True, lambda q: self.toggle("game_fav", q)),
             "/game/hide": ("POST", True, lambda q: self.toggle("game_hidden", q)),
             "/launch": ("POST", True, self.launch),
+            "/apps": ("GET", True, self.apps_list),
+            "/app/launch": ("POST", True, self.app_launch),
+            "/app/fav": ("POST", True, self.app_fav),
+            "/menu": ("POST", True, lambda q: self.toggle_menu() or {"ok": True}),
+            "/menu/state": ("POST", True, self.set_menu_state),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -156,6 +164,47 @@ class Api:
         self.launch_fn(p, g["id"])
         return {"ok": True}
 
+    # --- aplicaciones (Big Menu)
+    def _fav_ids(self) -> list:
+        fav = self.store.state.get("apps_fav")
+        if fav is None:                      # primera vez: favoritos por defecto, solo los que existen
+            have = {a.id for a in self.catalog.apps()}
+            fav = [i for i in apps.FAV_DEFAULT if i in have]
+        return fav
+
+    def apps_list(self, q):
+        fav, used = self._fav_ids(), self.store.state.get("apps_used", {})
+        items = self.catalog.apps()
+        order = {g: i for i, g in enumerate(dict.fromkeys(g for _, g in apps.GROUPS))}
+        groups = sorted({a.group for a in items}, key=lambda g: order.get(g, 99))
+        return {"groups": groups, "apps": [
+            {"id": a.id, "name": a.name, "comment": a.comment, "icon": a.icon, "group": a.group,
+             "keywords": a.keywords, "fav": a.id in fav, "uses": (used.get(a.id) or {}).get("n", 0)} for a in items]}
+
+    def app_launch(self, q):
+        a = self.catalog.find(q.get("id", ""))
+        if not a:
+            raise ApiError(404, "aplicación desconocida")      # solo se lanza lo que está en el catálogo
+        self.app_launch_fn(a)
+        with self.store.lock:
+            u = self.store.state.setdefault("apps_used", {}).setdefault(a.id, {"n": 0, "t": 0})
+            u["n"] += 1
+            u["t"] = int(time.time())
+            self.store.save_state()
+        return {"ok": True}
+
+    def app_fav(self, q):
+        a = self.catalog.find(q.get("id", ""))
+        if not a:
+            raise ApiError(404, "aplicación desconocida")
+        with self.store.lock:
+            fav = list(self._fav_ids())
+            on = a.id not in fav
+            fav.append(a.id) if on else fav.remove(a.id)
+            self.store.state["apps_fav"] = fav
+            self.store.save_state()
+        return {"ok": True, "on": on}
+
     # --- mando
     def pad_gate(self) -> bool:
         """¿Se entregan los botones del mando a la estantería? No con un juego abierto ni con el escritorio tapado."""
@@ -165,14 +214,25 @@ class Api:
             self._gate_v = not any(self._is_running(g, p, cmds) for g in self.store.games()
                                    for p in g.get("ports", []) if games_refresh.port_installed(p))
             self._gate_t = now
+        # Con el Big Menu abierto (ventana de capa con el teclado en exclusiva) el mando es suyo aunque haya ventanas con foco.
+        # Solo vale si la UI sigue viva: su petición larga a /events debe haber llegado hace poco.
+        if self.menu_open and time.time() - self._last_poll < 30:
+            return self._gate_v
         return self._gate_v and self.desktop_visible
 
+    def set_menu_state(self, q):
+        self.menu_open = str(q.get("open", "0")) not in ("0", "false", "False")
+        return {"ok": True, "open": self.menu_open}
+
     def events(self, q):
+        self._last_poll = time.time()
         try:
             since, wait = int(q.get("since", -1)), min(25.0, max(0.0, float(q.get("wait", 20))))
         except ValueError:
             raise ApiError(400, "parámetros no válidos")
-        return self.bus.wait(since, wait)
+        r = self.bus.wait(since, wait)
+        self._last_poll = time.time()
+        return r
 
     def pad_status(self, q):
         return {**self.bus.pad, "active": self.pad_gate()}
@@ -184,6 +244,10 @@ class Api:
         if self.pad_gate():
             self.bus.push(k)
         return {"ok": True}
+
+    def toggle_menu(self) -> None:
+        """Tecla Windows: abre o cierra el Big Menu. No pasa por el filtro del mando (no es un botón del mando)."""
+        self.bus.push("MENU")
 
     def set_desktop_state(self, active: bool, covered: bool) -> None:
         """active: ninguna ventana normal tiene el foco, así que el mando es de la estantería. covered: una ventana

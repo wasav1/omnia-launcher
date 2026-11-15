@@ -19,7 +19,7 @@ build() {
 
 package_omnia-core() {
   pkgdesc="Núcleo de Omnia: biblioteca de juegos, API local, arte y mando"
-  depends=(python systemd)
+  depends=(python systemd glib2)          # glib2: `gio launch` abre las aplicaciones del Big Menu
   optdepends=('steam: juegos de Steam'
               'lutris: juegos de Lutris'
               'heroic-games-launcher-bin: juegos de Epic, GOG y Amazon'
@@ -32,7 +32,7 @@ package_omnia-core() {
 
 package_omnia-ui() {
   pkgdesc="Estantería de Omnia: escritorio de juegos en capa de fondo (QML)"
-  depends=(omnia-core qt6-declarative qt6-wayland layer-shell-qt)
+  depends=(omnia-core qt6-declarative qt6-wayland layer-shell-qt kirigami)
   cd "$pkgbase-$pkgver"
   install -Dm755 ui/omnia-ui "$pkgdir/usr/bin/omnia-ui"
   install -d "$pkgdir/usr/share/omnia/ui"

@@ -4,6 +4,8 @@ Qué hace:
   1. Se asegura de que el script de KWin `omnia-showdesktop` esté instalado y activado.
   2. Quita `Meta+D` al «Mostrar escritorio» nativo de KWin (que oculta la estantería de Omnia) y se la da al atajo
      «Omnia: mostrar escritorio», que minimiza las ventanas sin ocultar el escritorio de Omnia.
+  3. Quita `Meta` (la tecla Windows sola) al lanzador de Plasma, conservando Alt+F1, y se la da a «Omnia: abrir el menú»
+     (el Big Menu). En Plasma 6.8 esa tecla es un atajo global de KGlobalAccel de plasmashell, no un ajuste de KWin.
 Antes de tocar nada guarda el estado original en ~/.config/omnia/setup-backup.json; `--undo` lo restaura.
 Un paquete de pacman no puede hacer esto (corre como root, sin sesión): se ejecuta en la primera sesión del usuario.
 
@@ -26,7 +28,12 @@ SCRIPTS = {"omnia-showdesktop": "Omnia: mostrar escritorio", "omnia-watch": "Omn
 META_D = 0x10000000 | 0x44                   # Qt::META | Qt::Key_D
 NATIVE = ("kwin", "Show Desktop")            # acción nativa de KWin
 OURS = ("kwin", "OmniaShowDesktop")          # acción del script de Omnia
+LAUNCHER = ("plasmashell", "activate application launcher")    # el lanzador de Plasma (Meta y Alt+F1)
+OMENU = ("kwin", "OmniaMenu")                                   # acción del script omnia-watch que abre el Big Menu
+META_ALONE = 0x01000022                                         # Qt::Key_Meta: la tecla Windows sola
 BACKUP_NAME = "setup-backup.json"
+# Intento anterior que NO funciona en Plasma 6.8 (KWin no lo atiende): se limpia si quedó escrito.
+OMNIA_META = "org.omnia.Core,/org/omnia/Core,org.omnia.Core,ToggleMenu"
 
 
 class SetupError(Exception):
@@ -74,6 +81,16 @@ class KdeBackend:
         self._run("kwriteconfig6", "--file", "kwinrc", "--group", "Plugins", "--key", name + "Enabled",
                   "true" if on else "false")
 
+    def meta_shortcut(self) -> str:
+        return self._run("kreadconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta")
+
+    def set_meta_shortcut(self, value) -> None:
+        """value=None borra la clave (vuelve al comportamiento predeterminado de Plasma)."""
+        if value is None:
+            self._run("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", "--delete")
+        else:
+            self._run("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", value)
+
     def reload_kwin(self) -> None:
         self._run("busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure")
 
@@ -99,6 +116,10 @@ def plan(be, config: Path) -> list:
         todo.append("Quitar Meta+D al «Mostrar escritorio» nativo de KWin (se guarda para poder restaurarlo)")
     if not be.shortcut_keys(OURS):
         todo.append("Asignar Meta+D a «Omnia: mostrar escritorio» (minimiza las ventanas sin ocultar tu escritorio)")
+    if META_ALONE in be.shortcut_keys(LAUNCHER) or not be.shortcut_keys(OMENU):
+        todo.append("Quitar la tecla Windows al menú de Plasma (se conserva Alt+F1) y dársela al Big Menu de Omnia")
+    if be.meta_shortcut() == OMNIA_META:
+        todo.append("Limpiar un ajuste anterior de la tecla Windows que no funcionaba")
     return todo
 
 
@@ -113,8 +134,12 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         write_json_atomic(bf, {"version": 1, "saved": time.strftime("%Y-%m-%d %H:%M:%S"),
                                "native_keys": be.shortcut_keys(NATIVE),
                                "plugins_before": {n: be.plugin_enabled(n) for n in SCRIPTS},
+                               "launcher_keys_before": be.shortcut_keys(LAUNCHER),
                                "we_installed_script": False})
     backup = load_json(bf, {})
+    if "launcher_keys_before" not in backup and META_ALONE in be.shortcut_keys(LAUNCHER):
+        backup["launcher_keys_before"] = be.shortcut_keys(LAUNCHER)      # copia hecha con una versión anterior
+        write_json_atomic(bf, backup)
     for name in SCRIPTS:
         if not be.script_installed(name):
             src = Path(script_src) / name if script_src else None
@@ -127,7 +152,7 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         be.set_plugin_enabled(name, True)
     be.reload_kwin()
     end = time.time() + wait
-    while not be.action_exists(OURS):          # el atajo existe cuando KWin carga el script
+    while not (be.action_exists(OURS) and be.action_exists(OMENU)):      # los atajos existen cuando KWin carga los scripts
         if time.time() > end:
             raise SetupError("KWin no registró el atajo de Omnia (¿falló el script?)")
         time.sleep(0.25)
@@ -136,6 +161,14 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         be.set_shortcut_keys(NATIVE, [k for k in native if k != META_D])     # conserva sus otras teclas
     if not be.shortcut_keys(OURS):
         be.set_shortcut_keys(OURS, [META_D])
+    launcher = be.shortcut_keys(LAUNCHER)
+    if META_ALONE in launcher:
+        be.set_shortcut_keys(LAUNCHER, [k for k in launcher if k != META_ALONE])     # conserva Alt+F1
+    if not be.shortcut_keys(OMENU):
+        be.set_shortcut_keys(OMENU, [META_ALONE])
+    if be.meta_shortcut() == OMNIA_META:
+        be.set_meta_shortcut(None)
+        be.reload_kwin()
     return todo
 
 
@@ -146,6 +179,12 @@ def undo(be, config: Path) -> list:
     if not backup:
         return []
     done = []
+    if be.action_exists(OMENU) and be.shortcut_keys(OMENU):         # primero se libera la tecla: KDE no admite duplicados
+        be.set_shortcut_keys(OMENU, [])
+        done.append("Quitada la tecla Windows al Big Menu de Omnia")
+    if "launcher_keys_before" in backup and backup["launcher_keys_before"] != be.shortcut_keys(LAUNCHER):
+        be.set_shortcut_keys(LAUNCHER, backup["launcher_keys_before"])
+        done.append("Restaurada la tecla Windows del menú de Plasma")
     if be.action_exists(OURS) and be.shortcut_keys(OURS):
         be.set_shortcut_keys(OURS, [])
         done.append("Quitado Meta+D a «Omnia: mostrar escritorio»")
@@ -161,6 +200,9 @@ def undo(be, config: Path) -> list:
             turned_off = True
             done.append("Desactivado el script de KWin «%s»" % label)
     if turned_off:
+        be.reload_kwin()
+    if be.meta_shortcut() == OMNIA_META:
+        be.set_meta_shortcut(None)
         be.reload_kwin()
     bf.unlink()
     return done

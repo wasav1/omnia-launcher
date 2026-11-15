@@ -72,7 +72,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
     reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
     reader.start()
-    dbus = DesktopService(api.set_desktop_state, name=os.environ.get("OMNIA_DBUS_NAME") or cfg.get("dbus_name", "org.omnia.Core"))
+    dbus = DesktopService(api.set_desktop_state, on_menu=api.toggle_menu, name=os.environ.get("OMNIA_DBUS_NAME") or cfg.get("dbus_name", "org.omnia.Core"))
     if dbus.start():
         log.info("D-Bus: escuchando el estado del escritorio en %s", dbus.name)
     log.info("omnia-core %s escuchando en 127.0.0.1:%d", __version__, api.port)

@@ -1,5 +1,5 @@
 // Vigilante de ventanas de Omnia. Calcula dos cosas y las envía a omnia-core por D-Bus (un script de KWin no puede hacer HTTP):
-//   active  = el mando es de la estantería: tiene el foco (la pulsaste) o no hay ninguna ventana normal visible
+//   active  = el mando es de la estantería: tiene el foco (la pulsaste) o no hay ninguna ventana normal visible a la vista
 //   covered = una ventana maximizada o a pantalla completa tapa el escritorio -> la UI puede pausar animaciones
 // Las ventanas con skipTaskbar (la capa de fondo de Omnia, paneles, ventanas emergentes) no cuentan como «ventana normal».
 var SERVICE = "org.omnia.Core", PATH = "/org/omnia/Core", IFACE = "org.omnia.Core";
@@ -29,8 +29,10 @@ function compute(ow, mode) {
         if (visibleHere(L[i])) anyVisible = true;
         if (covers(L[i], ow, mode)) covered = true;
     }
-    var shelfFocused = !!aw && !isReal(aw) && aw.caption === "Omnia";      // el usuario hizo clic en la estantería
-    var active = shelfFocused || (!isReal(aw) && !anyVisible);
+    // las ventanas de Omnia (estantería y Big Menu) son superficies de capa: sin título, clase «qml» (o «omnia-ui» empaquetado)
+    var shelfFocused = !!aw && !isReal(aw) && (aw.resourceClass === "qml" || aw.resourceClass === "omnia-ui");
+    // Sin ventanas visibles el mando es de la estantería AUNQUE KWin siga dando por activa la última ventana minimizada.
+    var active = shelfFocused || !anyVisible;
     var key = active + "/" + covered;
     if (key === last) return;
     last = key;
@@ -53,3 +55,9 @@ workspace.currentDesktopChanged.connect(function () { compute(); });
 
 workspace.stackingOrder.forEach(watch);
 compute();
+
+// Tecla Windows sola: en Plasma 6.8 no se enlaza por ModifierOnlyShortcuts sino con un atajo global de KGlobalAccel (el del
+// lanzador de plasmashell). Esta acción es la de Omnia; omnia-setup le quita «Meta» al lanzador de Plasma y se la da a esta.
+registerShortcut("OmniaMenu", "Omnia: abrir el menú", "Meta", function () {
+    callDBus(SERVICE, PATH, IFACE, "ToggleMenu");
+});

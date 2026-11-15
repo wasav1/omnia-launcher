@@ -70,6 +70,16 @@ class DBus(unittest.TestCase):
                 time.sleep(0.05)
         self.assertEqual(got, [(True, False), (False, True)])
 
+    def test_togglemenu_llega_al_callback(self):
+        n = []
+        name = "org.omnia.TestC%d" % os.getpid()
+        svc = DesktopService(lambda a, c: None, on_menu=lambda: n.append(1), name=name)
+        self.assertTrue(svc.start())
+        self.addCleanup(svc.stop)
+        subprocess.run(["busctl", "--user", "call", name, "/org/omnia/Core", "org.omnia.Core", "ToggleMenu"],
+                       check=True, capture_output=True, timeout=10)
+        self.assertEqual(n, [1])
+
     def test_nombre_ocupado_no_rompe(self):
         name = "org.omnia.TestB%d" % os.getpid()
         a, b = DesktopService(lambda *x: None, name=name), DesktopService(lambda *x: None, name=name)

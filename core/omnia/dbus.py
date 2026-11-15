@@ -11,12 +11,13 @@ log = logging.getLogger("omnia")
 NAME, PATH, IFACE = "org.omnia.Core", "/org/omnia/Core", "org.omnia.Core"
 XML = """<node><interface name="org.omnia.Core">
   <method name="SetDesktop"><arg type="b" name="active" direction="in"/><arg type="b" name="covered" direction="in"/></method>
+  <method name="ToggleMenu"/>
 </interface></node>"""
 
 
 class DesktopService:
-    def __init__(self, on_state, name: str = NAME):
-        self.on_state, self.name = on_state, name
+    def __init__(self, on_state, name: str = NAME, on_menu=lambda: None):
+        self.on_state, self.on_menu, self.name = on_state, on_menu, name
         self.loop = self.owner = self.thread = self.conn = self.reg = None
         self.ready = threading.Event()
         self.ok = False
@@ -35,6 +36,9 @@ class DesktopService:
             if method == "SetDesktop":
                 active, covered = params.unpack()
                 self.on_state(bool(active), bool(covered))
+                invocation.return_value(None)
+            elif method == "ToggleMenu":
+                self.on_menu()
                 invocation.return_value(None)
             else:
                 invocation.return_dbus_error("org.freedesktop.DBus.Error.UnknownMethod", method)
