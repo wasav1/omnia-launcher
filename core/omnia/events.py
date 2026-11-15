@@ -12,11 +12,19 @@ class EventBus:
         self.pad = {"connected": False, "name": "", "layout": ""}
         # lo publica el vigilante de ventanas de KWin: ¿manda la estantería (no hay una ventana normal activa) y está tapada?
         self.desktop = {"active": True, "covered": False}
+        self.gamemode = {"active": False, "games": [], "frozen": 0}
 
     def set_desktop(self, active: bool, covered: bool) -> None:
         with self.cv:
             if self.desktop != {"active": active, "covered": covered}:
                 self.desktop = {"active": active, "covered": covered}
+                self.cv.notify_all()
+
+    def set_gamemode(self, status: dict) -> None:
+        with self.cv:
+            new = {"active": bool(status.get("active")), "games": list(status.get("games", [])), "frozen": int(status.get("frozen", 0))}
+            if new != self.gamemode:
+                self.gamemode = new
                 self.cv.notify_all()
 
     def push(self, key: str) -> None:
@@ -33,7 +41,8 @@ class EventBus:
     def snapshot(self, since: int) -> dict:
         return {"seq": self.seq, "events": [e for e in self.events if e["seq"] > since],
                 "padOn": self.pad["connected"], "padName": self.pad["name"], "padLayout": self.pad["layout"],
-                "shelfActive": self.desktop["active"], "covered": self.desktop["covered"]}
+                "shelfActive": self.desktop["active"], "covered": self.desktop["covered"],
+                "gameMode": self.gamemode}
 
     def wait(self, since: int, timeout: float) -> dict:
         """Devuelve en cuanto haya eventos nuevos o al agotar el tiempo. since < 0: solo el contador actual

@@ -35,6 +35,7 @@ class Api:
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.desktop_visible = True          # lo actualiza el vigilante de ventanas de KWin (D-Bus); por defecto se asume activo
         self._gate_t, self._gate_v = 0.0, True
+        self.gamemode = None                       # lo asigna el servicio (gamemode.GameMode)
         self.menu_open, self._last_poll = False, 0.0       # el Big Menu abierto lo comunica la UI; _last_poll evita un estado atascado
         self.routes = {
             "/health": ("GET", False, self.health),
@@ -48,6 +49,7 @@ class Api:
             "/app/fav": ("POST", True, self.app_fav),
             "/menu": ("POST", True, lambda q: self.toggle_menu() or {"ok": True}),
             "/menu/state": ("POST", True, self.set_menu_state),
+            "/gamemode": ("GET", True, lambda q: self.gamemode.status() if self.gamemode else {"enabled": False, "active": False}),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -204,6 +206,16 @@ class Api:
             self.store.state["apps_fav"] = fav
             self.store.save_state()
         return {"ok": True, "on": on}
+
+    def running_games(self) -> list:
+        """Nombres de los juegos de la biblioteca en marcha (los de la nube no cuentan: no consumen este equipo)."""
+        cmds, out = self.scan_fn(), []
+        for g in self.store.games():
+            if g.get("cloud"):
+                continue
+            if any(games_refresh.port_installed(p) and self._is_running(g, p, cmds) for p in g.get("ports", [])):
+                out.append(g.get("name", g["id"]))
+        return out
 
     # --- mando
     def pad_gate(self) -> bool:

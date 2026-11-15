@@ -84,6 +84,7 @@ Rectangle {
         spacing: 2
         Text { anchors.right: parent.right; text: shell.clockText; color: "#e6d9a0"; font.pixelSize: 34 }
         Text { anchors.right: parent.right; visible: api.padOn; text: "🎮 " + api.padName; color: "#c9bf8a"; font.pixelSize: 15 }
+        Text { anchors.right: parent.right; visible: api.gameMode; text: "⚡ Modo juego"; color: "#7fd69f"; font.pixelSize: 15; font.bold: true }
     }
 
     // --- estantería

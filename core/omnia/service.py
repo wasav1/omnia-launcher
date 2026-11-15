@@ -5,7 +5,7 @@ import os
 import signal
 import threading
 
-from . import __version__, art, pad, paths, security
+from . import __version__, art, gamemode, pad, paths, security
 from .dbus import DesktopService
 from .api import Api
 from .games import refresh as games_refresh
@@ -46,6 +46,20 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5):
         stop.wait(60)
 
 
+def gamemode_worker(api, mode, stop: threading.Event, every: float = 2.0):
+    """Entra y sale del modo juego según los juegos en marcha. Al parar el servicio, deja todo como estaba."""
+    try:
+        while not stop.wait(every):
+            try:
+                if mode.update(api.running_games()):
+                    api.bus.set_gamemode(mode.status())
+            except Exception:
+                log.exception("fallo en el modo juego")
+    finally:
+        mode.shutdown()
+        api.bus.set_gamemode(mode.status())
+
+
 def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     cfg = load_config()
     ap = argparse.ArgumentParser(prog="omnia-core")
@@ -69,7 +83,14 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
         log.error("no se pudo abrir el puerto %d: %s", args.port, e)
         return 1
     api.serve()
+    mode = gamemode.new(cfg)
+    resumed = mode.freezer.resume()                 # si el servicio murió con algo congelado, se reanuda al arrancar
+    if resumed:
+        log.warning("modo juego: reanudados %d procesos que quedaron congelados", resumed)
+    api.gamemode = mode
     threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
+    gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, stop), name="omnia-gamemode")
+    gm_thread.start()
     reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
     reader.start()
     dbus = DesktopService(api.set_desktop_state, on_menu=api.toggle_menu, name=os.environ.get("OMNIA_DBUS_NAME") or cfg.get("dbus_name", "org.omnia.Core"))
@@ -86,6 +107,8 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
             if stop.wait(max(5, args.refresh)):
                 break
     finally:
+        stop.set()
+        gm_thread.join(5)                           # suelta lo congelado y el perfil antes de salir
         reader.stop()
         dbus.stop()
         api.stop()

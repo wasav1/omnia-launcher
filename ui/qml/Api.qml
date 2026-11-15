@@ -15,6 +15,7 @@ QtObject {
     property bool shelfActive: true       // el mando es de la estantería (ninguna ventana normal tiene el foco)
     property var apps: []
     property var appGroups: []
+    property bool gameMode: false         // modo juego activo (descargas congeladas y perfil de energía alto)
     property bool padOn: false
     property string padName: ""
     property int padSeq: -1
@@ -106,6 +107,7 @@ QtObject {
                 padOn = body.padOn
                 padName = body.padName
                 covered = body.covered === true
+                gameMode = body.gameMode ? body.gameMode.active === true : false
                 shelfActive = body.shelfActive !== false
                 if (!first) for (let i = 0; i < body.events.length; i++) padKey(body.events[i].key)
                 Qt.callLater(pollPad)
