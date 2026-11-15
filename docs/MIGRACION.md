@@ -25,8 +25,11 @@ Origen: `legacy/scripts/helper.py` (1651 líneas, un solo archivo) y los plasmoi
 1. **API sin autenticación y con acciones por GET** (`do_POST = do_GET`, línea 1622). Rutas como
    `/power?a=poweroff`, `/launch`, `/gamemode`, `/tint` y `/art/pick?url=` se pueden disparar desde
    cualquier página web abierta en el navegador (una petición `fetch` a `127.0.0.1:47831` no necesita
-   permisos). Corrección: socket Unix en `$XDG_RUNTIME_DIR` o token por sesión, validar `Host`/`Origin`,
-   acciones solo por POST, y `/art/pick` con lista blanca de dominios (hoy descarga cualquier URL).
+   permisos). Corrección **hecha** en `core/omnia/api.py` + `security.py`: token por sesión en
+   `$XDG_RUNTIME_DIR/omnia/token` (0600), validación de `Host`, acciones solo por POST, sin CORS, y el
+   comando de lanzamiento sale de la biblioteca, nunca de la petición. (Se descartó el socket Unix: QML
+   no puede conectarse a uno; el plasmoide leerá el token del archivo con `QML_XHR_ALLOW_FILE_READ=1`.)
+   Pendiente: `/art/pick` con lista blanca de dominios (hoy descarga cualquier URL).
 2. **`/log` y `/emit`** aceptan texto arbitrario y escriben en el journal: limitar.
 3. **Rutas fijas** (`/var/home`, `~/.config/estanteria`, `~/.config/steamgriddb.key`) → XDG.
 4. **Id de panel `TOP_PANEL = 218`** (línea 1408): cambia en cada instalación. Hay que detectarlo.
