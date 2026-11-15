@@ -14,9 +14,11 @@ from omnia.setup import META_D, NATIVE, OURS, SetupError
 class FakeKde:
     """KDE simulado: el atajo de Omnia solo existe cuando el script está activo y KWin se recargó."""
 
-    def __init__(self, native=(META_D,), plugin=False, installed=True):
+    def __init__(self, native=(META_D,), plugin=False, installed=True, watch=False):
         self.keys = {NATIVE: list(native), OURS: []}
-        self.plugin, self.installed, self.loaded = plugin, installed, False
+        self.plugins = {"omnia-showdesktop": plugin, "omnia-watch": watch}
+        self.installed = set(self.plugins) if installed else set()
+        self.loaded = False
         self.calls = []
         if plugin:
             self.loaded = True
@@ -34,22 +36,22 @@ class FakeKde:
         return a != OURS or self.loaded
 
     def plugin_enabled(self, n):
-        return self.plugin
+        return self.plugins[n]
 
     def set_plugin_enabled(self, n, on):
-        self.calls.append(("plugin", on))
-        self.plugin = on
+        self.calls.append(("plugin", n, on))
+        self.plugins[n] = on
 
     def reload_kwin(self):
         self.calls.append(("reload",))
-        self.loaded = self.plugin
+        self.loaded = self.plugins["omnia-showdesktop"]
 
     def script_installed(self, n):
-        return self.installed
+        return n in self.installed
 
     def install_script(self, src):
         self.calls.append(("install", str(src)))
-        self.installed = True
+        self.installed.add(Path(src).name)
 
 
 class LlamadasDBus(unittest.TestCase):
@@ -94,7 +96,7 @@ class Setup(unittest.TestCase):
         setup.apply(be, self.cfg, wait=0.5)
         self.assertEqual(be.keys[NATIVE], [])
         self.assertEqual(be.keys[OURS], [META_D])
-        self.assertTrue(be.plugin)
+        self.assertTrue(all(be.plugins.values()))
 
     def test_conserva_otras_teclas_del_nativo(self):
         be = FakeKde(native=(META_D, 12345))
@@ -115,14 +117,15 @@ class Setup(unittest.TestCase):
         setup.undo(be, self.cfg)
         self.assertEqual(be.keys[NATIVE], [META_D, 77])
         self.assertEqual(be.keys[OURS], [])
-        self.assertFalse(be.plugin)
+        self.assertFalse(any(be.plugins.values()))
         self.assertFalse((self.cfg / "setup-backup.json").exists())
 
     def test_undo_respeta_script_que_ya_estaba_activo(self):
         be = FakeKde(plugin=True)
         setup.apply(be, self.cfg, wait=0.5)
         setup.undo(be, self.cfg)
-        self.assertTrue(be.plugin)                      # ya lo tenía el usuario: no se lo apagamos
+        self.assertTrue(be.plugins["omnia-showdesktop"])    # ya lo tenía el usuario: no se lo apagamos
+        self.assertFalse(be.plugins["omnia-watch"])         # este lo activó Omnia: se apaga
 
     def test_undo_sin_copia_no_toca_nada(self):
         be = FakeKde()
@@ -131,10 +134,11 @@ class Setup(unittest.TestCase):
 
     def test_instala_el_script_si_falta(self):
         be = FakeKde(installed=False)
-        src = self.cfg / "script"
-        src.mkdir()
+        src = self.cfg / "scripts"
+        for n in ("omnia-showdesktop", "omnia-watch"):
+            (src / n).mkdir(parents=True)
         setup.apply(be, self.cfg, script_src=src, wait=0.5)
-        self.assertIn(("install", str(src)), be.calls)
+        self.assertIn(("install", str(src / "omnia-watch")), be.calls)
 
     def test_script_ausente_y_sin_origen_falla_claro(self):
         with self.assertRaises(SetupError):

@@ -20,6 +20,7 @@ function toggle() {
         var back = stash;
         stash = [];
         back.forEach(function (w) { try { w.minimized = false; } catch (e) { } });
+        try { workspace.activeWindow = back[back.length - 1]; } catch (e) { }     // la de arriba recupera el foco (y el mando deja la estantería)
     } else {
         stash = realWindows();
         stash.forEach(function (w) { track(w); w.minimized = true; });

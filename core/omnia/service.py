@@ -1,10 +1,12 @@
 """Servicio omnia-core: API local + refresco periódico de la biblioteca. Corre como servicio de systemd --user."""
 import argparse
 import logging
+import os
 import signal
 import threading
 
-from . import __version__, art, paths, security
+from . import __version__, art, pad, paths, security
+from .dbus import DesktopService
 from .api import Api
 from .games import refresh as games_refresh
 from .games.registry import default_detectors
@@ -68,6 +70,11 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
         return 1
     api.serve()
     threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
+    reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
+    reader.start()
+    dbus = DesktopService(api.set_desktop_state, name=os.environ.get("OMNIA_DBUS_NAME") or cfg.get("dbus_name", "org.omnia.Core"))
+    if dbus.start():
+        log.info("D-Bus: escuchando el estado del escritorio en %s", dbus.name)
     log.info("omnia-core %s escuchando en 127.0.0.1:%d", __version__, api.port)
     try:
         while True:
@@ -79,6 +86,8 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
             if stop.wait(max(5, args.refresh)):
                 break
     finally:
+        reader.stop()
+        dbus.stop()
         api.stop()
         try:
             (paths.runtime_dir() / "token").unlink()

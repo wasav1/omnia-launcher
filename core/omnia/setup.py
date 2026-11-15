@@ -22,6 +22,7 @@ from . import paths
 from .store import load_json, write_json_atomic
 
 SCRIPT_ID = "omnia-showdesktop"
+SCRIPTS = {"omnia-showdesktop": "Omnia: mostrar escritorio", "omnia-watch": "Omnia: vigilante de ventanas"}
 META_D = 0x10000000 | 0x44                   # Qt::META | Qt::Key_D
 NATIVE = ("kwin", "Show Desktop")            # acción nativa de KWin
 OURS = ("kwin", "OmniaShowDesktop")          # acción del script de Omnia
@@ -91,8 +92,9 @@ def _backup_file(config: Path) -> Path:
 def plan(be, config: Path) -> list:
     """Lista de acciones que `apply` haría ahora (vacía si ya está todo hecho)."""
     todo = []
-    if not be.plugin_enabled(SCRIPT_ID):
-        todo.append("Activar el script de KWin «Omnia: mostrar escritorio»")
+    for name, label in SCRIPTS.items():
+        if not be.plugin_enabled(name):
+            todo.append("Activar el script de KWin «%s»" % label)
     if META_D in be.shortcut_keys(NATIVE):
         todo.append("Quitar Meta+D al «Mostrar escritorio» nativo de KWin (se guarda para poder restaurarlo)")
     if not be.shortcut_keys(OURS):
@@ -110,16 +112,19 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
     if not bf.exists():       # el estado ORIGINAL se guarda solo la primera vez: repetir el setup no lo pisa
         write_json_atomic(bf, {"version": 1, "saved": time.strftime("%Y-%m-%d %H:%M:%S"),
                                "native_keys": be.shortcut_keys(NATIVE),
-                               "plugin_was_enabled": be.plugin_enabled(SCRIPT_ID),
+                               "plugins_before": {n: be.plugin_enabled(n) for n in SCRIPTS},
                                "we_installed_script": False})
     backup = load_json(bf, {})
-    if not be.script_installed(SCRIPT_ID):
-        if not script_src or not Path(script_src).is_dir():
-            raise SetupError("el script de KWin «%s» no está instalado y no se indicó --script-src" % SCRIPT_ID)
-        be.install_script(Path(script_src))
-        backup["we_installed_script"] = True
-        write_json_atomic(bf, backup)
-    be.set_plugin_enabled(SCRIPT_ID, True)
+    for name in SCRIPTS:
+        if not be.script_installed(name):
+            src = Path(script_src) / name if script_src else None
+            if not src or not src.is_dir():
+                raise SetupError("el script de KWin «%s» no está instalado y no se indicó --script-src" % name)
+            be.install_script(src)
+            backup["we_installed_script"] = True
+            write_json_atomic(bf, backup)
+    for name in SCRIPTS:
+        be.set_plugin_enabled(name, True)
     be.reload_kwin()
     end = time.time() + wait
     while not be.action_exists(OURS):          # el atajo existe cuando KWin carga el script
@@ -148,18 +153,23 @@ def undo(be, config: Path) -> list:
     if keys != be.shortcut_keys(NATIVE):
         be.set_shortcut_keys(NATIVE, keys)
         done.append("Restaurado el «Mostrar escritorio» nativo de KWin")
-    if not backup.get("plugin_was_enabled", False) and be.plugin_enabled(SCRIPT_ID):
-        be.set_plugin_enabled(SCRIPT_ID, False)
+    before = backup.get("plugins_before") or {SCRIPT_ID: backup.get("plugin_was_enabled", False)}   # copias antiguas
+    turned_off = False
+    for name, label in SCRIPTS.items():
+        if not before.get(name, False) and be.plugin_enabled(name):     # lo que no estaba activo antes de Omnia se apaga
+            be.set_plugin_enabled(name, False)
+            turned_off = True
+            done.append("Desactivado el script de KWin «%s»" % label)
+    if turned_off:
         be.reload_kwin()
-        done.append("Desactivado el script de KWin de Omnia")
     bf.unlink()
     return done
 
 
 def find_script_src() -> Path | None:
-    """Origen del script cuando se corre desde el repositorio (en el paquete ya está en /usr/share/kwin/scripts)."""
-    p = Path(__file__).resolve().parents[2] / "kwin" / SCRIPT_ID
-    return p if p.is_dir() else None
+    """Carpeta con los scripts cuando se corre desde el repositorio (en el paquete ya están en /usr/share/kwin/scripts)."""
+    p = Path(__file__).resolve().parents[2] / "kwin"
+    return p if (p / SCRIPT_ID).is_dir() else None
 
 
 def main(argv=None, backend=None, config: Path | None = None) -> int:
@@ -168,7 +178,7 @@ def main(argv=None, backend=None, config: Path | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="solo mostrar lo que se haría")
     ap.add_argument("--undo", action="store_true", help="restaurar la configuración original de KDE")
     ap.add_argument("--status", action="store_true", help="indicar si la configuración ya está aplicada")
-    ap.add_argument("--script-src", type=Path, help="carpeta del script de KWin (si no está instalado)")
+    ap.add_argument("--script-src", type=Path, help="carpeta que contiene los scripts de KWin (si no están instalados)")
     a = ap.parse_args(argv)
     be, cfg = backend or KdeBackend(), Path(config) if config else paths.config_dir()
     try:

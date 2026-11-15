@@ -11,6 +11,12 @@ QtObject {
     property string error: ""
     property var games: []
     property string toast: ""
+    property bool covered: false          // una ventana maximizada o a pantalla completa tapa el escritorio
+    property bool shelfActive: true       // el mando es de la estantería (ninguna ventana normal tiene el foco)
+    property bool padOn: false
+    property string padName: ""
+    property int padSeq: -1
+    signal padKey(string key)
     property string _last: ""
 
     function arg(name, fallback) {
@@ -72,9 +78,29 @@ QtObject {
         call("POST", "/game/fav?id=" + encodeURIComponent(g.id), function () { refresh() })
     }
 
+    // Mando: petición larga a /events (el servidor responde en cuanto hay un botón nuevo o a los 20 s)
+    function pollPad() {
+        call("GET", "/events?since=" + padSeq + "&wait=20", function (status, body) {
+            if (status === 200) {
+                const first = padSeq < 0
+                padSeq = body.seq
+                padOn = body.padOn
+                padName = body.padName
+                covered = body.covered === true
+                shelfActive = body.shelfActive !== false
+                if (!first) for (let i = 0; i < body.events.length; i++) padKey(body.events[i].key)
+                Qt.callLater(pollPad)
+            } else {
+                retry.start()            // omnia-core no responde o el token cambió: reintenta sin saturar
+            }
+        })
+    }
+    property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
+
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))
         tokenPath = arg("--token", "")
         refresh()
+        pollPad()
     }
 }

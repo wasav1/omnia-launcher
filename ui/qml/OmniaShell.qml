@@ -8,14 +8,27 @@ Rectangle {
 
     property int bottomInset: 0          // en modo escritorio la capa cubre también la zona del panel: se deja ese margen
     Api { id: api }
-    Timer { interval: 5000; running: true; repeat: true; onTriggered: api.refresh() }
+    Timer { interval: 5000; running: !api.covered; repeat: true; onTriggered: api.refresh() }   // tapada: no hace falta sondear
 
     readonly property var current: (api.games.length > 0 && list.currentIndex >= 0 && list.currentIndex < api.games.length)
                                    ? api.games[list.currentIndex] : null
     property string clockText: Qt.formatTime(new Date(), "hh:mm")
-    Timer { interval: 1000; running: true; repeat: true; onTriggered: shell.clockText = Qt.formatTime(new Date(), "hh:mm") }
+    Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: shell.clockText = Qt.formatTime(new Date(), "hh:mm") }
 
     Component.onCompleted: forceActiveFocus()
+
+    // Mando: los mismos gestos que el teclado. La confirmación es siempre «A» (en Nintendo, el botón derecho).
+    Connections {
+        target: api
+        function onPadKey(key) {
+            if (key === "r") list.incrementCurrentIndex()
+            else if (key === "l") list.decrementCurrentIndex()
+            else if (key === "RB") list.currentIndex = Math.min(api.games.length - 1, list.currentIndex + 5)
+            else if (key === "LB") list.currentIndex = Math.max(0, list.currentIndex - 5)
+            else if (key === "A") api.launch(shell.current)
+            else if (key === "Y") api.toggleFav(shell.current)
+        }
+    }
     Keys.onPressed: function (e) {
         if (e.key === Qt.Key_Right) { list.incrementCurrentIndex(); e.accepted = true }
         else if (e.key === Qt.Key_Left) { list.decrementCurrentIndex(); e.accepted = true }
@@ -47,7 +60,12 @@ Rectangle {
         Text { text: "Omnia"; color: "#e6d9a0"; font.pixelSize: 34; font.bold: true }
         Text { text: api.games.length > 0 ? api.games.length + " juegos" : ""; color: "#c9bf8a"; font.pixelSize: 20; y: 12 }
     }
-    Text { anchors { top: parent.top; right: parent.right; margins: 48 } text: shell.clockText; color: "#e6d9a0"; font.pixelSize: 34 }
+    Column {
+        anchors { top: parent.top; right: parent.right; margins: 48 }
+        spacing: 2
+        Text { anchors.right: parent.right; text: shell.clockText; color: "#e6d9a0"; font.pixelSize: 34 }
+        Text { anchors.right: parent.right; visible: api.padOn; text: "🎮 " + api.padName; color: "#c9bf8a"; font.pixelSize: 15 }
+    }
 
     // --- estantería
     ListView {

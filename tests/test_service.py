@@ -42,7 +42,8 @@ class Servicio(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         env = {"XDG_CONFIG_HOME": str(self.tmp / "cfg"), "XDG_DATA_HOME": str(self.tmp / "data"),
-               "XDG_RUNTIME_DIR": str(self.tmp / "run")}
+               "XDG_RUNTIME_DIR": str(self.tmp / "run"),
+               "OMNIA_DBUS_NAME": "org.omnia.Test%d" % os.getpid()}      # no choca con el omnia-core de la sesión
         p = mock.patch.dict(os.environ, env)
         p.start()
         self.addCleanup(p.stop)

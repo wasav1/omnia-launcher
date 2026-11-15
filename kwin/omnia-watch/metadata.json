@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Id": "omnia-watch",
+        "Name": "Omnia: vigilante de ventanas",
+        "Description": "Avisa a omnia-core de si el escritorio de Omnia está a la vista, para que el mando no actúe con una ventana encima",
+        "Authors": [{ "Name": "Omnia" }],
+        "License": "GPL-3.0-or-later",
+        "EnabledByDefault": false
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}
