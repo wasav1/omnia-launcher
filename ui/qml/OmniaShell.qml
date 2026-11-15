@@ -25,6 +25,21 @@ Rectangle {
         else if (e.key === Qt.Key_End) { list.currentIndex = Math.max(0, api.games.length - 1); e.accepted = true }
     }
 
+    // --- telón: fondo del juego seleccionado (SteamGridDB) con un velo que mantiene legibles los textos
+    Backdrop {
+        id: backdrop
+        anchors.fill: parent
+        source: shell.current && shell.current.fondo ? shell.current.fondo : ""
+    }
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(0.04, 0.12, 0.09, 0.80) }
+            GradientStop { position: 0.45; color: Qt.rgba(0.04, 0.12, 0.09, 0.55) }
+            GradientStop { position: 1.0; color: Qt.rgba(0.04, 0.12, 0.09, 0.94) }
+        }
+    }
+
     // --- cabecera
     Row {
         anchors { top: parent.top; left: parent.left; margins: 48 }

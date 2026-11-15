@@ -18,6 +18,7 @@ Código: `ui/spike/` (`spike-layer.qml`, `SpikeContent.qml`). Se ejecuta con `qm
 | Tapa los iconos/widgets del escritorio de Plasma | Sí (como en el prototipo) |
 | Sobrevive a «Mostrar escritorio» de KWin | **No**: KWin oculta toda superficie layer-shell externa, incluso en la capa `top`; una regla de tipo «Escritorio» no se aplica a layer-shell |
 | Clic con el ratón en la capa | Sí (el usuario pulsó «Probar API» y apareció la lista de juegos) |
+| Teclado (← → Enter F) y botón «Jugar» en la capa de fondo con `omnia-ui` | Sí (verificado por el usuario; hay que hacer clic una vez en el escritorio para dar el foco) |
 | Win+D con el atajo de Omnia (Meta+D reasignado por D-Bus) | Sí (verificado por el usuario) |
 | Saber qué ventanas hay abiertas desde fuera | Viable con un script de KWin (`workspace.stackingOrder`); sin implementar |
 
@@ -36,5 +37,5 @@ El valor original se guarda en `~/.config/omnia/setup-backup.json` para poder de
 Atajo de prueba: `ui/spike/run.sh [clic|auto|ventana]`. Los argumentos de la app van tras `--` (`qml6 f.qml -- --token X`).
 
 ## Pendiente
-1. Teclado y mando sobre la capa de fondo (el ratón ya funciona).
+1. Mando sobre la capa de fondo (ratón y teclado ya funcionan).
 2. Script de KWin que avise a omnia-core de ventanas maximizadas o a pantalla completa.
