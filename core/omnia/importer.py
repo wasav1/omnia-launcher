@@ -4,7 +4,7 @@ Primero se calcula un PLAN (vista previa, no escribe nada) y solo después se ap
 Reglas, con el motivo de cada omisión:
   * Entradas con `auto` (Steam, Heroic, Hydra…): no se importan. Steam, Heroic y Lutris los detecta Omnia sola; las
     carpetas de Hydra no se importan (se puede añadir el juego a mano).
-  * GeForce NOW: aún sin soporte.
+  * GeForce NOW: lo detecta Omnia (accesos .desktop del escritorio); no se importa.
   * Ports y emuladores: se importan como juegos manuales. Un juego con varios ports pasa a ser un juego por port
     («Ocarina of Time · Longshot»), porque la interfaz lanza un port por tarjeta.
   * Un port sin lanzador o cuyo archivo ya no existe se omite.
@@ -116,11 +116,12 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
             src = (g.get("src") or "").strip()
             reason = {"Steam": "Omnia detecta los juegos de Steam sola",
                       "Heroic": "aparecerá cuando Heroic conozca el juego (abre Heroic e importa los instalados)",
-                      "Lutris": "Omnia detecta los juegos de Lutris sola"}.get(src, "las carpetas de Hydra no se importan: añade el juego a mano si lo quieres")
+                      "Lutris": "Omnia detecta los juegos de Lutris sola",
+                      "GeForce NOW": "Omnia detecta los accesos de GeForce NOW del escritorio sola"}.get(src, "las carpetas de Hydra no se importan: añade el juego a mano si lo quieres")
             items.append({"id": "", "legacyId": gid, "name": name, "status": "skip", "reason": reason, "src": src})
             continue
         if (g.get("src") or "") == "GeForce NOW" or gid.startswith("gfn-"):
-            items.append({"id": "", "legacyId": gid, "name": name, "status": "skip", "reason": "GeForce NOW todavía no está soportado",
+            items.append({"id": "", "legacyId": gid, "name": name, "status": "skip", "reason": "Omnia detecta los accesos de GeForce NOW del escritorio sola",
                           "src": "GeForce NOW"})
             continue
         ports = [p for p in g.get("ports", []) if isinstance(p, dict)]
@@ -147,7 +148,8 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
                 adapted = _adapt_gopher64(mapped, g64, new_home) or adapted
             entry = {"id": new_id, "name": shown, "sub": PLATFORM_LABEL.get(g.get("platform"), g.get("sub", "")),
                      "platform": g.get("platform", "pc"), "src": PLATFORM_LABEL.get(g.get("platform"), "Manual"),
-                     "art": {"slug": new_id, "sgdb": (g.get("art") or {}).get("sgdb") or name},
+                     "art": {"slug": new_id, "sgdb": (g.get("art") or {}).get("sgdb") or name,
+                             **({"year": (g.get("art") or {})["year"]} if isinstance((g.get("art") or {}).get("year"), int) else {})},
                      "ports": [{"id": new_id + "-main", **{k: mapped[k] for k in KEEP_PORT if mapped.get(k)}}]}
             items.append({"id": new_id, "legacyId": gid, "name": shown, "status": "existing" if new_id in have else "new",
                           "reason": "ya está en tu biblioteca" if new_id in have else "", "src": entry["src"], "entry": entry,

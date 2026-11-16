@@ -1,77 +1,94 @@
-"""Captura el monitor de salida y resume el espectro en 16 bandas.
+"""Espectro de la salida de audio para las ondas del escritorio.
 
-El audio solo vive en memoria. `parec` lee el monitor de PipeWire-Pulse y
-Omnia expone niveles agregados, nunca muestras de audio, por su API local.
+El audio solo vive en memoria: `parec` lee el monitor de PipeWire-Pulse y Omnia expone niveles agregados
+(32 bandas), nunca muestras, por su API local.
+
+Motor ligero en Python puro (sin numpy): bandas en escala mel de 55 Hz a 9,5 kHz y un Goertzel por banda con ventana
+propia (larga en graves para resolver mejor, corta en agudos para reaccionar rápido). Cada trozo de 20 ms recalcula la
+mitad de las bandas, así que el coste queda en pocos puntos de CPU (una FFT de 2048 puntos en Python costaba ~27 %).
+Sin sonido no se analiza nada.
 """
 from __future__ import annotations
 
+import array
 import math
 import shutil
 import subprocess
 import threading
 
-
-RATE = 48000
-SIZE = 2048
-BANDS = 16
-LOW_HZ = 20.0
-HIGH_HZ = RATE / 2
-
-
-def _fft(values: list[complex]) -> list[complex]:
-    """FFT radix-2 in-place, returned as a new list."""
-    n = len(values)
-    out = values[:]
-    j = 0
-    for i in range(1, n):
-        bit = n >> 1
-        while j & bit:
-            j ^= bit
-            bit >>= 1
-        j ^= bit
-        if i < j:
-            out[i], out[j] = out[j], out[i]
-    length = 2
-    while length <= n:
-        angle = -2.0 * math.pi / length
-        root = complex(math.cos(angle), math.sin(angle))
-        half = length >> 1
-        for start in range(0, n, length):
-            factor = 1 + 0j
-            for k in range(start, start + half):
-                even = out[k]
-                odd = factor * out[k + half]
-                out[k] = even + odd
-                out[k + half] = even - odd
-                factor *= root
-        length <<= 1
-    return out
+RATE = 22050            # cubre hasta ~11 kHz: suficiente para las ondas
+CHUNK = 441             # muestras por lectura = 20 ms
+BANDS = 32
+LOW_HZ = 55.0
+HIGH_HZ = 9500.0
+WINDOW = 512            # historial de muestras (la ventana de cada banda es una cola de este)
+SILENCE_PEAK = 90       # pico absoluto (s16) por debajo del cual se considera silencio
+PEAK_FLOOR = 80.0
+PEAK_DECAY = 0.996      # el normalizador cae poco a poco: respeta la dinámica de la música
+GAMMA = 0.7
+TILT = 0.07             # realce suave hacia agudos (la música cae con la frecuencia)
 
 
-def spectrum(samples: list[int]) -> list[float]:
-    """Return 16 logarithmic RMS bands (20 Hz–Nyquist), normalized 0..1."""
-    if len(samples) != SIZE:
-        return [0.0] * BANDS
-    windowed = []
-    for i, sample in enumerate(samples):
-        hann = 0.5 - 0.5 * math.cos(2.0 * math.pi * i / (SIZE - 1))
-        windowed.append(complex((sample / 32768.0) * hann, 0.0))
-    bins = _fft(windowed)
-    powers = [(abs(bins[i]) * 2.0 / SIZE) ** 2 for i in range(SIZE // 2 + 1)]
-    edges = [LOW_HZ * (HIGH_HZ / LOW_HZ) ** (i / BANDS) for i in range(BANDS + 1)]
-    result = []
-    for band in range(BANDS):
-        first = max(1, math.ceil(edges[band] * SIZE / RATE))
-        last = min(SIZE // 2, math.ceil(edges[band + 1] * SIZE / RATE))
-        chunk = powers[first:last]
-        rms = math.sqrt(sum(chunk) / len(chunk)) if chunk else 0.0
-        db = 20.0 * math.log10(max(rms, 1e-6))
-        result.append(max(0.0, min(1.0, (db + 72.0) / 54.0)))
-    return result
+def band_plan(rate: int = RATE, bands: int = BANDS):
+    """[(coeficiente Goertzel, longitud de ventana, ventana Hann)] por banda, con centros equiespaciados en mel."""
+    def mel(f): return 2595.0 * math.log10(1.0 + f / 700.0)
+    def imel(m): return 700.0 * (10.0 ** (m / 2595.0) - 1.0)
+    lo, hi = mel(LOW_HZ), mel(HIGH_HZ)
+    centers = [imel(lo + (hi - lo) * i / (bands - 1)) for i in range(bands)]
+    plan = []
+    for i, f in enumerate(centers):
+        a = centers[i - 1] if i > 0 else f / 1.2
+        b = centers[i + 1] if i < bands - 1 else f * 1.2
+        bw = max(20.0, (b - a) / 2.0)
+        n = int(min(WINDOW, max(48, 1.6 * rate / bw)))
+        win = [0.5 - 0.5 * math.cos(2 * math.pi * k / (n - 1)) for k in range(n)]
+        plan.append((2.0 * math.cos(2 * math.pi * f / rate), n, win))
+    return plan
+
+
+def goertzel(samples, coeff: float, window) -> float:
+    """Amplitud (no normalizada) de una frecuencia en las últimas len(window) muestras."""
+    n = len(window)
+    q1 = q2 = 0.0
+    for v, w in zip(samples[-n:], window):
+        q0 = coeff * q1 - q2 + v * w
+        q2 = q1
+        q1 = q0
+    return max(0.0, q1 * q1 + q2 * q2 - coeff * q1 * q2) ** 0.5 / n
+
+
+class Analyzer:
+    """Estado del análisis: recibe trozos de muestras s16 y devuelve las bandas 0..1 (o ceros en silencio)."""
+
+    def __init__(self, rate: int = RATE, bands: int = BANDS):
+        self.bands = bands
+        self.plan = band_plan(rate, bands)
+        self.buf = array.array("h", [0] * WINDOW)
+        self.values = [0.0] * bands
+        self.peak = PEAK_FLOOR * 1.5
+        self.parity = 0
+
+    def feed(self, chunk: "array.array") -> list[float]:
+        if not len(chunk):
+            return [0.0] * self.bands
+        self.buf.extend(chunk)
+        if len(self.buf) > WINDOW:
+            del self.buf[:len(self.buf) - WINDOW]
+        if max(max(chunk), -min(chunk)) < SILENCE_PEAK or len(self.buf) < WINDOW:
+            self.values = [0.0] * self.bands
+            return list(self.values)
+        par = self.parity
+        self.parity ^= 1
+        for i, (coeff, _n, win) in enumerate(self.plan):
+            if (i & 1) != par:
+                continue                                    # cada trozo recalcula la mitad de las bandas (25 Hz por banda)
+            self.values[i] = goertzel(self.buf, coeff, win) * (1.0 + i * TILT)
+        self.peak = max(max(self.values), self.peak * PEAK_DECAY, PEAK_FLOOR)
+        return [round(min(1.0, (v / self.peak) ** GAMMA), 3) for v in self.values]
 
 
 class AudioSpectrum:
-    """Background reader for the default output monitor."""
+    """Lector en segundo plano del monitor de la salida por defecto."""
 
     def __init__(self, log=None):
         self.log = log or (lambda _message: None)
@@ -108,30 +125,30 @@ class AudioSpectrum:
                     "bands": self._bands[:], "rate": RATE, "bandCount": BANDS}
 
     def _publish(self, values):
-        peak = max(values, default=0.0)
         with self._lock:
             self._bands = values
             self._available = True
-            self._active = peak >= 0.035
+            self._active = max(values, default=0.0) > 0.0
 
     def _run(self):
+        analyzer = Analyzer()
         while not self._stop.is_set():
             proc = None
             try:
                 proc = subprocess.Popen(
                     ["parec", "--raw", "--format=s16le", f"--rate={RATE}", "--channels=1",
-                     "--device=@DEFAULT_MONITOR@", "--latency-msec=90", "--stream-name=Omnia Audio Spectrum"],
+                     "--device=@DEFAULT_MONITOR@", "--latency-msec=20", "--stream-name=Omnia Audio Spectrum"],
                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     start_new_session=True)
                 self._proc = proc
                 stream = proc.stdout
                 while not self._stop.is_set():
-                    raw = stream.read(SIZE * 2)
-                    if len(raw) != SIZE * 2:
+                    raw = stream.read(CHUNK * 2)
+                    if len(raw) != CHUNK * 2:
                         break
-                    samples = [int.from_bytes(raw[i:i + 2], "little", signed=True)
-                               for i in range(0, len(raw), 2)]
-                    self._publish(spectrum(samples))
+                    chunk = array.array("h")
+                    chunk.frombytes(raw)
+                    self._publish(analyzer.feed(chunk))
                 if proc.poll() is None:
                     proc.terminate()
                 proc.wait(timeout=1)
@@ -152,4 +169,3 @@ class AudioSpectrum:
             if not self._stop.wait(3):
                 continue
             break
-

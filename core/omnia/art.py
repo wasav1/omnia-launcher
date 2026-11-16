@@ -30,6 +30,9 @@ class ArtError(Exception):
     pass
 
 
+NONE_MARK = ".sin-arte"      # marca: SteamGridDB no tiene este tipo de arte para el juego
+
+
 def safe_slug(slug: str) -> str:
     s = re.sub(r"[^A-Za-z0-9._-]+", "-", str(slug)).strip("-.")
     return s[:80] or "juego"
@@ -78,6 +81,39 @@ def url_allowed(url: str) -> bool:
     return u.scheme == "https" and bool(u.hostname) and bool(HOST_OK.match(u.hostname.lower()))
 
 
+# Plataformas cuya edición en SteamGridDB suele ser la más reciente (remasters) o la original (emulados)
+NEWEST = {"sw2", "ps5"}
+OLDEST = {"n64", "sw1", "ps3", "ps4"}
+
+
+def _norm_name(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(s).casefold())
+
+
+def pick_edition(editions: list, game: dict) -> int:
+    """Elige la edición de SteamGridDB que corresponde al juego, no solo el primer resultado.
+
+    Entre las que se llaman igual que el juego: el año guardado (`art.year`) si coincide; si no, la plataforma
+    (Switch 2/PS5 -> la más reciente; N64/Switch/PS3/PS4 -> la original). Sin coincidencia exacta, la primera."""
+    art_info = game.get("art") or {}
+    name = _norm_name(art_info.get("sgdb") or game.get("name", ""))
+    exact = [e for e in editions if _norm_name(e["name"]) == name]
+    if not exact:
+        return editions[0]["id"]
+    year = art_info.get("year")
+    if isinstance(year, int) and year > 0:
+        match = [e for e in exact if e["year"] == year]
+        if match:
+            return match[0]["id"]
+    dated = [e for e in exact if e["year"]]
+    platform = game.get("platform", "")
+    if dated and platform in NEWEST:
+        return max(dated, key=lambda e: e["year"])["id"]
+    if dated and platform in OLDEST:
+        return min(dated, key=lambda e: e["year"])["id"]
+    return exact[0]["id"]
+
+
 class Client:
     def __init__(self, key: str, opener=urllib.request.urlopen):
         self.key, self.opener = key, opener
@@ -96,6 +132,21 @@ class Client:
         except (OSError, ValueError) as e:
             raise ArtError("SteamGridDB: %s" % e)
 
+    def editions(self, name: str) -> list:
+        """Ediciones del juego en SteamGridDB: [{id, name, year}] en el orden de la búsqueda."""
+        found = self.get_json("/search/autocomplete/" + urllib.parse.quote(name, safe="")).get("data") or []
+        out = []
+        for item in found[:12]:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+                continue
+            release = item.get("release_date")
+            try:
+                year = datetime.datetime.fromtimestamp(int(release), tz=datetime.timezone.utc).year if release else 0
+            except (ValueError, TypeError, OSError, OverflowError):
+                year = 0
+            out.append({"id": item["id"], "name": str(item.get("name") or ""), "year": year})
+        return out
+
     def candidates(self, game: dict, kind: str) -> list:
         """URLs candidatas para un juego: por appid si es de Steam, si no por búsqueda del nombre."""
         endpoint, params = KINDS[kind]
@@ -104,10 +155,10 @@ class Client:
             data = self.get_json("/%s/steam/%s" % (endpoint, gid[6:]), params)
         else:
             name = (game.get("art") or {}).get("sgdb") or game.get("name", "")
-            found = self.get_json("/search/autocomplete/" + urllib.parse.quote(name, safe="")).get("data") or []
-            if not found:
+            eds = self.editions(name)
+            if not eds:
                 return []
-            data = self.get_json("/%s/game/%s" % (endpoint, found[0]["id"]), params)
+            data = self.get_json("/%s/game/%s" % (endpoint, pick_edition(eds, game)), params)
         return [x["url"] for x in (data.get("data") or []) if isinstance(x, dict) and x.get("url")]
 
     def browse(self, game: dict, kind: str, page: int = 0, sgid: int = 0) -> dict:
@@ -116,19 +167,9 @@ class Client:
             raise ArtError("tipo de arte no válido")
         page = max(0, min(500, int(page)))
         name = (game.get("art") or {}).get("sgdb") or game.get("name", "")
-        found = self.get_json("/search/autocomplete/" + urllib.parse.quote(name, safe="")).get("data") or []
-        games = []
-        for item in found[:12]:
-            if not isinstance(item, dict) or not isinstance(item.get("id"), int) or not item.get("name"):
-                continue
-            release = item.get("release_date")
-            try:
-                year = datetime.datetime.fromtimestamp(int(release), tz=datetime.timezone.utc).year if release else 0
-            except (ValueError, TypeError, OSError, OverflowError):
-                year = 0
-            games.append({"id": item["id"], "name": str(item["name"]), "year": year})
+        games = [e for e in self.editions(name) if e["name"]]       # para elegir se necesita el nombre
         if not sgid:
-            sgid = games[0]["id"] if games else 0
+            sgid = pick_edition(games, game) if games else 0
         if not sgid or not any(g["id"] == int(sgid) for g in games):
             if sgid:
                 raise ArtError("edición de SteamGridDB no válida")
@@ -175,7 +216,18 @@ def fetch_game(client: Client, game: dict, kinds=("portada", "fondo", "logo"), b
     for kind in kinds:
         if cached(slug, kind, base):
             continue
-        for url in client.candidates(game, kind)[:3]:          # prueba pocas opciones: no es un rastreo
+        marker = art_dir(slug, kind, base) / NONE_MARK
+        if marker.exists():
+            continue                                            # ya se comprobó que SteamGridDB no tiene este tipo
+        cands = client.candidates(game, kind)
+        if not cands:
+            try:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.touch()                                  # no repetir la consulta en cada ciclo
+            except OSError:
+                pass
+            continue
+        for url in cands[:3]:                                   # prueba pocas opciones: no es un rastreo
             try:
                 got[kind] = str(client.download(url, art_dir(slug, kind, base)))
                 break

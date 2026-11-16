@@ -50,7 +50,7 @@ ListView {
                    color: row.modelData.accent ? "#7fd69f" : "#f4efd8"; font.bold: row.modelData.accent === true }
             Text { visible: !!row.modelData.sub; width: parent.width; elide: Text.ElideRight; text: row.modelData.sub || ""; color: "#a89f74"; font.pixelSize: 14 }
         }
-        MouseArea { id: hov; anchors.fill: parent; hoverEnabled: true
+        MouseArea { cursorShape: Qt.PointingHandCursor; id: hov; anchors.fill: parent; hoverEnabled: true
                     onClicked: { if (row.modelData.disabled) return; lv.setIndex(row.index); lv.activated(row.index) } }
     }
 }

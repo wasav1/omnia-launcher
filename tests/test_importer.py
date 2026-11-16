@@ -22,7 +22,7 @@ class Plan(unittest.TestCase):
         self.home = str(self.tmp / "home")
         self.exists = lambda p: p.startswith(self.home) and "falta" not in p
         self.legacy = {"games": [
-            {"id": "ocarina", "name": "Ocarina", "platform": "sw2", "art": {"sgdb": "Zelda OoT"}, "ports": [
+            {"id": "ocarina", "name": "Ocarina", "platform": "sw2", "art": {"sgdb": "Zelda OoT", "year": 2026}, "ports": [
                 port("longshot", "/var/home/wsaenz/Juegos/Longshot/longshot", cwd="/var/home/wsaenz/Juegos/Longshot",
                      saves={"glob": "~/.local/share/longshot/save/*/slot_*"}, backup_dir="/var/home/wsaenz/Juegos/Partidas/L"),
                 port("nx2navi", "/var/home/wsaenz/Juegos/NX/nx2navi")]},
@@ -67,7 +67,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(p["saves"]["glob"], self.home + "/.local/share/longshot/save/*/slot_*")       # «~» → el home actual
         self.assertEqual(p["backup_dir"], self.home + "/Juegos/Partidas/L")                            # la carpeta de respaldos, como estaba
         self.assertNotIn("auto", e)
-        self.assertEqual(e["art"], {"slug": "manual-ocarina-longshot", "sgdb": "Zelda OoT"})
+        self.assertEqual(e["art"], {"slug": "manual-ocarina-longshot", "sgdb": "Zelda OoT", "year": 2026})
         self.assertEqual(e["src"], "Nintendo Switch 2")
 
     def test_argumentos_con_ruta_antigua_en_medio(self):

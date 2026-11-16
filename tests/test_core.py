@@ -174,6 +174,35 @@ class ApiSeguridad(unittest.TestCase):
         self.assertEqual(self.call("/launch?id=steam-10", "POST")[0], 409)
         self.assertEqual(self.launched, [])
 
+    def test_energia_solo_post_y_solo_acciones_conocidas(self):
+        ejecutadas = []
+        self.api.power_spawn = lambda cmd, **kw: ejecutadas.append(cmd)
+        self.assertEqual(self.call("/power?a=lock")[0], 405)                       # nunca por GET
+        self.assertEqual(self.call("/power?a=lock", "POST", token=False)[0], 401)
+        self.assertEqual(self.call("/power?a=format-c", "POST")[0], 400)
+        self.assertEqual(ejecutadas, [])
+        self.assertEqual(self.call("/power?a=lock", "POST")[0], 200)
+        self.assertEqual(ejecutadas, [["loginctl", "lock-session"]])
+
+    def test_audio_outputs_y_set_solo_por_post_y_validados(self):
+        from test_audio_out import Fake
+        f = Fake()
+        self.api.pactl_run = f
+        st, body = self.call("/audio/outputs")
+        self.assertEqual(st, 200)
+        self.assertTrue(body["ok"] and body["items"])
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo")[0], 405)           # nunca por GET
+        self.assertEqual(self.call("/audio/set?sink=inventado", "POST")[0], 400)
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo", "POST")[0], 200)
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo", "POST", token=False)[0], 401)
+
+    def test_sistema_devuelve_cpu_disco_y_bateria(self):
+        st, body = self.call("/system")
+        self.assertEqual(st, 200)
+        self.assertIn("cpu", body)
+        self.assertIn("ac", body)
+        self.assertEqual(self.call("/system", token=False)[0], 401)
+
     def test_no_se_puede_inyectar_comando(self):
         self.call("/library/refresh", "POST")
         req = urllib.request.Request(self.base + "/launch", method="POST",

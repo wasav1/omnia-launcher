@@ -18,10 +18,15 @@ Item {
     opacity: 1
     transform: Translate { y: hoverArea.containsMouse && !card.current ? -10 : 0; Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } } }
 
+    // máscara de esquinas: TODO lo que pinta la tarjeta (fondo, escena, portada, degradados) queda recortado a 18 px de radio
+    Item { id: cardMask; anchors.fill: parent; visible: false; layer.enabled: true; layer.smooth: true
+        Rectangle { anchors.fill: parent; radius: 18 } }
     Item {
         id: artLayer
         anchors.fill: parent
-        clip: true
+        layer.enabled: true
+        layer.smooth: true
+        layer.effect: MultiEffect { maskEnabled: true; maskSource: cardMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
         Rectangle { anchors.fill: parent; color: "#171b18" }
         Scene {
             anchors.fill: parent
@@ -37,10 +42,8 @@ Item {
             asynchronous: true
             smooth: true
             sourceSize.width: 600
-            visible: false
+            visible: status === Image.Ready
         }
-        Rectangle { id: coverMask; anchors.fill: parent; radius: 18; visible: false; layer.enabled: true }
-        MultiEffect { anchors.fill: parent; source: cover; maskEnabled: true; maskSource: coverMask; visible: cover.status === Image.Ready }
         Rectangle {
             visible: cover.status !== Image.Ready
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -67,7 +70,7 @@ Item {
     }
     Text { visible: !!(card.game && card.game.fav); anchors { right: parent.right; top: parent.top; margins: 10 } text: "★"; color: "#e6d9a0"; font.pixelSize: 22; style: Text.Outline; styleColor: "#99000000" }
     Rectangle {
-        visible: !!(game && game.added > 0 && game.added > Date.now()/1000 - 14*86400 && !game.lastPlayed)
+        visible: !!game && !(game.lastPlayed > 0)               // sin jugar nunca: punto verde; con la tarjeta seleccionada, «NUEVO»
         anchors { right: parent.right; top: parent.top; topMargin: current ? 12 : 16; rightMargin: (game && game.fav ? 40 : 12) + (current ? 0 : 4) }
         height: current ? 26 : 14; radius: height/2; width: current ? newText.implicitWidth + 18 : 14
         color: "#6fd08c"; border.width: current ? 0 : 2; border.color: "#cc0c1a10"

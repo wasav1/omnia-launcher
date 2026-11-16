@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import apps, art, fsbrowse, importer, launcher, manual, procs, saves, security, templates
+from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -76,6 +76,10 @@ class Api:
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
             "/audio": ("GET", True, self.audio_status),
+            "/system": ("GET", True, self.system_status),
+            "/audio/outputs": ("GET", True, self.audio_outputs),
+            "/audio/set": ("POST", True, self.audio_set),
+            "/power": ("POST", True, self.power_action),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -142,6 +146,35 @@ class Api:
     # --- rutas
     def health(self, q):
         return {"ok": True}
+
+    def audio_outputs(self, q):
+        try:
+            return {"ok": True, "items": audio_out.list_outputs(getattr(self, "pactl_run", subprocess.run))}
+        except audio_out.AudioOutError as e:
+            return {"ok": False, "items": [], "error": str(e)}
+
+    def audio_set(self, q):
+        try:
+            audio_out.set_output(q.get("sink", ""), q.get("port", ""), getattr(self, "pactl_run", subprocess.run))
+        except audio_out.AudioOutError as e:
+            raise ApiError(400, str(e))
+        return {"ok": True}
+
+    def power_action(self, q):
+        action = q.get("a", "")
+        if action not in power.COMMANDS:
+            raise ApiError(400, "acción de energía no válida")
+        if not power.run(action, getattr(self, "power_spawn", subprocess.Popen)):
+            raise ApiError(500, "no se pudo ejecutar la acción")
+        return {"ok": True}
+
+    def system_status(self, q):
+        now = time.time()
+        cache = getattr(self, "_system_cache", None)
+        if cache is None or now - cache[0] > 2.0:                 # el panel sondea cada pocos segundos: no releer /sys a cada petición
+            cache = (now, system.snapshot())
+            self._system_cache = cache
+        return cache[1]
 
     def audio_status(self, q):
         source = getattr(self, "audio", None)

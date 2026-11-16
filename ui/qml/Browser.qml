@@ -86,7 +86,7 @@ Modal {
                 height: 34; width: sct.width + 28; radius: 17
                 color: br.data.path === modelData.path ? "#2e8b57" : Qt.rgba(1, 1, 1, 0.08)
                 Text { id: sct; anchors.centerIn: parent; text: parent.modelData.name; color: "#f4efd8"; font.pixelSize: 15 }
-                MouseArea { anchors.fill: parent; onClicked: { br.shortcutIdx = parent.index; br.go(parent.modelData.path) } }
+                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: { br.shortcutIdx = parent.index; br.go(parent.modelData.path) } }
             }
         }
         Text { visible: br.error !== ""; text: br.error; color: "#e89a8a"; font.pixelSize: 16 }

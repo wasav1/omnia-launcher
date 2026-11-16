@@ -14,6 +14,19 @@ Item {
     property color ink2: "#d6d0bf"
     property color ink3: "#a59f8f"
     property string hudFont: "Rajdhani"
+    property bool charge: false          // true = nivel de carga (batería): rojo con poca y verde con mucha, en vez de aviso por saturación
+    readonly property var chargeStops: [[0, "#e2443f"], [20, "#e8743f"], [40, "#e6b450"], [60, "#c9d45a"], [80, "#8fd46a"], [100, "#5fd08c"]]
+    function chargeColor(p) {
+        const v = Math.max(0, Math.min(100, p))
+        for (let i = 1; i < chargeStops.length; i++) {
+            if (v <= chargeStops[i][0]) {
+                const a = chargeStops[i - 1], b = chargeStops[i], f = (v - a[0]) / (b[0] - a[0])
+                const ca = Qt.color(a[1]), cb = Qt.color(b[1])
+                return Qt.rgba(ca.r + (cb.r - ca.r) * f, ca.g + (cb.g - ca.g) * f, ca.b + (cb.b - ca.b) * f, 1)
+            }
+        }
+        return chargeStops[chargeStops.length - 1][1]
+    }
     width: 320; height: 42
     Row {
         width: parent.width
@@ -30,7 +43,7 @@ Item {
         Rectangle {
             height: parent.height; radius: 2
             width: parent.width * Math.max(0, Math.min(1, hr.pct / 100))
-            color: hr.pct >= 90 ? "#e2604f" : (hr.pct >= 75 ? "#e6a850" : hr.acc)
+            color: hr.charge ? hr.chargeColor(hr.pct) : (hr.pct >= 90 ? "#e2604f" : (hr.pct >= 75 ? "#e6a850" : hr.acc))
             Behavior on width { NumberAnimation { duration: 800 } }
         }
     }

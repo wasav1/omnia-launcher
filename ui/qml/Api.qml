@@ -11,17 +11,30 @@ QtObject {
     property string error: ""
     property var games: []
     property string toast: ""
+    property real toastLevel: 0           // opacidad del aviso: 1 al mostrarlo, 3 s después se desvanece en 2 s
+    function notify(text) { toast = ""; toast = text }
+    onToastChanged: {
+        toastFade.stop()
+        if (toast === "") { toastLevel = 0; return }
+        toastLevel = 1
+        toastHold.restart()
+    }
+    property Timer toastHold: Timer { interval: 3000; onTriggered: toastFade.start() }
+    property NumberAnimation toastFade: NumberAnimation { target: api; property: "toastLevel"; to: 0; duration: 2000; easing.type: Easing.InOutQuad
+        onFinished: api.toast = "" }
     property bool covered: false          // una ventana maximizada o a pantalla completa tapa el escritorio
     property bool shelfActive: true       // el mando es de la estantería (ninguna ventana normal tiene el foco)
     property var apps: []
     property var appGroups: []
     property bool gameMode: false         // modo juego activo (descargas congeladas y perfil de energía alto)
     property bool padOn: false
+    property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
     property int padSeq: -1
     property bool audioActive: false
     property bool audioAvailable: false
     property var audioBands: []
+    property var system: ({})             // /system: modelo y GHz de la CPU, disco de los juegos, batería
     signal padKey(string key)
     property string _last: ""
 
@@ -70,6 +83,10 @@ QtObject {
         })
     }
 
+    function pollSystem() {
+        call("GET", "/system", function (status, body) { if (status === 200 && body) system = body })
+    }
+
     function pollAudio() {
         call("GET", "/audio", function (status, body) {
             if (status === 200) {
@@ -94,6 +111,17 @@ QtObject {
         call("GET", "/apps", function (status, body) {
             if (status === 200) { apps = body.apps; appGroups = body.groups }
         })
+    }
+    // --- salida de audio (botón del altavoz)
+    function loadAudioOutputs(done) {
+        call("GET", "/audio/outputs", function (status, body) {
+            if (status !== 200 || !body || !body.ok || !body.items.length) { done([], (body && body.error) || ""); return }
+            done(body.items, "")
+        })
+    }
+    function setAudioOutput(item, done) {
+        call("POST", "/audio/set?sink=" + encodeURIComponent(item.sink) + "&port=" + encodeURIComponent(item.port || ""),
+             function (status) { if (done) done(status === 200) })
     }
     function launchApp(a, done) {
         call("POST", "/app/launch?id=" + encodeURIComponent(a.id), function (status, body) {
@@ -128,7 +156,12 @@ QtObject {
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) refresh(); done(st, b) }, body) }
     function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
 
-    function reportMenu(open) { call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function reportMenu(open) { menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function power(action) {
+        call("POST", "/power?a=" + encodeURIComponent(action), function (status, body) {
+            if (status !== 200) toast = (body && body.error) || "No se pudo ejecutar la acción"
+        })
+    }
     function toggleAppFav(a) {
         call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { loadApps() })
     }
@@ -157,7 +190,9 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
-    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok; triggeredOnStart: true; onTriggered: api.pollAudio() }
+    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
+
+    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))

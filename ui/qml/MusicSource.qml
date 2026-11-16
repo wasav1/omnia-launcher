@@ -12,17 +12,15 @@ Item {
     readonly property string sourceName: available ? String(player.identity || player.desktopEntry || "Reproductor").replace(/\.desktop$/i, "") : ""
     readonly property real length: available && Number.isFinite(Number(player.length)) && Number(player.length) > 0 ? Number(player.length) / 1000000 : 0
     readonly property real playbackRate: available && Number(player.rate) > 0 ? Number(player.rate) : 1
-    property real positionAnchor: 0
+    // Posición propia: avanza con el reloj local cada 100 ms (fluida, segundo a segundo) y solo se corrige con el valor del
+    // reproductor ante un salto real (cambio de pista, adelantar/atrasar). Antes se volvía a anclar justo antes de leerla y
+    // el tiempo transcurrido valía siempre ~0: la barra solo avanzaba a saltos de ~2 s cuando el reproductor corregía.
+    property real position: 0
     property real positionSampledAt: Date.now()
-    property int positionPulse: 0
-    property int positionPollCount: 0
     property real trackChangedAt: Date.now()
-    readonly property real position: {
-        positionPulse
-        const elapsed = playing ? Math.max(0, (Date.now() - positionSampledAt) / 1000 * playbackRate) : 0
-        const value = Math.max(0, positionAnchor + elapsed)
-        return length > 0 ? Math.min(length, value) : value
-    }
+    property int positionPollCount: 0
+
+    function clampPos(v) { return length > 0 ? Math.min(length, Math.max(0, v)) : Math.max(0, v) }
 
     Mpris.Mpris2Model { id: model }
 
@@ -32,24 +30,23 @@ Item {
         if (!Number.isFinite(value) || value < 0) return
         const seconds = value / 1000000
         const now = Date.now()
-        const predicted = position
-        // Some MPRIS clients (notably browser players) keep reporting zero or a stale
-        // position. Ignore it; use remote values only for meaningful jumps/seeks.
+        // Algunos clientes (sobre todo navegadores) devuelven 0 o una posición vieja: se ignoran. El valor remoto solo se
+        // usa para saltos o búsquedas de verdad (más de 2 s de diferencia con la posición propia).
         if (now - trackChangedAt < 1200 && seconds > 2) return
-        if (seconds === 0 && predicted > 1.25) return
-        if (Math.abs(seconds - predicted) > 1.25) {
-            positionAnchor = seconds
+        if (seconds === 0 && position > 1.25) return
+        if (Math.abs(seconds - position) > 2.0) {
+            position = clampPos(seconds)
             positionSampledAt = now
-            positionPulse++
         }
     }
 
-    onPlayerChanged: {
-        positionAnchor = 0
+    function resetPosition() {
+        position = 0
         positionSampledAt = Date.now()
         trackChangedAt = positionSampledAt
         if (player) player.updatePosition()
     }
+    onPlayerChanged: resetPosition()
 
     Connections {
         target: m.player
@@ -57,23 +54,16 @@ Item {
         function onPositionChanged() { m.acceptRemotePosition() }
         function onPlaybackStatusChanged() { if (m.player) m.player.updatePosition() }
         function onRateChanged() { if (m.player) m.player.updatePosition() }
-        function onTrackChanged() {
-            m.positionAnchor = 0
-            m.positionSampledAt = Date.now()
-            m.trackChangedAt = m.positionSampledAt
-            if (m.player) m.player.updatePosition()
-        }
+        function onTrackChanged() { m.resetPosition() }
     }
 
     Timer {
-        interval: 250; repeat: true; running: m.available; triggeredOnStart: true
+        interval: 100; repeat: true; running: m.available; triggeredOnStart: true
         onTriggered: {
-            if (m.playing) {
-                m.positionAnchor = m.position
-                m.positionSampledAt = Date.now()
-            }
-            m.positionPulse++
-            if (m.player && (++m.positionPollCount % 4) === 0) m.player.updatePosition()
+            const now = Date.now()
+            if (m.playing) m.position = m.clampPos(m.position + (now - m.positionSampledAt) / 1000 * m.playbackRate)
+            m.positionSampledAt = now
+            if (m.player && (++m.positionPollCount % 10) === 0) m.player.updatePosition()      // consulta al reproductor cada ~1 s
         }
     }
     function playPause() { if (player) player.PlayPause() }
