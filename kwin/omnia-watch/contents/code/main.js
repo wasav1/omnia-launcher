@@ -31,8 +31,10 @@ function compute(ow, mode) {
     }
     // las ventanas de Omnia (estantería y Big Menu) son superficies de capa: sin título, clase «qml» (o «omnia-ui» empaquetado)
     var shelfFocused = !!aw && !isReal(aw) && (aw.resourceClass === "qml" || aw.resourceClass === "omnia-ui");
-    // Sin ventanas visibles el mando es de la estantería AUNQUE KWin siga dando por activa la última ventana minimizada.
-    var active = shelfFocused || !anyVisible;
+    // El wallpaper nativo no es una ventana normal. Si el escritorio/Plasma tiene el foco, la estantería
+    // vuelve a recibir teclado y mando aunque haya ventanas inactivas detrás; nunca mientras una app normal
+    // siga enfocada. También cubre el caso de que KWin conserve como activa una ventana ya minimizada.
+    var active = shelfFocused || !isReal(aw) || !anyVisible;
     var key = active + "/" + covered;
     if (key === last) return;
     last = key;
@@ -55,9 +57,3 @@ workspace.currentDesktopChanged.connect(function () { compute(); });
 
 workspace.stackingOrder.forEach(watch);
 compute();
-
-// Tecla Windows sola: en Plasma 6.8 no se enlaza por ModifierOnlyShortcuts sino con un atajo global de KGlobalAccel (el del
-// lanzador de plasmashell). Esta acción es la de Omnia; omnia-setup le quita «Meta» al lanzador de Plasma y se la da a esta.
-registerShortcut("OmniaMenu", "Omnia: abrir el menú", "Meta", function () {
-    callDBus(SERVICE, PATH, IFACE, "ToggleMenu");
-});

@@ -30,7 +30,7 @@ class Fake:
             out = json.dumps(SINKS)
         elif a[:3] == ["list", "short", "sink-inputs"]:
             out = "12\t5\t6\tx\ts16le\n13\t5\t6\ty\ts16le\n"
-        return types.SimpleNamespace(stdout=out)
+        return types.SimpleNamespace(stdout=out, stderr="", returncode=0)
 
 
 class AudioOutTests(unittest.TestCase):
@@ -67,6 +67,12 @@ class AudioOutTests(unittest.TestCase):
         with self.assertRaises(audio_out.AudioOutError):
             audio_out.set_output("alsa_output.pci.analog-stereo", "puerto-inventado", f)
         self.assertFalse(any(c[0] in ("set-default-sink", "set-sink-port", "move-sink-input") for c in f.calls))
+
+    def test_reports_pactl_failure(self):
+        def failed(cmd, **kw):
+            return types.SimpleNamespace(stdout="", stderr="No such entity", returncode=1)
+        with self.assertRaisesRegex(audio_out.AudioOutError, "No such entity"):
+            audio_out.list_outputs(failed)
 
 
 if __name__ == "__main__":

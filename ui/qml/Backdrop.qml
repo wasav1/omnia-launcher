@@ -6,6 +6,7 @@ Item {
     id: bd
     property url source: ""
     property real blur: 0
+    property real saturation: -0.16
     property Item front: a
     property Item back: b
     property real pan: 0
@@ -39,7 +40,7 @@ Item {
         anchors.fill: parent
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutQuad } }
-        // Alto = 100 % de la pantalla (sin recorte vertical ni zoom); el ancho sobrante da el recorrido del paneo horizontal.
+        // Alto = 100 % del display; la imagen se carga a su resolución nativa y el ancho sobrante da el paneo horizontal.
         // Si la imagen no es más ancha que la pantalla se ensancha un 10 % para que siempre haya un movimiento suave.
         Item {
             id: stage
@@ -53,7 +54,6 @@ Item {
                 anchors.fill: parent; visible: false
                 asynchronous: true; cache: true; smooth: true
                 fillMode: Image.PreserveAspectCrop
-                sourceSize.height: 1080
             }
             MultiEffect {
                 anchors.fill: parent
@@ -61,7 +61,7 @@ Item {
                 blurEnabled: bd.blur > 0
                 blur: Math.min(1, bd.blur / 32)
                 blurMax: 32
-                saturation: -0.16
+                saturation: bd.saturation
             }
         }
     }

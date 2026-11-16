@@ -1,0 +1,18 @@
+{
+  "KPackageStructure": "Plasma/Wallpaper",
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "wichmann.saenz@outlook.com",
+        "Name": "Wichmann Saenz"
+      }
+    ],
+    "Category": "System Information",
+    "Description": "Fondo animado de Omnia según el juego seleccionado",
+    "Icon": "applications-games",
+    "Id": "org.omnia.launcher",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia Animated Background"
+  },
+  "X-KDE-ParentApp": "org.kde.plasmashell"
+}

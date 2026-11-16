@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Omnia Desktop Suite — Instalar o actualizar
+Comment=Configura tu biblioteca y escritorio de juegos para KDE Plasma 6
+Exec=omnia-desktop-suite-install
+Icon=org.omnia.installer
+Terminal=false
+Categories=Game;
+Keywords=Omnia;KDE;Plasma;Installer;Instalador;

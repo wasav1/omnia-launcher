@@ -21,7 +21,7 @@ def load_config() -> dict:
     return cfg if isinstance(cfg, dict) else {}
 
 
-def art_worker(store, stop: threading.Event, pause: float = 1.5):
+def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
     """Descarga en segundo plano el arte que falte, con pausa entre juegos. Solo si hay clave de SteamGridDB."""
     warned = False
     while not stop.is_set():
@@ -41,20 +41,28 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5):
                     got = art.fetch_game(client, g)
                     if got:
                         log.info("arte de %s: %s", g.get("name"), ", ".join(got))
+                        if bus and "fondo" in got and store.state.get("selected_game") == g.get("id"):
+                            bus.selection_changed()
                 except art.ArtError as e:
                     log.warning("arte de %s: %s", g.get("name"), e)
                 stop.wait(pause)
         stop.wait(60)
 
 
-def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 2.0):
-    """Un solo sondeo de los juegos en marcha alimenta el modo juego y el historial de sesiones. Al parar el servicio,
+def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 0.35):
+    """Un sondeo frecuente de juegos en marcha alimenta UI, modo juego e historial. Al parar el servicio,
     el modo juego suelta lo congelado y las sesiones en curso se cierran."""
+    previous = None
     try:
         while not stop.wait(every):
             try:
                 running = api.running_list()
-                sessions.update({g["id"]: g.get("name", g["id"]) for g in running})
+                running_ids = frozenset(g["id"] for g in running)
+                changed = previous is not None and running_ids != previous
+                previous = running_ids
+                changed = sessions.update({g["id"]: g.get("name", g["id"]) for g in running}) or changed
+                if changed:
+                    api.bus.games_changed()
                 if mode.update([g.get("name", g["id"]) for g in running if not g.get("cloud")]):
                     api.bus.set_gamemode(mode.status())
             except Exception:
@@ -102,7 +110,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     if closed:
         log.warning("historial: cerradas %d sesiones que quedaron abiertas", closed)
     api.sessions = sessions
-    threading.Thread(target=art_worker, args=(store, stop), daemon=True).start()
+    threading.Thread(target=art_worker, args=(store, stop, 1.5, api.bus), daemon=True).start()
     gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, sessions, stop), name="omnia-gamemode")
     gm_thread.start()
     reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)

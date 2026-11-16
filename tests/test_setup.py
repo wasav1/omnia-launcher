@@ -118,14 +118,22 @@ class Setup(unittest.TestCase):
         setup.apply(be, self.cfg, wait=0.5)
         self.assertEqual(be.keys[NATIVE], [12345])
 
-    def test_la_tecla_windows_pasa_del_lanzador_de_plasma_a_omnia_y_vuelve(self):
+    def test_la_tecla_windows_permanece_en_plasma(self):
         be = FakeKde()
         setup.apply(be, self.cfg, wait=0.5)
-        self.assertEqual(be.keys[LAUNCHER], [be.ALT_F1])                  # Alt+F1 se conserva
-        self.assertEqual(be.keys[OMENU], [META_ALONE])
+        self.assertEqual(be.keys[LAUNCHER], [META_ALONE, be.ALT_F1])
+        self.assertEqual(be.keys[OMENU], [])
         setup.undo(be, self.cfg)
         self.assertEqual(be.keys[LAUNCHER], [META_ALONE, be.ALT_F1])      # volvió, aunque el simulado rechace duplicados
         self.assertEqual(be.keys[OMENU], [])
+
+    def test_migra_big_menu_a_plasma_sin_conflicto_de_teclas(self):
+        be = FakeKde(plugin=True, watch=True)
+        be.keys[LAUNCHER] = [be.ALT_F1]
+        be.keys[OMENU] = [META_ALONE]
+        setup.apply(be, self.cfg, wait=0.5)
+        self.assertEqual(be.keys[OMENU], [])
+        self.assertIn(META_ALONE, be.keys[LAUNCHER])
 
     def test_limpia_el_ajuste_antiguo_que_no_funcionaba(self):
         be = FakeKde()

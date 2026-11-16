@@ -1,0 +1,7 @@
+#!/bin/sh
+# El paquete nativo instala el asistente; el escritorio se configura como usuario.
+if [ "$(id -u)" = 0 ]; then
+    echo 'Abre Omnia desde tu sesión KDE como usuario normal, sin sudo.' >&2
+    exit 1
+fi
+exec bash /usr/share/omnia-desktop-suite-installer/packaging/universal/launch-gui.sh

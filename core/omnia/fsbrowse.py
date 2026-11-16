@@ -17,7 +17,11 @@ class FsError(Exception):
 def allowed_roots() -> list:
     user, home = os.environ.get("USER") or Path.home().name, Path.home()
     cands = [home, Path("/run/media") / user, Path("/media") / user, Path("/mnt")]
-    return [c for c in cands if c.is_dir()]
+    from . import paths
+    from .store import load_json
+    configured = load_json(paths.config_dir() / "config.json", {}).get("external_roots", [])
+    cands += [Path(p).expanduser() for p in configured if isinstance(p, str)]
+    return list(dict.fromkeys(c for c in cands if c.is_dir()))
 
 
 def _under(path: str, root: str) -> bool:
@@ -41,6 +45,11 @@ def shortcuts(roots=None) -> list:
                        [{"name": "/mnt/" + d.name, "path": str(d)} for d in sorted(r.iterdir()) if d.is_dir()]
             except OSError:
                 pass
+    from . import paths
+    from .store import load_json
+    for p in load_json(paths.config_dir() / "config.json", {}).get("external_roots", []):
+        if isinstance(p, str) and os.path.isdir(p) and not any(x["path"] == p for x in out):
+            out.append({"name": Path(p).name, "path": p})
     return out
 
 

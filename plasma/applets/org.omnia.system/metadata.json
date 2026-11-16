@@ -1,0 +1,13 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [{ "Name": "Omnia contributors" }],
+    "Category": "System Information",
+    "Description": "Música y estado del sistema en Omnia",
+    "Icon": "utilities-system-monitor",
+    "Id": "org.omnia.system",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia · Sistema y música"
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

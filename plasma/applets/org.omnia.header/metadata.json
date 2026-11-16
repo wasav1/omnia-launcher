@@ -1,0 +1,13 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [{ "Name": "Omnia contributors" }],
+    "Category": "Utilities",
+    "Description": "Filtros y controles de Omnia",
+    "Icon": "org.omnia.menu",
+    "Id": "org.omnia.header",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia · Barra superior"
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

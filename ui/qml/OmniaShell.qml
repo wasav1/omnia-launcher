@@ -6,21 +6,42 @@ import org.kde.kirigami as Kirigami
 // Estantería a escala lógica 1920x1080, fiel al lienzo del prototipo.
 Rectangle {
     id: shell
-    color: "#0b0d0c"
+    color: externalWallpaper ? "transparent" : "#0b0d0c"
     focus: true
+    clip: true
 
     property int bottomInset: 0
     property bool menuOpen: false
     property bool embedMenu: false
+    property bool externalWallpaper: false
+    property string sectionMode: "full"
+    readonly property bool controllerOwner: sectionMode === "carousel" || sectionMode === "full"
+    readonly property var sectionViewport: {
+        if (sectionMode === "header") return ({ x: 60, y: 30, width: 960, height: 75 })
+        if (sectionMode === "hero") return ({ x: 60, y: 110, width: 660, height: 380 })
+        if (sectionMode === "activity") return ({ x: 740, y: 75, width: 700, height: 410 })
+        if (sectionMode === "system") return ({ x: 1490, y: 20, width: 400, height: 685 })
+        if (sectionMode === "carousel") return ({ x: 0, y: 500, width: 1480, height: 500 })
+        return ({ x: 0, y: 0, width: 1920, height: 1080 })
+    }
     property alias backend: api
+    property string tokenSource: ""
     property string overlay: ""
     property var overlayGame: null
     property string overlayPort: ""
     property string importPath: ""
     property string pendingSavesId: ""
     property string selectedId: ""
+    property int selectionRevision: -1
+    property bool applyingRemoteView: false
+    property bool selectionRequestActive: false
     property string filterKey: "all"
     property string searchText: ""
+    property int localViewRevision: 0
+    property bool viewSyncPending: false
+    property bool filterTransition: false
+    property int localSelectionRevision: 0
+    property bool localSelectionPending: false
     property bool searchOpen: false
     property string focusZone: "shelf"       // head | shelf | hero | player
     property int focusIndex: 0
@@ -47,6 +68,7 @@ Rectangle {
     property real nowSecs: Date.now() / 1000
     property string clockText: Qt.formatTime(new Date(), "h:mm AP")
     property bool powerRequested: false
+    property bool refreshBusy: false
     property string menuStartMode: "apps" // "power": el botón de apagado abre el Big Menú directamente en Energía y sesión
     // salida de audio
     property bool audOpen: false
@@ -65,7 +87,8 @@ Rectangle {
     onRunningGameChanged: runIgnored = false
     property var tempHist: []             // últimas 60 lecturas de la temperatura de la CPU (1 por segundo)
 
-    readonly property real scaleFactor: Math.min(width / 1920, height / 1080)
+    readonly property real scaleFactor: sectionMode === "full" ? Math.min(width / 1920, height / 1080)
+                                                              : Math.min(width / sectionViewport.width, height / sectionViewport.height)
     readonly property var filterOptions: {
         const out = [{ key: "all", label: "Todos" }]
         let fav = false, hidden = false
@@ -171,12 +194,99 @@ Rectangle {
         }
         return out
     }
-    function chooseFilter(key) {
-        const keep = current ? current.id : selectedId
-        filterKey = key
-        Qt.callLater(function() { restoreSelection(keep) })
+    function resetToFirstVisible() {
+        const first = visibleGames.length ? visibleGames[0] : null
+        list.currentIndex = first ? 0 : -1
+        selectedId = first ? first.id : ""
+        return first
     }
+    function completeFilterTransition(revision, key) {
+        if (revision !== localSelectionRevision || !filterTransition) return
+        const first = resetToFirstVisible()
+        filterTransition = false
+        if (first && externalWallpaper && controllerOwner) {
+            backend.selectGame(first.id, function(status) {
+                if (revision !== shell.localSelectionRevision || status !== 200) return
+                shell.localSelectionPending = false
+            }, key)
+        } else {
+            localSelectionPending = false
+        }
+        if (current) loadSaves()
+    }
+    function chooseFilter(key) {
+        if (key === filterKey) return
+        filterTransition = true
+        const selectionRevision = ++localSelectionRevision
+        localSelectionPending = true
+        selectedId = ""
+        filterKey = key
+        if (externalWallpaper) viewSync.restart()
+        const owner = shell
+        // visibleGames aún puede ser la lista anterior hasta que su binding se
+        // recalcule. onVisibleGamesChanged completa primero; este doble ciclo es
+        // respaldo para vistas cuyo contenido no produzca señal de cambio.
+        Qt.callLater(function() { Qt.callLater(function() {
+            owner.completeFilterTransition(selectionRevision, key)
+        }) })
+    }
+    function followSelection() {
+        if (!shell.externalWallpaper || shell.selectionRequestActive) return
+        if (!api.ok) { selectionRetry.start(); return }
+        selectionRetry.stop()
+        shell.selectionRequestActive = true
+        const viewRevisionAtRequest = shell.localViewRevision
+        const viewPendingAtRequest = shell.viewSyncPending
+        const selectionRevisionAtRequest = shell.localSelectionRevision
+        const selectionPendingAtRequest = shell.localSelectionPending
+        const since = shell.selectionRevision >= 0 ? "?since=" + shell.selectionRevision + "&wait=25" : ""
+        api.call("GET", "/selection" + since, function(status, body) {
+            shell.selectionRequestActive = false
+            if (status !== 200) { selectionRetry.start(); return }
+            shell.selectionRevision = body.revision === undefined ? shell.selectionRevision : body.revision
+            const localViewChanged = viewRevisionAtRequest !== shell.localViewRevision || viewPendingAtRequest || shell.viewSyncPending
+            const localSelectionChanged = selectionRevisionAtRequest !== shell.localSelectionRevision || selectionPendingAtRequest || shell.localSelectionPending
+            const incomingFilterKey = body.filterKey || "all"
+            const remotePlatformChanged = !localViewChanged && incomingFilterKey !== shell.filterKey
+            shell.applyingRemoteView = true
+            if (!localViewChanged) {
+                shell.viewSyncPending = false
+                if (remotePlatformChanged) shell.filterTransition = true
+                shell.filterKey = incomingFilterKey
+                shell.searchText = body.searchText || ""
+                if (remotePlatformChanged) shell.selectedId = ""
+                else if (!localSelectionChanged) shell.selectedId = body.id || ""
+            }
+            Qt.callLater(function() {
+                if (remotePlatformChanged) {
+                    Qt.callLater(function() {
+                        const first = shell.resetToFirstVisible()
+                        shell.filterTransition = false
+                        if (first && shell.controllerOwner) shell.api.selectGame(first.id, null, shell.filterKey)
+                    })
+                } else if (!shell.filterTransition && !localSelectionChanged) {
+                    shell.restoreSelection(shell.selectedId)
+                }
+                Qt.callLater(function() {
+                    shell.applyingRemoteView = false
+                    if (localViewChanged) shell.syncView()
+                })
+            })
+            Qt.callLater(followSelection)
+        })
+    }
+    Timer { id: selectionRetry; interval: 1000; repeat: false; onTriggered: shell.followSelection() }
+    function syncView() {
+        const revision = localViewRevision
+        api.setView(filterKey, searchText, function(status) {
+            if (status === 200 && revision === shell.localViewRevision) shell.viewSyncPending = false
+        })
+    }
+    Timer { id: viewSync; interval: 180; repeat: false; onTriggered: if (!shell.applyingRemoteView) shell.syncView() }
+    onFilterKeyChanged: if (externalWallpaper && !applyingRemoteView) { localViewRevision++; viewSyncPending = true; viewSync.restart() }
+    onSearchTextChanged: if (externalWallpaper && !applyingRemoteView) { localViewRevision++; viewSyncPending = true; viewSync.restart() }
     function restoreSelection(id) {
+        if (filterTransition) return
         let idx = -1
         for (let i = 0; i < visibleGames.length; i++) if (visibleGames[i].id === id) idx = i
         list.currentIndex = idx >= 0 ? idx : (visibleGames.length ? 0 : -1)
@@ -219,7 +329,7 @@ Rectangle {
         artGames = []; artItems = []; artError = ""
         loadArt(0)
     }
-    function closeArt() { artOpen = false; artBusy = false; artRequestSerial++; shell.forceActiveFocus() }
+    function closeArt() { artOpen = false; artBusy = false; artRequestSerial++; restoreControllerFocus() }
     function loadArt(page) {
         if (!current) return
         const gid = current.id, kind = artKind, edition = artSgid
@@ -252,7 +362,7 @@ Rectangle {
         api.artPick(game, kind, page, sgid, index, function(st, body) {
             shell.artBusy = false
             if (st !== 200) { api.notify(body.error || "No se pudo guardar el arte"); return }
-            shell.artOpen = false; api.notify("Arte aplicado: " + kind); api.refresh(); shell.forceActiveFocus()
+            shell.artOpen = false; api.notify("Arte aplicado: " + kind); api.refresh(); shell.restoreControllerFocus()
         })
     }
     function cycleArt() {
@@ -272,7 +382,7 @@ Rectangle {
     function toggleHidden() { if (current) api.call("POST", "/game/hide?id=" + encodeURIComponent(current.id), function(st) { if (st === 200) api.refresh() }) }
     function setSearchOpen(on) {
         searchOpen = on
-        if (!on) { searchPad = false; shell.forceActiveFocus() }
+        if (!on) { searchPad = false; restoreControllerFocus() }
         else if (!searchPad) Qt.callLater(function() { searchField.forceActiveFocus() })       // con el mando no se enfoca el campo: manda el teclado virtual
     }
     function showContext(x, y) { if (!current || api.gameMode) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
@@ -307,34 +417,63 @@ Rectangle {
         return h ? h + " h " + (m % 60) + " min" : Math.max(1,m) + " min"
     }
     function clockDate(d) { return d.toLocaleDateString(Qt.locale("es_MX"), "dddd d 'de' MMMM").toUpperCase() }
+    function restoreControllerFocus() { if (controllerOwner) shell.forceActiveFocus() }
 
-    Api { id: api }
-    onMenuOpenChanged: { api.reportMenu(menuOpen); if (!menuOpen) menuStartMode = "apps" }
-    function openPowerMenu() { menuStartMode = "power"; menuOpen = true; api.loadApps() }
+    Api { id: api; controlsEnabled: shell.controllerOwner; systemEnabled: shell.sectionMode === "system" || shell.sectionMode === "full" }
+    Binding { target: api; property: "providedToken"; value: shell.tokenSource }
+    Connections {
+        target: api
+        function onOkChanged() {
+            if (!api.ok || !shell.externalWallpaper) return
+            if (shell.controllerOwner && shell.current) api.selectGame(shell.current.id, null, shell.filterKey)
+            shell.followSelection()
+        }
+    }
+    onMenuOpenChanged: { if (controllerOwner) api.reportMenu(menuOpen); if (!menuOpen) menuStartMode = "apps" }
     onCurrentChanged: {
+        if (filterTransition) return
         if (current) {
             selectedId = current.id
-            Qt.callLater(function() { if (shell.current && shell.current.id === shell.selectedId) shell.loadSaves() })
+            if (externalWallpaper && controllerOwner) api.selectGame(selectedId, null, filterKey)
+            const owner = shell
+            Qt.callLater(function() { if (owner.current && owner.current.id === owner.selectedId) owner.loadSaves() })
         } else { saveFor = ""; saveInfo = null }
     }
     onSelectedPortChanged: {
         if (!selectedPort) return
         saveFor = ""; saveInfo = null
-        Qt.callLater(function() { shell.loadSaves() })
+        const owner = shell
+        Qt.callLater(function() { owner.loadSaves() })
     }
-    onVisibleGamesChanged: Qt.callLater(function() { shell.restoreSelection(shell.selectedId) })
+    onVisibleGamesChanged: {
+        if (filterTransition) {
+            completeFilterTransition(localSelectionRevision, filterKey)
+            return
+        }
+        const owner = shell
+        const revision = localSelectionRevision
+        Qt.callLater(function() {
+            if (revision === owner.localSelectionRevision) owner.restoreSelection(owner.selectedId)
+        })
+    }
     Timer { interval: 6000; running: !api.covered; repeat: true; onTriggered: api.refresh() }
     Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: { shell.nowSecs = Date.now()/1000; shell.clockText = Qt.formatTime(new Date(), "h:mm AP") } }
-    Component.onCompleted: { forceActiveFocus(); if (visibleGames.length) list.currentIndex = 0 }
+    Component.onCompleted: {
+        if (controllerOwner) forceActiveFocus()
+        if (visibleGames.length) list.currentIndex = 0
+        if (externalWallpaper && !controllerOwner) followSelection()
+    }
 
     Connections {
         target: api
         function onPadKey(key) {
+            if (!shell.controllerOwner) return
             if (key === "MENU" || key === "START") {
                 if (shell.audOpen) { shell.audOpen = false; return }
                 if (shell.searchOpen && shell.searchPad) { shell.closeSearch(false); return }     // Start = BUSCAR
-                shell.menuOpen = !shell.menuOpen; return
+                shell.openSearchPad(); return
             }
+            if (key === "MENU_POWER") return
             if (shell.menuOpen) return
             if (runLayer.visible) return                  // con un juego abierto el mando no mueve la estantería
             if (shell.artOpen) {
@@ -377,6 +516,8 @@ Rectangle {
         }
     }
     Keys.onPressed: function(e) {
+        // Only the library applet owns global keyboard navigation. Other applets stay mouse-operable.
+        if (!controllerOwner) { e.accepted = false; return }
         if (runLayer.visible) {                          // estantería deshabilitada mientras corre un juego; Esc es la salida de emergencia
             if (e.key === Qt.Key_Escape) runIgnored = true
             e.accepted = true; return
@@ -498,7 +639,7 @@ Rectangle {
         return out
     }
     function openSearchPad() { searchPad = true; searchOpen = true; oskR = 1; oskC = 0 }
-    function closeSearch(clear) { searchOpen = false; searchPad = false; if (clear) searchText = ""; shell.forceActiveFocus() }
+    function closeSearch(clear) { searchOpen = false; searchPad = false; if (clear) searchText = ""; restoreControllerFocus() }
     function oskMove(d) {
         const R = oskRows
         if (d === "u" || d === "d") {
@@ -523,21 +664,28 @@ Rectangle {
         else if (k === "Y") searchText = searchText + " "
     }
     function refreshLibrary() {
-        api.call("POST", "/library/refresh", function(st) { api.refresh(); api.notify(st === 200 ? "Biblioteca actualizada" : "No se pudo actualizar") })
+        if (refreshBusy) return
+        refreshBusy = true
+        api.call("POST", "/library/refresh", function(st) { shell.refreshBusy = false; api.refresh(); api.notify(st === 200 ? "Biblioteca actualizada" : "No se pudo actualizar") })
+    }
+    function openSettings() {
+        api.call("POST", "/settings/open", function(status, body) {
+            if (status !== 200) api.notify(body.error || "No se pudieron abrir los ajustes de Omnia")
+        })
     }
     function activateHead(i) {
         const n = filterOptions.length
         if (i < n) chooseFilter(filterOptions[i].key)
         else if (i === n) { if (searchOpen) closeSearch(true); else openSearchPad() }       // la lupa con mando abre el teclado virtual
-        else if (i === n + 1) openPowerMenu()
-        else if (i === n + 2) refreshLibrary()
+        else if (i === n + 1) refreshLibrary()
+        else if (i === n + 2) openSettings()
         else audShow()
     }
     onFocusZoneChanged: if (focusZone === "shelf") focusIndex = 0
 
     function openSaves(g) { if (g) { overlayGame = g; overlayPort = selectedPort ? selectedPort.id : ""; overlay = "saves" } }
     function openAdd() { overlay = "add" }
-    function closeOverlay() { Qt.callLater(function() { overlay = ""; overlayGame = null; shell.forceActiveFocus() }) }
+    function closeOverlay() { Qt.callLater(function() { overlay = ""; overlayGame = null; shell.restoreControllerFocus() }) }
     Component { id: savesComp; SavesPanel { api: shell.backend; game: shell.overlayGame; portId: shell.overlayPort; onFinished: shell.closeOverlay() } }
     Component { id: addComp; AddGame {
         api: shell.backend
@@ -551,31 +699,38 @@ Rectangle {
         if (shell.pendingSavesId === "") return
         for (let i=0;i<api.games.length;i++) if (api.games[i].id === shell.pendingSavesId) { shell.pendingSavesId=""; shell.openSaves(api.games[i]); return }
     } }
-    Loader { id: music; source: "MusicSource.qml"; active: true }
-    Loader { id: sensors; source: "SensorsSource.qml"; active: true }
-    Timer { interval: 1000; repeat: true; running: !api.covered && !api.gameMode && sensors.item !== null
+    Loader { id: music; source: "MusicSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
+    Loader { id: sensors; source: "SensorsSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
+    Timer { interval: 1000; repeat: true; running: (shell.sectionMode === "system" || shell.sectionMode === "full") && !api.covered && !api.gameMode && sensors.item !== null
         onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
-    Backdrop { anchors.fill: parent; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
+    Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
     Rectangle {
         anchors.fill: parent
+        visible: !shell.externalWallpaper
         color: shell.current && shell.current.pal && shell.current.pal.length ? shell.current.pal[0] : "#10150f"
         opacity: 0.44
         Behavior on color { ColorAnimation { duration: 900 } }
     }
-    Rectangle { anchors.fill: parent; color: "#59000000" }
+    // Velo gris azulado para conservar contraste sin apagar la paleta del juego.
+    Rectangle { anchors.fill: parent; visible: !shell.externalWallpaper; color: "#4835465E" }
     Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: parent.width * 0.78
+        visible: !shell.externalWallpaper
         gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: "#aa000000" } GradientStop { position: 1; color: "#00000000" } }
     }
     Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: parent.height * 0.52
+        visible: !shell.externalWallpaper
         gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "#b3000000" } }
     }
 
     Item {
         id: canvas
         readonly property real s: shell.scaleFactor
-        width: 1920; height: shell.height / s; scale: s; transformOrigin: Item.TopLeft; clip: true
+        width: 1920; height: shell.sectionMode === "full" ? shell.height / s : 1080
+        x: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.x * s
+        y: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.y * s
+        scale: s; transformOrigin: Item.TopLeft; clip: true
         property color acc: shell.current && shell.current.acc ? shell.current.acc : "#e6d9a0"
         property color ink: "#f3efe3"
         property color ink2: "#d6d0bf"
@@ -610,23 +765,25 @@ Rectangle {
             }
             Rectangle {
                 id: searchBtn
-                width: 34; height: 34; radius: 17; color: searchOpen ? "#ebffffff" : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
+                width: 34; height: 34; radius: 17; color: searchOpen ? canvas.acc : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
                 Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? "#10150f" : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: sbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.setSearchOpen(!searchOpen) }
             }
-            Rectangle { width: 34; height: 34; radius: 17; color: pwm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "system-shutdown-symbolic"; isMask: true; color: "#f3efe3" }
+            Rectangle { id: refreshBtn; width: 34; height: 34; radius: 17; color: shell.refreshBusy ? canvas.acc : rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.refreshBusy ? 0 : 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: shell.refreshBusy ? "#10150f" : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 1; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
-                MouseArea { id: pwm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.openPowerMenu() }
-            }
-            Rectangle { width: 34; height: 34; radius: 17; color: rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: "#f3efe3" }
-                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 2; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.refreshLibrary() }
             }
-            Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? "#ebffffff" : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: "#f3efe3" }
+            Rectangle { width: 34; height: 34; radius: 17; color: settingsMouse.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "configure"; isMask: true; color: "#f3efe3" }
+                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 2; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { id: settingsMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.openSettings() }
+                ToolTip.visible: settingsMouse.containsMouse
+                ToolTip.text: "Ajustes generales de Omnia"
+            }
+            Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? canvas.acc : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.audOpen ? 0 : 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: shell.audOpen ? "#10150f" : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 3; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.audShow() }
             }
@@ -639,8 +796,8 @@ Rectangle {
             TextInput { id: searchField; x: 17; width: parent.width - 150; height: parent.height; text: shell.searchText; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 18; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true
                 onTextChanged: shell.searchText = text
                 Keys.onEscapePressed: { shell.searchText = ""; shell.setSearchOpen(false) }
-                Keys.onReturnPressed: shell.forceActiveFocus()
-                Keys.onEnterPressed: shell.forceActiveFocus()
+                Keys.onReturnPressed: shell.restoreControllerFocus()
+                Keys.onEnterPressed: shell.restoreControllerFocus()
             }
             Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
             Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + (shell.visibleGames.length === 1 ? " juego" : " juegos") : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
@@ -769,7 +926,7 @@ Rectangle {
         // MPRIS, broche y monitor del sistema con módulos KDE reales.
         // Reproductor MPRIS. Al terminar la canción o cambiar la reproducción NO desaparece de golpe: conserva lo último que
         // mostraba 2 s y se desvanece en otros 2 s. Mientras hay música todo se lee en vivo de MusicSource.
-        Item { id: player; x:1530; y:38; width:320; height:170
+        Item { id: player; x:1530; y:58; width:320; height:170
             readonly property bool live: shell.hasMusic
             property string track: ""
             property string artist: ""
@@ -835,8 +992,8 @@ Rectangle {
             }
         }
         function formatTrackTime(s) { s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
-        Clasp { x:1530; y:212; color:canvas.acc; opacity:.9 }
-        Item { id:hud; x:1530;y:246;width:320;height:440; visible:sensors.item !== null && !api.gameMode
+        Clasp { x:1530; y:232; color:canvas.acc; opacity:.9 }
+        Item { id:hud; x:1530;y:266;width:320;height:440; visible:sensors.item !== null && !api.gameMode
             Column { width:parent.width; spacing:0
                 Row { width:parent.width;spacing:14;height:24
                     Text { id:hudTitle;text:"SISTEMA";color:canvas.acc;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
@@ -846,7 +1003,7 @@ Rectangle {
                 HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?sensors.item.gpu:0;vtext:Math.round(sensors.item?sensors.item.gpu:0)+" %";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C":"—";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"VRAM";sub:sensors.item?Math.round(sensors.item.vramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100:0;vtext:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"JUEGOS";sub:api.system.disk&&api.system.disk.fs?api.system.disk.fs:"";pct:api.system.disk?api.system.disk.used/api.system.disk.total*100:0;vtext:api.system.disk?Math.round(api.system.disk.used/1073741824)+"":"—";extra:api.system.disk?"/ "+Math.round(api.system.disk.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:api.system.disk&&api.system.disk.label?api.system.disk.label:"DISCO";sub:api.system.disk&&api.system.disk.fs?api.system.disk.fs:"";pct:api.system.disk&&api.system.disk.total?api.system.disk.used/api.system.disk.total*100:0;vtext:api.system.disk&&api.system.disk.total?Math.round(api.system.disk.used/1073741824)+"":"—";extra:api.system.disk&&api.system.disk.total?"/ "+Math.round(api.system.disk.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Item { width:parent.width;height:62
                     Canvas { id:spark;width:parent.width;height:34;property var h:shell.tempHist;onHChanged:requestPaint()
@@ -915,10 +1072,10 @@ Rectangle {
             function incrementCurrentIndex() { currentIndex = Math.max(0, Math.min(shell.visibleGames.length - 1, currentIndex + 1)) }
             function decrementCurrentIndex() { currentIndex = Math.max(0, currentIndex - 1) } }
 
-        // un clic en cualquier parte devuelve el teclado a la estantería (como en el prototipo); el clic derecho abre el menú contextual
-        MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.LeftButton|Qt.RightButton
-            onPressed:function(m){shell.forceActiveFocus();m.accepted=(m.button===Qt.RightButton)}
-            onClicked:function(m){if(m.button===Qt.RightButton)shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
+        // Los clics izquierdos en el fondo devuelven el teclado a la estantería.
+        // El clic derecho queda libre para el menú contextual nativo del applet Plasma.
+        MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.LeftButton
+            onPressed:function(m){if(shell.controllerOwner)shell.forceActiveFocus();m.accepted=false} }
         // salida de audio: lista de dispositivos; A elige, B cierra
         Item { anchors.fill:parent; z:31; visible:opacity>0.01; opacity:shell.audOpen?1:0
             Behavior on opacity { NumberAnimation { duration:140 } }
@@ -933,14 +1090,17 @@ Rectangle {
                     Repeater { model:shell.audItems
                         delegate: Rectangle { id:ait; required property var modelData; required property int index
                             readonly property bool foc:shell.audIdx===index
-                            width:parent.width; height:54; radius:14; color:foc?canvas.acc:(am.containsMouse?"#1fffffff":"transparent")
+                            readonly property bool isCurrent:!!modelData.current
+                            width:parent.width; height:54; radius:14
+                            color:foc?canvas.acc:(isCurrent?Qt.rgba(canvas.acc.r,canvas.acc.g,canvas.acc.b,0.16):(am.containsMouse?"#1fffffff":"transparent"))
+                            border.width:isCurrent&&!foc?1:0; border.color:canvas.acc
                             Kirigami.Icon { x:16; anchors.verticalCenter:parent.verticalCenter; width:24; height:24; isMask:true
                                 source:ait.modelData.kind==="hdmi"?"video-display-symbolic":(ait.modelData.kind==="usb"?"audio-headphones-symbolic":(ait.modelData.kind==="bt"?"bluetooth-symbolic":"audio-speakers-symbolic"))
                                 color:ait.foc?"#10150f":"#f3efe3" }
                             Text { x:58; width:parent.width-120; elide:Text.ElideRight; anchors.verticalCenter:parent.verticalCenter; text:ait.modelData.label
                                 color:ait.foc?"#10150f":"#f3efe3"; font.family:canvas.body; font.pixelSize:19; font.weight:Font.Medium }
-                            Text { visible:ait.modelData.current; anchors.right:parent.right; anchors.rightMargin:18; anchors.verticalCenter:parent.verticalCenter; text:"✓ ACTIVO"
-                                color:ait.foc?"#10150f":canvas.acc; font.family:canvas.hud; font.pixelSize:14; font.letterSpacing:1.6; font.weight:Font.DemiBold }
+                            Text { visible:ait.isCurrent; anchors.right:parent.right; anchors.rightMargin:18; anchors.verticalCenter:parent.verticalCenter; text:"✓"
+                                color:ait.foc?"#10150f":canvas.acc; font.family:canvas.hud; font.pixelSize:24; font.weight:Font.Bold }
                             MouseArea { id:am; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onEntered:shell.audIdx=ait.index; onClicked:shell.audActivate(ait.index) }
                         } }
                 }
@@ -1072,7 +1232,7 @@ Rectangle {
             }
         }
     }
-    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;startMode:shell.menuStartMode;visible:shell.menuOpen||fading;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
+
     // aviso temporal: se muestra al actuar (p. ej. «Biblioteca actualizada») y se desvanece solo (ver Api.notify)
     Rectangle { visible:api.toast!==""; opacity:api.toastLevel; anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 }
         width:toastText.implicitWidth+28; height:toastText.implicitHeight+14; radius:height/2; color:"#b3000000"

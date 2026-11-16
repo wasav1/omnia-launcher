@@ -1,0 +1,13 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [{ "Name": "Omnia contributors" }],
+    "Category": "Utilities",
+    "Description": "Carrusel de juegos y controles de Omnia",
+    "Icon": "applications-games",
+    "Id": "org.omnia.carousel",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia · Biblioteca"
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

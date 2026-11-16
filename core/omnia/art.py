@@ -58,6 +58,60 @@ def cached(slug: str, kind: str, base: Path | None = None, index: int = 0) -> st
     return str(files[index % len(files)]) if files else ""
 
 
+def image_dimensions(path: Path) -> tuple[int, int]:
+    """Lee las dimensiones PNG/JPEG/WebP desde la cabecera, sin cargar la imagen en memoria."""
+    try:
+        with Path(path).open("rb") as f:
+            head = f.read(30)
+            if head.startswith(b"\x89PNG\r\n\x1a\n") and len(head) >= 24:
+                return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+            if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+                if head[12:16] == b"VP8X" and len(head) >= 30:
+                    return 1 + int.from_bytes(head[24:27], "little"), 1 + int.from_bytes(head[27:30], "little")
+                if head[12:16] == b"VP8L" and len(head) >= 25 and head[20] == 0x2F:
+                    b1, b2, b3, b4 = head[21:25]
+                    return 1 + b1 + ((b2 & 0x3F) << 8), 1 + ((b2 >> 6) & 3) + (b3 << 2) + ((b4 & 0x0F) << 10)
+                if head[12:16] == b"VP8 " and len(head) >= 30 and head[23:26] == b"\x9d\x01\x2a":
+                    return int.from_bytes(head[26:28], "little") & 0x3FFF, int.from_bytes(head[28:30], "little") & 0x3FFF
+            if head[:2] != b"\xff\xd8":
+                return 0, 0
+            f.seek(2)
+            sof = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+            while True:
+                byte = f.read(1)
+                if not byte:
+                    return 0, 0
+                if byte != b"\xff":
+                    continue
+                marker = f.read(1)
+                while marker == b"\xff":
+                    marker = f.read(1)
+                if not marker or marker in (b"\x00", b"\xd9", b"\xda"):
+                    return 0, 0
+                code = marker[0]
+                if code in (0xD8, 0x01) or 0xD0 <= code <= 0xD7:
+                    continue
+                length = int.from_bytes(f.read(2), "big")
+                if length < 2:
+                    return 0, 0
+                if code in sof:
+                    dims = f.read(5)
+                    if len(dims) == 5:
+                        return int.from_bytes(dims[3:5], "big"), int.from_bytes(dims[1:3], "big")
+                    return 0, 0
+                f.seek(length - 2, 1)
+    except OSError:
+        return 0, 0
+
+
+def highest_resolution(slug: str, kind: str, base: Path | None = None) -> str:
+    """Ruta del arte local con mayor área; en empate o dimensiones no legibles mantiene el orden de caché."""
+    files = cached_files(slug, kind, base)
+    if not files:
+        return ""
+    return str(max(files, key=lambda f: image_dimensions(f)[0] * image_dimensions(f)[1]))
+
+
 def key_path() -> Path:
     return paths.config_dir() / "steamgriddb.key"
 
@@ -159,7 +213,10 @@ class Client:
             if not eds:
                 return []
             data = self.get_json("/%s/game/%s" % (endpoint, pick_edition(eds, game)), params)
-        return [x["url"] for x in (data.get("data") or []) if isinstance(x, dict) and x.get("url")]
+        items = [x for x in (data.get("data") or []) if isinstance(x, dict) and x.get("url")]
+        if kind == "fondo":
+            items.sort(key=lambda x: int(x.get("width") or 0) * int(x.get("height") or 0), reverse=True)
+        return [x["url"] for x in items]
 
     def browse(self, game: dict, kind: str, page: int = 0, sgid: int = 0) -> dict:
         """Busca ediciones y propuestas de arte; solo entrega URLs verificadas de SteamGridDB."""

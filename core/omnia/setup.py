@@ -4,8 +4,7 @@ Qué hace:
   1. Se asegura de que el script de KWin `omnia-showdesktop` esté instalado y activado.
   2. Quita `Meta+D` al «Mostrar escritorio» nativo de KWin (que oculta la estantería de Omnia) y se la da al atajo
      «Omnia: mostrar escritorio», que minimiza las ventanas sin ocultar el escritorio de Omnia.
-  3. Quita `Meta` (la tecla Windows sola) al lanzador de Plasma, conservando Alt+F1, y se la da a «Omnia: abrir el menú»
-     (el Big Menu). En Plasma 6.8 esa tecla es un atajo global de KGlobalAccel de plasmashell, no un ajuste de KWin.
+  3. Retira el Big Menu anterior y restaura Meta en el lanzador nativo de Plasma.
 Antes de tocar nada guarda el estado original en ~/.config/omnia/setup-backup.json; `--undo` lo restaura.
 Un paquete de pacman no puede hacer esto (corre como root, sin sesión): se ejecuta en la primera sesión del usuario.
 
@@ -116,8 +115,8 @@ def plan(be, config: Path) -> list:
         todo.append("Quitar Meta+D al «Mostrar escritorio» nativo de KWin (se guarda para poder restaurarlo)")
     if not be.shortcut_keys(OURS):
         todo.append("Asignar Meta+D a «Omnia: mostrar escritorio» (minimiza las ventanas sin ocultar tu escritorio)")
-    if META_ALONE in be.shortcut_keys(LAUNCHER) or not be.shortcut_keys(OMENU):
-        todo.append("Quitar la tecla Windows al menú de Plasma (se conserva Alt+F1) y dársela al Big Menu de Omnia")
+    if be.shortcut_keys(OMENU) or META_ALONE not in be.shortcut_keys(LAUNCHER):
+        todo.append("Retirar el atajo del Big Menu anterior y devolver Meta al menú de Plasma")
     if be.meta_shortcut() == OMNIA_META:
         todo.append("Limpiar un ajuste anterior de la tecla Windows que no funcionaba")
     return todo
@@ -152,7 +151,7 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         be.set_plugin_enabled(name, True)
     be.reload_kwin()
     end = time.time() + wait
-    while not (be.action_exists(OURS) and be.action_exists(OMENU)):      # los atajos existen cuando KWin carga los scripts
+    while not be.action_exists(OURS):      # los atajos existen cuando KWin carga los scripts
         if time.time() > end:
             raise SetupError("KWin no registró el atajo de Omnia (¿falló el script?)")
         time.sleep(0.25)
@@ -161,11 +160,11 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         be.set_shortcut_keys(NATIVE, [k for k in native if k != META_D])     # conserva sus otras teclas
     if not be.shortcut_keys(OURS):
         be.set_shortcut_keys(OURS, [META_D])
+    if be.shortcut_keys(OMENU):
+        be.set_shortcut_keys(OMENU, [])
     launcher = be.shortcut_keys(LAUNCHER)
-    if META_ALONE in launcher:
-        be.set_shortcut_keys(LAUNCHER, [k for k in launcher if k != META_ALONE])     # conserva Alt+F1
-    if not be.shortcut_keys(OMENU):
-        be.set_shortcut_keys(OMENU, [META_ALONE])
+    if META_ALONE not in launcher:
+        be.set_shortcut_keys(LAUNCHER, launcher + [META_ALONE])
     if be.meta_shortcut() == OMNIA_META:
         be.set_meta_shortcut(None)
         be.reload_kwin()

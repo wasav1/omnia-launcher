@@ -5,6 +5,9 @@ parámetros para poder probarlo con árboles falsos.
 """
 from __future__ import annotations
 
+import json
+import subprocess
+import time
 import glob
 import os
 import re
@@ -93,10 +96,40 @@ def battery(sys_root: str = "/sys") -> dict:
     return out
 
 
-def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home: str | None = None) -> dict:
+def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home: str | None = None, monitor=None) -> dict:
     out = {"cpu": cpu(proc, sys_root)}
-    d = disk(games_dir(home, games), proc)
+    selected = selected_volume(monitor) if monitor else None
+    d = disk(selected["path"], proc) if selected else ({} if monitor else disk(games_dir(home, games), proc))
+    if d and selected:
+        d["label"] = selected["label"]
+    elif monitor:
+        out["disk"] = {"label": monitor.get("label", "Disco"), "available": False}
     if d:
         out["disk"] = d
     out.update(battery(sys_root))
     return out
+
+
+_volume_cache = (0, [])
+
+def selected_volume(selected):
+    """Resuelve UUID de nuevo: si el disco se desconecta, nunca muestra otro volumen."""
+    global _volume_cache
+    now = time.monotonic()
+    if now - _volume_cache[0] > 15:
+        try:
+            data = json.loads(subprocess.check_output(["lsblk", "-J", "-o", "NAME,LABEL,UUID,MODEL,MOUNTPOINTS"], text=True, timeout=3))
+            entries = []
+            def visit(nodes, model=""):
+                for n in nodes:
+                    current_model = (n.get("model") or model).strip()
+                    mounts = [p for p in n.get("mountpoints", []) if p and p.startswith("/")]
+                    if mounts:
+                        entries.append({"uuid": n.get("uuid") or "", "path": min(mounts, key=len),
+                                        "label": n.get("label") or f"{current_model or 'Disco'} · {n['name']}"})
+                    visit(n.get("children", []), current_model)
+            visit(data["blockdevices"])
+            _volume_cache = (now, entries)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            _volume_cache = (now, [])
+    return next((v for v in _volume_cache[1] if (v["uuid"] == selected["uuid"] if selected.get("uuid") else v["path"] == selected.get("path"))), None)

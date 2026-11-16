@@ -10,3 +10,7 @@ config.json
 arte/
 *.pkg.tar.zst
 packaging/arch/out/
+# Distribuciones generadas (no incluir en nuevos instaladores)
+packaging/distros/out/
+# Instalador universal generado localmente
+packaging/universal/out/

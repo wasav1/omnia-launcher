@@ -7,6 +7,11 @@ QtObject {
     property int port: 47831
     property string tokenPath: ""
     property string token: ""
+    // Plasma wallpaper plugins run inside plasmashell and cannot read the bearer token through QML XHR.
+    // A native QML singleton may provide it; the standalone UI keeps using its private token file.
+    property string providedToken: ""
+    property bool controlsEnabled: true
+    property bool systemEnabled: false
     property bool ok: false
     property string error: ""
     property var games: []
@@ -31,6 +36,7 @@ QtObject {
     property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
     property int padSeq: -1
+    property int gameRevision: -1
     property bool audioActive: false
     property bool audioAvailable: false
     property var audioBands: []
@@ -44,6 +50,7 @@ QtObject {
     }
 
     function readToken() {
+        if (providedToken) return providedToken
         if (!tokenPath) return ""
         try {
             let x = new XMLHttpRequest()
@@ -54,62 +61,80 @@ QtObject {
     }
 
     function call(method, path, done, body) {
-        if (!token) token = readToken()
+        if (!api.token) api.token = api.readToken()
         let x = new XMLHttpRequest()
         x.onreadystatechange = function () {
             if (x.readyState !== 4) return
             let body = {}
             try { body = JSON.parse(x.responseText) } catch (e) { }
-            if (x.status === 401) token = ""                  // el servicio se reinició: token nuevo
+            if (x.status === 401) api.token = ""                  // el servicio se reinició: token nuevo
             done(x.status, body)
         }
-        x.open(method, "http://127.0.0.1:" + port + path)
-        x.setRequestHeader("Authorization", "Bearer " + token)
+        x.open(method, "http://127.0.0.1:" + api.port + path)
+        x.setRequestHeader("Authorization", "Bearer " + api.token)
         x.send(method === "POST" ? (body ? JSON.stringify(body) : "{}") : null)
     }
 
     function refresh() {
         call("GET", "/library", function (status, body) {
             if (status === 200) {
-                ok = true; error = ""
+                api.ok = true; api.error = ""
                 let sig = JSON.stringify(body.games)
-                if (sig !== _last) { _last = sig; games = body.games }      // solo si cambió: la lista no se reconstruye en cada sondeo
+                if (sig !== api._last) { api._last = sig; api.games = body.games }      // solo si cambió: la lista no se reconstruye en cada sondeo
             }
             else {
-                ok = false
-                error = status === 0 ? "omnia-core no responde (¿está en marcha el servicio?)"
+                api.ok = false
+                api.error = status === 0 ? "omnia-core no responde (¿está en marcha el servicio?)"
                       : status === 401 ? "token no válido: reiniciando conexión" : "error " + status
             }
         })
     }
 
+    function selectGame(id, done, filterKey) {
+        call("POST", "/selection/set", function (status, body) {
+            if (status !== 200) console.warn("Omnia: no se pudo sincronizar el juego seleccionado", status)
+            if (done) done(status, body)
+        }, { id: id || "", filterKey: filterKey || "all" })
+    }
+    function setView(filterKey, searchText, done) {
+        call("POST", "/view/set", function (status, body) {
+            if (status !== 200) console.warn("Omnia: no se pudo sincronizar la vista", status)
+            if (done) done(status, body)
+        },
+             { filterKey: filterKey || "all", searchText: searchText || "" })
+    }
+
+    // Al cerrar/minimizar un juego a pantalla completa, KWin libera el escritorio. Refresca la biblioteca
+    // enseguida para retirar la capa «EN EJECUCIÓN» sin esperar al siguiente sondeo periódico.
+    onCoveredChanged: if (!covered) Qt.callLater(refresh)
+
     function pollSystem() {
-        call("GET", "/system", function (status, body) { if (status === 200 && body) system = body })
+        call("GET", "/system", function (status, body) { if (status === 200 && body) api.system = body })
     }
 
     function pollAudio() {
         call("GET", "/audio", function (status, body) {
-            if (status === 200) {
-                audioAvailable = body.available === true
-                audioActive = body.active === true
-                audioBands = body.bands || []
+            if (status === 200 && body) {
+                api.audioAvailable = body.available === true
+                api.audioActive = body.active === true
+                api.audioBands = body.bands || []
             }
         })
     }
 
     function launch(g, portId) {
         if (!g || !g.ports.length) return
-        toast = "Lanzando " + g.name + "…"
+        api.toast = "Lanzando " + g.name + "…"
         call("POST", "/launch?id=" + encodeURIComponent(g.id) + "&port=" + encodeURIComponent(portId || g.ports[0].id), function (status, body) {
-            toast = status === 200 ? "" : (body.error || "error " + status)
-            refresh()
+            api.toast = status === 200 ? "" : (body.error || "error " + status)
+            api.refresh()
         })
     }
 
     // --- aplicaciones (Big Menu)
     function loadApps() {
         call("GET", "/apps", function (status, body) {
-            if (status === 200) { apps = body.apps; appGroups = body.groups }
+            if (status === 200) { api.apps = body.apps; api.appGroups = body.groups }
         })
     }
     // --- salida de audio (botón del altavoz)
@@ -125,7 +150,7 @@ QtObject {
     }
     function launchApp(a, done) {
         call("POST", "/app/launch?id=" + encodeURIComponent(a.id), function (status, body) {
-            if (status !== 200) toast = body.error || "error " + status
+            if (status !== 200) api.toast = body.error || "error " + status
             if (done) done(status === 200)
         })
     }
@@ -151,53 +176,55 @@ QtObject {
     }
     function importFind(done) { call("GET", "/import/find", done) }
     function importPreview(path, done) { call("GET", "/import/preview?path=" + encodeURIComponent(path), done) }
-    function importApply(path, done) { call("POST", "/import/apply?path=" + encodeURIComponent(path), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
+    function importApply(path, done) { call("POST", "/import/apply?path=" + encodeURIComponent(path), function (st, b) { if (st === 200) api.refresh(); done(st, b) }) }
     function templates(done) { call("GET", "/templates", done) }
-    function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) refresh(); done(st, b) }, body) }
-    function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
+    function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
+    function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) api.refresh(); done(st, b) }) }
 
-    function reportMenu(open) { menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function reportMenu(open) { api.menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
     function power(action) {
         call("POST", "/power?a=" + encodeURIComponent(action), function (status, body) {
-            if (status !== 200) toast = (body && body.error) || "No se pudo ejecutar la acción"
+            if (status !== 200) api.toast = (body && body.error) || "No se pudo ejecutar la acción"
         })
     }
     function toggleAppFav(a) {
-        call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { loadApps() })
+        call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { api.loadApps() })
     }
 
     function toggleFav(g) {
         if (!g) return
-        call("POST", "/game/fav?id=" + encodeURIComponent(g.id), function () { refresh() })
+        call("POST", "/game/fav?id=" + encodeURIComponent(g.id), function () { api.refresh() })
     }
 
     // Mando: petición larga a /events (el servidor responde en cuanto hay un botón nuevo o a los 20 s)
     function pollPad() {
-        call("GET", "/events?since=" + padSeq + "&wait=20", function (status, body) {
+        call("GET", "/events?since=" + padSeq + "&gameSince=" + gameRevision + "&wait=20", function (status, body) {
             if (status === 200) {
-                const first = padSeq < 0
-                padSeq = body.seq
-                padOn = body.padOn
-                padName = body.padName
-                covered = body.covered === true
-                gameMode = body.gameMode ? body.gameMode.active === true : false
-                shelfActive = body.shelfActive !== false
-                if (!first) for (let i = 0; i < body.events.length; i++) padKey(body.events[i].key)
-                Qt.callLater(pollPad)
+                const first = api.padSeq < 0
+                api.padSeq = body.seq
+                if (!first && api.gameRevision >= 0 && body.gameRevision !== api.gameRevision) api.refresh()
+                api.gameRevision = body.gameRevision === undefined ? api.gameRevision : body.gameRevision
+                api.padOn = body.padOn
+                api.padName = body.padName
+                api.covered = body.covered === true
+                api.gameMode = body.gameMode ? body.gameMode.active === true : false
+                api.shelfActive = body.shelfActive !== false
+                if (!first) for (let i = 0; i < body.events.length; i++) api.padKey(body.events[i].key)
+                Qt.callLater(function() { api.pollPad() })
             } else {
                 retry.start()            // omnia-core no responde o el token cambió: reintenta sin saturar
             }
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
-    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
+    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
-    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
+    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))
         tokenPath = arg("--token", "")
         refresh()
-        pollPad()
+        if (controlsEnabled) pollPad()
     }
 }

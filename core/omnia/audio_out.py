@@ -22,6 +22,9 @@ def _pactl(*args, run=subprocess.run) -> str:
         r = run(["pactl", *args], capture_output=True, text=True, timeout=8, env=dict(os.environ, LC_ALL="C"))
     except (OSError, subprocess.SubprocessError) as e:
         raise AudioOutError(str(e))
+    if r.returncode:
+        detail = (r.stderr or r.stdout or "").strip()
+        raise AudioOutError(detail or f"pactl terminó con código {r.returncode}")
     return r.stdout
 
 

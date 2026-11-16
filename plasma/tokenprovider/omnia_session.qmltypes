@@ -1,0 +1,19 @@
+import QtQuick.tooling 1.2
+
+Module {
+    Component {
+        name: "SessionToken"
+        accessSemantics: "reference"
+        prototype: "QObject"
+        exports: ["org.omnia.session/SessionToken 1.0"]
+        isSingleton: true
+        isCreatable: false
+        Property {
+            name: "value"
+            type: "QString"
+            read: "value"
+            notify: "valueChanged"
+        }
+        Signal { name: "valueChanged" }
+    }
+}

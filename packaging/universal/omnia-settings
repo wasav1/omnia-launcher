@@ -1,0 +1,8 @@
+#!/bin/sh
+if [ -x "${XDG_DATA_HOME:-$HOME/.local/share}/omnia/installer/omnia-installer" ]; then
+    OMNIA_SETTINGS_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/omnia/installer"
+    export PYTHONPATH="$HOME/.local/lib/omnia${PYTHONPATH:+:$PYTHONPATH}"
+else
+    OMNIA_SETTINGS_ROOT="/usr/share/omnia/installer"
+fi
+exec "$OMNIA_SETTINGS_ROOT/omnia-installer" "$OMNIA_SETTINGS_ROOT/packaging/universal/installer_backend.py" --settings

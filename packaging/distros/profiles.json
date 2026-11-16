@@ -1,0 +1,62 @@
+{
+  "debian": {
+    "depends": "python3 (>= 3.11), bash, systemd, dbus-user-session, plasma-workspace (>= 4:6.0), cmake, g++, qt6-base-dev (>= 6.6), qt6-declarative-dev (>= 6.6), kdialog, pkexec, python3-gi, util-linux, qml6-module-org-kde-kirigami, qml6-module-qtquick-controls, qml6-module-qtquick-effects, qml6-module-qtquick-shapes, qml6-module-qtquick-layouts, qml6-module-qtquick-window, qml6-module-qt5compat-graphicaleffects, qml6-module-org-kde-ksysguard"
+  },
+  "arch": {
+    "depends": [
+      "python>=3.11",
+      "bash",
+      "systemd",
+      "plasma-workspace>=6",
+      "cmake",
+      "gcc",
+      "qt6-base>=6.6",
+      "qt6-declarative>=6.6",
+      "qt6-5compat",
+      "kirigami",
+      "kdialog",
+      "polkit",
+      "python-gobject",
+      "util-linux",
+      "libksysguard"
+    ]
+  },
+  "fedora": {
+    "depends": [
+      "python3 >= 3.11",
+      "bash",
+      "systemd",
+      "plasma-workspace >= 6.0",
+      "cmake",
+      "gcc-c++",
+      "qt6-qtbase-devel >= 6.6",
+      "qt6-qtdeclarative-devel >= 6.6",
+      "qt6-qt5compat",
+      "kf6-kirigami",
+      "kdialog",
+      "polkit",
+      "python3-gobject",
+      "util-linux",
+      "libksysguard"
+    ]
+  },
+  "opensuse": {
+    "depends": [
+      "python3 >= 3.11",
+      "bash",
+      "systemd",
+      "plasma6-workspace >= 6.0",
+      "cmake",
+      "gcc-c++",
+      "qt6-base-devel >= 6.6",
+      "qt6-declarative-devel >= 6.6",
+      "qt6-qt5compat-imports",
+      "kf6-kirigami",
+      "kdialog",
+      "polkit",
+      "python3-gobject",
+      "util-linux",
+      "libksysguard6-imports"
+    ]
+  }
+}

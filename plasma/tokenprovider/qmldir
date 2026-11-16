@@ -1,0 +1,3 @@
+module org.omnia.session
+plugin omnia_sessionplugin
+typeinfo omnia_session.qmltypes

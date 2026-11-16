@@ -1,7 +1,7 @@
 """Historial de juego: sesiones, último jugado y tiempo total por juego.
 
-Se alimenta del mismo sondeo que el modo juego (cada ~2 s). Reglas:
-  * Una sesión empieza tras 2 sondeos seguidos con el juego en marcha y termina tras 3 sin verlo, igual que el modo juego,
+Se alimenta del mismo sondeo rápido que el modo juego (cada 350 ms). Reglas:
+  * Una sesión empieza tras 2 sondeos seguidos con el juego en marcha y termina tras 2 sin verlo,
     para no contar parpadeos de lanzadores; la duración llega hasta la ÚLTIMA vez que se vio el juego, no hasta que se
     notó que se había cerrado.
   * Las sesiones de menos de 10 s no cuentan (un lanzador que abre y cierra).
@@ -14,7 +14,7 @@ import time
 
 log = logging.getLogger("omnia")
 
-START_AFTER, END_AFTER = 2, 3
+START_AFTER, END_AFTER = 2, 2
 MIN_SECS = 10
 PERSIST_EVERY = 30
 HISTORY_MAX = 200

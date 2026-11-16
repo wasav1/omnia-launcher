@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 
-// omnia-ui como escritorio: dos ventanas de capa. La estantería va al fondo (bajo ventanas y paneles) y el Big Menu en la
-// capa superior con el teclado en exclusiva mientras está abierto. El raíz es un QtObject para que ambas sean de nivel superior.
+// Vista de desarrollo: estantería bajo las ventanas; el menú pertenece a Plasma.
 QtObject {
     id: app
 
@@ -17,20 +16,4 @@ QtObject {
         OmniaShell { id: shell; anchors.fill: parent; bottomInset: 64 }
     }
 
-    property Window menu: Window {
-        visible: shell.menuOpen || bigMenu.fading; color: "transparent"; flags: Qt.FramelessWindowHint; title: "Omnia Menú"
-        LayerShell.Window.scope: "omnia-menu"
-        LayerShell.Window.layer: LayerShell.Window.LayerTop
-        LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorBottom | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
-        LayerShell.Window.exclusionZone: -1
-        LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityExclusive
-        BigMenu {
-            id: bigMenu
-            anchors.fill: parent
-            startMode: shell.menuStartMode
-            api: shell.backend
-            open: shell.menuOpen
-            onCloseRequested: shell.menuOpen = false
-        }
-    }
 }

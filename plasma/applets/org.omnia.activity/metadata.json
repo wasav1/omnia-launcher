@@ -1,0 +1,13 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [{ "Name": "Omnia contributors" }],
+    "Category": "Utilities",
+    "Description": "Reloj, sesiones y ficha de actividad de Omnia",
+    "Icon": "view-calendar",
+    "Id": "org.omnia.activity",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia · Actividad"
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

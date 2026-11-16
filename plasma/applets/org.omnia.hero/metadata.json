@@ -1,0 +1,13 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [{ "Name": "Omnia contributors" }],
+    "Category": "Utilities",
+    "Description": "Ficha y acciones del juego seleccionado",
+    "Icon": "applications-games",
+    "Id": "org.omnia.hero",
+    "License": "GPL-3.0-or-later",
+    "Name": "Omnia · Juego"
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

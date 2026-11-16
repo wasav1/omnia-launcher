@@ -15,6 +15,8 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from .store import load_json
+from . import library_paths
 from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
 from .events import EventBus
 from .games.base import Detector
@@ -49,6 +51,10 @@ class Api:
         self.routes = {
             "/health": ("GET", False, self.health),
             "/library": ("GET", True, self.library),
+            "/settings/open": ("POST", True, self.settings_open),
+            "/selection": ("GET", True, self.selection),
+            "/selection/set": ("POST", True, self.selection_set),
+            "/view/set": ("POST", True, self.view_set),
             "/library/refresh": ("POST", True, self.refresh),
             "/game/fav": ("POST", True, lambda q: self.toggle("game_fav", q)),
             "/game/hide": ("POST", True, lambda q: self.toggle("game_hidden", q)),
@@ -56,7 +62,7 @@ class Api:
             "/apps": ("GET", True, self.apps_list),
             "/app/launch": ("POST", True, self.app_launch),
             "/app/fav": ("POST", True, self.app_fav),
-            "/menu": ("POST", True, lambda q: self.toggle_menu() or {"ok": True}),
+            "/menu": ("POST", True, lambda q: self.toggle_menu(q.get("mode") == "power") or {"ok": True}),
             "/menu/state": ("POST", True, self.set_menu_state),
             "/gamemode": ("GET", True, lambda q: self.gamemode.status() if self.gamemode else {"enabled": False, "active": False}),
             "/fs/list": ("GET", True, self.fs_list),
@@ -147,6 +153,74 @@ class Api:
     def health(self, q):
         return {"ok": True}
 
+    def selection(self, q):
+        """Lectura ligera para el wallpaper; admite espera larga para avisar cambios sin sondeo frecuente."""
+        if "since" in q:
+            try:
+                since = int(q.get("since", "-1"))
+                wait = min(25.0, max(0.0, float(q.get("wait", 20))))
+            except ValueError:
+                raise ApiError(400, "revisión o espera no válida")
+            if since >= 0:
+                self.bus.wait_selection(since, wait)
+        revision = self.bus.selection_revision
+        filter_key = self.store.state.get("filter_key", "all")
+        # La selección es propia de la vista donde se hizo. No reaplicar un ID
+        # guardado en otra plataforma: cada cambio de sección empieza en el índice 0.
+        gid = self.store.state.get("selected_game", "")
+        if self.store.state.get("selected_filter_key", "") != filter_key:
+            gid = ""
+        game = self.store.find_game(gid) if gid else None
+        config = load_json(self.store.dir / "config.json", {})
+        if game and not any(library_paths.port_visible(game, p, config) for p in game.get("ports", [])):
+            game = None
+        if not game:
+            return {"id": "", "name": "", "fondo": "", "pal": ["#10150f"], "acc": "#e6d9a0", "revision": revision,
+                    "filterKey": filter_key, "searchText": self.store.state.get("search_text", "")}
+        return {"id": gid, "name": game.get("name", ""), "fondo": self._art(game, self.store.state).get("fondo", ""),
+                "pal": game.get("pal") or ["#10150f"], "acc": game.get("acc", "#e6d9a0"), "revision": revision,
+                "filterKey": filter_key, "searchText": self.store.state.get("search_text", "")}
+
+    def selection_set(self, q):
+        gid = str(q.get("id", ""))
+        if gid and not self.store.find_game(gid):
+            raise ApiError(404, "juego desconocido")
+        filter_key = str(q.get("filterKey", self.store.state.get("filter_key", "all")))[:64] or "all"
+        changed = False
+        with self.store.lock:
+            if (self.store.state.get("selected_game", "") != gid
+                    or self.store.state.get("selected_filter_key", "") != filter_key):
+                self.store.state["selected_game"] = gid
+                self.store.state["selected_filter_key"] = filter_key
+                self.store.save_state()
+                changed = True
+        if changed:
+            self.bus.selection_changed()
+        return {"ok": True, "id": gid, "filterKey": filter_key}
+
+    def view_set(self, q):
+        key = str(q.get("filterKey", "all"))[:64] or "all"
+        search = str(q.get("searchText", ""))[:256]
+        changed = False
+        with self.store.lock:
+            view_changed = self.store.state.get("filter_key", "all") != key
+            if view_changed or self.store.state.get("search_text", "") != search:
+                self.store.state["filter_key"], self.store.state["search_text"] = key, search
+                # Si la selección todavía pertenece a la plataforma anterior,
+                # elimínala. Una selección nueva enviada para `key` se conserva.
+                if view_changed and self.store.state.get("selected_filter_key", "") != key:
+                    self.store.state["selected_game"] = ""
+                    self.store.state["selected_filter_key"] = ""
+                self.store.save_state()
+                changed = True
+        if changed:
+            self.bus.selection_changed()
+        return {"ok": True, "filterKey": key, "searchText": search}
+
+    def _notify_selected_art(self, gid, kind):
+        if kind == "fondo" and self.store.state.get("selected_game", "") == gid:
+            self.bus.selection_changed()
+
     def audio_outputs(self, q):
         try:
             return {"ok": True, "items": audio_out.list_outputs(getattr(self, "pactl_run", subprocess.run))}
@@ -168,11 +242,36 @@ class Api:
             raise ApiError(500, "no se pudo ejecutar la acción")
         return {"ok": True}
 
+    def settings_open(self, q):
+        import shutil
+        command = shutil.which("omnia-settings")
+        if not command:
+            local = os.path.expanduser("~/.local/bin/omnia-settings")
+            command = local if os.path.isfile(local) and os.access(local, os.X_OK) else None
+        if not command:
+            raise ApiError(409, "Actualiza Omnia para instalar los ajustes generales.")
+        runner = shutil.which("systemd-run")
+        if not runner:
+            raise ApiError(503, "Falta systemd-run para abrir los ajustes fuera del núcleo de Omnia.")
+        import uuid
+        args = [runner, "--user", "--quiet", "--collect", "--property=Type=exec",
+                "--unit=omnia-settings-" + uuid.uuid4().hex]
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "XDG_CURRENT_DESKTOP", "QT_QPA_PLATFORMTHEME"):
+            if name in os.environ:
+                args.append("--setenv=" + name + "=" + os.environ[name])
+        try:
+            result = subprocess.run(args + ["--", command], capture_output=True, text=True, timeout=15)
+        except (OSError, subprocess.TimeoutExpired):
+            raise ApiError(503, "No se pudo iniciar la unidad de ajustes de Omnia.")
+        if result.returncode:
+            raise ApiError(503, "KDE no pudo iniciar los ajustes. Consulta el registro de usuario de systemd.")
+        return {"ok": True}
+
     def system_status(self, q):
         now = time.time()
         cache = getattr(self, "_system_cache", None)
         if cache is None or now - cache[0] > 2.0:                 # el panel sondea cada pocos segundos: no releer /sys a cada petición
-            cache = (now, system.snapshot())
+            cache = (now, system.snapshot(monitor=load_json(self.store.dir / "config.json", {}).get("monitor_disk")))
             self._system_cache = cache
         return cache[1]
 
@@ -190,8 +289,9 @@ class Api:
         fav, hid = self.store.state.get("game_fav", []), self.store.state.get("game_hidden", [])
         cmds = self.scan_fn()
         out = []
+        config = load_json(self.store.dir / "config.json", {})
         for g in self.store.games():
-            ports = [p for p in g.get("ports", []) if games_refresh.port_installed(p)]
+            ports = [p for p in g.get("ports", []) if games_refresh.port_installed(p) and library_paths.port_visible(g, p, config)]
             if ports:
                 snap = self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}
                 platform = g.get("platform", "")
@@ -223,7 +323,10 @@ class Api:
         out = {}
         selected = ((state or {}).get("art") or {}).get(g["id"], {})
         for kind in art.KINDS:
-            f = art.cached(slug, kind, index=max(0, int(selected.get(kind, 0) or 0)))
+            if kind == "fondo" and kind not in selected:
+                f = art.highest_resolution(slug, kind)
+            else:
+                f = art.cached(slug, kind, index=max(0, int(selected.get(kind, 0) or 0)))
             if f:
                 out[kind] = "file://" + f
         return out
@@ -241,6 +344,8 @@ class Api:
         g, p = self.store.find_port(q.get("id", ""), q.get("port", ""))
         if not g or not p:
             raise ApiError(404, "juego o port desconocido")
+        if not library_paths.port_visible(g, p, load_json(self.store.dir / "config.json", {})):
+            raise ApiError(409, "La carpeta de este juego se retiró de las rutas de Omnia.")
         if not games_refresh.port_installed(p):
             raise ApiError(409, "no está instalado")
         if self._is_running(g, p, self.scan_fn()):
@@ -505,6 +610,7 @@ class Api:
                 self.store.state.setdefault("art", {}).setdefault(g["id"], {})[kind] = max(0, len(files) - 1)
                 self.store.state.setdefault("art_sources", {}).setdefault(g["id"], {})[kind] = result["items"][index]["url"]
                 self.store.save_state()
+            self._notify_selected_art(g["id"], kind)
             return {"ok": True, "kind": kind}
         except ValueError:
             raise ApiError(400, "edición, página u opción de arte no válida")
@@ -534,6 +640,7 @@ class Api:
             ((self.store.state.get("art_sources") or {}).get(g["id"]) or {}).pop(kind, None)
             self.store.save_state()
             index = selected[kind]
+        self._notify_selected_art(g["id"], kind)
         return {"ok": True, "index": index}
 
     # --- mando
@@ -559,9 +666,10 @@ class Api:
         self._last_poll = time.time()
         try:
             since, wait = int(q.get("since", -1)), min(25.0, max(0.0, float(q.get("wait", 20))))
+            game_since = int(q.get("gameSince", -1))
         except ValueError:
             raise ApiError(400, "parámetros no válidos")
-        r = self.bus.wait(since, wait)
+        r = self.bus.wait(since, wait, game_since if game_since >= 0 else None)
         self._last_poll = time.time()
         return r
 
@@ -576,9 +684,9 @@ class Api:
             self.bus.push(k)
         return {"ok": True}
 
-    def toggle_menu(self) -> None:
-        """Tecla Windows: abre o cierra el Big Menu. No pasa por el filtro del mando (no es un botón del mando)."""
-        self.bus.push("MENU")
+    def toggle_menu(self, power: bool = False) -> None:
+        """Compatibilidad D-Bus con versiones anteriores; el atajo del menú quedó inactivo."""
+        return
 
     def set_desktop_state(self, active: bool, covered: bool) -> None:
         """active: ninguna ventana normal tiene el foco, así que el mando es de la estantería. covered: una ventana

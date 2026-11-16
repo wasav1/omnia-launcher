@@ -10,6 +10,8 @@ class EventBus:
         self.seq = 0
         self.events = deque(maxlen=maxlen)
         self.pad = {"connected": False, "name": "", "layout": ""}
+        self.game_revision = 0
+        self.selection_revision = 0
         # lo publica el vigilante de ventanas de KWin: ¿manda la estantería (no hay una ventana normal activa) y está tapada?
         self.desktop = {"active": True, "covered": False}
         self.gamemode = {"active": False, "games": [], "frozen": 0}
@@ -27,6 +29,25 @@ class EventBus:
                 self.gamemode = new
                 self.cv.notify_all()
 
+    def games_changed(self) -> None:
+        """Wake the UI as soon as the set of detected running games changes."""
+        with self.cv:
+            self.game_revision += 1
+            self.cv.notify_all()
+
+    def selection_changed(self) -> None:
+        """Wake wallpaper clients immediately after selection or selected artwork changes."""
+        with self.cv:
+            self.selection_revision += 1
+            self.cv.notify_all()
+
+    def wait_selection(self, since: int, timeout: float) -> int:
+        end = time.monotonic() + timeout
+        with self.cv:
+            while self.selection_revision == since and time.monotonic() < end:
+                self.cv.wait(timeout=max(0.05, end - time.monotonic()))
+            return self.selection_revision
+
     def push(self, key: str) -> None:
         with self.cv:
             self.seq += 1
@@ -42,9 +63,10 @@ class EventBus:
         return {"seq": self.seq, "events": [e for e in self.events if e["seq"] > since],
                 "padOn": self.pad["connected"], "padName": self.pad["name"], "padLayout": self.pad["layout"],
                 "shelfActive": self.desktop["active"], "covered": self.desktop["covered"],
+                "gameRevision": self.game_revision,
                 "gameMode": self.gamemode}
 
-    def wait(self, since: int, timeout: float) -> dict:
+    def wait(self, since: int, timeout: float, game_since: int | None = None) -> dict:
         """Devuelve en cuanto haya eventos nuevos o al agotar el tiempo. since < 0: solo el contador actual
         (así un cliente nuevo no repite eventos viejos)."""
         end = time.time() + timeout
@@ -52,8 +74,9 @@ class EventBus:
             if since < 0:
                 return self.snapshot(self.seq)
             since = min(since, self.seq)
+            game_since = self.game_revision if game_since is None else game_since
             while True:
                 snap = self.snapshot(since)
-                if snap["events"] or time.time() >= end:
+                if snap["events"] or self.game_revision != game_since or time.time() >= end:
                     return snap
                 self.cv.wait(timeout=max(0.05, end - time.time()))

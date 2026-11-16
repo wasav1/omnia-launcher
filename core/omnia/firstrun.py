@@ -3,7 +3,7 @@
 Lo lanza un autostart de XDG en cada inicio de sesión de KDE y solo actúa la primera vez:
   1. Explica qué va a cambiar en KDE (Win+D, dos scripts de KWin) y pide consentimiento con un cuadro de diálogo.
   2. Si aceptas, aplica `omnia-setup` (reversible con `omnia-setup --undo`). Si no, no toca nada y no vuelve a preguntar.
-  3. Habilita y arranca los servicios de usuario (omnia-core y omnia-ui).
+  3. Habilita y arranca el servicio de usuario omnia-core. La interfaz nativa vive en el applet Plasma.
 El resultado se guarda en ~/.config/omnia/first-run.json. Un paquete de pacman no puede hacer nada de esto: corre como
 root y sin sesión de usuario.
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 from . import paths, setup
 from .store import load_json, write_json_atomic
 
-SERVICES = ("omnia.service", "omnia-ui.service")
+SERVICES = ("omnia.service",)
 MARKER = "first-run.json"
 TITLE = "Omnia"
 
