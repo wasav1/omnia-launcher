@@ -28,6 +28,19 @@ Rectangle {
     property bool contextOpen: false
     property point contextPoint: Qt.point(-1, -1)
     property int contextIndex: 0
+    property bool artOpen: false
+    property string artKind: "portada"
+    property int artSgid: 0
+    property int artPage: 0
+    property int artIndex: 0
+    property int artRequestSerial: 0
+    property bool artBusy: false
+    property bool artMore: false
+    property string artError: ""
+    property var artGames: []
+    property var artItems: []
+    readonly property var artKinds: ["portada", "fondo", "logo"]
+    readonly property int artColumns: artKind === "portada" ? 6 : (artKind === "fondo" ? 3 : 4)
     property real nowSecs: Date.now() / 1000
     property string clockText: Qt.formatTime(new Date(), "h:mm AP")
     property bool powerRequested: false
@@ -160,10 +173,16 @@ Rectangle {
         if (!current || !selectedPort || saveFor === current.id + ":" + selectedPort.id) return
         const gid = current.id, pid = selectedPort.id
         saveFor = gid + ":" + pid; saveInfo = null
-        api.savesInfo(current, function(st, body) {
+        Qt.callLater(function() {
+            // Deja que ListView y la selección de port terminen de actualizar sus bindings
+            // antes de capturar el juego para la petición asíncrona.
             if (!shell.current || shell.current.id !== gid || !shell.selectedPort || shell.selectedPort.id !== pid) return
-            shell.saveInfo = st === 200 ? body : { slots: [], error: body.error || "No se pudieron consultar las partidas (" + st + ")" }
-        }, pid)
+            const game = shell.current
+            api.savesInfo(game, function(st, body) {
+                if (!shell.current || shell.current.id !== gid || !shell.selectedPort || shell.selectedPort.id !== pid) return
+                shell.saveInfo = st === 200 ? body : { slots: [], error: body.error || "No se pudieron consultar las partidas (" + st + ")" }
+            }, pid)
+        })
     }
     function launchCurrent() { if (current && selectedPort) api.launch(current, selectedPort.id) }
     function backupCurrent() {
@@ -174,6 +193,61 @@ Rectangle {
         }, selectedPort.id)
     }
     function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.toast = b.error || "No se pudo abrir la carpeta" }, selectedPort.id) }
+    function openArt() {
+        if (!current) return
+        artOpen = true; artKind = "portada"; artSgid = 0; artPage = 0; artIndex = 0
+        artGames = []; artItems = []; artError = ""
+        loadArt(0)
+    }
+    function closeArt() { artOpen = false; artBusy = false; artRequestSerial++; shell.forceActiveFocus() }
+    function loadArt(page) {
+        if (!current) return
+        const gid = current.id, kind = artKind, edition = artSgid
+        const request = ++artRequestSerial
+        artBusy = true; artError = ""
+        api.artBrowse(current, kind, page, edition, function(st, body) {
+            if (request !== shell.artRequestSerial) return
+            shell.artBusy = false
+            if (!shell.current || shell.current.id !== gid || !shell.artOpen || shell.artKind !== kind) return
+            if (st !== 200) { shell.artError = body.error || "No se pudo consultar SteamGridDB"; if (page === 0) shell.artItems = []; return }
+            shell.artGames = body.games || []; shell.artSgid = body.sgid || 0; shell.artMore = body.more === true; shell.artPage = page
+            shell.artItems = page === 0 ? (body.items || []) : shell.artItems.concat(body.items || [])
+            if (page === 0) shell.artIndex = 0
+        })
+    }
+    function setArtKind(kind) {
+        if (artKinds.indexOf(kind) < 0 || kind === artKind) return
+        artKind = kind; artItems = []; artIndex = 0; loadArt(0)
+    }
+    function stepArtEdition(delta) {
+        if (artBusy || artGames.length < 2) return
+        let i = artGames.findIndex(function(x) { return x.id === artSgid })
+        i = (Math.max(0, i) + delta + artGames.length) % artGames.length
+        artSgid = artGames[i].id; artItems = []; artIndex = 0; loadArt(0)
+    }
+    function pickArt(index) {
+        if (!current || artBusy || index < 0 || index >= artItems.length) return
+        const game = current, kind = artKind, page = artPage, sgid = artSgid
+        artBusy = true
+        api.artPick(game, kind, page, sgid, index, function(st, body) {
+            shell.artBusy = false
+            if (st !== 200) { api.toast = body.error || "No se pudo guardar el arte"; return }
+            shell.artOpen = false; api.toast = "Arte aplicado: " + kind; api.refresh(); shell.forceActiveFocus()
+        })
+    }
+    function cycleArt() {
+        if (!current) return
+        const game = current
+        let changed = false
+        api.artCycle(game, "portada", 1, function(st) {
+            changed = st === 200
+            api.artCycle(game, "fondo", 1, function(bg) {
+                if (bg === 200) changed = true
+                api.toast = changed ? "Arte cambiado" : "No hay otras opciones de arte descargadas"
+                if (changed) api.refresh()
+            })
+        })
+    }
     function toggleFavorite() { if (current) api.toggleFav(current) }
     function toggleHidden() { if (current) api.call("POST", "/game/hide?id=" + encodeURIComponent(current.id), function(st) { if (st === 200) api.refresh() }) }
     function setSearchOpen(on) { searchOpen = on; if (on) Qt.callLater(function() { searchField.forceActiveFocus() }); else shell.forceActiveFocus() }
@@ -183,8 +257,8 @@ Rectangle {
         if (i === 0) launchCurrent()
         else if (i === 1) backupCurrent()
         else if (i === 2) openSaveFolder()
-        else if (i === 3) api.toast = "El ciclo de arte se conectará con SteamGridDB"
-        else if (i === 4) api.toast = "El selector de SteamGridDB se conectará en esta etapa"
+        else if (i === 3) cycleArt()
+        else if (i === 4) openArt()
         else if (i === 5) toggleFavorite()
         else if (i === 6) toggleHidden()
         else if (i === 7) { searchText = ""; setSearchOpen(false) }
@@ -212,7 +286,17 @@ Rectangle {
 
     Api { id: api }
     onMenuOpenChanged: api.reportMenu(menuOpen)
-    onCurrentChanged: { if (current) { selectedId = current.id; loadSaves() } else { saveFor = ""; saveInfo = null } }
+    onCurrentChanged: {
+        if (current) {
+            selectedId = current.id
+            Qt.callLater(function() { if (shell.current && shell.current.id === shell.selectedId) shell.loadSaves() })
+        } else { saveFor = ""; saveInfo = null }
+    }
+    onSelectedPortChanged: {
+        if (!selectedPort) return
+        saveFor = ""; saveInfo = null
+        Qt.callLater(function() { shell.loadSaves() })
+    }
     onVisibleGamesChanged: Qt.callLater(function() { shell.restoreSelection(shell.selectedId) })
     Timer { interval: 6000; running: !api.covered; repeat: true; onTriggered: api.refresh() }
     Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: { shell.nowSecs = Date.now()/1000; shell.clockText = Qt.formatTime(new Date(), "h:mm AP") } }
@@ -223,6 +307,23 @@ Rectangle {
         function onPadKey(key) {
             if (key === "MENU" || key === "START") { shell.menuOpen = !shell.menuOpen; return }
             if (shell.menuOpen) return
+            if (shell.artOpen) {
+                if (key === "B" || key === "SELECT") shell.closeArt()
+                else if (key === "A") shell.pickArt(shell.artIndex)
+                else if (key === "LB") shell.setArtKind(shell.artKinds[(shell.artKinds.indexOf(shell.artKind) + 2) % 3])
+                else if (key === "RB") shell.setArtKind(shell.artKinds[(shell.artKinds.indexOf(shell.artKind) + 1) % 3])
+                else if (key === "LT") shell.stepArtEdition(-1)
+                else if (key === "RT") shell.stepArtEdition(1)
+                else if (key === "l") shell.artIndex = Math.max(0, shell.artIndex - 1)
+                else if (key === "r") shell.artIndex = Math.min(shell.artItems.length - 1, shell.artIndex + 1)
+                else if (key === "u") shell.artIndex = Math.max(0, shell.artIndex - shell.artColumns)
+                else if (key === "d") {
+                    const next = shell.artIndex + shell.artColumns
+                    if (next < shell.artItems.length) shell.artIndex = next
+                    else if (shell.artMore && !shell.artBusy) shell.loadArt(shell.artPage + 1)
+                }
+                return
+            }
             if (shell.contextOpen) {
                 if (key === "u") shell.contextIndex = (shell.contextIndex - 1 + shell.contextItems.length) % shell.contextItems.length
                 else if (key === "d") shell.contextIndex = (shell.contextIndex + 1) % shell.contextItems.length
@@ -247,6 +348,23 @@ Rectangle {
         }
     }
     Keys.onPressed: function(e) {
+        if (artOpen) {
+            if (e.key === Qt.Key_Escape) closeArt()
+            else if (e.key === Qt.Key_Left) artIndex = Math.max(0, artIndex - 1)
+            else if (e.key === Qt.Key_Right) artIndex = Math.min(artItems.length - 1, artIndex + 1)
+            else if (e.key === Qt.Key_Up) artIndex = Math.max(0, artIndex - artColumns)
+            else if (e.key === Qt.Key_Down) {
+                const next = artIndex + artColumns
+                if (next < artItems.length) artIndex = next
+                else if (artMore && !artBusy) loadArt(artPage + 1)
+            }
+            else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) pickArt(artIndex)
+            else if (e.key === Qt.Key_Tab) setArtKind(artKinds[(artKinds.indexOf(artKind) + 1) % artKinds.length])
+            else if (e.key === Qt.Key_PageUp) stepArtEdition(-1)
+            else if (e.key === Qt.Key_PageDown) stepArtEdition(1)
+            else { e.accepted = false; return }
+            e.accepted = true; return
+        }
         if (contextOpen) {
             if (e.key === Qt.Key_Up) contextIndex = (contextIndex - 1 + contextItems.length) % contextItems.length
             else if (e.key === Qt.Key_Down) contextIndex = (contextIndex + 1) % contextItems.length
@@ -539,11 +657,17 @@ Rectangle {
                             Behavior on width { NumberAnimation { duration:420;easing.type:Easing.OutBack;easing.overshoot:.8 } }
                             readonly property real cx:x+track.x+width/2
                             opacity:Math.max(0,Math.min(1,cx/300,(1920-cx)/380))
-                            Loader { anchors.fill:parent;active:Math.abs(slot.index-list.currentIndex)<=9
-                                sourceComponent: Component { GameCard { anchors.bottom:parent.bottom; width:slot.width;height:slot.selected?435:285; game:slot.modelData;current:slot.selected;api:shell.backend
+                            Loader { anchors.bottom:parent.bottom;width:slot.width;height:slot.selected?435:285;active:Math.abs(slot.index-list.currentIndex)<=9
+                                Behavior on height { NumberAnimation { duration:420;easing.type:Easing.OutBack;easing.overshoot:.8 } }
+                                sourceComponent: Component { GameCard { anchors.fill:parent; game:slot.modelData;current:slot.selected;api:shell.backend
                                     platformLabel:shell.platformLabel(slot.modelData);platformColor:shell.platformColor(slot.modelData.platform);iconKey:shell.platformIcon(slot.modelData);coordinateRoot:canvas
                                     onActivated: { if(slot.selected) shell.launchCurrent(); else list.currentIndex=slot.index }
-                                    onContextRequested: function(px,py) { if(!slot.selected)list.currentIndex=slot.index; shell.showContext(px,py) }
+                                    onContextRequested: function(px,py) {
+                                        if (!slot.selected) {
+                                            list.currentIndex = slot.index
+                                            Qt.callLater(function() { shell.showContext(px, py) })
+                                        } else shell.showContext(px, py)
+                                    }
                                 } }
                             }
                         }
@@ -551,6 +675,7 @@ Rectangle {
                 }
             }
         }
+        Waves { x:0;y:canvas.height-60;width:1920;height:60;active:!!music.item&&music.item.available;playing:!!music.item&&music.item.playing;color:"#a5efc2";visibleOnScreen:!api.covered&&!api.gameMode }
         ListView { id:list; visible:false; width:1;height:1;model:shell.visibleGames;currentIndex:0 }
 
         MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.RightButton;onClicked:function(m){shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
@@ -568,6 +693,66 @@ Rectangle {
                         MouseArea { id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
                     } }
                 }
+            }
+        }
+        Item { id:artLayer; anchors.fill:parent; z:45; visible:shell.artOpen
+            Rectangle { anchors.fill:parent; color:"#eb050806" }
+            MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:shell.closeArt() }
+            Rectangle { id:artPanel; x:240;y:110;width:1440;height:860;radius:26;color:"#ff0d1510";border.width:1;border.color:"#73e6d9a0" }
+            MouseArea { x:artPanel.x;y:artPanel.y;width:artPanel.width;height:artPanel.height;acceptedButtons:Qt.AllButtons }
+            Text { x:276;y:136;text:"ELEGIR ARTE · " + (shell.current ? shell.current.name.toUpperCase() : "");color:canvas.acc;font.family:canvas.hud;font.pixelSize:20;font.letterSpacing:3;font.weight:Font.DemiBold }
+            Row { x:276;y:180;spacing:12
+                Repeater { model:shell.artKinds
+                    delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
+                        height:42;width:kindText.implicitWidth+40;radius:21;color:active?canvas.acc:"#14ffffff"
+                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:19;font.weight:Font.DemiBold }
+                        MouseArea { anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
+                    }
+                }
+            }
+            Row { anchors.right:artPanel.right;anchors.rightMargin:36;y:180;spacing:10;height:42
+                Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
+                    Text { anchors.centerIn:parent;text:"‹";color:canvas.ink;font.pixelSize:26 }
+                    MouseArea { anchors.fill:parent;onClicked:shell.stepArtEdition(-1) }
+                }
+                Text { width:480;anchors.verticalCenter:parent.verticalCenter;horizontalAlignment:Text.AlignRight;elide:Text.ElideMiddle;color:canvas.ink2;font.family:canvas.body;font.pixelSize:18
+                    text:{for(let i=0;i<shell.artGames.length;i++)if(shell.artGames[i].id===shell.artSgid)return shell.artGames[i].name+(shell.artGames[i].year?" ("+shell.artGames[i].year+")":"")+" · "+(i+1)+"/"+shell.artGames.length;return ""}
+                }
+                Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
+                    Text { anchors.centerIn:parent;text:"›";color:canvas.ink;font.pixelSize:26 }
+                    MouseArea { anchors.fill:parent;onClicked:shell.stepArtEdition(1) }
+                }
+            }
+            GridView { id:artGrid;x:264;y:240;width:1392;height:650;clip:true;boundsBehavior:Flickable.StopAtBounds
+                cellWidth:Math.floor(width/shell.artColumns)
+                cellHeight:shell.artKind==="portada"?cellWidth*1.43:(shell.artKind==="fondo"?cellWidth*.44:cellWidth*.64)
+                model:shell.artItems;currentIndex:shell.artIndex
+                onAtYEndChanged:if(atYEnd&&shell.artMore&&!shell.artBusy)shell.loadArt(shell.artPage+1)
+                Connections { target:shell; function onArtIndexChanged() { if (shell.artItems.length) artGrid.positionViewAtIndex(shell.artIndex, GridView.Contain) } }
+                delegate:Item { id:artTile;required property var modelData;required property int index;width:artGrid.cellWidth;height:artGrid.cellHeight
+                    readonly property bool focused:shell.artIndex===index
+                    Rectangle { anchors.fill:parent;anchors.margins:3;radius:18;color:"transparent";border.width:focused?3:0;border.color:"#59e6d9a0" }
+                    Rectangle { anchors.fill:parent;anchors.margins:8;radius:14;color:"#1a211c";clip:true
+                        Image { anchors.fill:parent;anchors.margins:shell.artKind==="logo"?18:0;source:artTile.modelData.thumb;asynchronous:true;smooth:true
+                            fillMode:shell.artKind==="logo"?Image.PreserveAspectFit:Image.PreserveAspectCrop;opacity:status===Image.Ready?1:0
+                            Behavior on opacity { NumberAnimation { duration:150 } }
+                        }
+                        Rectangle { anchors.fill:parent;radius:14;color:"transparent";border.width:artTile.focused?5:(artTile.modelData.cur?3:1);border.color:artTile.focused?canvas.acc:(artTile.modelData.cur?"#7fd99a":"#33f3efe3") }
+                        Rectangle { visible:artTile.modelData.cur===true;anchors.left:parent.left;anchors.top:parent.top;anchors.margins:12;height:28;radius:14;color:"#7fd99a";width:usedText.implicitWidth+22
+                            Text { id:usedText;anchors.centerIn:parent;text:"✓ EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:14;font.weight:Font.Bold;font.letterSpacing:1.2 }
+                        }
+                        Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:8;height:24;radius:12;color:"#b3000000";width:sizeText.implicitWidth+16
+                            Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:12 }
+                        }
+                        MouseArea { anchors.fill:parent;hoverEnabled:true;onEntered:shell.artIndex=artTile.index;onClicked:shell.pickArt(artTile.index) }
+                    }
+                }
+            }
+            Text { anchors.centerIn:artPanel;visible:shell.artItems.length===0;text:shell.artBusy?"Buscando en SteamGridDB…":(shell.artError||"Sin resultados para este juego");color:canvas.ink2;font.family:canvas.body;font.pixelSize:24 }
+            Text { x:276;y:930;text:api.padOn?"A aplicar · LB/RB tipo de arte · LT/RT edición · B cerrar":"Intro: aplicar · Tab: tipo de arte · Re Pág/Av Pág: edición · Esc: cerrar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:17 }
+            Rectangle { x:1626;y:126;width:38;height:38;radius:19;color:"#14ffffff"
+                Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:24 }
+                MouseArea { anchors.fill:parent;onClicked:shell.closeArt() }
             }
         }
     }

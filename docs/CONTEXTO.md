@@ -35,7 +35,7 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 - **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
 - **Rutas API** (resumen): `/health /library /library/refresh /game/{fav,hide,add,remove} /launch /apps /app/{launch,fav}
   /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates /saves /saves/{config,backup,restore,open,suggest}
-  /import/{find,preview,apply}`.
+  /art/{browse,pick,cycle} /import/{find,preview,apply}`.
 - **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
   pad (evdev sin dependencias), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
   saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,refresh,registry}`.
@@ -79,23 +79,28 @@ juegos manuales, plantillas, importador, rescate de partidas de Bazzite (Gopher6
 `GameCard.qml` se reescribieron sobre el lienzo 1920×1080, tomando proporciones, tonos, jerarquía tipográfica, insignias
 y escalas de tarjetas del prototipo. Se copiaron al UI los componentes auxiliares preservados del plasmoide original
 (escena, broche, iconos de plataforma y mando, ondas, MPRIS y sensores). El core entrega campos seguros de presentación,
-historial y ports sin exponer comandos de lanzamiento. La ventana normal se revisó a 1280×720; escala el carrusel y las
-tarjetas según referencia, usa los iconos de plataforma y ordena filtros Switch 2, PC, Switch, N64. Se corrigieron el
-solapamiento del reloj y el texto largo de GPU. Las operaciones de partidas ahora usan el port seleccionado, aunque el
-panel central aún queda en «Consultando partidas…» pese a que el endpoint responde 200 desde la API; queda por corregir.
+historial y ports sin exponer comandos de lanzamiento. La ventana se revisó a 1920×1080; el carrusel, las tarjetas y las
+coordenadas del lienzo coinciden con la referencia. Usa los iconos de plataforma y ordena filtros Switch 2, PC, Switch,
+N64. Se corrigieron el solapamiento del reloj y el texto largo de GPU. Las operaciones de partidas usan el port
+seleccionado; la petición se difiere hasta que `ListView` estabiliza sus bindings y la ventana muestra el estado vacío real.
+El `Loader` de cada tarjeta fija su tamaño según selección (290×435 activa, 190×285 lateral) para que las laterales
+aparezcan compactas desde el primer render. La respuesta de `/saves` conserva `used` para que la UI distinga ranuras
+ocupadas de vacías.
 
-La fidelidad visual exacta y la paridad funcional siguen pendientes de revisión renderizada a 1920×1080. Falta completar selector y
-ciclo de arte SteamGridDB, energía, cambio de salida de audio, métricas reales de almacenamiento/batería y curva de
-temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. No mostrar métricas de ejemplo como reales.
+La fidelidad visual exacta sigue pendiente de revisión renderizada a 1920×1080. El ciclo de arte y el selector SteamGridDB
+ya están conectados al core, incluido logo, paginación, cambio de edición, validación de host y selección persistente; falta
+probarlos con la clave del usuario. Siguen pendientes energía, cambio de salida de audio, métricas reales de
+almacenamiento/batería y curva de temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. No
+mostrar métricas de ejemplo como reales.
 
 **Prototipo visual:** `docs/prototipo-visual.html` muestra una propuesta navegable del escritorio Omnia a 16:9, con shelf,
 panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
 ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
 
 **Pendiente:**
-- Resolver por qué la consulta QML de partidas queda pendiente aunque el endpoint responda correctamente.
-- Revisar la captura a 1920×1080 contra el PNG de referencia.
-- Implementar y revisar menú contextual, selector de arte, energía, audio, métricas, paridad Big Menu/mando y navegación
+- Comparar detalles de arte/logo, ficha y telemetría a 1920×1080 contra el PNG de referencia.
+- Probar selector/ciclo de arte con la clave local de SteamGridDB sin revelar su contenido.
+- Completar y revisar el menú contextual, energía, audio, métricas, paridad Big Menu/mando y navegación
   del PDF; luego desarrollar el tema/layout instalable opcional de Plasma.
 - Instalar los últimos paquetes y aplicar el importador en la sesión real (solo probado contra un core temporal).
 - Abrir Longshot (¿carga las 6 ranuras?) y un juego N64; comprobar que Gopher64 use la **NVIDIA GTX 1650 Ti** (Vulkan lista
@@ -120,6 +125,20 @@ Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secc
   añadidos metadatos seguros de presentación/ports en `/library`, navegación de ports en partidas y dependencia `qt6-5compat`
   para tintar iconos. Revisada ventana 1280×720; pendiente corregir la consulta QML de partidas y validar a 1920×1080.
   Sin instalación, commit ni push.
+
+- 2026-11-15 — Diferida la consulta de partidas después de cambios en la selección; verificada en la ventana mostrando el
+  estado vacío real. Conectadas las acciones contextuales de ciclo de arte y selector a rutas autenticadas de SteamGridDB;
+  añadidos logo, galerías por edición/página, descargas limitadas a hosts permitidos, selección persistente y panel QML
+  basado en el selector del plasmoide. Captura a 1920×1080 confirma las posiciones y tamaños del carrusel; queda comparar
+  detalle de ficha y arte. Pendiente validar con la clave local; sin instalación, commit ni push.
+
+- 2026-11-15 — Corregido el tamaño inicial de las cards: el `Loader` ocupa el alto seleccionado (435 px) o lateral (285 px)
+  y el contenido llena el loader, evitando que herede los 435 px del slot. `qmllint`, carga QML en modo offscreen y
+  `git diff --check` pasan. Sin instalar, empaquetar, commit ni push.
+
+- 2026-11-15 — `/saves` ahora incluye el campo `used` de cada ranura; la UI ya mostraba todas como vacías porque el endpoint
+  lo descartaba al construir su respuesta. No se cambió el estilo visual. Falta instalar/actualizar el core para verlo en la
+  sesión real; sin empaquetar, commit ni push.
 
 - 2026-11-15 — Creada maqueta visual interactiva `docs/prototipo-visual.html` con vistas de estantería, Big Menu y energía;
   documentadas en la sección 5 sus limitaciones y que el panel/dock representan componentes nativos de Plasma. Sin cambios

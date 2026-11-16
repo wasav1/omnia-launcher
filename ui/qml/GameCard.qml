@@ -14,11 +14,8 @@ Item {
     signal activated
     signal contextRequested(real x, real y)
 
-    width: current ? 290 : 190
-    height: current ? 435 : 285
     z: current ? 5 : 0
     opacity: 1
-    Behavior on height { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
     transform: Translate { y: hoverArea.containsMouse && !card.current ? -10 : 0; Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } } }
 
     Item {

@@ -72,6 +72,9 @@ class Api:
             "/saves/backup": ("POST", True, self.saves_backup),
             "/saves/restore": ("POST", True, self.saves_restore),
             "/saves/open": ("POST", True, self.saves_open),
+            "/art/browse": ("GET", True, self.art_browse),
+            "/art/pick": ("POST", True, self.art_pick),
+            "/art/cycle": ("POST", True, self.art_cycle),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -171,17 +174,18 @@ class Api:
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
                             "ports": port_rows,
                             "running": any(self._is_running(g, p, cmds) for p in ports),
-                            **self._art(g),
+                            **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
         return {"games": out}
 
     @staticmethod
-    def _art(g):
+    def _art(g, state=None):
         slug = (g.get("art") or {}).get("slug") or g["id"]
         out = {}
+        selected = ((state or {}).get("art") or {}).get(g["id"], {})
         for kind in art.KINDS:
-            f = art.cached(slug, kind)
+            f = art.cached(slug, kind, index=max(0, int(selected.get(kind, 0) or 0)))
             if f:
                 out[kind] = "file://" + f
         return out
@@ -341,7 +345,7 @@ class Api:
         spec, dest, slug = self._saves_cfg(g, p)
         found = saves.slots(spec) if spec else []
         return {"configured": bool(saves.roots(spec)), "spec": spec, "folder": saves.folder(spec) if spec else "",
-                "slots": [{"name": x["name"], "mtime": x["mtime"]} for x in found], "backupDir": dest,
+                "slots": [{"name": x["name"], "mtime": x["mtime"], "used": bool(x.get("used"))} for x in found], "backupDir": dest,
                 "backups": saves.list_backups(dest, slug), "lastBackup": self.store.state.get("backups", {}).get(g["id"], 0)}
 
     def saves_config(self, q):
@@ -410,6 +414,89 @@ class Api:
             raise ApiError(404, "no hay carpeta de partidas")
         self.open_fn(path)
         return {"ok": True}
+
+    # --- arte manual de SteamGridDB (la clave nunca sale del core)
+    def _art_client(self):
+        key = art.load_key()
+        if not key:
+            raise ApiError(409, "Configura tu clave de SteamGridDB para buscar arte")
+        if not art.key_permissions_ok():
+            raise ApiError(403, "La clave de SteamGridDB debe tener permisos 0600")
+        return art.Client(key)
+
+    def art_browse(self, q):
+        g = self.store.find_game(q.get("id", ""))
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        kind = q.get("kind", "")
+        if kind not in art.KINDS:
+            raise ApiError(400, "tipo de arte no válido")
+        try:
+            page, sgid = int(q.get("page", "0")), int(q.get("sgid", "0"))
+            if page < 0 or sgid < 0:
+                raise ValueError
+            result = self._art_client().browse(g, kind, page, sgid)
+            current = (((self.store.state.get("art_sources") or {}).get(g["id"]) or {}).get(kind) or "")
+            for item in result["items"]:
+                item["cur"] = item["url"] == current
+            return result
+        except ValueError:
+            raise ApiError(400, "página o edición no válida")
+        except art.ArtError as e:
+            raise ApiError(502, str(e))
+
+    def art_pick(self, q):
+        g = self.store.find_game(q.get("id", ""))
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        kind = q.get("kind", "")
+        if kind not in art.KINDS:
+            raise ApiError(400, "tipo de arte no válido")
+        try:
+            page, sgid, index = int(q.get("page", "0")), int(q.get("sgid", "0")), int(q.get("index", "-1"))
+            if page < 0 or sgid <= 0 or index < 0 or index >= 50:
+                raise ValueError
+            client = self._art_client()
+            result = client.browse(g, kind, page, sgid)
+            if index >= len(result["items"]):
+                raise ApiError(400, "opción de arte fuera de rango")
+            slug = (g.get("art") or {}).get("slug") or g["id"]
+            client.download(result["items"][index]["url"], art.art_dir(slug, kind))
+            files = art.cached_files(slug, kind)
+            with self.store.lock:
+                self.store.state.setdefault("art", {}).setdefault(g["id"], {})[kind] = max(0, len(files) - 1)
+                self.store.state.setdefault("art_sources", {}).setdefault(g["id"], {})[kind] = result["items"][index]["url"]
+                self.store.save_state()
+            return {"ok": True, "kind": kind}
+        except ValueError:
+            raise ApiError(400, "edición, página u opción de arte no válida")
+        except art.ArtError as e:
+            raise ApiError(502, str(e))
+
+    def art_cycle(self, q):
+        g = self.store.find_game(q.get("id", ""))
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        kind = q.get("kind", "")
+        if kind not in art.KINDS:
+            raise ApiError(400, "tipo de arte no válido")
+        try:
+            delta = int(q.get("dir", "1"))
+        except ValueError:
+            raise ApiError(400, "dirección no válida")
+        if delta not in (-1, 1):
+            raise ApiError(400, "dirección no válida")
+        slug = (g.get("art") or {}).get("slug") or g["id"]
+        files = art.cached_files(slug, kind)
+        if len(files) < 2:
+            raise ApiError(409, "Este juego no tiene otras opciones de arte descargadas")
+        with self.store.lock:
+            selected = self.store.state.setdefault("art", {}).setdefault(g["id"], {})
+            selected[kind] = (int(selected.get(kind, 0) or 0) + delta) % len(files)
+            ((self.store.state.get("art_sources") or {}).get(g["id"]) or {}).pop(kind, None)
+            self.store.save_state()
+            index = selected[kind]
+        return {"ok": True, "index": index}
 
     # --- mando
     def pad_gate(self) -> bool:

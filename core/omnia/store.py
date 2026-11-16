@@ -28,7 +28,7 @@ def write_json_atomic(path: Path, obj, mode: int = 0o600) -> None:
     os.replace(tmp, path)
 
 
-STATE_DEFAULT = {"last_played": {}, "sessions": {}, "art": {}, "backups": {},
+STATE_DEFAULT = {"last_played": {}, "sessions": {}, "art": {}, "art_sources": {}, "backups": {},
                  "apps_used": {}, "apps_fav": None, "game_fav": [], "game_hidden": [],
                  "active_sessions": {}, "history": []}
 

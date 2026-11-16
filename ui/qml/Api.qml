@@ -99,6 +99,15 @@ QtObject {
     function savesBackup(g, done, portId) { call("POST", "/saves/backup?" + _q(g, portId), done) }
     function savesRestore(g, file, done, portId) { call("POST", "/saves/restore?" + _q(g, portId) + "&file=" + encodeURIComponent(file), done) }
     function savesOpen(g, done, portId) { call("POST", "/saves/open?" + _q(g, portId), done) }
+    function artBrowse(g, kind, page, sgid, done) {
+        call("GET", "/art/browse?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&page=" + page + "&sgid=" + sgid, done)
+    }
+    function artPick(g, kind, page, sgid, index, done) {
+        call("POST", "/art/pick?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&page=" + page + "&sgid=" + sgid + "&index=" + index, done)
+    }
+    function artCycle(g, kind, direction, done) {
+        call("POST", "/art/cycle?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&dir=" + direction, done)
+    }
     function importFind(done) { call("GET", "/import/find", done) }
     function importPreview(path, done) { call("GET", "/import/preview?path=" + encodeURIComponent(path), done) }
     function importApply(path, done) { call("POST", "/import/apply?path=" + encodeURIComponent(path), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
