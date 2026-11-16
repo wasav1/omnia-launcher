@@ -34,6 +34,7 @@ Rectangle {
     property int artPage: 0
     property int artIndex: 0
     property int artRequestSerial: 0
+    property real shelfWheelRemainder: 0
     property bool artBusy: false
     property bool artMore: false
     property string artError: ""
@@ -648,6 +649,23 @@ Rectangle {
 
         // Carrusel del prototipo: tarjeta activa en x=230, 290x435; laterales 190x285.
         Item { id:shelfWrap; x:0; width:1920; height:640; y:canvas.height-136-height; clip:true
+            WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: function(event) {
+                    if (shell.menuOpen || shell.artOpen || shell.contextOpen || shell.overlay !== "") return
+                    const angle = event.angleDelta.y
+                    const pixel = event.pixelDelta.y
+                    const stepSize = angle !== 0 ? 120 : 60
+                    shell.shelfWheelRemainder += angle !== 0 ? angle : pixel
+                    const steps = Math.trunc(shell.shelfWheelRemainder / stepSize)
+                    if (!steps) return
+                    shell.shelfWheelRemainder -= steps * stepSize
+                    const direction = steps > 0 ? -1 : 1
+                    list.currentIndex = Math.max(0, Math.min(shell.visibleGames.length - 1,
+                        list.currentIndex + direction * Math.abs(steps)))
+                    event.accepted = true
+                }
+            }
             Item { id:track; x:230-list.currentIndex*210; height:parent.height; Behavior on x { NumberAnimation { duration:550;easing.type:Easing.OutCubic } }
                 Row { id:cardsRow; spacing:20; anchors.bottom:parent.bottom
                     Repeater { model:shell.visibleGames
