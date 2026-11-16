@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import apps, art, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
+from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -77,6 +77,8 @@ class Api:
             "/art/cycle": ("POST", True, self.art_cycle),
             "/audio": ("GET", True, self.audio_status),
             "/system": ("GET", True, self.system_status),
+            "/audio/outputs": ("GET", True, self.audio_outputs),
+            "/audio/set": ("POST", True, self.audio_set),
             "/power": ("POST", True, self.power_action),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
@@ -143,6 +145,19 @@ class Api:
 
     # --- rutas
     def health(self, q):
+        return {"ok": True}
+
+    def audio_outputs(self, q):
+        try:
+            return {"ok": True, "items": audio_out.list_outputs(getattr(self, "pactl_run", subprocess.run))}
+        except audio_out.AudioOutError as e:
+            return {"ok": False, "items": [], "error": str(e)}
+
+    def audio_set(self, q):
+        try:
+            audio_out.set_output(q.get("sink", ""), q.get("port", ""), getattr(self, "pactl_run", subprocess.run))
+        except audio_out.AudioOutError as e:
+            raise ApiError(400, str(e))
         return {"ok": True}
 
     def power_action(self, q):

@@ -21,6 +21,7 @@ FocusScope {
     property string pwConfirm: ""           // acción pendiente de confirmar ("" = ninguna)
     property int pwCI: 0                    // 0 = Cancelar, 1 = Confirmar
     property bool shown: false              // objetivo de las animaciones de entrada/salida
+    property string startMode: "apps"       // "power" abre directamente «Energía y sesión» (botón de apagado de la cabecera)
     property real panelDim: 0.88            // oscurecido del cristal: alto porque sin el efecto de KWin no hay desenfoque detrás
     readonly property bool fading: container.opacity > 0.01
 
@@ -148,7 +149,7 @@ FocusScope {
 
     onOpenChanged: {
         if (open) {
-            mode = "apps"; pwConfirm = ""; pwIdx = 0; pwCI = 0
+            mode = startMode === "power" ? "power" : "apps"; pwConfirm = ""; pwIdx = 0; pwCI = 0
             query = ""; category = "Todas"; zone = "cats"; idx = 0
             api.loadApps()
             update()

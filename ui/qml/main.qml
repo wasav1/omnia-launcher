@@ -27,6 +27,7 @@ QtObject {
         BigMenu {
             id: bigMenu
             anchors.fill: parent
+            startMode: shell.menuStartMode
             api: shell.backend
             open: shell.menuOpen
             onCloseRequested: shell.menuOpen = false

@@ -11,6 +11,17 @@ QtObject {
     property string error: ""
     property var games: []
     property string toast: ""
+    property real toastLevel: 0           // opacidad del aviso: 1 al mostrarlo, 3 s después se desvanece en 2 s
+    function notify(text) { toast = ""; toast = text }
+    onToastChanged: {
+        toastFade.stop()
+        if (toast === "") { toastLevel = 0; return }
+        toastLevel = 1
+        toastHold.restart()
+    }
+    property Timer toastHold: Timer { interval: 3000; onTriggered: toastFade.start() }
+    property NumberAnimation toastFade: NumberAnimation { target: api; property: "toastLevel"; to: 0; duration: 2000; easing.type: Easing.InOutQuad
+        onFinished: api.toast = "" }
     property bool covered: false          // una ventana maximizada o a pantalla completa tapa el escritorio
     property bool shelfActive: true       // el mando es de la estantería (ninguna ventana normal tiene el foco)
     property var apps: []
@@ -100,6 +111,17 @@ QtObject {
         call("GET", "/apps", function (status, body) {
             if (status === 200) { apps = body.apps; appGroups = body.groups }
         })
+    }
+    // --- salida de audio (botón del altavoz)
+    function loadAudioOutputs(done) {
+        call("GET", "/audio/outputs", function (status, body) {
+            if (status !== 200 || !body || !body.ok || !body.items.length) { done([], (body && body.error) || ""); return }
+            done(body.items, "")
+        })
+    }
+    function setAudioOutput(item, done) {
+        call("POST", "/audio/set?sink=" + encodeURIComponent(item.sink) + "&port=" + encodeURIComponent(item.port || ""),
+             function (status) { if (done) done(status === 200) })
     }
     function launchApp(a, done) {
         call("POST", "/app/launch?id=" + encodeURIComponent(a.id), function (status, body) {

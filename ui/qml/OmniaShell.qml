@@ -47,6 +47,16 @@ Rectangle {
     property real nowSecs: Date.now() / 1000
     property string clockText: Qt.formatTime(new Date(), "h:mm AP")
     property bool powerRequested: false
+    property string menuStartMode: "apps" // "power": el botón de apagado abre el Big Menú directamente en Energía y sesión
+    // salida de audio
+    property bool audOpen: false
+    property int audIdx: 0
+    property var audItems: []
+    // teclado virtual del mando (para el buscador)
+    property bool searchPad: false        // el buscador se abrió con el mando: aparece el teclado virtual
+    property int oskR: 1
+    property int oskC: 0
+    property bool oskShift: false
     property bool runIgnored: false       // el usuario pidió reactivar la estantería con el juego aún abierto
     readonly property var runningGame: {  // juego lanzado desde Omnia que sigue abierto (GeForce NOW no cuenta: su app queda abierta)
         for (let i = 0; i < api.games.length; i++) if (api.games[i].running) return api.games[i]
@@ -88,14 +98,14 @@ Rectangle {
     }
     readonly property int selectedPortIndex: current && portSelection[current.id] !== undefined ? Math.min(portSelection[current.id], current.ports.length - 1) : 0
     readonly property var contextItems: current ? [
-        { label: "Jugar", icon: "▶" },
-        { label: "Respaldar partidas", icon: "▣" },
-        { label: "Abrir carpeta", icon: "▱" },
-        { label: "Cambiar arte", icon: "↻" },
-        { label: "Elegir arte (SteamGridDB)…", icon: "▧" },
-        { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: current.fav ? "★" : "☆" },
-        { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: "◉" }
-    ].concat(searchText !== "" ? [{ label: "Borrar filtro de búsqueda", icon: "⌕" }] : []) : []
+        { label: "Jugar", icon: "media-playback-start" },
+        { label: "Respaldar partidas", icon: "document-save" },
+        { label: "Abrir carpeta", icon: "folder-open" },
+        { label: "Cambiar arte", icon: "view-refresh" },
+        { label: "Elegir arte (SteamGridDB)…", icon: "images-flickr" },
+        { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "starred-symbolic" },
+        { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "view-visible" : "view-hidden" }
+    ].concat(searchText !== "" ? [{ label: "Borrar filtro de búsqueda", icon: "edit-clear" }] : []) : []
 
     function norm(s) { return (s || "").toString().toLocaleLowerCase() }
     function platformLabel(g) {
@@ -198,11 +208,11 @@ Rectangle {
     function backupCurrent() {
         if (!current || !selectedPort) return
         api.savesBackup(current, function(st,b) {
-            api.toast = st === 200 ? "Respaldo creado" : (b.error || "No se pudo respaldar")
+            api.notify(st === 200 ? "Respaldo creado" : (b.error || "No se pudo respaldar"))
             saveFor = ""; loadSaves(); api.refresh()
         }, selectedPort.id)
     }
-    function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.toast = b.error || "No se pudo abrir la carpeta" }, selectedPort.id) }
+    function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.notify(b.error || "No se pudo abrir la carpeta") }, selectedPort.id) }
     function openArt() {
         if (!current) return
         artOpen = true; artKind = "portada"; artSgid = 0; artPage = 0; artIndex = 0
@@ -241,8 +251,8 @@ Rectangle {
         artBusy = true
         api.artPick(game, kind, page, sgid, index, function(st, body) {
             shell.artBusy = false
-            if (st !== 200) { api.toast = body.error || "No se pudo guardar el arte"; return }
-            shell.artOpen = false; api.toast = "Arte aplicado: " + kind; api.refresh(); shell.forceActiveFocus()
+            if (st !== 200) { api.notify(body.error || "No se pudo guardar el arte"); return }
+            shell.artOpen = false; api.notify("Arte aplicado: " + kind); api.refresh(); shell.forceActiveFocus()
         })
     }
     function cycleArt() {
@@ -253,14 +263,18 @@ Rectangle {
             changed = st === 200
             api.artCycle(game, "fondo", 1, function(bg) {
                 if (bg === 200) changed = true
-                api.toast = changed ? "Arte cambiado" : "No hay otras opciones de arte descargadas"
+                api.notify(changed ? "Arte cambiado" : "No hay otras opciones de arte descargadas")
                 if (changed) api.refresh()
             })
         })
     }
     function toggleFavorite() { if (current) api.toggleFav(current) }
     function toggleHidden() { if (current) api.call("POST", "/game/hide?id=" + encodeURIComponent(current.id), function(st) { if (st === 200) api.refresh() }) }
-    function setSearchOpen(on) { searchOpen = on; if (on) Qt.callLater(function() { searchField.forceActiveFocus() }); else shell.forceActiveFocus() }
+    function setSearchOpen(on) {
+        searchOpen = on
+        if (!on) { searchPad = false; shell.forceActiveFocus() }
+        else if (!searchPad) Qt.callLater(function() { searchField.forceActiveFocus() })       // con el mando no se enfoca el campo: manda el teclado virtual
+    }
     function showContext(x, y) { if (!current || api.gameMode) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
     function activateContext(i) {
         contextOpen = false
@@ -295,7 +309,8 @@ Rectangle {
     function clockDate(d) { return d.toLocaleDateString(Qt.locale("es_MX"), "dddd d 'de' MMMM").toUpperCase() }
 
     Api { id: api }
-    onMenuOpenChanged: api.reportMenu(menuOpen)
+    onMenuOpenChanged: { api.reportMenu(menuOpen); if (!menuOpen) menuStartMode = "apps" }
+    function openPowerMenu() { menuStartMode = "power"; menuOpen = true; api.loadApps() }
     onCurrentChanged: {
         if (current) {
             selectedId = current.id
@@ -315,7 +330,11 @@ Rectangle {
     Connections {
         target: api
         function onPadKey(key) {
-            if (key === "MENU" || key === "START") { shell.menuOpen = !shell.menuOpen; return }
+            if (key === "MENU" || key === "START") {
+                if (shell.audOpen) { shell.audOpen = false; return }
+                if (shell.searchOpen && shell.searchPad) { shell.closeSearch(false); return }     // Start = BUSCAR
+                shell.menuOpen = !shell.menuOpen; return
+            }
             if (shell.menuOpen) return
             if (runLayer.visible) return                  // con un juego abierto el mando no mueve la estantería
             if (shell.artOpen) {
@@ -335,6 +354,7 @@ Rectangle {
                 }
                 return
             }
+            if (shell.audOpen) { shell.audKey(key); return }
             if (shell.contextOpen) {
                 if (key === "u") shell.contextIndex = (shell.contextIndex - 1 + shell.contextItems.length) % shell.contextItems.length
                 else if (key === "d") shell.contextIndex = (shell.contextIndex + 1) % shell.contextItems.length
@@ -342,6 +362,7 @@ Rectangle {
                 else if (key === "B" || key === "SELECT") shell.contextOpen = false
                 return
             }
+            if (shell.searchOpen && shell.searchPad) { shell.oskKey(key); return }
             if (key === "SELECT" || key === "MODE") { shell.showContext(-1,-1); return }
             if (key === "X") { shell.backupCurrent(); return }
             if (key === "Y") { if (music.item) music.item.playPause(); return }
@@ -350,12 +371,9 @@ Rectangle {
             if (key === "LT") { shell.stepPort(-1); return }
             if (key === "RT") { shell.stepPort(1); return }
             if (shell.searchOpen) return
-            if (key === "l") list.decrementCurrentIndex()
-            else if (key === "r") list.incrementCurrentIndex()
-            else if (key === "u") shell.focusZone = "hero"
-            else if (key === "d") shell.focusZone = "shelf"
-            else if (key === "A") shell.launchCurrent()
-            else if (key === "B") { if (shell.overlay) shell.closeOverlay() }
+            if (key === "l" || key === "r" || key === "u" || key === "d") shell.nav(key)
+            else if (key === "A") shell.enter()
+            else if (key === "B") { if (shell.overlay) shell.closeOverlay(); else shell.back() }
         }
     }
     Keys.onPressed: function(e) {
@@ -380,6 +398,13 @@ Rectangle {
             else { e.accepted = false; return }
             e.accepted = true; return
         }
+        if (audOpen) {
+            if (e.key === Qt.Key_Up) audKey("u")
+            else if (e.key === Qt.Key_Down) audKey("d")
+            else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) audKey("A")
+            else audOpen = false
+            e.accepted = true; return
+        }
         if (contextOpen) {
             if (e.key === Qt.Key_Up) contextIndex = (contextIndex - 1 + contextItems.length) % contextItems.length
             else if (e.key === Qt.Key_Down) contextIndex = (contextIndex + 1) % contextItems.length
@@ -387,21 +412,128 @@ Rectangle {
             else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Menu) contextOpen = false
             e.accepted = true; return
         }
-        if (e.key === Qt.Key_Right) { list.incrementCurrentIndex(); e.accepted = true }
-        else if (e.key === Qt.Key_Left) { list.decrementCurrentIndex(); e.accepted = true }
-        else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { launchCurrent(); e.accepted = true }
+        if (e.key === Qt.Key_Right) { nav("r"); e.accepted = true }
+        else if (e.key === Qt.Key_Left) { nav("l"); e.accepted = true }
+        else if (e.key === Qt.Key_Up) { nav("u"); e.accepted = true }
+        else if (e.key === Qt.Key_Down) { nav("d"); e.accepted = true }
+        else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { enter(); e.accepted = true }
         else if (e.key === Qt.Key_Menu) { showContext(-1,-1); e.accepted = true }
-        else if (e.key === Qt.Key_F5) { api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st === 200 ? "Biblioteca actualizada" : "No se pudo actualizar" }); e.accepted = true }
+        else if (e.key === Qt.Key_F5) { refreshLibrary(); e.accepted = true }
         else if (e.key === Qt.Key_Slash || (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier))) { setSearchOpen(!searchOpen); e.accepted = true }
         else if (e.key === Qt.Key_F) { toggleFavorite(); e.accepted = true }
         else if (e.key === Qt.Key_H) { toggleHidden(); e.accepted = true }
         else if (e.key === Qt.Key_Tab) { moveFilter(e.modifiers & Qt.ControlModifier ? -1 : 1); e.accepted = true }
-        else if (e.key === Qt.Key_Escape && (searchOpen || searchText)) { searchText = ""; setSearchOpen(false); e.accepted = true }
+        else if (e.key === Qt.Key_Escape) { if (searchOpen || searchText) { searchText = ""; setSearchOpen(false) } else back(); e.accepted = true }
         else if (e.key === Qt.Key_PageUp) { stepPort(-1); e.accepted = true }
         else if (e.key === Qt.Key_PageDown) { stepPort(1); e.accepted = true }
         else if (e.key === Qt.Key_Space) { if (music.item) music.item.playPause(); e.accepted = true }
         else if (e.key === Qt.Key_N) { openAdd(); e.accepted = true }
     }
+
+    // ---- navegación por zonas con teclado y mando: shelf (carrusel) · hero (ports y Jugar) · player (reproductor) · head (filtros y botones)
+    readonly property int portCount: current && current.ports && current.ports.length > 1 ? current.ports.length : 0
+    readonly property bool hasMusic: music.item ? music.item.available === true : false
+    readonly property int headCount: filterOptions.length + 3 + (api.padOn ? 1 : 0)
+    function currentFilterIndex() { return Math.max(0, filterOptions.findIndex(function(x) { return x.key === filterKey })) }
+    function goZone(z, i) { focusZone = z; focusIndex = i }
+    function nav(d) {
+        if (focusZone === "shelf") {
+            if (d === "l") list.decrementCurrentIndex()
+            else if (d === "r") list.incrementCurrentIndex()
+            else if (d === "u") goZone("hero", portCount)
+        } else if (focusZone === "hero") {
+            if (d === "l") focusIndex = Math.max(0, focusIndex - 1)
+            else if (d === "r") focusIndex = Math.min(portCount, focusIndex + 1)
+            else if (d === "d") goZone("shelf", 0)
+            else if (d === "u") { if (hasMusic) goZone("player", 1); else goZone("head", currentFilterIndex()) }
+        } else if (focusZone === "player") {
+            if (d === "l") focusIndex = Math.max(0, focusIndex - 1)
+            else if (d === "r") focusIndex = Math.min(2, focusIndex + 1)
+            else if (d === "d") goZone("hero", portCount)
+            else if (d === "u") goZone("head", currentFilterIndex())
+        } else {                                              // cabecera
+            if (d === "l") focusIndex = Math.max(0, focusIndex - 1)
+            else if (d === "r") focusIndex = Math.min(headCount - 1, focusIndex + 1)
+            else if (d === "d") { if (hasMusic) goZone("player", 1); else goZone("hero", portCount) }
+        }
+    }
+    function enter() {
+        if (focusZone === "shelf") launchCurrent()
+        else if (focusZone === "hero") { if (focusIndex < portCount) selectPort(focusIndex); else launchCurrent() }
+        else if (focusZone === "player") { if (music.item) { if (focusIndex === 0) music.item.previous(); else if (focusIndex === 1) music.item.playPause(); else music.item.next() } }
+        else activateHead(focusIndex)
+    }
+    function back() { if (focusZone !== "shelf") goZone("shelf", 0) }
+    // ---- salida de audio: lista de dispositivos; A elige, B cierra
+    function audShow() {
+        api.loadAudioOutputs(function(items, err) {
+            if (!items.length) { api.notify(err || "No se pudieron leer los dispositivos de audio"); return }
+            audItems = items
+            audIdx = Math.max(0, items.findIndex(function(x) { return x.current }))
+            audOpen = true
+        })
+    }
+    function audActivate(i) {
+        const it = audItems[i]
+        audOpen = false
+        if (!it) return
+        api.setAudioOutput(it, function(ok) { api.notify(ok ? "Audio: " + it.label : "No se pudo cambiar la salida de audio") })
+    }
+    function audKey(k) {
+        const n = audItems.length
+        if (k === "u") audIdx = (audIdx - 1 + n) % n
+        else if (k === "d") audIdx = (audIdx + 1) % n
+        else if (k === "A") audActivate(audIdx)
+        else if (k === "B" || k === "SELECT" || k === "START" || k === "MENU") audOpen = false
+    }
+    // ---- teclado virtual (solo cuando el buscador se abre con el mando)
+    readonly property var oskRows: {
+        const base = ["1234567890", "qwertyuiop", "asdfghjklñ", "zxcvbnm-'."], out = []
+        for (let i = 0; i < base.length; i++) {
+            const r = []
+            for (let j = 0; j < base[i].length; j++) { const ch = base[i][j]; r.push({ t: oskShift ? ch.toUpperCase() : ch, k: "ch", w: 1 }) }
+            out.push(r)
+        }
+        out.push([{ t: "⇧", k: "shift", w: 1.6 }, { t: "ESPACIO", k: "space", w: 4.4 }, { t: "⌫", k: "back", w: 1.6 }, { t: "BUSCAR", k: "done", w: 2.2 }])
+        return out
+    }
+    function openSearchPad() { searchPad = true; searchOpen = true; oskR = 1; oskC = 0 }
+    function closeSearch(clear) { searchOpen = false; searchPad = false; if (clear) searchText = ""; shell.forceActiveFocus() }
+    function oskMove(d) {
+        const R = oskRows
+        if (d === "u" || d === "d") {
+            const x = (oskC + 0.5) / R[oskR].length
+            oskR = (oskR + (d === "d" ? 1 : -1) + R.length) % R.length
+            oskC = Math.min(R[oskR].length - 1, Math.floor(x * R[oskR].length))
+        } else oskC = (oskC + (d === "r" ? 1 : -1) + R[oskR].length) % R[oskR].length
+    }
+    function oskPress() {
+        const key = oskRows[oskR][oskC]
+        if (key.k === "shift") oskShift = !oskShift
+        else if (key.k === "space") searchText = searchText + " "
+        else if (key.k === "back") searchText = searchText.slice(0, -1)
+        else if (key.k === "done") closeSearch(false)                          // BUSCAR: cierra el teclado y conserva el filtro
+        else { searchText = searchText + key.t; if (oskShift) oskShift = false }
+    }
+    function oskKey(k) {
+        if (k === "l" || k === "r" || k === "u" || k === "d") oskMove(k)
+        else if (k === "A") oskPress()
+        else if (k === "B") { if (searchText.length) searchText = searchText.slice(0, -1); else closeSearch(true) }   // B borra; con el campo vacío cierra
+        else if (k === "X") oskShift = !oskShift
+        else if (k === "Y") searchText = searchText + " "
+    }
+    function refreshLibrary() {
+        api.call("POST", "/library/refresh", function(st) { api.refresh(); api.notify(st === 200 ? "Biblioteca actualizada" : "No se pudo actualizar") })
+    }
+    function activateHead(i) {
+        const n = filterOptions.length
+        if (i < n) chooseFilter(filterOptions[i].key)
+        else if (i === n) { if (searchOpen) closeSearch(true); else openSearchPad() }       // la lupa con mando abre el teclado virtual
+        else if (i === n + 1) openPowerMenu()
+        else if (i === n + 2) refreshLibrary()
+        else audShow()
+    }
+    onFocusZoneChanged: if (focusZone === "shelf") focusIndex = 0
 
     function openSaves(g) { if (g) { overlayGame = g; overlayPort = selectedPort ? selectedPort.id : ""; overlay = "saves" } }
     function openAdd() { overlay = "add" }
@@ -462,32 +594,41 @@ Rectangle {
                     height: 34; radius: 17; width: label.implicitWidth + (modelData.key === "all" ? 26 : 32)
                     opacity: shell.searchOpen ? 0 : 1; Behavior on opacity { NumberAnimation { duration: 180 } }
                     color: active ? "#ebffffff" : "#59000000"; border.width: active ? 0 : 1; border.color: "#47f3efe3"
-                    Row { id: label; anchors.centerIn: parent; spacing: 7
-                        PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
-                        Text { visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: modelData.label; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
+                    // Icono y texto centrados en vertical: el icono por su caja y el texto por la ALTURA DE MAYÚSCULA medida
+                    // (la caja de línea de Rajdhani no está centrada ópticamente y el texto se veía más abajo que el icono).
+                    TextMetrics { id: capMetrics; font: pillText.font; text: "H" }
+                    Row { id: label; anchors.horizontalCenter: parent.horizontalCenter; height: parent.height; spacing: 7
+                        PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: active ? "#10150f" : shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
+                        Text { id: starText; visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true
+                            y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
+                        Text { id: pillText; text: modelData.label; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1
+                            y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
                     }
                     Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === index; anchors.fill: parent; anchors.margins: -4; radius: 22; color: "transparent"; border.width: 3; border.color: canvas.acc }
-                    MouseArea { anchors.fill: parent; onClicked: shell.chooseFilter(modelData.key) }
+                    MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: shell.chooseFilter(modelData.key) }
                 }
             }
             Rectangle {
                 id: searchBtn
                 width: 34; height: 34; radius: 17; color: searchOpen ? "#ebffffff" : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
                 Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? "#10150f" : "#f3efe3" }
+                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: sbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.setSearchOpen(!searchOpen) }
             }
             Rectangle { width: 34; height: 34; radius: 17; color: pwm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
                 Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "system-shutdown-symbolic"; isMask: true; color: "#f3efe3" }
-                MouseArea { id: pwm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { shell.menuOpen = true; api.loadApps() } }
+                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 1; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { id: pwm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.openPowerMenu() }
             }
             Rectangle { width: 34; height: 34; radius: 17; color: rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
                 Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: "#f3efe3" }
-                MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st===200 ? "Biblioteca actualizada" : "No se pudo actualizar" }) }
+                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 2; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.refreshLibrary() }
             }
-            Rectangle { visible: api.padOn; width: 34; height: 34; radius: 17; color: aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
+            Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? "#ebffffff" : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
                 Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: "#f3efe3" }
-                MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: api.toast = "Salida de audio" }
+                Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 3; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.audShow() }
             }
         }
         Rectangle {
@@ -504,7 +645,7 @@ Rectangle {
             Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
             Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + (shell.visibleGames.length === 1 ? " juego" : " juegos") : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
             Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "✕"; color: canvas.ink; visible: shell.searchText !== ""
-                MouseArea { anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
+                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
             }
         }
 
@@ -541,7 +682,8 @@ Rectangle {
                             Rectangle { visible: modelData.running; width: 8; height: 8; radius: 4; color: "#6fd66f"; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: modelData.name; color: index === selectedPortIndex ? "#10150f" : canvas.ink; font.family: canvas.hud; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: shell.selectPort(index) }
+                        Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === index; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: shell.selectPort(index) }
                     }
                 }
             }
@@ -551,8 +693,8 @@ Rectangle {
                     Text { text: "▶"; color: "#10150f"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
                     Text { text: current && current.running ? "En ejecución" : (selectedPort && current.ports.length > 1 ? "Jugar con " + selectedPort.name : "Jugar"); color: "#10150f"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
-                Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === (current && current.ports ? current.ports.length : 0); anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
-                MouseArea { anchors.fill: parent; onClicked: shell.launchCurrent() }
+                Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === shell.portCount; anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: shell.launchCurrent() }
             }
             PadGuide { visible: api.padOn; width: 650; padName: api.padName; iconSize: 24; fontPx: 14; spacing: 8; textColor: canvas.ink2; fontFamily: canvas.hud
                 hints: [{k:"A",t:"Jugar"},{k:"X",t:"Respaldar"},{k:"LB+RB",t:"Filtro"},{k:"LT+RT",t:"Port"},{k:"SELECT",t:"Opciones"},{k:"START",t:"Big Menú"}]
@@ -625,30 +767,70 @@ Rectangle {
         }
 
         // MPRIS, broche y monitor del sistema con módulos KDE reales.
-        Item { id: player; x:1530; y:38; width:320; height:170; visible: music.item && music.item.available && !api.gameMode; opacity:visible?1:0
+        // Reproductor MPRIS. Al terminar la canción o cambiar la reproducción NO desaparece de golpe: conserva lo último que
+        // mostraba 2 s y se desvanece en otros 2 s. Mientras hay música todo se lee en vivo de MusicSource.
+        Item { id: player; x:1530; y:38; width:320; height:170
+            readonly property bool live: shell.hasMusic
+            property string track: ""
+            property string artist: ""
+            property string source: ""
+            property bool playing: false
+            property real position: 0
+            property real length: 0
+            property real level: 0
+            visible: level > 0.01 && !api.gameMode
+            opacity: level
+            Binding { target: player; property: "track"; value: music.item ? music.item.track : ""; when: player.live }
+            Binding { target: player; property: "artist"; value: music.item ? music.item.artist : ""; when: player.live }
+            Binding { target: player; property: "source"; value: music.item ? music.item.sourceName : ""; when: player.live }
+            Binding { target: player; property: "playing"; value: music.item ? music.item.playing : false; when: player.live }
+            Binding { target: player; property: "position"; value: music.item ? music.item.position : 0; when: player.live }
+            Binding { target: player; property: "length"; value: music.item ? music.item.length : 0; when: player.live }
+            onLiveChanged: {
+                holdTimer.stop(); fadeOut.stop()
+                if (live) level = 1; else holdTimer.restart()
+            }
+            Timer { id: holdTimer; interval: 2000; onTriggered: fadeOut.start() }
+            NumberAnimation { id: fadeOut; target: player; property: "level"; to: 0; duration: 2000; easing.type: Easing.InOutQuad }
+            // difuminado radial de dentro hacia fuera, sin bordes, para que el reproductor se lea sobre cualquier fondo
+            Canvas {
+                x: -60; y: -44; width: parent.width + 120; height: parent.height + 88
+                onPaint: {
+                    const c = getContext("2d"); c.reset()
+                    c.translate(width / 2, height / 2); c.scale(width / 2, height / 2)
+                    const g = c.createRadialGradient(0, 0, 0, 0, 0, 1)
+                    g.addColorStop(0, "rgba(0,0,0,0.58)"); g.addColorStop(0.4, "rgba(0,0,0,0.36)")
+                    g.addColorStop(0.62, "rgba(0,0,0,0.12)"); g.addColorStop(0.78, "rgba(0,0,0,0)")
+                    c.fillStyle = g; c.fillRect(-1, -1, 2, 2)
+                }
+            }
             Column { anchors.fill:parent; spacing:2
-                MarqueeLabel { width:parent.width; height:28; text:music.item?music.item.track:""; color:canvas.ink
+                MarqueeLabel { width:parent.width; height:28; text:player.track; color:canvas.ink
                     textFont:Qt.font({family:canvas.hud,pixelSize:21,weight:Font.DemiBold}) }
-                MarqueeLabel { width:parent.width; height:20; text:music.item?music.item.artist:""; color:canvas.ink2
+                MarqueeLabel { width:parent.width; height:20; text:player.artist; color:canvas.ink2
                     textFont:Qt.font({family:canvas.hud,pixelSize:15}) }
-                MarqueeLabel { width:parent.width; height:18; text:music.item?"REPRODUCIENDO EN · "+music.item.sourceName:""; color:canvas.ink3
+                MarqueeLabel { width:parent.width; height:18; text:player.source?"REPRODUCIENDO EN · "+player.source:""; color:canvas.ink3
                     textFont:Qt.font({family:canvas.hud,pixelSize:13,letterSpacing:1.1}) }
                 Item { width:parent.width; height:46
                     Row { anchors.centerIn:parent; spacing:8
                         Repeater { model:3; delegate: Item { required property int index; width:index===1?46:38;height:width
+                            anchors.verticalCenter:parent.verticalCenter                 // los tres botones comparten el mismo eje vertical
                             Rectangle { anchors.fill:parent;radius:width/2;color:index===1?canvas.acc:(pbm.containsMouse?"#29ffffff":"transparent") }
-                            PlayerIcon { anchors.centerIn:parent;kind:index===0?"prev":index===2?"next":(music.item&&music.item.playing?"pause":"play");color:index===1?"#10150f":canvas.ink }
-                            MouseArea { id:pbm;anchors.fill:parent;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
+                            Rectangle { visible:shell.focusZone==="player"&&shell.focusIndex===index; anchors.fill:parent; anchors.margins:-5; radius:width/2; color:"transparent"; border.width:3; border.color:canvas.acc }
+                            PlayerIcon { anchors.centerIn:parent;kind:index===0?"prev":index===2?"next":(player.playing?"pause":"play");color:index===1?"#10150f":canvas.ink }
+                            MouseArea { id:pbm;anchors.fill:parent;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:{if(music.item&&player.live){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
                         } }
                     }
                 }
                 Row { width:parent.width; spacing:8; height:20
-                    Text { width:48; text:music.item?canvas.formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
+                    TextMetrics { id:timeCap; font.family:canvas.hud; font.pixelSize:13; text:"0" }          // los números se centran por su altura real
+                    Text { id:tLeft; width:48; text:canvas.formatTrackTime(player.position);color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13
+                        y:Math.round(parent.height/2-(baselineOffset+timeCap.tightBoundingRect.y+timeCap.tightBoundingRect.height/2)) }
                     Rectangle { width:parent.width-112;height:4;radius:2;color:"#2effffff";anchors.verticalCenter:parent.verticalCenter
-                        Rectangle { height:parent.height;width:music.item&&music.item.length>0?parent.width*Math.max(0,Math.min(1,music.item.position/music.item.length)):0;color:canvas.acc;radius:2
-                            Behavior on width { NumberAnimation { duration:180;easing.type:Easing.OutQuad } } }
+                        Rectangle { height:parent.height;width:player.length>0?parent.width*Math.max(0,Math.min(1,player.position/player.length)):0;color:canvas.acc;radius:2 }
                     }
-                    Text { width:48; horizontalAlignment:Text.AlignRight;text:music.item&&music.item.length>0?canvas.formatTrackTime(music.item.length):"—";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
+                    Text { width:48; horizontalAlignment:Text.AlignRight;text:player.length>0?canvas.formatTrackTime(player.length):"—";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13
+                        y:Math.round(parent.height/2-(baselineOffset+timeCap.tightBoundingRect.y+timeCap.tightBoundingRect.height/2)) }
                 }
             }
         }
@@ -727,9 +909,75 @@ Rectangle {
         }
         // Siempre encendidas (reposo = oleaje suave abajo); solo se apagan con un juego en marcha o una ventana encima.
         Waves { x:0;y:canvas.height-360;width:1920;height:360;active:true;playing:api.audioActive||(music.item?music.item.playing:false);real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameMode&&!shell.menuOpen&&shell.runningGame===null }
-        ListView { id:list; visible:false; width:1;height:1;model:shell.visibleGames;currentIndex:0 }
+        // Selección de la estantería. Antes era un ListView invisible SIN delegate: su contador era 0 y
+        // incrementCurrentIndex()/decrementCurrentIndex() no hacían nada (ni teclado ni mando movían la selección).
+        QtObject { id:list; property int currentIndex:0
+            function incrementCurrentIndex() { currentIndex = Math.max(0, Math.min(shell.visibleGames.length - 1, currentIndex + 1)) }
+            function decrementCurrentIndex() { currentIndex = Math.max(0, currentIndex - 1) } }
 
-        MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.RightButton;onClicked:function(m){shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
+        // un clic en cualquier parte devuelve el teclado a la estantería (como en el prototipo); el clic derecho abre el menú contextual
+        MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.LeftButton|Qt.RightButton
+            onPressed:function(m){shell.forceActiveFocus();m.accepted=(m.button===Qt.RightButton)}
+            onClicked:function(m){if(m.button===Qt.RightButton)shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
+        // salida de audio: lista de dispositivos; A elige, B cierra
+        Item { anchors.fill:parent; z:31; visible:opacity>0.01; opacity:shell.audOpen?1:0
+            Behavior on opacity { NumberAnimation { duration:140 } }
+            MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:shell.audOpen=false }
+            Rectangle { x:Math.min(1920-width-20, header.x+audBtn.x+audBtn.width+10-width/2+40); y:100
+                width:520; height:shell.audItems.length*54+70; radius:20; color:"#ff0d1510"; border.width:1; border.color:"#73e6d9a0"
+                scale:shell.audOpen?1:0.94; transformOrigin:Item.TopRight
+                Behavior on scale { NumberAnimation { duration:160; easing.type:Easing.OutCubic } }
+                MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons }
+                Text { x:24; y:16; text:"SALIDA DE AUDIO"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:15; font.letterSpacing:3; font.weight:Font.DemiBold }
+                Column { x:12; y:50; width:parent.width-24
+                    Repeater { model:shell.audItems
+                        delegate: Rectangle { id:ait; required property var modelData; required property int index
+                            readonly property bool foc:shell.audIdx===index
+                            width:parent.width; height:54; radius:14; color:foc?canvas.acc:(am.containsMouse?"#1fffffff":"transparent")
+                            Kirigami.Icon { x:16; anchors.verticalCenter:parent.verticalCenter; width:24; height:24; isMask:true
+                                source:ait.modelData.kind==="hdmi"?"video-display-symbolic":(ait.modelData.kind==="usb"?"audio-headphones-symbolic":(ait.modelData.kind==="bt"?"bluetooth-symbolic":"audio-speakers-symbolic"))
+                                color:ait.foc?"#10150f":"#f3efe3" }
+                            Text { x:58; width:parent.width-120; elide:Text.ElideRight; anchors.verticalCenter:parent.verticalCenter; text:ait.modelData.label
+                                color:ait.foc?"#10150f":"#f3efe3"; font.family:canvas.body; font.pixelSize:19; font.weight:Font.Medium }
+                            Text { visible:ait.modelData.current; anchors.right:parent.right; anchors.rightMargin:18; anchors.verticalCenter:parent.verticalCenter; text:"✓ ACTIVO"
+                                color:ait.foc?"#10150f":canvas.acc; font.family:canvas.hud; font.pixelSize:14; font.letterSpacing:1.6; font.weight:Font.DemiBold }
+                            MouseArea { id:am; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onEntered:shell.audIdx=ait.index; onClicked:shell.audActivate(ait.index) }
+                        } }
+                }
+            }
+        }
+        // teclado virtual: SOLO cuando el buscador se abre con el mando
+        Rectangle { id:padKb; visible:opacity>0.01; opacity:shell.searchOpen&&shell.searchPad?1:0
+            Behavior on opacity { NumberAnimation { duration:180 } }
+            x:(1920-width)/2; y:104; z:8; width:1040; height:kbCol.implicitHeight+40; radius:28; color:"#fa0b120e"; border.width:1; border.color:"#59e6d9a0"
+            MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons }
+            Column { id:kbCol; anchors { top:parent.top; topMargin:20; horizontalCenter:parent.horizontalCenter } width:parent.width-48; spacing:8
+                Repeater { model:shell.oskRows
+                    delegate: Row { id:kbRow; required property var modelData; required property int index
+                        anchors.horizontalCenter:parent.horizontalCenter; spacing:8
+                        readonly property real tot:{let t=0;for(let q=0;q<modelData.length;q++)t+=modelData[q].w;return t}
+                        readonly property real unit:(kbCol.width-spacing*(modelData.length-1))/tot
+                        Repeater { model:kbRow.modelData
+                            delegate: Rectangle { id:kk; required property var modelData; required property int index
+                                readonly property bool foc:shell.oskR===kbRow.index&&shell.oskC===index
+                                width:kbRow.unit*modelData.w; height:58; radius:14
+                                color:foc?canvas.acc:(modelData.k==="shift"&&shell.oskShift?"#59e6d9a0":"#1affffff")
+                                border.width:foc?0:1; border.color:"#33e6d9a0"; scale:foc?1.06:1
+                                Behavior on scale { NumberAnimation { duration:100 } }
+                                Text { anchors.centerIn:parent; text:kk.modelData.t; color:kk.foc?"#14211a":"#f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:kk.modelData.k==="ch"?24:17 }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{shell.oskR=kbRow.index;shell.oskC=kk.index;shell.oskPress()} }
+                            } }
+                    } }
+                Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:28
+                    Repeater { model:[["A","Escribir"],["B","Borrar"],["X","Mayús"],["Y","Espacio"]]
+                        delegate: Row { required property var modelData; spacing:8
+                            Rectangle { width:32; height:32; radius:16; color:"transparent"; border.width:1; border.color:"#80e6d9a0"
+                                Text { anchors.centerIn:parent; text:parent.parent.modelData[0]; color:"#e6d9a0"; font.family:canvas.hud; font.bold:true; font.pixelSize:14 } }
+                            Text { anchors.verticalCenter:parent.verticalCenter; text:modelData[1].toUpperCase(); color:"#b3f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:15; font.letterSpacing:2 }
+                        } }
+                }
+            }
+        }
         // «EN EJECUCIÓN»: bloquea ratón, teclado y mando de la estantería mientras el juego sigue abierto; se quita sola al cerrarlo.
         Item { id:runLayer; anchors.fill:parent; z:40; visible:shell.runningGame!==null&&!shell.runIgnored
             opacity:visible?1:0
@@ -756,9 +1004,9 @@ Rectangle {
                 Column { x:12;y:14;width:parent.width-24
                     Repeater { model:shell.contextItems;delegate:Rectangle { required property var modelData;required property int index;height:50;width:parent.width;radius:14
                         color:index===shell.contextIndex?canvas.acc:(hover.containsMouse?"#1fffffff":"transparent")
-                        Text { x:17;anchors.verticalCenter:parent.verticalCenter;text:modelData.icon;color:index===shell.contextIndex?"#10150f":canvas.ink;font.pixelSize:20 }
+                        Kirigami.Icon { x:16;anchors.verticalCenter:parent.verticalCenter;width:22;height:22;source:modelData.icon;isMask:true;color:index===shell.contextIndex?"#10150f":canvas.ink }
                         Text { x:56;anchors.verticalCenter:parent.verticalCenter;text:modelData.label;color:index===shell.contextIndex?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:18 }
-                        MouseArea { id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
+                        MouseArea { cursorShape: Qt.PointingHandCursor; id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
                     } }
                 }
             }
@@ -774,21 +1022,21 @@ Rectangle {
                     delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
                         height:42;width:kindText.implicitWidth+40;radius:21;color:active?canvas.acc:"#14ffffff"
                         Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:19;font.weight:Font.DemiBold }
-                        MouseArea { anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
+                        MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
                     }
                 }
             }
             Row { anchors.right:artPanel.right;anchors.rightMargin:36;y:180;spacing:10;height:42
                 Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
                     Text { anchors.centerIn:parent;text:"‹";color:canvas.ink;font.pixelSize:26 }
-                    MouseArea { anchors.fill:parent;onClicked:shell.stepArtEdition(-1) }
+                    MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.stepArtEdition(-1) }
                 }
                 Text { width:480;anchors.verticalCenter:parent.verticalCenter;horizontalAlignment:Text.AlignRight;elide:Text.ElideMiddle;color:canvas.ink2;font.family:canvas.body;font.pixelSize:18
                     text:{for(let i=0;i<shell.artGames.length;i++)if(shell.artGames[i].id===shell.artSgid)return shell.artGames[i].name+(shell.artGames[i].year?" ("+shell.artGames[i].year+")":"")+" · "+(i+1)+"/"+shell.artGames.length;return ""}
                 }
                 Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
                     Text { anchors.centerIn:parent;text:"›";color:canvas.ink;font.pixelSize:26 }
-                    MouseArea { anchors.fill:parent;onClicked:shell.stepArtEdition(1) }
+                    MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.stepArtEdition(1) }
                 }
             }
             GridView { id:artGrid;x:264;y:240;width:1392;height:650;clip:true;boundsBehavior:Flickable.StopAtBounds
@@ -812,7 +1060,7 @@ Rectangle {
                         Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:8;height:24;radius:12;color:"#b3000000";width:sizeText.implicitWidth+16
                             Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:12 }
                         }
-                        MouseArea { anchors.fill:parent;hoverEnabled:true;onEntered:shell.artIndex=artTile.index;onClicked:shell.pickArt(artTile.index) }
+                        MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;hoverEnabled:true;onEntered:shell.artIndex=artTile.index;onClicked:shell.pickArt(artTile.index) }
                     }
                 }
             }
@@ -820,10 +1068,13 @@ Rectangle {
             Text { x:276;y:930;text:api.padOn?"A aplicar · LB/RB tipo de arte · LT/RT edición · B cerrar":"Intro: aplicar · Tab: tipo de arte · Re Pág/Av Pág: edición · Esc: cerrar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:17 }
             Rectangle { x:1626;y:126;width:38;height:38;radius:19;color:"#14ffffff"
                 Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:24 }
-                MouseArea { anchors.fill:parent;onClicked:shell.closeArt() }
+                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.closeArt() }
             }
         }
     }
-    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;visible:shell.menuOpen||fading;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
-    Text { anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 } text:api.toast;color:canvas.acc;font.family:"Rajdhani";font.pixelSize:15 }
+    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;startMode:shell.menuStartMode;visible:shell.menuOpen||fading;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
+    // aviso temporal: se muestra al actuar (p. ej. «Biblioteca actualizada») y se desvanece solo (ver Api.notify)
+    Rectangle { visible:api.toast!==""; opacity:api.toastLevel; anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 }
+        width:toastText.implicitWidth+28; height:toastText.implicitHeight+14; radius:height/2; color:"#b3000000"
+        Text { id:toastText; anchors.centerIn:parent; text:api.toast; color:"#e6d9a0"; font.family:"Rajdhani"; font.pixelSize:16; font.weight:Font.DemiBold } }
 }

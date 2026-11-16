@@ -20,7 +20,7 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 | `ui/qml/` | Interfaz QML (`qml6 main.qml`), dos ventanas layer-shell (estantería + Big Menu) |
 | `kwin/` | Scripts de KWin: `omnia-showdesktop`, `omnia-watch` |
 | `packaging/arch/` | PKGBUILD (pkgbase `omnia-launcher`: `omnia-core`, `omnia-ui`, `omnia-kde`), `build-local.sh`, `out/` (ignorado) |
-| `tests/` | Pruebas `unittest` (256). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
+| `tests/` | Pruebas `unittest` (262). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
 | `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
 | `legacy/`, `plasmoid/`, `tools/`, `install-arch.sh` | Material del prototipo y utilidades |
 
@@ -35,9 +35,9 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 - **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
 - **Rutas API** (resumen): `/health /library /library/refresh /game/{fav,hide,add,remove} /launch /apps /app/{launch,fav}
   /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates /saves /saves/{config,backup,restore,open,suggest}
-  /art/{browse,pick,cycle} /audio /system /power /import/{find,preview,apply}`.
+  /art/{browse,pick,cycle} /audio /audio/{outputs,set} /system /power /import/{find,preview,apply}`.
 - **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
-  pad (evdev sin dependencias), audio (parec → 32 bandas mel con Goertzel, sin guardar audio), system (CPU, disco de juegos, batería), power (bloquear/suspender/cerrar sesión/reiniciar/apagar), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
+  pad (evdev sin dependencias), audio (parec → 32 bandas mel con Goertzel, sin guardar audio), system (CPU, disco de juegos, batería), audio_out (salida de audio), power (bloquear/suspender/cerrar sesión/reiniciar/apagar), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
   saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,gfn,refresh,registry}`.
 - **Datos del usuario** (fuera del repo): `~/.config/omnia/{library.json,state.json,first-run.json,setup-backup.json,
   steamgriddb.key}`, `~/.local/share/omnia/art`.
@@ -89,7 +89,7 @@ ocupadas de vacías.
 
 La fidelidad visual exacta sigue pendiente de revisión renderizada a 1920×1080. El ciclo de arte y el selector SteamGridDB
 ya están conectados al core, incluido logo, paginación, cambio de edición, validación de host y selección persistente; falta
-probarlos con la clave del usuario. Siguen pendientes el cambio de salida de audio y la navegación del PDF. Hechos el 16/11: energía (`/power`, con
+probarlos con la clave del usuario. Sigue pendiente la navegación del PDF. Hechos el 16/11: energía (`/power`, con
 confirmación en la UI), panel «Sistema» completo (`/system`: modelo/GHz de CPU, disco de juegos, batería; curva de temperatura
 de 60 s en la UI) y el Big Menu v8 (ver registro). El espectro del monitor de salida se calcula en 32 bandas mel de 55 Hz a
 9,5 kHz (Goertzel con ventana propia por banda, captura a 22,05 kHz en trozos de 20 ms; sin análisis en silencio: ~7 % de CPU,
@@ -130,6 +130,25 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-16 (4) — Salida de audio, Power y buscador con mando. Core: `audio_out.py` (`GET /audio/outputs`, `POST /audio/set`):
+  lista los dispositivos de `pactl` (uno por sink y por puerto disponible) y cambia el predeterminado moviendo lo que suena; la
+  petición solo puede elegir sinks/puertos listados. UI: menú «Salida de audio» (A elige, B cierra, «✓ ACTIVO»). El botón de
+  apagado abre el Big Menú directamente en «Energía y sesión» (`BigMenu.startMode`). Buscador con mando: la lupa abre el
+  teclado virtual (A escribe, B borra y con el campo vacío cierra, X mayús, Y espacio, Start = BUSCAR, que conserva el filtro).
+  Tiempos y barra del reproductor centrados en el mismo eje (altura real de los números). Verificado con mando emulado y capturas
+  (teclado virtual, 3 dispositivos reales de audio, energía). 262 pruebas OK.
+
+- 2026-11-16 (3) — Teclado y mando no hacían nada. Causa: `list` era un `ListView` invisible SIN delegate (contador 0), así que
+  `incrementCurrentIndex()`/`decrementCurrentIndex()` no movían nada aunque el core entregara los botones; ahora es un
+  `QtObject` propio. Navegación por zonas como en el prototipo (`shelf` carrusel · `hero` ports y Jugar · `player` · `head`
+  filtros y botones) con anillos de foco, Intro/A activa, Esc/B vuelve, y un clic devuelve el foco del teclado. Reproductor:
+  botones alineados al mismo eje, al terminar o cambiar la reproducción se mantiene 2 s y se desvanece en 2 s (conserva la
+  última pista), sombra radial difuminada. Menú contextual con los iconos Kirigami del prototipo. Avisos (`Api.notify`):
+  3 s visibles + fundido de 2 s, sobre una cápsula oscura. Pastillas: icono y texto centrados por altura de mayúscula
+  medida (`TextMetrics`). Cursor de mano en todos los botones con acción. Verificado con el core aislado y la UI: mando
+  (r r r → u u), menú contextual, teclado con `ydotool`, aviso al actualizar. Pendiente: teclado virtual del mando y salida
+  de audio.
 
 - 2026-11-16 (2) — Correcciones tras la primera revisión visual. Reproductor: la posición MPRIS se congelaba entre correcciones
   (el `Timer` re-anclaba justo antes de leerla, tiempo transcurrido ≈ 0) y solo saltaba cada ~2 s; ahora avanza con el reloj

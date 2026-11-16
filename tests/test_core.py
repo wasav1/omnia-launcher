@@ -184,6 +184,18 @@ class ApiSeguridad(unittest.TestCase):
         self.assertEqual(self.call("/power?a=lock", "POST")[0], 200)
         self.assertEqual(ejecutadas, [["loginctl", "lock-session"]])
 
+    def test_audio_outputs_y_set_solo_por_post_y_validados(self):
+        from test_audio_out import Fake
+        f = Fake()
+        self.api.pactl_run = f
+        st, body = self.call("/audio/outputs")
+        self.assertEqual(st, 200)
+        self.assertTrue(body["ok"] and body["items"])
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo")[0], 405)           # nunca por GET
+        self.assertEqual(self.call("/audio/set?sink=inventado", "POST")[0], 400)
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo", "POST")[0], 200)
+        self.assertEqual(self.call("/audio/set?sink=alsa_output.usb-Foo", "POST", token=False)[0], 401)
+
     def test_sistema_devuelve_cpu_disco_y_bateria(self):
         st, body = self.call("/system")
         self.assertEqual(st, 200)
