@@ -14,8 +14,8 @@ Item {
     SequentialAnimation on pan {
         running: bd.source.toString() !== ""
         loops: Animation.Infinite
-        NumberAnimation { from:0; to:1; duration:80000; easing.type:Easing.InOutSine }
-        NumberAnimation { from:1; to:0; duration:80000; easing.type:Easing.InOutSine }
+        NumberAnimation { from:0; to:1; duration:150000; easing.type:Easing.InOutSine }
+        NumberAnimation { from:1; to:0; duration:150000; easing.type:Easing.InOutSine }
     }
 
     function crossfade() {
@@ -39,18 +39,21 @@ Item {
         anchors.fill: parent
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutQuad } }
+        // Alto = 100 % de la pantalla (sin recorte vertical ni zoom); el ancho sobrante da el recorrido del paneo horizontal.
+        // Si la imagen no es más ancha que la pantalla se ensancha un 10 % para que siempre haya un movimiento suave.
         Item {
             id: stage
-            width: parent.width * 1.14
-            height: parent.height * 1.14
+            readonly property real aspect: img.implicitWidth > 0 && img.implicitHeight > 0 ? img.implicitWidth / img.implicitHeight : 16 / 9
+            width: Math.max(parent.width * 1.10, parent.height * aspect)
+            height: parent.height
             x: -(width - parent.width) * layer.panProgress
-            y: (parent.height - height) / 2
+            y: 0
             Image {
                 id: img
                 anchors.fill: parent; visible: false
                 asynchronous: true; cache: true; smooth: true
                 fillMode: Image.PreserveAspectCrop
-                sourceSize.width: 1920
+                sourceSize.height: 1080
             }
             MultiEffect {
                 anchors.fill: parent

@@ -20,7 +20,7 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 | `ui/qml/` | Interfaz QML (`qml6 main.qml`), dos ventanas layer-shell (estantería + Big Menu) |
 | `kwin/` | Scripts de KWin: `omnia-showdesktop`, `omnia-watch` |
 | `packaging/arch/` | PKGBUILD (pkgbase `omnia-launcher`: `omnia-core`, `omnia-ui`, `omnia-kde`), `build-local.sh`, `out/` (ignorado) |
-| `tests/` | Pruebas `unittest` (251). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
+| `tests/` | Pruebas `unittest` (256). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
 | `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
 | `legacy/`, `plasmoid/`, `tools/`, `install-arch.sh` | Material del prototipo y utilidades |
 
@@ -130,6 +130,18 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-16 (2) — Correcciones tras la primera revisión visual. Reproductor: la posición MPRIS se congelaba entre correcciones
+  (el `Timer` re-anclaba justo antes de leerla, tiempo transcurrido ≈ 0) y solo saltaba cada ~2 s; ahora avanza con el reloj
+  local cada 100 ms y el reproductor solo corrige saltos > 2 s; iconos `PlayerIcon.qml` (los del prototipo). Tarjetas: máscara
+  de esquinas sobre toda la tarjeta (antes asomaban las esquinas del fondo). Cabecera: iconos Kirigami (search, shutdown,
+  refresh, speakers), icono de mando e «application-menu» del prototipo. Buscador: oculta las pastillas, ocupa toda su zona y
+  es opaco; «1 juego» en singular. Arte: `art.pick_edition` elige la edición de SteamGridDB por `art.year` y, si no, por
+  plataforma (sw2/ps5 → la más reciente, n64/sw1/ps3/ps4 → la original); el importador conserva `year` (Ocarina de Switch 2
+  = edición 2026, no la de 1998). Batería con color incremental (0 rojo → 100 verde, `HudRow.charge`). Plataformas ordenadas
+  PC, PS5, Switch 2, PS4, Switch, PS3, N64. Fondo: 100 % del alto de la pantalla, sin zoom vertical, paneo horizontal de
+  150 s por sentido. El arte ya descargado con la edición equivocada no se reemplaza solo: «Cambiar arte» / «Elegir arte».
+  256 pruebas OK.
 
 - 2026-11-16 — Paridad con el prototipo vivo (rama `paridad-prototipo`, sin push). Core: `audio.py` reescrito (32 bandas mel,
   Goertzel, 22,05 kHz: CPU de ~27 % a ~7 %); nuevos `system.py` (`/system`), `power.py` (`/power`, solo POST y lista cerrada de

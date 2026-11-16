@@ -18,10 +18,15 @@ Item {
     opacity: 1
     transform: Translate { y: hoverArea.containsMouse && !card.current ? -10 : 0; Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } } }
 
+    // máscara de esquinas: TODO lo que pinta la tarjeta (fondo, escena, portada, degradados) queda recortado a 18 px de radio
+    Item { id: cardMask; anchors.fill: parent; visible: false; layer.enabled: true; layer.smooth: true
+        Rectangle { anchors.fill: parent; radius: 18 } }
     Item {
         id: artLayer
         anchors.fill: parent
-        clip: true
+        layer.enabled: true
+        layer.smooth: true
+        layer.effect: MultiEffect { maskEnabled: true; maskSource: cardMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1.0 }
         Rectangle { anchors.fill: parent; color: "#171b18" }
         Scene {
             anchors.fill: parent
@@ -37,10 +42,8 @@ Item {
             asynchronous: true
             smooth: true
             sourceSize.width: 600
-            visible: false
+            visible: status === Image.Ready
         }
-        Rectangle { id: coverMask; anchors.fill: parent; radius: 18; visible: false; layer.enabled: true }
-        MultiEffect { anchors.fill: parent; source: cover; maskEnabled: true; maskSource: coverMask; visible: cover.status === Image.Ready }
         Rectangle {
             visible: cover.status !== Image.Ready
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }

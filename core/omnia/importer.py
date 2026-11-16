@@ -148,7 +148,8 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
                 adapted = _adapt_gopher64(mapped, g64, new_home) or adapted
             entry = {"id": new_id, "name": shown, "sub": PLATFORM_LABEL.get(g.get("platform"), g.get("sub", "")),
                      "platform": g.get("platform", "pc"), "src": PLATFORM_LABEL.get(g.get("platform"), "Manual"),
-                     "art": {"slug": new_id, "sgdb": (g.get("art") or {}).get("sgdb") or name},
+                     "art": {"slug": new_id, "sgdb": (g.get("art") or {}).get("sgdb") or name,
+                             **({"year": (g.get("art") or {})["year"]} if isinstance((g.get("art") or {}).get("year"), int) else {})},
                      "ports": [{"id": new_id + "-main", **{k: mapped[k] for k in KEEP_PORT if mapped.get(k)}}]}
             items.append({"id": new_id, "legacyId": gid, "name": shown, "status": "existing" if new_id in have else "new",
                           "reason": "ya está en tu biblioteca" if new_id in have else "", "src": entry["src"], "entry": entry,

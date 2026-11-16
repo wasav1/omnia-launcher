@@ -135,5 +135,33 @@ class ConApi(unittest.TestCase):
             self.assertNotIn("fondo", g)
 
 
+class Ediciones(unittest.TestCase):
+    """Ocarina of Time tiene dos ediciones con el mismo nombre en SteamGridDB: la de 1998 y la de Switch 2 (2026)."""
+    EDS = [{"id": 21202, "name": "The Legend of Zelda: Ocarina of Time", "year": 1998},
+           {"id": 5532594, "name": "The Legend of Zelda: Ocarina of Time", "year": 2026},
+           {"id": 36271, "name": "The Legend of Zelda: Ocarina of Time 3D", "year": 2011}]
+
+    def juego(self, platform, **art_extra):
+        return {"name": "Ocarina of Time · Longshot", "platform": platform,
+                "art": {"sgdb": "The Legend of Zelda: Ocarina of Time", **art_extra}}
+
+    def test_switch_2_toma_la_mas_reciente(self):
+        self.assertEqual(art.pick_edition(self.EDS, self.juego("sw2")), 5532594)
+
+    def test_n64_toma_la_original(self):
+        self.assertEqual(art.pick_edition(self.EDS, self.juego("n64")), 21202)
+
+    def test_el_ano_guardado_manda(self):
+        self.assertEqual(art.pick_edition(self.EDS, self.juego("n64", year=2026)), 5532594)
+        self.assertEqual(art.pick_edition(self.EDS, self.juego("sw2", year=1998)), 21202)
+
+    def test_no_elige_3d_ni_variantes_si_hay_coincidencia_exacta(self):
+        self.assertNotEqual(art.pick_edition(self.EDS, self.juego("pc")), 36271)
+
+    def test_sin_coincidencia_exacta_usa_la_primera(self):
+        eds = [{"id": 7, "name": "Otro juego", "year": 2020}, {"id": 8, "name": "Y otro", "year": 2024}]
+        self.assertEqual(art.pick_edition(eds, {"name": "Nada que ver", "platform": "sw2"}), 7)
+
+
 if __name__ == "__main__":
     unittest.main()

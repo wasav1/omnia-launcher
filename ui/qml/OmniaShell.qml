@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
+import org.kde.kirigami as Kirigami
 
 // Estantería a escala lógica 1920x1080, fiel al lienzo del prototipo.
 Rectangle {
@@ -71,7 +73,7 @@ Rectangle {
             seen[key] = true
             platforms.push({ key: key, label: platformLabel(api.games[i]) })
         }
-        const order = { sw2: 0, pc: 1, sw1: 2, n64: 3 }
+        const order = { pc: 0, ps5: 1, sw2: 2, ps4: 3, sw1: 4, ps3: 5, n64: 6 }
         platforms.sort(function(a, b) { return (order[a.key] === undefined ? 9 : order[a.key]) - (order[b.key] === undefined ? 9 : order[b.key]) })
         out.push.apply(out, platforms)
         if (hidden) out.push({ key: "hidden", label: "Ocultos" })
@@ -458,6 +460,7 @@ Rectangle {
                     required property int index
                     property bool active: shell.filterKey === modelData.key
                     height: 34; radius: 17; width: label.implicitWidth + (modelData.key === "all" ? 26 : 32)
+                    opacity: shell.searchOpen ? 0 : 1; Behavior on opacity { NumberAnimation { duration: 180 } }
                     color: active ? "#ebffffff" : "#59000000"; border.width: active ? 0 : 1; border.color: "#47f3efe3"
                     Row { id: label; anchors.centerIn: parent; spacing: 7
                         PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
@@ -469,28 +472,29 @@ Rectangle {
                 }
             }
             Rectangle {
-                width: 34; height: 34; radius: 17; color: searchOpen ? "#ebffffff" : "#59000000"; border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
-                Text { anchors.centerIn: parent; text: "⌕"; color: searchOpen ? "#10150f" : canvas.ink; font.pixelSize: 21 }
-                MouseArea { anchors.fill: parent; onClicked: shell.setSearchOpen(!searchOpen) }
+                id: searchBtn
+                width: 34; height: 34; radius: 17; color: searchOpen ? "#ebffffff" : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? "#10150f" : "#f3efe3" }
+                MouseArea { id: sbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.setSearchOpen(!searchOpen) }
             }
-            Rectangle { width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Text { anchors.centerIn: parent; text: "⏻"; color: canvas.ink; font.pixelSize: 18 }
-                MouseArea { anchors.fill: parent; onClicked: { shell.menuOpen = true; api.loadApps() } }
+            Rectangle { width: 34; height: 34; radius: 17; color: pwm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "system-shutdown-symbolic"; isMask: true; color: "#f3efe3" }
+                MouseArea { id: pwm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { shell.menuOpen = true; api.loadApps() } }
             }
-            Rectangle { width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Text { anchors.centerIn: parent; text: "↻"; color: canvas.ink; font.pixelSize: 18 }
-                MouseArea { anchors.fill: parent; onClicked: api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st===200 ? "Biblioteca actualizada" : "No se pudo actualizar" }) }
+            Rectangle { width: 34; height: 34; radius: 17; color: rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: "#f3efe3" }
+                MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: api.call("POST", "/library/refresh", function(st) { api.refresh(); api.toast = st===200 ? "Biblioteca actualizada" : "No se pudo actualizar" }) }
             }
-            Rectangle { visible: api.padOn; width: 34; height: 34; radius: 17; color: "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Text { anchors.centerIn: parent; text: "◖"; color: canvas.ink; font.pixelSize: 18 }
-                MouseArea { anchors.fill: parent; onClicked: api.toast = "Salida de audio" }
+            Rectangle { visible: api.padOn; width: 34; height: 34; radius: 17; color: aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: "#f3efe3" }
+                MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: api.toast = "Salida de audio" }
             }
         }
         Rectangle {
-            id: searchBox; x: 84; y: 54; width: 610; height: 34; radius: 17; z: 5; clip: true
+            id: searchBox; x: 84; y: 54; width: searchBtn.x - 10; height: 34; radius: 17; z: 5; clip: true
             opacity: shell.searchOpen ? 1 : 0; visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: 180 } }
-            color: "#99000000"; border.width: 1; border.color: shell.searchOpen ? "#e6d9a0" : "#47f3efe3"
+            color: "#f2080b09"; border.width: 1; border.color: shell.searchOpen ? "#e6d9a0" : "#47f3efe3"
             TextInput { id: searchField; x: 17; width: parent.width - 150; height: parent.height; text: shell.searchText; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 18; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true
                 onTextChanged: shell.searchText = text
                 Keys.onEscapePressed: { shell.searchText = ""; shell.setSearchOpen(false) }
@@ -498,7 +502,7 @@ Rectangle {
                 Keys.onEnterPressed: shell.forceActiveFocus()
             }
             Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
-            Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + " juegos" : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
+            Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + (shell.visibleGames.length === 1 ? " juego" : " juegos") : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
             Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "✕"; color: canvas.ink; visible: shell.searchText !== ""
                 MouseArea { anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
             }
@@ -567,7 +571,7 @@ Rectangle {
         }
         Rectangle { x: 1130; y: 118; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
             Row { id: padLabel; anchors.centerIn: parent; spacing: 8
-                Text { text: "⌘"; color: api.padOn ? canvas.acc : "#80f3efe3"; font.pixelSize: 17; anchors.verticalCenter: parent.verticalCenter }
+                Kirigami.Icon { width: 20; height: 20; source: "input-gamepad-symbolic"; isMask: true; color: api.padOn ? canvas.acc : "#80f3efe3"; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
             }
         }
@@ -595,7 +599,7 @@ Rectangle {
                     Text { visible: !saveInfo || !saveInfo.slots.length; width:560; wrapMode:Text.WordWrap; text:saveInfo ? (saveInfo.error || "Aún no hay partidas. Aparecerán aquí cuando juegues.") : "Consultando partidas…"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:19 }
                 }
                 Row { spacing:10; height:30
-                    Text { text:"☷"; color:canvas.ink3; font.pixelSize:18; anchors.verticalCenter:parent.verticalCenter }
+                    Kirigami.Icon { source:"application-menu"; isMask:true; color:canvas.ink3; width:18; height:18; opacity:0.7; anchors.verticalCenter:parent.verticalCenter }
                     Text { text:"Más opciones: clic derecho · botón Select del mando"; color:canvas.ink3; font.family:canvas.body; font.pixelSize:16; anchors.verticalCenter:parent.verticalCenter }
                 }
                 Item { width:1;height:14 }
@@ -631,11 +635,10 @@ Rectangle {
                     textFont:Qt.font({family:canvas.hud,pixelSize:13,letterSpacing:1.1}) }
                 Item { width:parent.width; height:46
                     Row { anchors.centerIn:parent; spacing:8
-                        Repeater { model:3; delegate: Rectangle { required property int index; width:index===1?46:38;height:width;radius:width/2;color:index===1?canvas.acc:"transparent"
-                            Text { anchors.centerIn:parent;anchors.horizontalCenterOffset:index===1&&music.item&&!music.item.playing?2:0;anchors.verticalCenterOffset:-1
-                                text:index===0?"|◀":index===2?"▶|":(music.item&&music.item.playing?"Ⅱ":"▶")
-                                color:index===1?"#10150f":canvas.ink;font.family:canvas.hud;font.pixelSize:index===1?18:16 }
-                            MouseArea { anchors.fill:parent;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
+                        Repeater { model:3; delegate: Item { required property int index; width:index===1?46:38;height:width
+                            Rectangle { anchors.fill:parent;radius:width/2;color:index===1?canvas.acc:(pbm.containsMouse?"#29ffffff":"transparent") }
+                            PlayerIcon { anchors.centerIn:parent;kind:index===0?"prev":index===2?"next":(music.item&&music.item.playing?"pause":"play");color:index===1?"#10150f":canvas.ink }
+                            MouseArea { id:pbm;anchors.fill:parent;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
                         } }
                     }
                 }
@@ -662,7 +665,7 @@ Rectangle {
                 HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"VRAM";sub:sensors.item?Math.round(sensors.item.vramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100:0;vtext:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"JUEGOS";sub:api.system.disk&&api.system.disk.fs?api.system.disk.fs:"";pct:api.system.disk?api.system.disk.used/api.system.disk.total*100:0;vtext:api.system.disk?Math.round(api.system.disk.used/1073741824)+"":"—";extra:api.system.disk?"/ "+Math.round(api.system.disk.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { visible:!!api.system.bat;height:visible?42:0;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Item { width:parent.width;height:62
                     Canvas { id:spark;width:parent.width;height:34;property var h:shell.tempHist;onHChanged:requestPaint()
                         onPaint:{let c=getContext("2d");c.reset();if(h.length<2)return
