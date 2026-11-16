@@ -19,6 +19,9 @@ QtObject {
     property bool padOn: false
     property string padName: ""
     property int padSeq: -1
+    property bool audioActive: false
+    property bool audioAvailable: false
+    property var audioBands: []
     signal padKey(string key)
     property string _last: ""
 
@@ -63,6 +66,16 @@ QtObject {
                 ok = false
                 error = status === 0 ? "omnia-core no responde (¿está en marcha el servicio?)"
                       : status === 401 ? "token no válido: reiniciando conexión" : "error " + status
+            }
+        })
+    }
+
+    function pollAudio() {
+        call("GET", "/audio", function (status, body) {
+            if (status === 200) {
+                audioAvailable = body.available === true
+                audioActive = body.active === true
+                audioBands = body.bands || []
             }
         })
     }
@@ -144,6 +157,7 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
+    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))

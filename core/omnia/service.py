@@ -5,7 +5,7 @@ import os
 import signal
 import threading
 
-from . import __version__, art, gamemode, pad, paths, security
+from . import __version__, art, audio, gamemode, pad, paths, security
 from .sessions import Sessions
 from .dbus import DesktopService
 from .api import Api
@@ -94,6 +94,9 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     if resumed:
         log.warning("modo juego: reanudados %d procesos que quedaron congelados", resumed)
     api.gamemode = mode
+    spectrum = audio.AudioSpectrum(log.info)
+    api.audio = spectrum
+    spectrum.start()
     sessions = Sessions(store)
     closed = sessions.recover()                     # sesiones que quedaron abiertas si el servicio murió en mitad de una partida
     if closed:
@@ -119,6 +122,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
                 break
     finally:
         stop.set()
+        spectrum.stop()
         gm_thread.join(5)                           # suelta lo congelado y el perfil antes de salir
         reader.stop()
         dbus.stop()

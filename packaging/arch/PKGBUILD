@@ -3,7 +3,7 @@
 pkgbase=omnia-launcher
 pkgname=(omnia-core omnia-ui omnia-kde)
 pkgver=0.1.0
-pkgrel=1
+pkgrel=3
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=(any)
 url="https://github.com/wasav1/omnia-launcher"
@@ -24,7 +24,8 @@ package_omnia-core() {
               'lutris: juegos de Lutris'
               'heroic-games-launcher-bin: juegos de Epic, GOG y Amazon'
               'umu-launcher: juegos de Windows con Proton'
-              'mangohud: indicadores de rendimiento')
+              'mangohud: indicadores de rendimiento'
+              'pipewire-pulse: espectro de audio de salida para las ondas')
   cd "$pkgbase-$pkgver"
   python -m installer --destdir="$pkgdir" dist/*.whl
   install -Dm644 packaging/systemd/omnia.service "$pkgdir/usr/lib/systemd/user/omnia.service"

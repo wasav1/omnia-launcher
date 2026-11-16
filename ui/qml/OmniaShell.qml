@@ -693,7 +693,7 @@ Rectangle {
                 }
             }
         }
-        Waves { x:0;y:canvas.height-60;width:1920;height:60;active:!!music.item&&music.item.available;playing:!!music.item&&music.item.playing;color:"#a5efc2";visibleOnScreen:!api.covered&&!api.gameMode }
+        Waves { x:0;y:canvas.height-360;width:1920;height:360;active:api.audioActive;real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameMode }
         ListView { id:list; visible:false; width:1;height:1;model:shell.visibleGames;currentIndex:0 }
 
         MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.RightButton;onClicked:function(m){shell.showContext(m.x/canvas.s,m.y/canvas.s)} }

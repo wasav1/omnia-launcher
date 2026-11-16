@@ -75,6 +75,7 @@ class Api:
             "/art/browse": ("GET", True, self.art_browse),
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
+            "/audio": ("GET", True, self.audio_status),
             "/events": ("GET", True, self.events),
             "/pad": ("GET", True, self.pad_status),
             "/emit": ("POST", True, self.emit),
@@ -141,6 +142,10 @@ class Api:
     # --- rutas
     def health(self, q):
         return {"ok": True}
+
+    def audio_status(self, q):
+        source = getattr(self, "audio", None)
+        return source.snapshot() if source else {"available": False, "active": False, "bands": []}
 
     def _detector(self, g):
         return next((d for d in self.detectors if d.name == g.get("auto")), Detector())

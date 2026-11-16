@@ -35,9 +35,9 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 - **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
 - **Rutas API** (resumen): `/health /library /library/refresh /game/{fav,hide,add,remove} /launch /apps /app/{launch,fav}
   /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates /saves /saves/{config,backup,restore,open,suggest}
-  /art/{browse,pick,cycle} /import/{find,preview,apply}`.
+  /art/{browse,pick,cycle} /audio /import/{find,preview,apply}`.
 - **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
-  pad (evdev sin dependencias), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
+  pad (evdev sin dependencias), audio (parec → 16 bandas FFT, sin guardar audio), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
   saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,refresh,registry}`.
 - **Datos del usuario** (fuera del repo): `~/.config/omnia/{library.json,state.json,first-run.json,setup-backup.json,
   steamgriddb.key}`, `~/.local/share/omnia/art`.
@@ -90,8 +90,11 @@ ocupadas de vacías.
 La fidelidad visual exacta sigue pendiente de revisión renderizada a 1920×1080. El ciclo de arte y el selector SteamGridDB
 ya están conectados al core, incluido logo, paginación, cambio de edición, validación de host y selección persistente; falta
 probarlos con la clave del usuario. Siguen pendientes energía, cambio de salida de audio, métricas reales de
-almacenamiento/batería y curva de temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. No
-mostrar métricas de ejemplo como reales.
+almacenamiento/batería y curva de temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. El
+espectro del monitor de salida se calcula a 48 kHz en 16 bandas logarítmicas de 20 Hz a 24 kHz (ventana de 42,7 ms); cuatro capas animadas usan los
+graves, medios-graves, medios-agudos y agudos, y toman el acento del juego seleccionado. Requiere `pipewire-pulse`
+(`parec`); las muestras solo se procesan en memoria. Falta validar con audio real en la sesión de KDE. No mostrar métricas
+de ejemplo como reales.
 
 **Prototipo visual:** `docs/prototipo-visual.html` muestra una propuesta navegable del escritorio Omnia a 16:9, con shelf,
 panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
@@ -120,6 +123,20 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-15 — Afinada la respuesta al audio: ventana FFT de 42,7 ms, consulta QML cada 42 ms, ataque más rápido, caída más
+  sostenida y mayor amplitud/gamma para que los golpes y agudos de música rápida se perciban con fuerza. Mantiene la misma
+  forma y el color por juego. QML carga en modo offscreen; paquetes `0.1.0-3` reconstruidos. Falta validar con música real.
+
+- 2026-11-15 — Corregido un paréntesis desbalanceado en `Waves.qml` que impedía cargar `OmniaShell` y dejaba Plasma en su
+  escritorio normal. La ventana QML completa ya carga en modo offscreen; paquetes reconstruidos. No se cambió configuración
+  de Plasma ni se instalaron los paquetes. `pkgrel` subió a 2 para reemplazar la compilación `0.1.0-1` fallida.
+
+- 2026-11-15 — Conectada la visualización a `parec`/PipeWire-Pulse para analizar el monitor de salida en memoria y producir
+  16 bandas logarítmicas (20 Hz–24 kHz, muestreo a 48 kHz). Rediseñadas las ondas en cuatro capas del prototipo, asociadas a cuatro grupos
+  del espectro y tintadas con el acento del juego seleccionado; ocupan el área inferior de 360 px como en el plasmoide.
+  Añadida ruta local autenticada `/audio` y consulta QML cada 42 ms; `pipewire-pulse` figura como dependencia opcional.
+  Paquetes reconstruidos en `/tmp/omnia-pkg/`. Pendiente revisar con audio real; sin instalar, commit ni push.
 
 - 2026-11-15 — Añadida navegación del carrusel con la rueda vertical del mouse y touchpad: cada paso selecciona el
   juego anterior/siguiente, mantiene la animación de las tarjetas y se pausa mientras hay un menú o panel abierto.
