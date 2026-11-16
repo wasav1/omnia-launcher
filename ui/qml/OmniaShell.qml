@@ -607,26 +607,35 @@ Rectangle {
         }
 
         // MPRIS, broche y monitor del sistema con módulos KDE reales.
-        Item { id: player; x:1530; y:48; width:320; height:156; visible: music.item && music.item.available && !api.gameMode; opacity:visible?1:0
-            Column { anchors.horizontalCenter:parent.horizontalCenter; width:parent.width; spacing:4
-                Text { width:parent.width; horizontalAlignment:Text.AlignHCenter; elide:Text.ElideRight; text:music.item?music.item.track:""; color:canvas.ink;font.family:canvas.hud;font.pixelSize:21;font.weight:Font.DemiBold }
-                Text { width:parent.width; horizontalAlignment:Text.AlignHCenter; elide:Text.ElideRight; text:music.item?music.item.artist:""; color:canvas.ink2;font.family:canvas.hud;font.pixelSize:17 }
-                Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:8
-                    Repeater { model:3; delegate: Rectangle { required property int index; width:index===1?46:38;height:width;radius:width/2;color:index===1?canvas.acc:"transparent"
-                        Text { anchors.centerIn:parent;text:index===0?"|◀":index===2?"▶|":(music.item&&music.item.playing?"Ⅱ":"▶");color:index===1?"#10150f":canvas.ink;font.pixelSize:16 }
-                        MouseArea { anchors.fill:parent;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
-                    } }
-                }
-                Row { width:parent.width; spacing:10; height:20
-                    Text { text:music.item?formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:14 }
-                    Rectangle { width:parent.width-100;height:4;radius:2;color:"#2effffff";anchors.verticalCenter:parent.verticalCenter
-                        Rectangle { height:parent.height;width:music.item&&music.item.length>0?parent.width*Math.min(1,music.item.position/music.item.length):0;color:canvas.acc;radius:2 }
+        Item { id: player; x:1530; y:38; width:320; height:170; visible: music.item && music.item.available && !api.gameMode; opacity:visible?1:0
+            Column { anchors.fill:parent; spacing:2
+                MarqueeLabel { width:parent.width; height:28; text:music.item?music.item.track:""; color:canvas.ink
+                    textFont:Qt.font({family:canvas.hud,pixelSize:21,weight:Font.DemiBold}) }
+                MarqueeLabel { width:parent.width; height:20; text:music.item?music.item.artist:""; color:canvas.ink2
+                    textFont:Qt.font({family:canvas.hud,pixelSize:15}) }
+                MarqueeLabel { width:parent.width; height:18; text:music.item?"REPRODUCIENDO EN · "+music.item.sourceName:""; color:canvas.ink3
+                    textFont:Qt.font({family:canvas.hud,pixelSize:13,letterSpacing:1.1}) }
+                Item { width:parent.width; height:46
+                    Row { anchors.centerIn:parent; spacing:8
+                        Repeater { model:3; delegate: Rectangle { required property int index; width:index===1?46:38;height:width;radius:width/2;color:index===1?canvas.acc:"transparent"
+                            Text { anchors.centerIn:parent;anchors.horizontalCenterOffset:index===1&&music.item&&!music.item.playing?2:0;anchors.verticalCenterOffset:-1
+                                text:index===0?"|◀":index===2?"▶|":(music.item&&music.item.playing?"Ⅱ":"▶")
+                                color:index===1?"#10150f":canvas.ink;font.family:canvas.hud;font.pixelSize:index===1?18:16 }
+                            MouseArea { anchors.fill:parent;onClicked:{if(music.item){if(index===0)music.item.previous();else if(index===1)music.item.playPause();else music.item.next()}} }
+                        } }
                     }
-                    Text { text:music.item?formatTrackTime(music.item.length):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:14 }
+                }
+                Row { width:parent.width; spacing:8; height:20
+                    Text { width:48; text:music.item?formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
+                    Rectangle { width:parent.width-112;height:4;radius:2;color:"#2effffff";anchors.verticalCenter:parent.verticalCenter
+                        Rectangle { height:parent.height;width:music.item&&music.item.length>0?parent.width*Math.max(0,Math.min(1,music.item.position/music.item.length)):0;color:canvas.acc;radius:2
+                            Behavior on width { NumberAnimation { duration:180;easing.type:Easing.OutQuad } } }
+                    }
+                    Text { width:48; horizontalAlignment:Text.AlignRight;text:music.item&&music.item.length>0?formatTrackTime(music.item.length):"—";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
                 }
             }
         }
-        function formatTrackTime(s) { s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
+        function formatTrackTime(s) { s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
         Clasp { x:1530; y:212; color:canvas.acc; opacity:.9 }
         Item { id:hud; x:1530;y:246;width:320;height:440; visible:sensors.item !== null && !api.gameMode
             Column { width:parent.width; spacing:0

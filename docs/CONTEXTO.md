@@ -96,6 +96,11 @@ graves, medios-graves, medios-agudos y agudos, y toman el acento del juego selec
 (`parec`); las muestras solo se procesan en memoria. Falta validar con audio real en la sesión de KDE. No mostrar métricas
 de ejemplo como reales.
 
+El reproductor MPRIS interpola la posición según la velocidad; conserva su reloj local cuando un cliente devuelve cero o
+un valor viejo y solo reajusta al recibir un salto significativo. Si no se conoce la duración, muestra `—`. Título,
+artista y aplicación de origen admiten marquee. El fondo
+conserva la proporción con `PreserveAspectCrop`, un overscan del 14 % y paneo horizontal reversible de 80 s por sentido.
+
 **Prototipo visual:** `docs/prototipo-visual.html` muestra una propuesta navegable del escritorio Omnia a 16:9, con shelf,
 panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
 ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
@@ -123,6 +128,16 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-15 — Corregida la posición MPRIS que permanecía en `0:00`: el reloj local avanza con `rate`, persiste entre
+  consultas y descarta respuestas viejas/cero; reajusta al detectar saltos del reproductor. Consulta posición cada 1 s,
+  muestra `—` si Firefox no publica duración. Carga QML revisada en modo offscreen; paquetes `0.1.0-6` reconstruidos.
+  Pendiente validar con el reproductor real.
+
+- 2026-11-15 — Rehecho el reproductor: controles centrados ópticamente, posición MPRIS muestreada e interpolada usando
+  `rate`, duración desconocida indicada con `—`, y marquee independiente para título, artista y origen (identidad de la
+  aplicación). El fondo aplica overscan 14 % y movimiento horizontal delicado de 80 s por sentido, manteniendo
+  `PreserveAspectCrop`. Carga QML revisada en modo offscreen; paquetes `0.1.0-5` reconstruidos en `/tmp/omnia-pkg/`.
 
 - 2026-11-15 — Afinada la respuesta al audio: ventana FFT de 42,7 ms, consulta QML cada 42 ms, ataque más rápido, caída más
   sostenida y mayor amplitud/gamma para que los golpes y agudos de música rápida se perciban con fuerza. Mantiene la misma

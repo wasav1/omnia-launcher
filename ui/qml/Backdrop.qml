@@ -8,7 +8,15 @@ Item {
     property real blur: 0
     property Item front: a
     property Item back: b
+    property real pan: 0
     clip: true
+
+    SequentialAnimation on pan {
+        running: bd.source.toString() !== ""
+        loops: Animation.Infinite
+        NumberAnimation { from:0; to:1; duration:80000; easing.type:Easing.InOutSine }
+        NumberAnimation { from:1; to:0; duration:80000; easing.type:Easing.InOutSine }
+    }
 
     function crossfade() {
         back.opacity = 1
@@ -27,23 +35,31 @@ Item {
         id: layer
         property alias source: img.source
         readonly property alias status: img.status
+        property real panProgress: bd.pan
         anchors.fill: parent
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutQuad } }
-        Image {
-            id: img
-            anchors.fill: parent; visible: false
-            asynchronous: true; cache: true; smooth: true
-            fillMode: Image.PreserveAspectCrop
-            sourceSize.width: 1920
-        }
-        MultiEffect {
-            anchors.fill: parent
-            source: img
-            blurEnabled: bd.blur > 0
-            blur: Math.min(1, bd.blur / 32)
-            blurMax: 32
-            saturation: -0.16
+        Item {
+            id: stage
+            width: parent.width * 1.14
+            height: parent.height * 1.14
+            x: -(width - parent.width) * layer.panProgress
+            y: (parent.height - height) / 2
+            Image {
+                id: img
+                anchors.fill: parent; visible: false
+                asynchronous: true; cache: true; smooth: true
+                fillMode: Image.PreserveAspectCrop
+                sourceSize.width: 1920
+            }
+            MultiEffect {
+                anchors.fill: parent
+                source: img
+                blurEnabled: bd.blur > 0
+                blur: Math.min(1, bd.blur / 32)
+                blurMax: 32
+                saturation: -0.16
+            }
         }
     }
     Layer { id: a }

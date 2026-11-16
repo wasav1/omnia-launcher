@@ -3,7 +3,7 @@
 pkgbase=omnia-launcher
 pkgname=(omnia-core omnia-ui omnia-kde)
 pkgver=0.1.0
-pkgrel=3
+pkgrel=6
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=(any)
 url="https://github.com/wasav1/omnia-launcher"
