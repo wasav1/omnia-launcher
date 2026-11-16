@@ -17,11 +17,13 @@ QtObject {
     property var appGroups: []
     property bool gameMode: false         // modo juego activo (descargas congeladas y perfil de energía alto)
     property bool padOn: false
+    property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
     property int padSeq: -1
     property bool audioActive: false
     property bool audioAvailable: false
     property var audioBands: []
+    property var system: ({})             // /system: modelo y GHz de la CPU, disco de los juegos, batería
     signal padKey(string key)
     property string _last: ""
 
@@ -68,6 +70,10 @@ QtObject {
                       : status === 401 ? "token no válido: reiniciando conexión" : "error " + status
             }
         })
+    }
+
+    function pollSystem() {
+        call("GET", "/system", function (status, body) { if (status === 200 && body) system = body })
     }
 
     function pollAudio() {
@@ -128,7 +134,12 @@ QtObject {
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) refresh(); done(st, b) }, body) }
     function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) refresh(); done(st, b) }) }
 
-    function reportMenu(open) { call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function reportMenu(open) { menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
+    function power(action) {
+        call("POST", "/power?a=" + encodeURIComponent(action), function (status, body) {
+            if (status !== 200) toast = (body && body.error) || "No se pudo ejecutar la acción"
+        })
+    }
     function toggleAppFav(a) {
         call("POST", "/app/fav?id=" + encodeURIComponent(a.id), function () { loadApps() })
     }
@@ -157,7 +168,9 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
-    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok; triggeredOnStart: true; onTriggered: api.pollAudio() }
+    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
+
+    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))

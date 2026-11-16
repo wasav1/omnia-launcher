@@ -45,6 +45,13 @@ Rectangle {
     property real nowSecs: Date.now() / 1000
     property string clockText: Qt.formatTime(new Date(), "h:mm AP")
     property bool powerRequested: false
+    property bool runIgnored: false       // el usuario pidió reactivar la estantería con el juego aún abierto
+    readonly property var runningGame: {  // juego lanzado desde Omnia que sigue abierto (GeForce NOW no cuenta: su app queda abierta)
+        for (let i = 0; i < api.games.length; i++) if (api.games[i].running) return api.games[i]
+        return null
+    }
+    onRunningGameChanged: runIgnored = false
+    property var tempHist: []             // últimas 60 lecturas de la temperatura de la CPU (1 por segundo)
 
     readonly property real scaleFactor: Math.min(width / 1920, height / 1080)
     readonly property var filterOptions: {
@@ -55,7 +62,7 @@ Rectangle {
             if (g.fav) fav = true
             if (g.hidden) hidden = true
         }
-        if (fav) out.push({ key: "fav", label: "★ Favoritos" })
+        if (fav) out.push({ key: "fav", label: "Favoritos" })
         const seen = {}
         const platforms = []
         for (let i = 0; i < api.games.length; i++) {
@@ -308,6 +315,7 @@ Rectangle {
         function onPadKey(key) {
             if (key === "MENU" || key === "START") { shell.menuOpen = !shell.menuOpen; return }
             if (shell.menuOpen) return
+            if (runLayer.visible) return                  // con un juego abierto el mando no mueve la estantería
             if (shell.artOpen) {
                 if (key === "B" || key === "SELECT") shell.closeArt()
                 else if (key === "A") shell.pickArt(shell.artIndex)
@@ -349,6 +357,10 @@ Rectangle {
         }
     }
     Keys.onPressed: function(e) {
+        if (runLayer.visible) {                          // estantería deshabilitada mientras corre un juego; Esc es la salida de emergencia
+            if (e.key === Qt.Key_Escape) runIgnored = true
+            e.accepted = true; return
+        }
         if (artOpen) {
             if (e.key === Qt.Key_Escape) closeArt()
             else if (e.key === Qt.Key_Left) artIndex = Math.max(0, artIndex - 1)
@@ -407,6 +419,8 @@ Rectangle {
     } }
     Loader { id: music; source: "MusicSource.qml"; active: true }
     Loader { id: sensors; source: "SensorsSource.qml"; active: true }
+    Timer { interval: 1000; repeat: true; running: !api.covered && !api.gameMode && sensors.item !== null
+        onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
     Backdrop { anchors.fill: parent; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
@@ -501,7 +515,7 @@ Rectangle {
             Text { visible: !!current; text: current ? (current.plays > 0 ? platformLabel(current).toUpperCase() + " · " + shell.relativeTime(current.lastPlayed).toUpperCase() : platformLabel(current).toUpperCase() + " · SIN JUGAR") : ""; color: "#8de5c9"; font.family: canvas.hud; font.pixelSize: 16; font.letterSpacing: 3 }
             Item {
                 width: 520; height: 154
-                Image { anchors.fill: parent; source: current && current.logo ? current.logo : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; sourceSize.width: 1000; visible: status === Image.Ready }
+                Image { anchors.fill: parent; source: current && current.logo ? current.logo : ""; fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft; verticalAlignment: Image.AlignTop; asynchronous: true; sourceSize.width: 1000; visible: status === Image.Ready }
                 Text { visible: !current || !current.logo; anchors.fill: parent; verticalAlignment: Text.AlignTop; text: current ? current.name : "Tu biblioteca"; color: canvas.ink; font.family: current && current.font ? current.font : "Hanken Grotesk"; font.pixelSize: 58; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideNone }
             }
             Text { visible: !!current; text: current ? (selectedPort && selectedPort.description ? selectedPort.description : (current.description || current.sub || "")) : ""; color: canvas.ink2; font.family: canvas.body; font.pixelSize: 20; elide: Text.ElideRight }
@@ -626,12 +640,12 @@ Rectangle {
                     }
                 }
                 Row { width:parent.width; spacing:8; height:20
-                    Text { width:48; text:music.item?formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
+                    Text { width:48; text:music.item?canvas.formatTrackTime(music.item.position):"0:00";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
                     Rectangle { width:parent.width-112;height:4;radius:2;color:"#2effffff";anchors.verticalCenter:parent.verticalCenter
                         Rectangle { height:parent.height;width:music.item&&music.item.length>0?parent.width*Math.max(0,Math.min(1,music.item.position/music.item.length)):0;color:canvas.acc;radius:2
                             Behavior on width { NumberAnimation { duration:180;easing.type:Easing.OutQuad } } }
                     }
-                    Text { width:48; horizontalAlignment:Text.AlignRight;text:music.item&&music.item.length>0?formatTrackTime(music.item.length):"—";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
+                    Text { width:48; horizontalAlignment:Text.AlignRight;text:music.item&&music.item.length>0?canvas.formatTrackTime(music.item.length):"—";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:13;verticalAlignment:Text.AlignVCenter }
                 }
             }
         }
@@ -643,14 +657,20 @@ Rectangle {
                     Text { id:hudTitle;text:"SISTEMA";color:canvas.acc;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
                     Rectangle { width:parent.width-hudTitle.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
                 }
-                HudRow { label:"CPU";sub:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—";extraColor:sensors.item&&sensors.item.cpuTemp>=88?"#e2604f":canvas.ink2;acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"CPU";sub:api.system.cpu&&api.system.cpu.model?api.system.cpu.model:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:(sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—")+(api.system.cpu&&api.system.cpu.ghz?"  "+api.system.cpu.ghz.toFixed(1)+" GHz":"");extraColor:sensors.item&&sensors.item.cpuTemp>=88?"#e2604f":(sensors.item&&sensors.item.cpuTemp>=75?"#e6a850":canvas.ink2);acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?sensors.item.gpu:0;vtext:Math.round(sensors.item?sensors.item.gpu:0)+" %";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C":"—";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"VRAM";sub:sensors.item?Math.round(sensors.item.vramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100:0;vtext:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"JUEGOS";sub:"Btrfs";pct:0;vtext:"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"BATERÍA";sub:"";pct:0;vtext:"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"JUEGOS";sub:api.system.disk&&api.system.disk.fs?api.system.disk.fs:"";pct:api.system.disk?api.system.disk.used/api.system.disk.total*100:0;vtext:api.system.disk?Math.round(api.system.disk.used/1073741824)+"":"—";extra:api.system.disk?"/ "+Math.round(api.system.disk.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { visible:!!api.system.bat;height:visible?42:0;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Item { width:parent.width;height:62
-                    Canvas { width:parent.width;height:34;property var h:sensors.item?[sensors.item.cpuTemp]:[];onHChanged:requestPaint();onPaint:{let c=getContext("2d");c.reset();if(h.length){c.strokeStyle=canvas.acc;c.lineWidth=2;c.beginPath();c.moveTo(0,17);c.lineTo(width,17);c.stroke()}} }
+                    Canvas { id:spark;width:parent.width;height:34;property var h:shell.tempHist;onHChanged:requestPaint()
+                        onPaint:{let c=getContext("2d");c.reset();if(h.length<2)return
+                            let lo=h[0],hi=h[0];for(let k=1;k<h.length;k++){lo=Math.min(lo,h[k]);hi=Math.max(hi,h[k])}
+                            const mid=(lo+hi)/2,half=Math.max(6,(hi-lo)/2+2)
+                            c.strokeStyle=canvas.acc;c.lineWidth=2;c.lineJoin="round";c.beginPath()
+                            for(let n=0;n<h.length;n++){const x=(60-h.length+n)*width/59,y=17-(h[n]-mid)/half*14;if(n===0)c.moveTo(x,y);else c.lineTo(x,y)}
+                            c.stroke() } }
                     Text { y:38;text:"TEMP. CPU · 60 S";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:15;font.letterSpacing:2.5 }
                 }
             }
@@ -702,10 +722,28 @@ Rectangle {
                 }
             }
         }
-        Waves { x:0;y:canvas.height-360;width:1920;height:360;active:api.audioActive;real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameMode }
+        // Siempre encendidas (reposo = oleaje suave abajo); solo se apagan con un juego en marcha o una ventana encima.
+        Waves { x:0;y:canvas.height-360;width:1920;height:360;active:true;playing:api.audioActive||(music.item?music.item.playing:false);real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameMode&&!shell.menuOpen&&shell.runningGame===null }
         ListView { id:list; visible:false; width:1;height:1;model:shell.visibleGames;currentIndex:0 }
 
         MouseArea { anchors.fill:parent;z:-1;acceptedButtons:Qt.RightButton;onClicked:function(m){shell.showContext(m.x/canvas.s,m.y/canvas.s)} }
+        // «EN EJECUCIÓN»: bloquea ratón, teclado y mando de la estantería mientras el juego sigue abierto; se quita sola al cerrarlo.
+        Item { id:runLayer; anchors.fill:parent; z:40; visible:shell.runningGame!==null&&!shell.runIgnored
+            opacity:visible?1:0
+            Rectangle { anchors.fill:parent; color:"#d9050806" }
+            MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; hoverEnabled:true }
+            Column { anchors.centerIn:parent; spacing:14; width:900
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"EN EJECUCIÓN"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:22; font.weight:Font.DemiBold; font.letterSpacing:5 }
+                Item { anchors.horizontalCenter:parent.horizontalCenter; width:520; height:shell.runningGame&&shell.runningGame.logo?140:90
+                    Image { id:runLogo; anchors.fill:parent; source:shell.runningGame&&shell.runningGame.logo?shell.runningGame.logo:""; fillMode:Image.PreserveAspectFit; asynchronous:true; visible:status===Image.Ready }
+                    Text { visible:!runLogo.visible; anchors.fill:parent; horizontalAlignment:Text.AlignHCenter; verticalAlignment:Text.AlignVCenter; wrapMode:Text.WordWrap
+                        text:shell.runningGame?shell.runningGame.name:""; color:canvas.ink; font.family:shell.runningGame&&shell.runningGame.font?shell.runningGame.font:"Hanken Grotesk"; font.pixelSize:48; font.weight:Font.Bold }
+                }
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"La estantería vuelve sola al cerrar el juego"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:20 }
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"reactivar ahora (Esc)"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:16; font.letterSpacing:2; font.underline:true
+                    MouseArea { anchors.fill:parent; anchors.margins:-10; cursorShape:Qt.PointingHandCursor; onClicked:shell.runIgnored=true } }
+            }
+        }
         Item { anchors.fill:parent;z:35;visible:contextOpen
             MouseArea { anchors.fill:parent;acceptedButtons:Qt.LeftButton|Qt.RightButton;onClicked:shell.contextOpen=false }
             Rectangle { id:ctx; width:360;height:shell.contextItems.length*50+28;radius:20
@@ -783,6 +821,6 @@ Rectangle {
             }
         }
     }
-    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;visible:shell.menuOpen;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
+    Loader { active:embedMenu; anchors.fill:parent;z:100;sourceComponent:BigMenu { api:shell.backend;open:shell.menuOpen;visible:shell.menuOpen||fading;onCloseRequested:{shell.menuOpen=false;shell.forceActiveFocus()} } }
     Text { anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 } text:api.toast;color:canvas.acc;font.family:"Rajdhani";font.pixelSize:15 }
 }

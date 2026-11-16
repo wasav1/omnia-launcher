@@ -30,6 +30,9 @@ class ArtError(Exception):
     pass
 
 
+NONE_MARK = ".sin-arte"      # marca: SteamGridDB no tiene este tipo de arte para el juego
+
+
 def safe_slug(slug: str) -> str:
     s = re.sub(r"[^A-Za-z0-9._-]+", "-", str(slug)).strip("-.")
     return s[:80] or "juego"
@@ -175,7 +178,18 @@ def fetch_game(client: Client, game: dict, kinds=("portada", "fondo", "logo"), b
     for kind in kinds:
         if cached(slug, kind, base):
             continue
-        for url in client.candidates(game, kind)[:3]:          # prueba pocas opciones: no es un rastreo
+        marker = art_dir(slug, kind, base) / NONE_MARK
+        if marker.exists():
+            continue                                            # ya se comprobó que SteamGridDB no tiene este tipo
+        cands = client.candidates(game, kind)
+        if not cands:
+            try:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.touch()                                  # no repetir la consulta en cada ciclo
+            except OSError:
+                pass
+            continue
+        for url in cands[:3]:                                   # prueba pocas opciones: no es un rastreo
             try:
                 got[kind] = str(client.download(url, art_dir(slug, kind, base)))
                 break

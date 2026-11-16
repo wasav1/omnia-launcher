@@ -67,7 +67,7 @@ Item {
     }
     Text { visible: !!(card.game && card.game.fav); anchors { right: parent.right; top: parent.top; margins: 10 } text: "★"; color: "#e6d9a0"; font.pixelSize: 22; style: Text.Outline; styleColor: "#99000000" }
     Rectangle {
-        visible: !!(game && game.added > 0 && game.added > Date.now()/1000 - 14*86400 && !game.lastPlayed)
+        visible: !!game && !(game.lastPlayed > 0)               // sin jugar nunca: punto verde; con la tarjeta seleccionada, «NUEVO»
         anchors { right: parent.right; top: parent.top; topMargin: current ? 12 : 16; rightMargin: (game && game.fav ? 40 : 12) + (current ? 0 : 4) }
         height: current ? 26 : 14; radius: height/2; width: current ? newText.implicitWidth + 18 : 14
         color: "#6fd08c"; border.width: current ? 0 : 2; border.color: "#cc0c1a10"

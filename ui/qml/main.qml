@@ -18,13 +18,14 @@ QtObject {
     }
 
     property Window menu: Window {
-        visible: shell.menuOpen; color: "transparent"; flags: Qt.FramelessWindowHint; title: "Omnia Menú"
+        visible: shell.menuOpen || bigMenu.fading; color: "transparent"; flags: Qt.FramelessWindowHint; title: "Omnia Menú"
         LayerShell.Window.scope: "omnia-menu"
         LayerShell.Window.layer: LayerShell.Window.LayerTop
         LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorBottom | LayerShell.Window.AnchorLeft | LayerShell.Window.AnchorRight
         LayerShell.Window.exclusionZone: -1
         LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityExclusive
         BigMenu {
+            id: bigMenu
             anchors.fill: parent
             api: shell.backend
             open: shell.menuOpen

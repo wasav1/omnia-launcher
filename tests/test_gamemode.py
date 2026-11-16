@@ -52,8 +52,8 @@ class Procesos(unittest.TestCase):
         return proc_info(p.pid)[1]
 
     def test_congela_por_nombre_exacto_y_reanuda(self):
-        a, otro = self.lanza("aria2c"), self.lanza("aria2c-no")
-        frozen = self.fz.freeze(["aria2c"])
+        a, otro = self.lanza("omn-dl"), self.lanza("omn-dl-no")
+        frozen = self.fz.freeze(["omn-dl"])
         self.assertEqual([pid for pid, _ in frozen], [a.pid])
         self.assertTrue(espera(lambda: self.estado(a) == "T"))
         self.assertNotEqual(self.estado(otro), "T")                       # nombre parecido: no se toca
@@ -62,24 +62,24 @@ class Procesos(unittest.TestCase):
         self.assertFalse(self.fz.state_file.exists())
 
     def test_no_toca_lo_que_ya_estaba_detenido(self):
-        a = self.lanza("qbittorrent")
+        a = self.lanza("omn-qb")
         os.kill(a.pid, signal.SIGSTOP)
         self.assertTrue(espera(lambda: self.estado(a) == "T"))
-        self.assertEqual(self.fz.freeze(["qbittorrent"]), [])             # lo paró el usuario: no es nuestro
+        self.assertEqual(self.fz.freeze(["omn-qb"]), [])             # lo paró el usuario: no es nuestro
         self.assertEqual(self.fz.resume(), 0)
         self.assertEqual(self.estado(a), "T")
 
     def test_recupera_tras_una_caida(self):
-        a = self.lanza("aria2c")
-        self.fz.freeze(["aria2c"])
+        a = self.lanza("omn-dl")
+        self.fz.freeze(["omn-dl"])
         self.assertTrue(espera(lambda: self.estado(a) == "T"))
         nuevo = Freezer(self.fz.state_file)                               # otro arranque del servicio, mismo archivo
         self.assertEqual(nuevo.resume(), 1)
         self.assertTrue(espera(lambda: self.estado(a) != "T"))
 
     def test_pid_reutilizado_no_se_reanuda(self):
-        a = self.lanza("aria2c")
-        self.fz.freeze(["aria2c"])
+        a = self.lanza("omn-dl")
+        self.fz.freeze(["omn-dl"])
         estado = json.loads(self.fz.state_file.read_text())
         estado["frozen"][0][1] += 12345                                   # otra «hora de arranque»: otro proceso con ese pid
         self.fz.state_file.write_text(json.dumps(estado))

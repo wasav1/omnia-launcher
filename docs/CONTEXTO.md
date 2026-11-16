@@ -20,7 +20,7 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 | `ui/qml/` | Interfaz QML (`qml6 main.qml`), dos ventanas layer-shell (estantería + Big Menu) |
 | `kwin/` | Scripts de KWin: `omnia-showdesktop`, `omnia-watch` |
 | `packaging/arch/` | PKGBUILD (pkgbase `omnia-launcher`: `omnia-core`, `omnia-ui`, `omnia-kde`), `build-local.sh`, `out/` (ignorado) |
-| `tests/` | Pruebas `unittest` (228). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
+| `tests/` | Pruebas `unittest` (251). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
 | `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
 | `legacy/`, `plasmoid/`, `tools/`, `install-arch.sh` | Material del prototipo y utilidades |
 
@@ -35,10 +35,10 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 - **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
 - **Rutas API** (resumen): `/health /library /library/refresh /game/{fav,hide,add,remove} /launch /apps /app/{launch,fav}
   /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates /saves /saves/{config,backup,restore,open,suggest}
-  /art/{browse,pick,cycle} /audio /import/{find,preview,apply}`.
+  /art/{browse,pick,cycle} /audio /system /power /import/{find,preview,apply}`.
 - **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
-  pad (evdev sin dependencias), audio (parec → 16 bandas FFT, sin guardar audio), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
-  saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,refresh,registry}`.
+  pad (evdev sin dependencias), audio (parec → 32 bandas mel con Goertzel, sin guardar audio), system (CPU, disco de juegos, batería), power (bloquear/suspender/cerrar sesión/reiniciar/apagar), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
+  saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,gfn,refresh,registry}`.
 - **Datos del usuario** (fuera del repo): `~/.config/omnia/{library.json,state.json,first-run.json,setup-backup.json,
   steamgriddb.key}`, `~/.local/share/omnia/art`.
 
@@ -89,10 +89,12 @@ ocupadas de vacías.
 
 La fidelidad visual exacta sigue pendiente de revisión renderizada a 1920×1080. El ciclo de arte y el selector SteamGridDB
 ya están conectados al core, incluido logo, paginación, cambio de edición, validación de host y selección persistente; falta
-probarlos con la clave del usuario. Siguen pendientes energía, cambio de salida de audio, métricas reales de
-almacenamiento/batería y curva de temperatura, además de ajustar Big Menu y navegación contra las páginas del PDF. El
-espectro del monitor de salida se calcula a 48 kHz en 16 bandas logarítmicas de 20 Hz a 24 kHz (ventana de 42,7 ms); cuatro capas animadas usan los
-graves, medios-graves, medios-agudos y agudos, y toman el acento del juego seleccionado. Requiere `pipewire-pulse`
+probarlos con la clave del usuario. Siguen pendientes el cambio de salida de audio y la navegación del PDF. Hechos el 16/11: energía (`/power`, con
+confirmación en la UI), panel «Sistema» completo (`/system`: modelo/GHz de CPU, disco de juegos, batería; curva de temperatura
+de 60 s en la UI) y el Big Menu v8 (ver registro). El espectro del monitor de salida se calcula en 32 bandas mel de 55 Hz a
+9,5 kHz (Goertzel con ventana propia por banda, captura a 22,05 kHz en trozos de 20 ms; sin análisis en silencio: ~7 % de CPU,
+la FFT anterior costaba ~27 %); las ondas están siempre activas (reposo = oleaje suave abajo) y solo se ocultan con un juego en
+marcha, una ventana maximizada o el Big Menu. Requiere `pipewire-pulse`
 (`parec`); las muestras solo se procesan en memoria. Falta validar con audio real en la sesión de KDE. No mostrar métricas
 de ejemplo como reales.
 
@@ -128,6 +130,20 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-16 — Paridad con el prototipo vivo (rama `paridad-prototipo`, sin push). Core: `audio.py` reescrito (32 bandas mel,
+  Goertzel, 22,05 kHz: CPU de ~27 % a ~7 %); nuevos `system.py` (`/system`), `power.py` (`/power`, solo POST y lista cerrada de
+  5 acciones) y `games/gfn.py` (juegos de GeForce NOW desde los accesos `.desktop` del escritorio; el importador ya no los
+  descarta como «no soportado»); `art.fetch_game` ya no repite la consulta a SteamGridDB cada ciclo cuando un tipo de arte no
+  existe (marca `.sin-arte`); las pruebas de modo juego usan nombres de proceso propios (antes congelaban el `aria2c` real del
+  usuario y fallaban a ratos). UI: `Waves.qml` del prototipo (siempre activas, suaves, color del juego); corregido
+  `formatTrackTime is not defined` (tiempos y barra del reproductor no funcionaban); panel Sistema con CPU/GHz, juegos,
+  batería y curva; chip «Favoritos» sin la estrella duplicada; logo de la ficha alineado a la izquierda; insignia NUEVO en todo
+  juego sin jugar; SVG de plataforma normalizados; capa «EN EJECUCIÓN» (bloquea la estantería mientras corre un juego; Esc la
+  quita); `BigMenu.qml` rehecho (panel de cristal 56×43 u, píldoras en carrusel, favoritos arriba, fichas squircle de color,
+  energía con confirmación, animación de entrada/salida, mando con zonas). Sin KWin Glass no hay desenfoque detrás del menú:
+  se compensa con `panelDim` 0,88. No portado a propósito: detección de Hydra/ROMs; pendiente: teclado virtual del mando para
+  buscar y selector de salida de audio. Probado con el core aislado + UI en ventana (capturas a 1920×1080); 251 pruebas OK.
 
 - 2026-11-15 — Corregida la posición MPRIS que permanecía en `0:00`: el reloj local avanza con `rate`, persiste entre
   consultas y descarta respuestas viejas/cero; reajusta al detectar saltos del reproductor. Consulta posición cada 1 s,
