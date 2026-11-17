@@ -139,6 +139,13 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
 
+- 2026-11-16 — Clave SteamGridDB perdida al reintentar: la GUI limpiaba el campo incluso si --install fallaba
+  antes de configure() (por ejemplo, por UMU ausente). Reintentar enviaba clave vacía y completaba sin arte.
+  Se limpia solo tras instalación exitosa; en fallo se conserva únicamente en memoria. Regresión con GUI Qt
+  y backend ficticio: fallo reproducido antes del cambio y validación del reintento con la misma clave.
+  La clave real no existe en la configuración activa y no puede recuperarse del instalador cerrado.
+
+
 - 2026-11-16 — Revisión 5: la superficie interactiva de Omnia se ancla al contentItem de la ventana de escritorio
   del monitor correspondiente, independiente de desplazamientos de la celda y del área reservada por los paneles.
   Sigue los cambios de tamaño y escalado lógico de Qt sin temporizador de posicionamiento. Se oculta en modo edición.

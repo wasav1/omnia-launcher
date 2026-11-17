@@ -94,7 +94,10 @@ public:
         result->setText("Instalando… Puedes consultar los detalles abajo.");job=new QProcess(this);job->setProcessChannelMode(QProcess::MergedChannels);
         connect(job,&QProcess::readyReadStandardOutput,this,[this]{log->appendPlainText(QString::fromUtf8(job->readAllStandardOutput()));});
         connect(job,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this](int code,QProcess::ExitStatus status){
-            running=false;completed=code==0 && status==QProcess::NormalExit;keyPanel->clearInput();
+            running=false;completed=code==0 && status==QProcess::NormalExit;
+            // Un fallo anterior a configure() no guardó la clave. Consérvala
+            // en memoria para que Reintentar envíe la misma configuración.
+            if(completed) keyPanel->clearInput();
             result->setText(completed?"✓ Omnia se instaló. Revisa abajo si alguna integración requiere atención.":"La instalación no se completó. Revisa los detalles; puedes volver atrás y reintentar.");
             button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(!completed);setButtonText(FinishButton,completed?"Cerrar":"Reintentar");
         });
