@@ -74,7 +74,10 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dic
             port["saves"] = saves
         if isinstance(data.get("backup_dir"), str) and data["backup_dir"]:
             port["backup_dir"] = data["backup_dir"]
-        entry = {"id": gid, "name": name, "sub": KINDS[kind], "platform": PLATFORMS.get(tpl, "pc"), "src": "Manual",
+        platform = str(data.get("platform", PLATFORMS.get(tpl, "pc")))
+        if platform not in {"pc", "sw1", "sw2", "n64"}:
+            raise ManualError("Plataforma no válida.")
+        entry = {"id": gid, "name": name, "sub": KINDS[kind], "platform": platform, "src": "Manual",
                  "art": {"slug": gid, "sgdb": name}, "ports": [port]}
         store.set_games(games + [entry])
     return entry

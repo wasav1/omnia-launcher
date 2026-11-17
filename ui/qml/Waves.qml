@@ -16,7 +16,7 @@ Item {
     readonly property int nb: 32
     property var eb: new Array(32).fill(0)
     property var frontSpec: new Array(32).fill(0)
-    property color color: "#e6d9a0"
+    property color color: "#91a9c2"
     property bool visibleOnScreen: true
 
     property real amp: 0.8

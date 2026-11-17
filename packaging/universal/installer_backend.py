@@ -39,6 +39,13 @@ def volumes():
 
 def configure(data, consent=True):
     config_file = paths.config_dir() / 'config.json'
+    # La actualización de una instalación existente solo puede guardar una
+    # clave que el asistente ya validó. No consulta discos ni toca la biblioteca.
+    if data.get('update_only') is True:
+        key = data.get('steamgriddb_key', '').strip()
+        if key:
+            write_secret(paths.config_dir() / 'steamgriddb.key', key)
+        return 0
     cfg = load_json(config_file, {})
     games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
     old_roots = effective_roots(cfg, games)
@@ -54,7 +61,11 @@ def configure(data, consent=True):
             raise ValueError('El volumen seleccionado ya no está montado. Vuelve a seleccionarlo.')
     excluded = library_paths.update_excluded({**cfg, "external_roots": old_roots}, roots)
     prepared, added = prepare(games, data.get('selected_candidates', []), roots)
-    cfg.update(external_roots=roots, excluded_external_roots=excluded, monitor_disk=matches[0])
+    notification_position = str(data.get('notification_position', cfg.get('notification_position', 'bottom-right')))
+    if notification_position not in {'bottom-right', 'bottom-left', 'top-right', 'top-left'}:
+        notification_position = 'bottom-right'
+    cfg.update(external_roots=roots, excluded_external_roots=excluded, monitor_disk=matches[0],
+               notification_position=notification_position)
     write_json_atomic(config_file, cfg)
     key = data.get('steamgriddb_key', '').strip()
     if data.get('clear_key'):
@@ -179,7 +190,10 @@ def main():
         try:
             with os.fdopen(fd, 'w') as f: json.dump(data, f)
             env = {**os.environ, 'OMNIA_SETTINGS': name}
-            return subprocess.call(['bash', str(ROOT / 'packaging/universal/install.sh'), '--cli'], env=env)
+            install_args = ['--cli']
+            if data.get('update_only') is True:
+                install_args.append('--update')
+            return subprocess.call(['bash', str(ROOT / 'packaging/universal/install.sh'), *install_args], env=env)
         finally:
             os.unlink(name)
     return 0

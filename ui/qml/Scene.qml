@@ -3,7 +3,7 @@ import QtQuick
 // Paisaje de respaldo cuando un juego aún no tiene arte: colinas y sol con la paleta del juego.
 Canvas {
     id: c
-    property var pal: ["#101820", "#2c4968", "#1f3652", "#0f1b2a", "#bcd6f2"]
+    property var pal: ["#111923", "#405b78", "#273b53", "#101722", "#91a9c2"]
     property bool big: true
     onPalChanged: requestPaint()
     onWidthChanged: requestPaint()

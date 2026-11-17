@@ -17,6 +17,8 @@ class Installer : public QWizard {
     QComboBox *disks;
     KeyPanel *keyPanel;
     QCheckBox *consent;
+    QCheckBox *logoutOnComplete;
+    bool updateOnly = false;
     QPlainTextEdit *log;
     QLabel *summary, *result;
     QProgressBar *progress;
@@ -32,11 +34,14 @@ class Installer : public QWizard {
         painter.setFont(brand); painter.setPen(QColor("#f1f4fc")); painter.drawText(QRect(80, 20, 125, 30), "OMNIA");
         QFont caption = font(); caption.setPixelSize(10); caption.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
         painter.setFont(caption); painter.setPen(QColor("#92a0bc")); painter.drawText(QRect(81, 51, 125, 20), "DESKTOP SUITE");
-        const QStringList steps{"Inicio", "Biblioteca", "Sistema", "Imágenes", "Instalar"};
+        const QStringList steps = updateOnly
+            ? QStringList{"Actualizar", "Confirmar"}
+            : QStringList{"Inicio", "Biblioteca", "Sistema", "Imágenes", "Instalar"};
         const int stepWidth = (w - 225) / steps.size();
         for (int i = 0; i < steps.size(); ++i) {
             int x = 210 + i * stepWidth;
-            bool active = currentId() == i, done = currentId() > i || completed;
+            const int pageId = updateOnly ? i + 3 : i;
+            bool active = currentId() == pageId, done = currentId() > pageId || completed;
             if (active) { painter.setPen(Qt::NoPen); painter.setBrush(QColor("#29375d")); painter.drawRoundedRect(QRectF(x - 7, 23, stepWidth - 3, 40), 20, 20); }
             painter.setPen(Qt::NoPen); painter.setBrush(QColor(done ? "#285b50" : active ? "#5478f5" : "#303745"));
             painter.drawEllipse(QRectF(x, 31, 24, 24));
@@ -62,11 +67,14 @@ class Installer : public QWizard {
     }
     void add(QWizardPage *p, QWidget *w) { p->layout()->addWidget(w); }
     QJsonObject settings() {
+        if (updateOnly)
+            return {{"accepted", true}, {"update_only", true}, {"steamgriddb_key", keyPanel->keyForSave()}};
         QJsonArray roots; for(int i=0;i<folders->count();++i) roots.append(folders->item(i)->data(Qt::UserRole).toString());
         return {{"accepted",consent->isChecked()},{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},
                 {"monitor_disk",disks->currentData().toJsonObject()}, {"steamgriddb_key",keyPanel->keyForSave()}};
     }
 public:
+    bool isUpdateOnly() const { return updateOnly; }
     Installer(QString path, bool autoCheck=true): backend(path) {
         setWindowTitle("Omnia Desktop Suite — Instalador"); resize(1020,790); setMinimumSize(960,740);
         setWizardStyle(QWizard::ModernStyle);
@@ -82,6 +90,7 @@ public:
             QTimer::singleShot(0,this,&QWidget::close); return;
         }
         initial=QJsonDocument::fromJson(inspect.readAllStandardOutput()).object();
+        updateOnly=initial["installed"].toBool();
         QPixmap logo(initial["logo"].toString());brandIcon=logo;
         if(!logo.isNull()) {setWindowIcon(QIcon(logo));}
         auto welcome=page(initial["installed"].toBool()?"Actualizar Omnia Desktop Suite":"Bienvenido a Omnia Desktop Suite",initial["installed"].toBool()?"Instalación detectada: revisa las rutas vinculadas y la conexión existente.":"Tu escritorio de juegos para KDE Plasma 6");
@@ -136,14 +145,19 @@ public:
         connect(disks, &QComboBox::currentIndexChanged, this, [updateDisk](int){updateDisk();}); updateDisk();
         static_cast<QVBoxLayout*>(monitor->layout())->addStretch();
         if(disks->count()==0) add(monitor,new QLabel("No hay volúmenes compatibles montados. Monta el disco y vuelve a abrir el asistente."));
-        auto art=page("Dale imagen a tu biblioteca","Conecta SteamGridDB para descargar portadas, fondos y logos de tus juegos.");
-        add(art,omniaCard("Tu clave permanece privada", "Se guarda únicamente en tu usuario, con acceso restringido. Puedes conservar la clave existente o configurar las imágenes más adelante."));
+        auto art=page(updateOnly?"Validar SteamGridDB":"Dale imagen a tu biblioteca",
+                      updateOnly?"Confirma la clave de SteamGridDB para conservar las imágenes automáticas.":"Conecta SteamGridDB para descargar portadas, fondos y logos de tus juegos.");
+        add(art,omniaCard(updateOnly?"Actualización rápida":"Tu clave permanece privada",
+                          updateOnly?"Omnia ya está instalado. Se actualizarán sus archivos y se conservarán tus juegos y ajustes.":"Se guarda únicamente en tu usuario, con acceso restringido. Puedes conservar la clave existente o configurar las imágenes más adelante."));
         keyPanel=new KeyPanel(backend,initial["key_exists"].toBool(),autoCheck);add(art,keyPanel);
         static_cast<QVBoxLayout*>(art->layout())->addStretch();
-        auto final=page("Revisar e instalar","La contraseña, si hace falta, la pedirá KDE. No la escribas en esta ventana.");
-        auto summaryCard = omniaCard("Tu configuración", "Revisa estas opciones antes de aplicar Omnia a tu escritorio.");
+        auto final=page(updateOnly?"Actualizar Omnia":"Revisar e instalar",updateOnly?"No se volverán a configurar las bibliotecas ni el disco del monitor.":"La contraseña, si hace falta, la pedirá KDE. No la escribas en esta ventana.");
+        auto summaryCard = omniaCard(updateOnly?"Se conservarán tus datos":"Tu configuración", updateOnly?"La biblioteca, los juegos y los ajustes personales quedarán intactos.":"Revisa estas opciones antes de aplicar Omnia a tu escritorio.");
         summary=new QLabel;summary->setMinimumHeight(155);summary->setWordWrap(true); summary->setTextFormat(Qt::RichText); summaryCard->layout()->addWidget(summary); add(final,summaryCard);
-        result=new QLabel("Todo listo. Pulsa Instalar para comenzar.");result->setObjectName("Result");result->setWordWrap(true);add(final,result);
+        result=new QLabel(updateOnly?"Todo listo. Pulsa Actualizar para comenzar.":"Todo listo. Pulsa Instalar para comenzar.");result->setObjectName("Result");result->setWordWrap(true);add(final,result);
+        logoutOnComplete=new QCheckBox("Cerrar sesión automáticamente al terminar");
+        logoutOnComplete->setToolTip("Omnia quedará completamente cargado al iniciar sesión de nuevo. Guarda tu trabajo antes de continuar.");
+        add(final,logoutOnComplete);
         progress=new QProgressBar; progress->setTextVisible(false); progress->setRange(0,1); progress->setValue(0); add(final,progress);
         details=new QPushButton("Mostrar detalles de instalación"); details->setCheckable(true); add(final,details);
         log=new QPlainTextEdit;log->setReadOnly(true);log->setMaximumBlockCount(1800);log->setVisible(false); log->setMinimumHeight(110); add(final,log);
@@ -151,9 +165,13 @@ public:
         static_cast<QVBoxLayout*>(final->layout())->addStretch();
         connect(this,&QWizard::currentIdChanged,this,[this](int id){
             updateSteps();
-            if(id==4) summary->setText(QString("<table cellspacing='9'><tr><td><b>Bibliotecas</b></td><td>Steam + %1 carpetas externas</td></tr><tr><td><b>Selección</b></td><td>%2 juegos para agregar</td></tr><tr><td><b>Monitor</b></td><td>%3</td></tr><tr><td><b>Imágenes</b></td><td>%4</td></tr></table>")
+            if(id==4) summary->setText(updateOnly
+                ? QString("<table cellspacing='9'><tr><td><b>Omnia</b></td><td>Archivos de la aplicación</td></tr><tr><td><b>Biblioteca</b></td><td>Se conserva</td></tr><tr><td><b>Ajustes</b></td><td>Se conservan</td></tr><tr><td><b>SteamGridDB</b></td><td>%1</td></tr></table>").arg(keyPanel->summary().toHtmlEscaped())
+                : QString("<table cellspacing='9'><tr><td><b>Bibliotecas</b></td><td>Steam + %1 carpetas externas</td></tr><tr><td><b>Selección</b></td><td>%2 juegos para agregar</td></tr><tr><td><b>Monitor</b></td><td>%3</td></tr><tr><td><b>Imágenes</b></td><td>%4</td></tr></table>")
                 .arg(folders->count()).arg(folders->selectedGameCount()).arg(disks->currentText().toHtmlEscaped()).arg(keyPanel->summary().toHtmlEscaped()));
+            if(updateOnly && id==3) button(BackButton)->setEnabled(false);
         });
+        if(updateOnly) { setStartId(3); setButtonText(FinishButton,"Actualizar"); }
         updateSteps();
     }
     bool validateCurrentPage() override {
@@ -165,8 +183,9 @@ public:
     }
     void accept() override {
         if(completed){QWizard::accept();return;} if(running)return;
-        if(!consent->isChecked() || disks->currentIndex()<0)return;
+        if((!updateOnly && !consent->isChecked()) || (!updateOnly && disks->currentIndex()<0))return;
 
+        logoutOnComplete->setEnabled(false);
         running=true;button(FinishButton)->setEnabled(false);button(BackButton)->setEnabled(false);button(CancelButton)->setEnabled(false);
         progress->setRange(0,0); result->setText("Preparando Omnia… Puedes consultar los detalles de instalación.");job=new QProcess(this);job->setProcessChannelMode(QProcess::MergedChannels);
         connect(job,&QProcess::readyReadStandardOutput,this,[this]{log->appendPlainText(QString::fromUtf8(job->readAllStandardOutput()));});
@@ -177,9 +196,20 @@ public:
             if(completed) keyPanel->clearInput();
             progress->setRange(0,1); progress->setValue(completed?1:0);
             if(!completed) details->setChecked(true);
+            if(!completed) logoutOnComplete->setEnabled(true);
             updateSteps();
-            result->setText(completed?"✓ Omnia se instaló. Revisa abajo si alguna integración requiere atención.":"La instalación no se completó. Revisa los detalles; puedes volver atrás y reintentar.");
-            button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(!completed);setButtonText(FinishButton,completed?"Cerrar":"Reintentar");
+            result->setText(completed?(updateOnly?"✓ Omnia se actualizó. Cierra sesión y vuelve a entrar para cargar los cambios.":"✓ Omnia se instaló. Para que el fondo y las integraciones se carguen correctamente, cierra sesión y vuelve a entrar. Revisa abajo si alguna integración requiere atención."):"La instalación no se completó. Revisa los detalles; puedes volver atrás y reintentar.");
+            button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(!completed && !updateOnly);setButtonText(FinishButton,completed?"Cerrar":"Reintentar");
+            if(completed && logoutOnComplete->isChecked()) {
+                result->setText(updateOnly?"✓ Omnia se actualizó. La sesión se cerrará en unos segundos; guarda tu trabajo.":"✓ Omnia se instaló. La sesión se cerrará en unos segundos; guarda tu trabajo.");
+                button(CancelButton)->setEnabled(false);button(FinishButton)->setEnabled(false);
+                QTimer::singleShot(2500,this,[this]{
+                    if(!QProcess::startDetached("qdbus6",{"org.kde.Shutdown","/Shutdown","org.kde.Shutdown.logout"})) {
+                        result->setText("Omnia se instaló, pero no se pudo cerrar la sesión automáticamente. Ciérrala desde el menú de KDE para completar los cambios.");
+                        button(FinishButton)->setEnabled(true);
+                    }
+                });
+            }
         });
         connect(job,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){if(e==QProcess::FailedToStart){running=false;progress->setRange(0,1);progress->setValue(0);result->setText("No se pudo iniciar el instalador.");button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(true);}});
         job->start("python3",{backend,"--install"}); if(job->waitForStarted()){job->write(QJsonDocument(settings()).toJson(QJsonDocument::Compact));job->closeWriteChannel();}
@@ -234,6 +264,13 @@ return app.exec();}
 Installer wizard(QString::fromLocal8Bit(argv[1]), !(argc>2 && QString::fromLocal8Bit(argv[2])=="--smoke"));wizard.show();
 if(argc>2 && QString::fromLocal8Bit(argv[2])=="--smoke") {
     QTimer::singleShot(200,&wizard,[&]{
+        if(wizard.isUpdateOnly()) {
+            for(auto box:wizard.findChildren<QCheckBox*>()) if(box->text().startsWith("Configurar SteamGridDB"))box->setChecked(true);
+            wizard.grab().save("/tmp/omnia-installer-update-key.png");
+            wizard.next(); QApplication::processEvents();
+            if(wizard.currentId()!=4){app.exit(12);return;}
+            wizard.grab().save("/tmp/omnia-installer-summary.png"); app.exit(0); return;
+        }
         if(wizard.button(QWizard::NextButton)->isEnabled()){app.exit(10);return;}
         auto check=wizard.findChild<QCheckBox*>();
         if(!check){app.exit(11);return;}

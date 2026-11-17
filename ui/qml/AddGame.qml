@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 
 // Asistente para añadir un juego que Omnia no detecta: un port, un emulador, un juego de Windows u otro ejecutable.
 FocusScope {
@@ -16,6 +17,22 @@ FocusScope {
     property string name: ""
     property string note: ""
     property string newId: ""
+    property string directPath: ""
+    property bool directStart: false
+    property string recognized: ""
+
+    function prepareDirect(path) {
+        file = path
+        api.suggestGame(path, function(st, body) {
+            if (st !== 200) { note = body.error || "No se pudo identificar el archivo"; stage = "name"; name = baseName(path); return }
+            sel = { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc" }
+            name = body.name || baseName(path)
+            recognized = body.recognized || ""
+            note = recognized ? "Reconocido como " + recognized + " · " + (body.platform === "sw2" ? "Switch 2" : "Switch") : "Revisa el nombre antes de añadirlo."
+            stage = "name"
+            nameInput.forceActiveFocus()
+        })
+    }
 
     readonly property var kinds: {
         const out = ag.tpls.map(function (t) {
@@ -42,7 +59,8 @@ FocusScope {
         } else if (stage === "name") {
             if (i === 1) { stage = "kind"; return }
             const body = { name: name.trim() }
-            if (sel.tpl) body.template = sel.tpl; else body.kind = sel.kind
+            if (sel.tpl || sel.template) body.template = sel.tpl || sel.template; else body.kind = sel.kind
+            if (sel.platform) body.platform = sel.platform
             body[sel.needs === "rom" ? "rom" : "exe"] = file
             api.addGame(body, function (st, b) {
                 if (st === 200) { newId = b.id; note = "Añadido a la biblioteca"; stage = "done"; list.reset() }
@@ -58,6 +76,8 @@ FocusScope {
         api.templates(function (st, b) { if (st === 200) tpls = b.templates })
         api.importFind(function (st, b) { if (st === 200 && b.candidates.length > 0) legacyPath = b.candidates[0].path })
         forceActiveFocus()
+        if (directPath !== "") prepareDirect(directPath)
+        else if (directStart) Qt.callLater(function() { directDialog.open() })
     }
     focus: true
     Keys.onPressed: function (e) {
@@ -87,6 +107,7 @@ FocusScope {
             Text { visible: ag.stage === "kind"; width: parent.width; wrapMode: Text.WordWrap; color: "#c9bf8a"; font.pixelSize: 16
                    text: "¿Qué tipo de juego quieres añadir? Omnia sabe dónde guardan sus partidas los ports y emuladores de la lista." }
             Text { visible: ag.stage === "name"; width: parent.width; elide: Text.ElideMiddle; color: "#c9bf8a"; font.pixelSize: 16; text: ag.file }
+            Text { visible: ag.stage === "name"; width: parent.width; wrapMode: Text.WordWrap; color: ag.recognized ? "#7fd69f" : "#c9bf8a"; font.pixelSize: 15; text: ag.note }
             Rectangle {
                 visible: ag.stage === "name"; width: parent.width; height: 52; radius: 26; color: Qt.rgba(1, 1, 1, 0.08)
                 TextInput {
@@ -103,7 +124,7 @@ FocusScope {
                     }
                 }
             }
-            Text { visible: ag.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: ag.note; color: ag.stage === "done" ? "#7fd69f" : "#e89a8a"; font.pixelSize: 16 }
+            Text { visible: ag.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: ag.note; color: ag.stage === "done" || ag.recognized ? "#7fd69f" : "#e89a8a"; font.pixelSize: 16 }
             OptionList {
                 id: list
                 width: parent.width; height: parent.height - y
@@ -132,5 +153,13 @@ FocusScope {
             }
             onCancelled: { browser.active = false; ag.forceActiveFocus() }
         }
+    }
+    FileDialog {
+        id: directDialog
+        title: "Selecciona el ejecutable del juego"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["Ejecutables y juegos (*)", "Ejecutables Linux (*)", "Juegos de Windows (*.exe)"]
+        onAccepted: ag.prepareDirect(selectedFile.toLocalFile())
+        onRejected: if (ag.directStart) ag.finished()
     }
 }

@@ -138,6 +138,22 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 
 ## 7. Registro de cambios
 
+- 2026-11-17 — La fila GPU vuelve a mostrar el nombre del modelo de tarjeta, junto al porcentaje de uso y la memoria usada/total; se elimina la etiqueta redundante «VRAM» del valor secundario.
+
+- 2026-11-17 — La fila combinada del monitor mantiene VRAM en el valor secundario y en el porcentaje de alerta, pero el título queda simplemente como «GPU».
+
+- 2026-11-17 — AppImage revisión 15 incluye el selector manual de juegos, posición configurable de notificaciones, cierre de sesión opcional y el rediseño de selección de arte/monitor GPU-VRAM.
+
+- 2026-11-17 — El menú contextual deja de rotar arte automáticamente. El selector se hace más compacto, conserva selecciones de portada/fondo/logo sin aplicarlas, mantiene una previsualización fija de las tres y solo las aplica al pulsar Aceptar. Los acentos estáticos adoptan el azul grisáceo Omnia (`#91a9c2`) y se conserva el acento dinámico por juego. El HUD une GPU/VRAM y colorea las métricas de uso de verde a rojo conforme aumenta la carga; la batería mantiene el gradiente inverso.
+
+- 2026-11-17 — Ajustes generales incorpora la pestaña Notificaciones para ubicar los avisos temporales de Omnia en cualquiera de las cuatro esquinas. La preferencia se guarda en `config.json`, la API la expone a la UI y el toast se coloca en la esquina seleccionada.
+
+- 2026-11-17 — Omnia añade acceso directo `+` en la cabecera para elegir un ejecutable con el selector de archivos de Qt/Plasma. Un endpoint de sugerencias aplica el catálogo de ports conocidos (nombre, plantilla y plataforma) o propone el nombre del archivo; el usuario confirma/edita antes de añadir. Se conserva el asistente manual existente para ROMs y plantillas.
+
+- 2026-11-17 — El instalador informa al finalizar que se debe cerrar sesión y volver a entrar para cargar correctamente las integraciones. Incluye una casilla opcional y desmarcada para cerrar sesión automáticamente tras una instalación exitosa, con aviso para guardar el trabajo. AppImage reconstruido como revisión 14.
+
+- 2026-11-17 — El resumen de instalación ahora indica que conviene cerrar sesión y volver a entrar para completar la carga del wallpaper e integraciones. Se añade una casilla opcional, desmarcada inicialmente, para cerrar la sesión de Plasma automáticamente tras instalar; muestra aviso previo para guardar el trabajo.
+
 - 2026-11-17 — Icono propio para el desinstalador: aro circular Omnia azul grisáceo con insignia de papelera. Integrado en la entrada del menú y en los paquetes Arch, AppImage y universal; revisión 13.
 
 - 2026-11-17 — Revisión 12 del asistente: AppImage x86-64 regenerado con el icono circular azul grisáceo, catálogo de ports, revisión visual de candidatos, detección de complementos, desinstalador y paneo del fondo a doble velocidad. Cambio local listo para publicar.
@@ -698,3 +714,4 @@ Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secc
 - 2026-11-16 — Ajuste visual solicitado: el wallpaper animado sube a `blur: 15` y la capa gris azulada se oscurece y refuerza a `#70303B4A`. La imagen conserva el paneo y el fundido cruzado.
 - 2026-11-16 — Se retira el blur y la desaturación del wallpaper, dejando solo la cortina oscura gris azulada (`#80303B4A`). SteamGridDB ordena automáticamente los fondos por resolución; si hay varias imágenes ya descargadas, Omnia selecciona la de mayor área salvo que el usuario haya elegido/ciclado arte manualmente. `Backdrop` deja de limitar las imágenes a 1080 px y las carga a su resolución nativa; el escenario conserva `height: parent.height`, equivalente al 100 % de la altura visible, con paneo horizontal.
 - 2026-11-16 — Se baja 20 px el grupo derecho del reproductor y el monitor del sistema: reproductor, broche decorativo y HUD conservan su separación relativa y se desplazan juntos.
+- 2026-11-17 — El instalador AppImage rev16 detecta Omnia instalado y abre un flujo corto de actualización. Valida SteamGridDB y conserva biblioteca/ajustes; reemplaza los archivos de Omnia sin repetir dependencias, primera configuración, selección de discos ni importación. Si no hay instalación, mantiene el asistente completo.

@@ -11,7 +11,13 @@ if [[ -e /run/ostree-booted ]]; then
   command -v kdialog >/dev/null && kdialog --error 'Esta edición OSTree necesita un instalador específico; este paquete es para distros KDE tradicionales.'
   exit 1
 fi
-if [[ "${1:-}" != --uninstall* ]]; then
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omnia"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/omnia"
+UPDATE_ONLY=0
+if [[ "${1:-}" != --uninstall* && ( -f "$CONFIG_DIR/library.json" || -x "$DATA_DIR/installer/omnia-installer" ) ]]; then
+  UPDATE_ONLY=1
+fi
+if [[ "${1:-}" != --uninstall* && $UPDATE_ONLY == 0 ]]; then
   bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
 fi
 if [[ -x "$ROOT/omnia-installer" ]]; then

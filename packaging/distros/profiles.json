@@ -1,6 +1,6 @@
 {
   "debian": {
-    "depends": "python3 (>= 3.11), bash, systemd, dbus-user-session, plasma-workspace (>= 4:6.0), cmake, g++, qt6-base-dev (>= 6.6), qt6-declarative-dev (>= 6.6), kdialog, pkexec, python3-gi, util-linux, qml6-module-org-kde-kirigami, qml6-module-qtquick-controls, qml6-module-qtquick-effects, qml6-module-qtquick-shapes, qml6-module-qtquick-layouts, qml6-module-qtquick-window, qml6-module-qt5compat-graphicaleffects, qml6-module-org-kde-ksysguard"
+    "depends": "python3 (>= 3.11), bash, systemd, dbus-user-session, plasma-workspace (>= 4:6.0), cmake, g++, qt6-base-dev (>= 6.6), qt6-declarative-dev (>= 6.6), kdialog, pkexec, python3-gi, util-linux, qml6-module-org-kde-kirigami, qml6-module-qtquick-controls, qml6-module-qtquick-dialogs, qml6-module-qtquick-effects, qml6-module-qtquick-shapes, qml6-module-qtquick-layouts, qml6-module-qtquick-window, qml6-module-qt5compat-graphicaleffects, qml6-module-org-kde-ksysguard"
   },
   "arch": {
     "depends": [

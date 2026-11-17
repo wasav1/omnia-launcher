@@ -59,10 +59,12 @@ Rectangle {
     property int artRequestSerial: 0
     property real shelfWheelRemainder: 0
     property bool artBusy: false
+    property bool artApplying: false
     property bool artMore: false
     property string artError: ""
     property var artGames: []
     property var artItems: []
+    property var artPending: ({})
     readonly property var artKinds: ["portada", "fondo", "logo"]
     readonly property int artColumns: artKind === "portada" ? 6 : (artKind === "fondo" ? 3 : 4)
     property real nowSecs: Date.now() / 1000
@@ -120,15 +122,21 @@ Rectangle {
         return current.ports[i]
     }
     readonly property int selectedPortIndex: current && portSelection[current.id] !== undefined ? Math.min(portSelection[current.id], current.ports.length - 1) : 0
-    readonly property var contextItems: current ? [
-        { label: "Jugar", icon: "media-playback-start" },
-        { label: "Respaldar partidas", icon: "document-save" },
-        { label: "Abrir carpeta", icon: "folder-open" },
-        { label: "Cambiar arte", icon: "view-refresh" },
-        { label: "Elegir arte (SteamGridDB)…", icon: "images-flickr" },
-        { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "starred-symbolic" },
-        { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "view-visible" : "view-hidden" }
-    ].concat(searchText !== "" ? [{ label: "Borrar filtro de búsqueda", icon: "edit-clear" }] : []) : []
+    readonly property var contextItems: {
+        if (!current) return []
+        const items = [
+            { label: "Jugar", icon: "media-playback-start" },
+            { label: "Respaldar partidas", icon: "document-save" },
+            { label: "Abrir carpeta", icon: "folder-open" },
+            { label: "Elegir arte (SteamGridDB)…", icon: "images-flickr" },
+            { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "starred-symbolic" },
+            { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "view-visible" : "view-hidden" }
+        ]
+        if (current.id.indexOf("manual-") === 0)
+            items.push({ label: "Desvincular de Omnia…", icon: "edit-delete" })
+        if (searchText !== "") items.push({ label: "Borrar filtro de búsqueda", icon: "edit-clear" })
+        return items
+    }
 
     function norm(s) { return (s || "").toString().toLocaleLowerCase() }
     function platformLabel(g) {
@@ -145,9 +153,9 @@ Rectangle {
         if (k === "sw1") return "#e8604f"
         if (k === "sw2") return "#58a6f0"
         if (k === "pc") return "#6fc3c9"
-        if (k === "fav") return "#e6d9a0"
+        if (k === "fav") return canvas.brand
         if (k === "hidden") return "#a59f8f"
-        return current ? current.acc : "#e6d9a0"
+        return current ? current.acc : canvas.brand
     }
     function platformIcon(g) {
         if (!g) return "pc"
@@ -325,11 +333,11 @@ Rectangle {
     function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.notify(b.error || "No se pudo abrir la carpeta") }, selectedPort.id) }
     function openArt() {
         if (!current) return
-        artOpen = true; artKind = "portada"; artSgid = 0; artPage = 0; artIndex = 0
+        artOpen = true; artKind = "portada"; artSgid = 0; artPage = 0; artIndex = 0; artPending = ({}); artApplying = false
         artGames = []; artItems = []; artError = ""
         loadArt(0)
     }
-    function closeArt() { artOpen = false; artBusy = false; artRequestSerial++; restoreControllerFocus() }
+    function closeArt() { if (artApplying) return; artOpen = false; artBusy = false; artRequestSerial++; restoreControllerFocus() }
     function loadArt(page) {
         if (!current) return
         const gid = current.id, kind = artKind, edition = artSgid
@@ -357,26 +365,34 @@ Rectangle {
     }
     function pickArt(index) {
         if (!current || artBusy || index < 0 || index >= artItems.length) return
-        const game = current, kind = artKind, page = artPage, sgid = artSgid
-        artBusy = true
-        api.artPick(game, kind, page, sgid, index, function(st, body) {
-            shell.artBusy = false
-            if (st !== 200) { api.notify(body.error || "No se pudo guardar el arte"); return }
-            shell.artOpen = false; api.notify("Arte aplicado: " + kind); api.refresh(); shell.restoreControllerFocus()
+        const item = artItems[index], next = Object.assign({}, artPending)
+        next[artKind] = { page: artPage, sgid: artSgid, index: index, url: item.url, thumb: item.thumb || item.url }
+        artPending = next
+    }
+    function previewArt(kind) {
+        const pending = artPending[kind]
+        return pending ? pending.thumb : (current && current[kind] ? current[kind] : "")
+    }
+    function applyArtKinds(kinds, at, game) {
+        if (at >= kinds.length) {
+            artApplying = false; artOpen = false; api.refresh(); api.notify("Arte actualizado"); restoreControllerFocus(); return
+        }
+        const kind = kinds[at], chosen = artPending[kind]
+        api.artPick(game, kind, chosen.page, chosen.sgid, chosen.index, function(status, body) {
+            if (status !== 200) {
+                artApplying = false; api.refresh()
+                api.notify("No se pudo terminar; el arte aplicado hasta ahora se conservó. " + (body.error || "Inténtalo de nuevo."))
+                return
+            }
+            applyArtKinds(kinds, at + 1, game)
         })
     }
-    function cycleArt() {
-        if (!current) return
-        const game = current
-        let changed = false
-        api.artCycle(game, "portada", 1, function(st) {
-            changed = st === 200
-            api.artCycle(game, "fondo", 1, function(bg) {
-                if (bg === 200) changed = true
-                api.notify(changed ? "Arte cambiado" : "No hay otras opciones de arte descargadas")
-                if (changed) api.refresh()
-            })
-        })
+    function acceptArt() {
+        if (artApplying) return
+        const kinds = artKinds.filter(function(kind) { return !!artPending[kind] })
+        if (!kinds.length || !current) return
+        artApplying = true
+        applyArtKinds(kinds, 0, current)
     }
     function toggleFavorite() { if (current) api.toggleFav(current) }
     function toggleHidden() { if (current) api.call("POST", "/game/hide?id=" + encodeURIComponent(current.id), function(st) { if (st === 200) api.refresh() }) }
@@ -391,11 +407,14 @@ Rectangle {
         if (i === 0) launchCurrent()
         else if (i === 1) backupCurrent()
         else if (i === 2) openSaveFolder()
-        else if (i === 3) cycleArt()
-        else if (i === 4) openArt()
-        else if (i === 5) toggleFavorite()
-        else if (i === 6) toggleHidden()
-        else if (i === 7) { searchText = ""; setSearchOpen(false) }
+        else if (i === 3) openArt()
+        else if (i === 4) toggleFavorite()
+        else if (i === 5) toggleHidden()
+        else if (current && current.id.indexOf("manual-") === 0 && i === 6) {
+            unlinkDialog.game = current
+            unlinkDialog.open()
+        }
+        else if (searchText !== "" && i === contextItems.length - 1) { searchText = ""; setSearchOpen(false) }
     }
     function moveFilter(delta) {
         const n = filterOptions.length
@@ -468,7 +487,7 @@ Rectangle {
         target: api
         function onPadKey(key) {
             if (!shell.controllerOwner) return
-            if (key === "MENU" || key === "START") {
+            if ((key === "MENU" || key === "START") && !shell.artOpen) {
                 if (shell.audOpen) { shell.audOpen = false; return }
                 if (shell.searchOpen && shell.searchPad) { shell.closeSearch(false); return }     // Start = BUSCAR
                 shell.openSearchPad(); return
@@ -479,6 +498,7 @@ Rectangle {
             if (shell.artOpen) {
                 if (key === "B" || key === "SELECT") shell.closeArt()
                 else if (key === "A") shell.pickArt(shell.artIndex)
+                else if (key === "START") shell.acceptArt()
                 else if (key === "LB") shell.setArtKind(shell.artKinds[(shell.artKinds.indexOf(shell.artKind) + 2) % 3])
                 else if (key === "RB") shell.setArtKind(shell.artKinds[(shell.artKinds.indexOf(shell.artKind) + 1) % 3])
                 else if (key === "LT") shell.stepArtEdition(-1)
@@ -532,6 +552,7 @@ Rectangle {
                 if (next < artItems.length) artIndex = next
                 else if (artMore && !artBusy) loadArt(artPage + 1)
             }
+            else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && (e.modifiers & Qt.ControlModifier)) acceptArt()
             else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) pickArt(artIndex)
             else if (e.key === Qt.Key_Tab) setArtKind(artKinds[(artKinds.indexOf(artKind) + 1) % artKinds.length])
             else if (e.key === Qt.Key_PageUp) stepArtEdition(-1)
@@ -568,7 +589,6 @@ Rectangle {
         else if (e.key === Qt.Key_PageUp) { stepPort(-1); e.accepted = true }
         else if (e.key === Qt.Key_PageDown) { stepPort(1); e.accepted = true }
         else if (e.key === Qt.Key_Space) { if (music.item) music.item.playPause(); e.accepted = true }
-        else if (e.key === Qt.Key_N) { openAdd(); e.accepted = true }
     }
 
     // ---- navegación por zonas con teclado y mando: shelf (carrusel) · hero (ports y Jugar) · player (reproductor) · head (filtros y botones)
@@ -685,7 +705,10 @@ Rectangle {
 
     function openSaves(g) { if (g) { overlayGame = g; overlayPort = selectedPort ? selectedPort.id : ""; overlay = "saves" } }
     function openAdd() { overlay = "add" }
+    function openQuickAdd() { overlay = "quickadd" }
     function closeOverlay() { Qt.callLater(function() { overlay = ""; overlayGame = null; shell.restoreControllerFocus() }) }
+    function toastX(width) { return api.notificationPosition.endsWith("left") ? 18 : shell.width - width - 18 }
+    function toastY(height) { return api.notificationPosition.startsWith("top") ? 18 : shell.height - height - bottomInset - 8 }
     Component { id: savesComp; SavesPanel { api: shell.backend; game: shell.overlayGame; portId: shell.overlayPort; onFinished: shell.closeOverlay() } }
     Component { id: addComp; AddGame {
         api: shell.backend
@@ -693,8 +716,14 @@ Rectangle {
         onAdded: function(id) { shell.pendingSavesId=id; shell.closeOverlay() }
         onImportRequested: function(path) { shell.importPath=path; shell.overlay="import" }
     } }
+    Component { id: quickAddComp; AddGame {
+        api: shell.backend
+        directStart: true
+        onFinished: shell.closeOverlay()
+        onAdded: function(id) { shell.pendingSavesId=id; shell.closeOverlay() }
+    } }
     Component { id: importComp; ImportPanel { api: shell.backend; path: shell.importPath; onFinished: shell.closeOverlay(); onImported: shell.closeOverlay() } }
-    Loader { anchors.fill: parent; z: 90; active: shell.overlay !== ""; sourceComponent: shell.overlay === "saves" ? savesComp : (shell.overlay === "import" ? importComp : addComp) }
+    Loader { anchors.fill: parent; z: 90; active: shell.overlay !== ""; sourceComponent: shell.overlay === "saves" ? savesComp : (shell.overlay === "import" ? importComp : (shell.overlay === "quickadd" ? quickAddComp : addComp)) }
     Connections { target: api; function onGamesChanged() {
         if (shell.pendingSavesId === "") return
         for (let i=0;i<api.games.length;i++) if (api.games[i].id === shell.pendingSavesId) { shell.pendingSavesId=""; shell.openSaves(api.games[i]); return }
@@ -731,10 +760,11 @@ Rectangle {
         x: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.x * s
         y: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.y * s
         scale: s; transformOrigin: Item.TopLeft; clip: true
-        property color acc: shell.current && shell.current.acc ? shell.current.acc : "#e6d9a0"
+        property color brand: "#91a9c2"
+        property color acc: shell.current && shell.current.acc ? shell.current.acc : brand
         property color ink: "#f3efe3"
         property color ink2: "#d6d0bf"
-        property color ink3: "#a59f8f"
+        property color ink3: "#9aa9bc"
         property string hud: "Rajdhani"
         property string body: "Hanken Grotesk"
 
@@ -792,7 +822,7 @@ Rectangle {
             id: searchBox; x: 84; y: 54; width: searchBtn.x - 10; height: 34; radius: 17; z: 5; clip: true
             opacity: shell.searchOpen ? 1 : 0; visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: 180 } }
-            color: "#f2080b09"; border.width: 1; border.color: shell.searchOpen ? "#e6d9a0" : "#47f3efe3"
+            color: "#f2080b09"; border.width: 1; border.color: shell.searchOpen ? canvas.brand : "#47f3efe3"
             TextInput { id: searchField; x: 17; width: parent.width - 150; height: parent.height; text: shell.searchText; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 18; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true
                 onTextChanged: shell.searchText = text
                 Keys.onEscapePressed: { shell.searchText = ""; shell.setSearchOpen(false) }
@@ -996,13 +1026,12 @@ Rectangle {
         Item { id:hud; x:1530;y:266;width:320;height:440; visible:sensors.item !== null && !api.gameMode
             Column { width:parent.width; spacing:0
                 Row { width:parent.width;spacing:14;height:24
-                    Text { id:hudTitle;text:"SISTEMA";color:canvas.acc;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
+                    Text { id:hudTitle;text:"SISTEMA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
                     Rectangle { width:parent.width-hudTitle.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
                 }
                 HudRow { label:"CPU";sub:api.system.cpu&&api.system.cpu.model?api.system.cpu.model:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:(sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—")+(api.system.cpu&&api.system.cpu.ghz?"  "+api.system.cpu.ghz.toFixed(1)+" GHz":"");extraColor:sensors.item&&sensors.item.cpuTemp>=88?"#e2604f":(sensors.item&&sensors.item.cpuTemp>=75?"#e6a850":canvas.ink2);acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?sensors.item.gpu:0;vtext:Math.round(sensors.item?sensors.item.gpu:0)+" %";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C":"—";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?Math.max(sensors.item.gpu,sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100):0;vtext:sensors.item?Math.round(sensors.item.gpu)+" %":"—";extra:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1)+"/"+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"VRAM";sub:sensors.item?Math.round(sensors.item.vramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100:0;vtext:sensors.item?(sensors.item.vramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { label:api.system.disk&&api.system.disk.label?api.system.disk.label:"DISCO";sub:api.system.disk&&api.system.disk.fs?api.system.disk.fs:"";pct:api.system.disk&&api.system.disk.total?api.system.disk.used/api.system.disk.total*100:0;vtext:api.system.disk&&api.system.disk.total?Math.round(api.system.disk.used/1073741824)+"":"—";extra:api.system.disk&&api.system.disk.total?"/ "+Math.round(api.system.disk.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 HudRow { visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Item { width:parent.width;height:62
@@ -1081,7 +1110,7 @@ Rectangle {
             Behavior on opacity { NumberAnimation { duration:140 } }
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:shell.audOpen=false }
             Rectangle { x:Math.min(1920-width-20, header.x+audBtn.x+audBtn.width+10-width/2+40); y:100
-                width:520; height:shell.audItems.length*54+70; radius:20; color:"#ff0d1510"; border.width:1; border.color:"#73e6d9a0"
+                width:520; height:shell.audItems.length*54+70; radius:20; color:"#ff141a23"; border.width:1; border.color:"#637d99"
                 scale:shell.audOpen?1:0.94; transformOrigin:Item.TopRight
                 Behavior on scale { NumberAnimation { duration:160; easing.type:Easing.OutCubic } }
                 MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons }
@@ -1109,7 +1138,7 @@ Rectangle {
         // teclado virtual: SOLO cuando el buscador se abre con el mando
         Rectangle { id:padKb; visible:opacity>0.01; opacity:shell.searchOpen&&shell.searchPad?1:0
             Behavior on opacity { NumberAnimation { duration:180 } }
-            x:(1920-width)/2; y:104; z:8; width:1040; height:kbCol.implicitHeight+40; radius:28; color:"#fa0b120e"; border.width:1; border.color:"#59e6d9a0"
+            x:(1920-width)/2; y:104; z:8; width:1040; height:kbCol.implicitHeight+40; radius:28; color:"#fa141a23"; border.width:1; border.color:"#637d99"
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons }
             Column { id:kbCol; anchors { top:parent.top; topMargin:20; horizontalCenter:parent.horizontalCenter } width:parent.width-48; spacing:8
                 Repeater { model:shell.oskRows
@@ -1121,8 +1150,8 @@ Rectangle {
                             delegate: Rectangle { id:kk; required property var modelData; required property int index
                                 readonly property bool foc:shell.oskR===kbRow.index&&shell.oskC===index
                                 width:kbRow.unit*modelData.w; height:58; radius:14
-                                color:foc?canvas.acc:(modelData.k==="shift"&&shell.oskShift?"#59e6d9a0":"#1affffff")
-                                border.width:foc?0:1; border.color:"#33e6d9a0"; scale:foc?1.06:1
+                                color:foc?canvas.acc:(modelData.k==="shift"&&shell.oskShift?"#5991a9c2":"#1affffff")
+                                border.width:foc?0:1; border.color:"#3391a9c2"; scale:foc?1.06:1
                                 Behavior on scale { NumberAnimation { duration:100 } }
                                 Text { anchors.centerIn:parent; text:kk.modelData.t; color:kk.foc?"#14211a":"#f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:kk.modelData.k==="ch"?24:17 }
                                 MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{shell.oskR=kbRow.index;shell.oskC=kk.index;shell.oskPress()} }
@@ -1131,8 +1160,8 @@ Rectangle {
                 Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:28
                     Repeater { model:[["A","Escribir"],["B","Borrar"],["X","Mayús"],["Y","Espacio"]]
                         delegate: Row { required property var modelData; spacing:8
-                            Rectangle { width:32; height:32; radius:16; color:"transparent"; border.width:1; border.color:"#80e6d9a0"
-                                Text { anchors.centerIn:parent; text:parent.parent.modelData[0]; color:"#e6d9a0"; font.family:canvas.hud; font.bold:true; font.pixelSize:14 } }
+                            Rectangle { width:32; height:32; radius:16; color:"transparent"; border.width:1; border.color:"#8091a9c2"
+                                Text { anchors.centerIn:parent; text:parent.parent.modelData[0]; color:canvas.brand; font.family:canvas.hud; font.bold:true; font.pixelSize:14 } }
                             Text { anchors.verticalCenter:parent.verticalCenter; text:modelData[1].toUpperCase(); color:"#b3f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:15; font.letterSpacing:2 }
                         } }
                 }
@@ -1159,7 +1188,7 @@ Rectangle {
             MouseArea { anchors.fill:parent;acceptedButtons:Qt.LeftButton|Qt.RightButton;onClicked:shell.contextOpen=false }
             Rectangle { id:ctx; width:360;height:shell.contextItems.length*50+28;radius:20
                 x:contextPoint.x<0?560:Math.max(20,Math.min(1920-width-20,contextPoint.x)); y:contextPoint.y<0?470:Math.max(100,Math.min(canvas.height-height-130,contextPoint.y))
-                color:"#ff0d1510";border.width:1;border.color:"#73e6d9a0"
+                color:"#ff141a23";border.width:1;border.color:"#637d99"
                 MouseArea { anchors.fill:parent;acceptedButtons:Qt.AllButtons }
                 Column { x:12;y:14;width:parent.width-24
                     Repeater { model:shell.contextItems;delegate:Rectangle { required property var modelData;required property int index;height:50;width:parent.width;radius:14
@@ -1171,70 +1200,123 @@ Rectangle {
                 }
             }
         }
+        Dialog {
+            id: unlinkDialog
+            property var game: null
+            anchors.centerIn: Overlay.overlay
+            modal: true
+            title: "Desvincular juego de Omnia"
+            standardButtons: Dialog.Cancel | Dialog.Yes
+            contentItem: Label {
+                text: unlinkDialog.game
+                    ? "Se quitará «" + unlinkDialog.game.name + "» de tu biblioteca y de los datos de Omnia asociados. Sus ejecutables, carpetas y partidas en el disco no se borrarán."
+                    : "Se quitará el juego de la biblioteca de Omnia."
+                wrapMode: Text.WordWrap
+                color: canvas.ink
+                font.pixelSize: 16
+                padding: 16
+            }
+            onAccepted: {
+                if (!game) return
+                const target = game
+                shell.api.removeGame(target, function(status, body) {
+                    if (status === 200) {
+                        if (shell.selectedId === target.id) shell.selectedId = ""
+                        shell.api.toast = "«" + target.name + "» se quitó de Omnia. Sus archivos siguen en el disco."
+                    } else shell.api.toast = (body && body.error) || "No se pudo desvincular el juego."
+                })
+                game = null
+            }
+            onRejected: game = null
+        }
         Item { id:artLayer; anchors.fill:parent; z:45; visible:shell.artOpen
             Rectangle { anchors.fill:parent; color:"#eb050806" }
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:shell.closeArt() }
-            Rectangle { id:artPanel; x:240;y:110;width:1440;height:860;radius:26;color:"#ff0d1510";border.width:1;border.color:"#73e6d9a0" }
+            Rectangle { id:artPanel; x:360;y:120;width:1200;height:840;radius:24;color:"#ff141a23";border.width:1;border.color:"#637d99" }
             MouseArea { x:artPanel.x;y:artPanel.y;width:artPanel.width;height:artPanel.height;acceptedButtons:Qt.AllButtons }
-            Text { x:276;y:136;text:"ELEGIR ARTE · " + (shell.current ? shell.current.name.toUpperCase() : "");color:canvas.acc;font.family:canvas.hud;font.pixelSize:20;font.letterSpacing:3;font.weight:Font.DemiBold }
-            Row { x:276;y:180;spacing:12
+            Text { x:392;y:142;text:"ELEGIR ARTE · " + (shell.current ? shell.current.name.toUpperCase() : "");color:canvas.brand;font.family:canvas.hud;font.pixelSize:19;font.letterSpacing:2.5;font.weight:Font.DemiBold }
+            Row { x:392;y:178;spacing:10
                 Repeater { model:shell.artKinds
                     delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
-                        height:42;width:kindText.implicitWidth+40;radius:21;color:active?canvas.acc:"#14ffffff"
-                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:19;font.weight:Font.DemiBold }
+                        height:36;width:kindText.implicitWidth+32;radius:18;color:active?canvas.brand:"#25303d"
+                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?"#111923":canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
                         MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
                     }
                 }
             }
-            Row { anchors.right:artPanel.right;anchors.rightMargin:36;y:180;spacing:10;height:42
-                Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
-                    Text { anchors.centerIn:parent;text:"‹";color:canvas.ink;font.pixelSize:26 }
+            Row { anchors.right:artPanel.right;anchors.rightMargin:32;y:176;spacing:8;height:36
+                Rectangle { visible:shell.artGames.length>1;width:34;height:34;radius:17;color:"#25303d"
+                    Text { anchors.centerIn:parent;text:"‹";color:canvas.ink;font.pixelSize:22 }
                     MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.stepArtEdition(-1) }
                 }
-                Text { width:480;anchors.verticalCenter:parent.verticalCenter;horizontalAlignment:Text.AlignRight;elide:Text.ElideMiddle;color:canvas.ink2;font.family:canvas.body;font.pixelSize:18
+                Text { width:360;anchors.verticalCenter:parent.verticalCenter;horizontalAlignment:Text.AlignRight;elide:Text.ElideMiddle;color:canvas.ink2;font.family:canvas.body;font.pixelSize:15
                     text:{for(let i=0;i<shell.artGames.length;i++)if(shell.artGames[i].id===shell.artSgid)return shell.artGames[i].name+(shell.artGames[i].year?" ("+shell.artGames[i].year+")":"")+" · "+(i+1)+"/"+shell.artGames.length;return ""}
                 }
-                Rectangle { visible:shell.artGames.length>1;width:42;height:42;radius:21;color:"#14ffffff"
-                    Text { anchors.centerIn:parent;text:"›";color:canvas.ink;font.pixelSize:26 }
+                Rectangle { visible:shell.artGames.length>1;width:34;height:34;radius:17;color:"#25303d"
+                    Text { anchors.centerIn:parent;text:"›";color:canvas.ink;font.pixelSize:22 }
                     MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.stepArtEdition(1) }
                 }
             }
-            GridView { id:artGrid;x:264;y:240;width:1392;height:650;clip:true;boundsBehavior:Flickable.StopAtBounds
+            GridView { id:artGrid;x:384;y:220;width:1152;height:400;clip:true;boundsBehavior:Flickable.StopAtBounds
                 cellWidth:Math.floor(width/shell.artColumns)
-                cellHeight:shell.artKind==="portada"?cellWidth*1.43:(shell.artKind==="fondo"?cellWidth*.44:cellWidth*.64)
+                cellHeight:shell.artKind==="portada"?cellWidth*1.20:(shell.artKind==="fondo"?cellWidth*.40:cellWidth*.56)
                 model:shell.artItems;currentIndex:shell.artIndex
                 onAtYEndChanged:if(atYEnd&&shell.artMore&&!shell.artBusy)shell.loadArt(shell.artPage+1)
                 Connections { target:shell; function onArtIndexChanged() { if (shell.artItems.length) artGrid.positionViewAtIndex(shell.artIndex, GridView.Contain) } }
                 delegate:Item { id:artTile;required property var modelData;required property int index;width:artGrid.cellWidth;height:artGrid.cellHeight
                     readonly property bool focused:shell.artIndex===index
-                    Rectangle { anchors.fill:parent;anchors.margins:3;radius:18;color:"transparent";border.width:focused?3:0;border.color:"#59e6d9a0" }
-                    Rectangle { anchors.fill:parent;anchors.margins:8;radius:14;color:"#1a211c";clip:true
+                    Rectangle { anchors.fill:parent;anchors.margins:2;radius:13;color:"transparent";border.width:focused?2:0;border.color:canvas.brand }
+                    Rectangle { anchors.fill:parent;anchors.margins:6;radius:11;color:"#202833";clip:true
                         Image { anchors.fill:parent;anchors.margins:shell.artKind==="logo"?18:0;source:artTile.modelData.thumb;asynchronous:true;smooth:true
                             fillMode:shell.artKind==="logo"?Image.PreserveAspectFit:Image.PreserveAspectCrop;opacity:status===Image.Ready?1:0
                             Behavior on opacity { NumberAnimation { duration:150 } }
                         }
-                        Rectangle { anchors.fill:parent;radius:14;color:"transparent";border.width:artTile.focused?5:(artTile.modelData.cur?3:1);border.color:artTile.focused?canvas.acc:(artTile.modelData.cur?"#7fd99a":"#33f3efe3") }
-                        Rectangle { visible:artTile.modelData.cur===true;anchors.left:parent.left;anchors.top:parent.top;anchors.margins:12;height:28;radius:14;color:"#7fd99a";width:usedText.implicitWidth+22
-                            Text { id:usedText;anchors.centerIn:parent;text:"✓ EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:14;font.weight:Font.Bold;font.letterSpacing:1.2 }
+                        Rectangle { anchors.fill:parent;radius:11;color:"transparent";border.width:artTile.focused?3:(artTile.modelData.cur||shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?2:1);border.color:artTile.focused?canvas.brand:(shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?canvas.brand:(artTile.modelData.cur?"#7fd99a":"#394656")) }
+                        Rectangle { visible:artTile.modelData.cur===true;anchors.left:parent.left;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:"#7fd99a";width:usedText.implicitWidth+16
+                            Text { id:usedText;anchors.centerIn:parent;text:"✓ EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
                         }
-                        Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:8;height:24;radius:12;color:"#b3000000";width:sizeText.implicitWidth+16
-                            Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:12 }
+                        Rectangle { visible:shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:canvas.brand;width:selText.implicitWidth+16
+                            Text { id:selText;anchors.centerIn:parent;text:"SELECCIONADO";color:"#111923";font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
+                        }
+                        Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:7;height:20;radius:10;color:"#d0000000";width:sizeText.implicitWidth+12
+                            Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:10 }
                         }
                         MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;hoverEnabled:true;onEntered:shell.artIndex=artTile.index;onClicked:shell.pickArt(artTile.index) }
                     }
                 }
             }
-            Text { anchors.centerIn:artPanel;visible:shell.artItems.length===0;text:shell.artBusy?"Buscando en SteamGridDB…":(shell.artError||"Sin resultados para este juego");color:canvas.ink2;font.family:canvas.body;font.pixelSize:24 }
-            Text { x:276;y:930;text:api.padOn?"A aplicar · LB/RB tipo de arte · LT/RT edición · B cerrar":"Intro: aplicar · Tab: tipo de arte · Re Pág/Av Pág: edición · Esc: cerrar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:17 }
-            Rectangle { x:1626;y:126;width:38;height:38;radius:19;color:"#14ffffff"
-                Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:24 }
-                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.closeArt() }
+            Text { x:artGrid.x;y:artGrid.y+artGrid.height/2-14;width:artGrid.width;horizontalAlignment:Text.AlignHCenter;visible:shell.artItems.length===0;text:shell.artBusy?"Buscando en SteamGridDB…":(shell.artError||"Sin resultados para este juego");color:canvas.ink2;font.family:canvas.body;font.pixelSize:18 }
+            Rectangle { x:384;y:640;width:1152;height:108;radius:16;color:"#202833";border.width:1;border.color:"#394656"
+                Text { x:18;y:8;text:"PREVISUALIZACIÓN ACTUAL / SELECCIONADA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:12;font.letterSpacing:1.4;font.weight:Font.DemiBold }
+                Row { x:18;y:29;spacing:14
+                    Repeater { model:["portada","fondo","logo"]
+                        delegate:Item { required property string modelData;width:365;height:72
+                            Rectangle { anchors.fill:parent;radius:9;color:"#141a22";border.width:1;border.color:shell.artPending[modelData]?canvas.brand:"#303b49"
+                                Image { anchors.left:parent.left;anchors.top:parent.top;anchors.bottom:parent.bottom;width:modelData==="portada"?50:102;anchors.margins:4;source:shell.previewArt(modelData);fillMode:modelData==="logo"?Image.PreserveAspectFit:Image.PreserveAspectCrop;asynchronous:true;smooth:true }
+                                Text { anchors.left:parent.left;anchors.leftMargin:modelData==="portada"?64:116;anchors.verticalCenter:parent.verticalCenter;text:(modelData==="portada"?"PORTADA":modelData.toUpperCase())+" · "+(shell.artPending[modelData]?"NUEVA":"ACTUAL");color:shell.artPending[modelData]?canvas.brand:canvas.ink3;font.family:canvas.hud;font.pixelSize:12;font.weight:Font.DemiBold;elide:Text.ElideRight }
+                            }
+                        }
+                    }
+                }
+            }
+            Text { x:384;y:770;text:api.padOn?"A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar":"Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:12;verticalAlignment:Text.AlignVCenter }
+            Rectangle { x:artPanel.x+artPanel.width-300;y:766;width:130;height:42;radius:21;color:"#283342";opacity:shell.artApplying?0.55:1
+                Text { anchors.centerIn:parent;text:"Cancelar";color:canvas.ink;font.family:canvas.body;font.pixelSize:15 }
+                MouseArea { anchors.fill:parent;enabled:!shell.artApplying;cursorShape:Qt.PointingHandCursor;onClicked:shell.closeArt() }
+            }
+            Rectangle { x:artPanel.x+artPanel.width-160;y:766;width:160;height:42;radius:21;color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brand:"#303846";opacity:shell.artApplying?0.55:1
+                Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?"#111923":canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
+                MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
+            }
+            Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
+                Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:20 }
+                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;enabled:!shell.artApplying;onClicked:shell.closeArt() }
             }
         }
     }
 
     // aviso temporal: se muestra al actuar (p. ej. «Biblioteca actualizada») y se desvanece solo (ver Api.notify)
-    Rectangle { visible:api.toast!==""; opacity:api.toastLevel; anchors { right:parent.right;bottom:parent.bottom;rightMargin:18;bottomMargin:bottomInset+8 }
+    Rectangle { visible:api.toast!==""; opacity:api.toastLevel; x:shell.toastX(width); y:shell.toastY(height)
         width:toastText.implicitWidth+28; height:toastText.implicitHeight+14; radius:height/2; color:"#b3000000"
-        Text { id:toastText; anchors.centerIn:parent; text:api.toast; color:"#e6d9a0"; font.family:"Rajdhani"; font.pixelSize:16; font.weight:Font.DemiBold } }
+        Text { id:toastText; anchors.centerIn:parent; text:api.toast; color:canvas.brand; font.family:"Rajdhani"; font.pixelSize:16; font.weight:Font.DemiBold } }
 }

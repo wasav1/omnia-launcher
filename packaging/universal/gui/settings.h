@@ -10,6 +10,7 @@ class SettingsWindow : public QDialog {
     QJsonObject initial;
     RouteList *folders;
     QComboBox *disks;
+    QComboBox *notificationPosition;
     KeyPanel *keyPanel;
     QCheckBox *clearKey;
     QLabel *status;
@@ -40,6 +41,14 @@ public:
         for(auto value:initial["volumes"].toArray()) {auto d=value.toObject();disks->addItem(d["label"].toString()+" — "+d["path"].toString(),d);if(d["uuid"]==saved["uuid"]&&d["path"]==saved["path"]){disks->setCurrentIndex(disks->count()-1);found=true;}}
         if(!saved.isEmpty()&&!found){disks->addItem(saved["label"].toString()+" (no conectado)",saved);disks->setCurrentIndex(disks->count()-1);}
         diskLayout->addWidget(disks);auto note=new QLabel("Se usa la etiqueta real del volumen. Si no tiene etiqueta, se muestra el modelo y la partición. Puedes conservar un disco desconectado.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
+        auto notifications=new QWidget;auto notificationLayout=new QVBoxLayout(notifications);
+        notificationLayout->addWidget(new QLabel("Posición de los avisos temporales de Omnia:"));
+        notificationPosition=new QComboBox;
+        for(const auto &item:QList<QPair<QString,QString>>{{"Inferior derecha","bottom-right"},{"Inferior izquierda","bottom-left"},{"Superior derecha","top-right"},{"Superior izquierda","top-left"}})notificationPosition->addItem(item.first,item.second);
+        auto currentPosition=initial["config"].toObject().value("notification_position").toString("bottom-right");
+        auto positionIndex=notificationPosition->findData(currentPosition);notificationPosition->setCurrentIndex(positionIndex<0?0:positionIndex);
+        notificationLayout->addWidget(notificationPosition);
+        auto notificationHelp=new QLabel("Los avisos aparecen unos segundos y se desvanecen solos. Esta opción cambia su posición dentro del escritorio de Omnia.");notificationHelp->setWordWrap(true);notificationLayout->addWidget(notificationHelp);notificationLayout->addStretch();tabs->addTab(notifications,"Notificaciones");
         auto art=new QWidget;auto artLayout=new QVBoxLayout(art);
         keyPanel=new KeyPanel(backend,initial["key_exists"].toBool(),autoCheck);artLayout->addWidget(keyPanel);
         clearKey=new QCheckBox("Eliminar la clave guardada al aplicar");artLayout->addWidget(clearKey);artLayout->addStretch();tabs->addTab(art,"SteamGridDB");
@@ -51,7 +60,7 @@ public:
         connect(save,&QPushButton::clicked,this,[this]{
             if(!clearKey->isChecked()&&!keyPanel->ready()){status->setText("Valida SteamGridDB o marca configurar después antes de aplicar.");return;}
             QJsonArray roots;for(int i=0;i<folders->count();++i)roots.append(folders->item(i)->data(Qt::UserRole).toString());
-            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disk",disks->currentData().toJsonObject()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()}};
+            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disk",disks->currentData().toJsonObject()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()}};
             auto p=new QProcess(this);p->setProcessChannelMode(QProcess::MergedChannels);saving=true;save->setEnabled(false);status->setText("Guardando…");
             connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){keyPanel->clearInput();clearKey->setChecked(false);folders->clearSelections();}p->deleteLater();});
             p->start("python3",{backend,"--save-settings"});if(p->waitForStarted()){p->write(QJsonDocument(data).toJson(QJsonDocument::Compact));p->closeWriteChannel();}else{saving=false;save->setEnabled(true);status->setText("No se pudo guardar la configuración.");p->deleteLater();}

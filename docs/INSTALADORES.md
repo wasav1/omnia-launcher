@@ -155,9 +155,24 @@ sus dependencias. Si se cancela esa autorización, la interfaz informa que el as
 La instalación antigua de paquetes `omnia-core`, `omnia-ui`, `omnia-kde` debe retirarse desde el gestor de paquetes
 antes de limpiar datos de usuario. El desinstalador no se ejecuta al actualizar el asistente.
 
-### Revisión 13: AppImage para CachyOS x86-64
+### Revisión 18: desvincular juegos y AppImage para CachyOS x86-64
 
-`Omnia-Installer-0.1.0-13-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
+`Omnia-Installer-0.1.0-18-x86_64.AppImage` incluye la acción **Desvincular de Omnia** en el menú
+contextual de las entradas manuales. Omnia retira el juego y sus datos asociados sin borrar sus archivos.
+También elimina el botón directo para agregar un ejecutable desde el layout; las carpetas se administran
+desde la configuración.
+
+### Revisión 16: actualización rápida para CachyOS x86-64
+
+`Omnia-Installer-0.1.0-16-x86_64.AppImage` detecta una instalación existente y abre directamente
+la validación de SteamGridDB y el resumen de actualización. Omite la selección de bibliotecas y disco,
+no vuelve a importar juegos y conserva la configuración. La actualización reemplaza los componentes
+de Omnia, actualiza la clave de arte solo si se introduce una clave validada y reinicia el servicio y Plasma.
+Si no detecta una instalación, conserva el asistente completo de primera instalación.
+
+### Revisión 15: AppImage para CachyOS x86-64
+
+`Omnia-Installer-0.1.0-15-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
 El icono circular azul grisáceo está en `assets/branding/omnia-icon-bluegray.png`; se conserva el original.
 La GUI restaura el entorno de bibliotecas del host antes de iniciar Python, CMake o Polkit. No se copia
 la GUI con Qt del bundle a la instalación del usuario: se vuelve a compilar con Qt del destino.

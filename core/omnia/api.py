@@ -16,7 +16,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .store import load_json
-from . import library_paths
+from . import library_paths, port_catalog
 from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
 from .events import EventBus
 from .games.base import Detector
@@ -52,6 +52,7 @@ class Api:
             "/health": ("GET", False, self.health),
             "/library": ("GET", True, self.library),
             "/settings/open": ("POST", True, self.settings_open),
+            "/settings": ("GET", True, self.settings),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
             "/view/set": ("POST", True, self.view_set),
@@ -68,6 +69,7 @@ class Api:
             "/fs/list": ("GET", True, self.fs_list),
             "/templates": ("GET", True, lambda q: {"templates": templates.catalog()}),
             "/game/add": ("POST", True, self.game_add),
+            "/game/suggest": ("GET", True, self.game_suggest),
             "/game/remove": ("POST", True, self.game_remove),
             "/saves/suggest": ("GET", True, self.saves_suggest),
             "/import/find": ("GET", True, lambda q: {"candidates": importer.find_legacy()}),
@@ -266,6 +268,13 @@ class Api:
         if result.returncode:
             raise ApiError(503, "KDE no pudo iniciar los ajustes. Consulta el registro de usuario de systemd.")
         return {"ok": True}
+
+    def settings(self, q):
+        cfg = load_json(self.store.dir / "config.json", {})
+        position = cfg.get("notification_position", "bottom-right")
+        if position not in {"bottom-right", "bottom-left", "top-right", "top-left"}:
+            position = "bottom-right"
+        return {"notification_position": position}
 
     def system_status(self, q):
         now = time.time()
@@ -468,6 +477,16 @@ class Api:
         except manual.ManualError as e:
             raise ApiError(400, str(e))
         return {"ok": True, "id": g["id"], "suggest": templates.suggest_dirs(g["ports"][0].get("cwd", ""))}
+
+    def game_suggest(self, q):
+        path = str(q.get("path", ""))
+        recognized = port_catalog.identify(path) if path else None
+        if recognized:
+            return {"name": recognized["game"], "kind": "port", "template": recognized["template"],
+                    "platform": recognized["platform"], "recognized": recognized["port"]}
+        suffix = os.path.splitext(path)[1].lower()
+        return {"name": os.path.basename(path).rsplit(".", 1)[0] if "." in os.path.basename(path) else os.path.basename(path),
+                "kind": "windows" if suffix == ".exe" else "native", "platform": "pc", "recognized": ""}
 
     def game_remove(self, q):
         if not manual.remove_game(self.store, q.get("id", "")):

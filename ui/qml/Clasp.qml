@@ -4,7 +4,7 @@ import QtQuick
 Canvas {
     id: c
     width: 320; height: 26
-    property color color: "#e6d9a0"
+    property color color: "#91a9c2"
     onColorChanged: requestPaint()
     onPaint: {
         var ctx = getContext("2d")

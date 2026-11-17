@@ -8,14 +8,16 @@ QML="$PREFIX/lib/qt6/qml"
 DISTRO=""
 NO_DEPS=0
 CLI=0
+UPDATE=0
 
-usage() { printf 'Uso: %s [--cli] [--check] [--no-deps]\n' "$0"; }
+usage() { printf 'Uso: %s [--cli] [--check] [--no-deps] [--update]\n' "$0"; }
 CHECK=0
 while (($#)); do
   case "$1" in
     --check) CHECK=1 ;;
     --cli) CLI=1 ;;
     --no-deps) NO_DEPS=1 ;;
+    --update) UPDATE=1; NO_DEPS=1 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -48,6 +50,9 @@ if ((!CHECK)); then
   command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1 || die 'se requiere una sesión KDE iniciada con systemd --user.'
 fi
 command -v python3 >/dev/null || die 'falta Python 3.11 o posterior.'
+if ((UPDATE)) && [[ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/omnia/library.json" && ! -x "$HOME/.local/share/omnia/installer/omnia-installer" ]]; then
+  die 'No se encontró una instalación existente de Omnia para actualizar.'
+fi
 PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 python3 -c 'import sys; raise SystemExit(sys.version_info < (3,11))' || die "Omnia requiere Python >=3.11 (detectado: $PYVER)."
 
@@ -72,13 +77,15 @@ if ((CHECK)); then
   exit 0
 fi
 
-if ((NO_DEPS)); then
+if ((UPDATE)); then
+  : # Una instalación existente ya tiene las dependencias; la actualización solo reemplaza archivos.
+elif ((NO_DEPS)); then
   bash "$ROOT/packaging/universal/check-dependencies.sh" --check
 else
   bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
 fi
 
-if ! command -v cmake >/dev/null || ! command -v c++ >/dev/null || ! command -v kdialog >/dev/null || ! python3 -c "import gi" 2>/dev/null || ! qt6_dev_available; then
+if ((!UPDATE)) && { ! command -v cmake >/dev/null || ! command -v c++ >/dev/null || ! command -v kdialog >/dev/null || ! python3 -c "import gi" 2>/dev/null || ! qt6_dev_available; }; then
   ((NO_DEPS)) && die 'faltan cmake, compilador C++ o Qt 6 de desarrollo (--no-deps está activo).'
   printf 'Omnia necesita instalar dependencias de compilación Qt 6 para integrar el token de sesión de forma segura.\n'
   bash "$ROOT/packaging/universal/dependencies.sh"
@@ -86,9 +93,11 @@ fi
 
 BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
-cmake -S "$ROOT/plasma/tokenprovider" -B "$BUILD/tokenprovider" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib
-cmake --build "$BUILD/tokenprovider" --parallel "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
-cmake --install "$BUILD/tokenprovider"
+if ((!UPDATE)); then
+  cmake -S "$ROOT/plasma/tokenprovider" -B "$BUILD/tokenprovider" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib
+  cmake --build "$BUILD/tokenprovider" --parallel "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+  cmake --install "$BUILD/tokenprovider"
+fi
 
 install -d "$DATA/plasma/wallpapers/org.omnia.launcher" "$DATA/plasma/plasmoids/org.omnia.desktop" "$DATA/omnia/ui/plasma-widgets" "$DATA/omnia/kwin" "$PREFIX/lib/omnia" "$PREFIX/bin"
 cp -a "$ROOT/plasma/wallpapers/org.omnia.launcher/." "$DATA/plasma/wallpapers/org.omnia.launcher/"
@@ -185,6 +194,18 @@ export PYTHONPATH="$PREFIX/lib/omnia${PYTHONPATH:+:$PYTHONPATH}"
 systemctl --user disable --now omnia-ui.service >/dev/null 2>&1 || true
 systemctl --user daemon-reload
 bash "$ROOT/packaging/universal/configure-qml.sh"
+if ((UPDATE)); then
+  systemctl --user stop omnia.service >/dev/null 2>&1 || true
+  if [[ -n "${OMNIA_SETTINGS:-}" ]] && ! python3 "$ROOT/packaging/universal/installer_backend.py" --configure "$OMNIA_SETTINGS"; then
+    systemctl --user start omnia.service || true
+    exit 1
+  fi
+  systemctl --user restart omnia.service
+  command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  printf 'Omnia se actualizó. Se conservaron la biblioteca y los ajustes. Reiniciando Plasma para recargar los componentes…\n'
+  systemctl --user restart plasma-plasmashell.service || printf 'No pude reiniciar Plasma. Cierra sesión y vuelve a entrar para cargar los cambios.\n' >&2
+  exit 0
+fi
 if [[ -n "${OMNIA_SETTINGS:-}" ]]; then
   systemctl --user stop omnia.service
   if ! python3 "$ROOT/packaging/universal/installer_backend.py" --configure "$OMNIA_SETTINGS"; then

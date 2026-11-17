@@ -16,6 +16,7 @@ QtObject {
     property string error: ""
     property var games: []
     property string toast: ""
+    property string notificationPosition: "bottom-right"
     property real toastLevel: 0           // opacidad del aviso: 1 al mostrarlo, 3 s después se desvanece en 2 s
     function notify(text) { toast = ""; toast = text }
     onToastChanged: {
@@ -73,6 +74,12 @@ QtObject {
         x.open(method, "http://127.0.0.1:" + api.port + path)
         x.setRequestHeader("Authorization", "Bearer " + api.token)
         x.send(method === "POST" ? (body ? JSON.stringify(body) : "{}") : null)
+    }
+
+    function loadPreferences() {
+        call("GET", "/settings", function(status, body) {
+            if (status === 200) api.notificationPosition = body.notification_position || "bottom-right"
+        })
     }
 
     function refresh() {
@@ -179,6 +186,7 @@ QtObject {
     function importApply(path, done) { call("POST", "/import/apply?path=" + encodeURIComponent(path), function (st, b) { if (st === 200) api.refresh(); done(st, b) }) }
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
+    function suggestGame(path, done) { call("GET", "/game/suggest?path=" + encodeURIComponent(path), done) }
     function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) api.refresh(); done(st, b) }) }
 
     function reportMenu(open) { api.menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
@@ -220,10 +228,12 @@ QtObject {
     property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
     property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
+    property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: api.controlsEnabled; triggeredOnStart: true; onTriggered: api.loadPreferences() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))
         tokenPath = arg("--token", "")
+        loadPreferences()
         refresh()
         if (controlsEnabled) pollPad()
     }

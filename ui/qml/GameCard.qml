@@ -30,7 +30,7 @@ Item {
         Rectangle { anchors.fill: parent; color: "#171b18" }
         Scene {
             anchors.fill: parent
-            pal: card.game && card.game.pal ? card.game.pal : ["#10150f", "#1f3328", "#18271f", "#0d1510", "#e6d9a0"]
+            pal: card.game && card.game.pal ? card.game.pal : ["#111923", "#405b78", "#273b53", "#101722", "#91a9c2"]
             big: false
             visible: cover.status !== Image.Ready
         }
@@ -68,7 +68,7 @@ Item {
             Text { text: card.game && card.game.platform === "pc" && card.game.src ? "PC · " + card.game.src : card.platformLabel; color: card.platformColor; font.family: "Rajdhani"; font.pixelSize: 15; font.weight: Font.Bold; font.letterSpacing: .9; anchors.verticalCenter: parent.verticalCenter }
         }
     }
-    Text { visible: !!(card.game && card.game.fav); anchors { right: parent.right; top: parent.top; margins: 10 } text: "★"; color: "#e6d9a0"; font.pixelSize: 22; style: Text.Outline; styleColor: "#99000000" }
+    Text { visible: !!(card.game && card.game.fav); anchors { right: parent.right; top: parent.top; margins: 10 } text: "★"; color: "#91a9c2"; font.pixelSize: 22; style: Text.Outline; styleColor: "#99000000" }
     Rectangle {
         visible: !!game && !(game.lastPlayed > 0)               // sin jugar nunca: punto verde; con la tarjeta seleccionada, «NUEVO»
         anchors { right: parent.right; top: parent.top; topMargin: current ? 12 : 16; rightMargin: (game && game.fav ? 40 : 12) + (current ? 0 : 4) }
