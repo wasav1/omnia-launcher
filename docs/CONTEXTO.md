@@ -111,6 +111,10 @@ conserva la proporción con `PreserveAspectCrop`, un overscan del 14 % y paneo h
 panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
 ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
 
+**Instalador local:** revisión 5 del asistente Arch y `.run` de fuentes preparados con dependencias completas para CachyOS.
+El asistente ya compiló e instaló Omnia en este PC. Tras publicar QML_IMPORT_PATH y reiniciar Plasma,
+se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 pruebas de instalador OK.
+
 **Pendiente:**
 - Comparar detalles de arte/logo, ficha y telemetría a 1920×1080 contra el PNG de referencia.
 - Probar selector/ciclo de arte con la clave local de SteamGridDB sin revelar su contenido.
@@ -134,6 +138,34 @@ ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de
 
 ## 7. Registro de cambios
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-16 — Revisión 5: la superficie interactiva de Omnia se ancla al contentItem de la ventana de escritorio
+  del monitor correspondiente, independiente de desplazamientos de la celda y del área reservada por los paneles.
+  Sigue los cambios de tamaño y escalado lógico de Qt sin temporizador de posicionamiento. Se oculta en modo edición.
+  El layout reutiliza la instancia y retira duplicados al reaplicarse. Verificado en la sesión real:
+  DP-1, origen 0,0, superficie 1920×1080; Plasma y núcleo activos. Prueba Qt offscreen con 1920×1080,
+  2560×1440, traslado a segunda ventana 1280×720 y cambio a 1536×864.
+
+
+- 2026-11-16 — Instalador revisión 4: corregido `org.omnia.session is not installed` tras primera instalación.
+  El plugin existía en ~/.local/lib/qt6/qml pero faltaba QML_IMPORT_PATH en systemd de usuario. Se añade
+  environment.d persistente y publicación inmediata en el gestor tras daemon-reload, antes de reiniciar Plasma.
+  Se preservan las rutas QML existentes.
+
+
+- 2026-11-16 — Instalador Arch revisión 3: añadido `umu-launcher` al perfil compartido para evitar que
+  la importación de juegos Windows falle en instalaciones limpias. Los ports Linux siguen sin usar UMU.
+
+
+- 2026-11-16 — Instalador Arch/CachyOS revisión 2: lista compartida entre metadatos y preflight universal,
+  incluyendo Make, Qt Tools (`qdbus6`), GLib, libpulse, KWin y agente Polkit KDE. Se verifica antes de la GUI
+  y del despliegue y se bloquean `--check`/`--no-deps` si faltan paquetes. El payload incluye el perfil.
+  Pruebas de contrato de dependencias en archivo y cancelación antes de instalar. En este PC falta CMake;
+  Pacman no puede instalarlo hasta sincronizar la base de datos ausente de `openai-chatgpt` mediante actualización completa.
+  Verificación: 18 pruebas de instalador OK; suite completa con D-Bus aislado: 292/294 OK, con fallos en
+  tecla MENU e historial de reinicio breve (código del núcleo sin modificar). Formato Arch y payload comprobados;
+  no se ejecutó el asistente ni se modificó el escritorio del usuario.
+
 
 - 2026-11-16 — Retirado del código el tema Omnia Night y su flujo de instalación/aplicación/restauración: applet de barra,
   paleta, Plasma Style, Aurorae, LookAndFeel, comando `omnia-theme`, pestañas/opciones de tema y guía. Se conservaron

@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '1'
+RELEASE = '5'
 
 
 def source_files():
@@ -24,6 +24,7 @@ def source_files():
         for file in sorted((REPO / base).rglob('*')):
             if file.is_file() and not file.is_symlink() and not any(p in {'out', '__pycache__'} for p in file.relative_to(REPO).parts) and file.suffix != '.pyc':
                 yield file
+    yield REPO / 'packaging/distros/profiles.json'
     yield REPO / 'pyproject.toml'
     yield REPO / 'docs/INSTALADORES.md'
 

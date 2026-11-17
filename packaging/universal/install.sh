@@ -68,7 +68,14 @@ if ((CHECK)); then
   printf 'Plasma %s · %s · Python %s\n' "$PLASMA_VERSION" "$DISTRO" "$PYVER"
   for tool in cmake c++; do command -v "$tool" >/dev/null || printf 'Falta herramienta: %s\n' "$tool"; done
   qt6_dev_available || printf 'Faltan módulos de desarrollo Qt 6.\n'
+  bash "$ROOT/packaging/universal/check-dependencies.sh" --check
   exit 0
+fi
+
+if ((NO_DEPS)); then
+  bash "$ROOT/packaging/universal/check-dependencies.sh" --check
+else
+  bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
 fi
 
 if ! command -v cmake >/dev/null || ! command -v c++ >/dev/null || ! command -v kdialog >/dev/null || ! python3 -c "import gi" 2>/dev/null || ! qt6_dev_available; then
@@ -168,6 +175,7 @@ export PYTHONPATH="$PREFIX/lib/omnia${PYTHONPATH:+:$PYTHONPATH}"
 # Evita que la implementación antigua de capa QML tape o duplique el applet nativo.
 systemctl --user disable --now omnia-ui.service >/dev/null 2>&1 || true
 systemctl --user daemon-reload
+bash "$ROOT/packaging/universal/configure-qml.sh"
 if [[ -n "${OMNIA_SETTINGS:-}" ]]; then
   systemctl --user stop omnia.service
   if ! python3 "$ROOT/packaging/universal/installer_backend.py" --configure "$OMNIA_SETTINGS"; then

@@ -67,3 +67,46 @@ Fuentes de referencia:
 - https://packages.debian.org/trixie/libs/qml6-module-org-kde-ksysguard
 - https://packages.fedoraproject.org/pkgs/qt6-qt5compat/
 - https://packages.fedoraproject.org/pkgs/plasma-workspace/
+
+## Instalación limpia en Arch y CachyOS (revisión 2)
+
+El paquete nativo y el preflight universal usan la misma lista de `packaging/distros/profiles.json`.
+Incluye CMake, GCC y Make para compilar; Qt Base/Declarative/5Compat, Kirigami y libksysguard para QML;
+Qt Tools para `qdbus6`; PyGObject y GLib para D-Bus; libpulse para `pactl`/`parec`, además de Plasma,
+KWin y Polkit con agente KDE. No exige instalar Steam, emuladores ni launchers externos.
+El servidor de audio PulseAudio o PipeWire-Pulse debe estar activo para las funciones de audio de la sesión.
+
+Antes de abrir la GUI y antes de desplegar archivos, el instalador universal comprueba también las dependencias
+que no intervienen en la compilación. `--check` y `--no-deps` fallan si falta alguna; en el flujo normal ofrece
+instalarlas mediante Polkit y verifica el resultado. El paquete nativo deja que Pacman resuelva esas dependencias.
+La vía recomendada para una instalación limpia es el paquete nativo; el `.run` presupone una sesión Plasma con
+Python y Polkit disponibles. Si faltan incluso kdialog o Polkit, instala primero el paquete nativo.
+
+Para instalar el artefacto local en un sistema actualizado:
+
+```sh
+sudo pacman -U ./omnia-desktop-suite-installer-0.1.0-2-any.pkg.tar.zst
+```
+
+Si Pacman informa que falta una base de datos o que las dependencias requieren una actualización, ejecuta
+primero `sudo pacman -Syu` y después repite la instalación. No uses una sincronización aislada `pacman -Sy`
+seguida de una instalación parcial. Abre después **Omnia Desktop Suite — Instalar o actualizar** desde el menú.
+
+### Revisión 3 (Arch/CachyOS)
+
+El asistente declara también `umu-launcher`: importar un ejecutable Windows necesita `umu-run`.
+Proton y su runtime se descargan al ejecutar el primer juego Windows; requieren Internet y espacio adicional.
+Los lanzadores Linux de NX2navi, TOTK y Savage Wind no utilizan UMU.
+
+### Revisión 4: carga del puente QML
+
+Se publica QML_IMPORT_PATH en systemd de usuario antes de reiniciar Plasma y se guarda en
+`~/.config/environment.d/60-omnia-qml.conf` para las siguientes sesiones. El script de sesión KDE
+se mantiene para los procesos iniciados directamente desde Plasma.
+
+### Revisión 5: tamaño automático por pantalla
+
+La superficie interactiva se ancla a la ventana del escritorio de su propio monitor (dimensiones lógicas Qt),
+no a la celda movible y redimensionable del widget. Sigue cambios de resolución, escala y ventana sin fijar
+1920×1080 en la superficie. Se oculta al editar Plasma; los paneles conservan sus ventanas independientes.
+El layout reutiliza la instancia existente y retira duplicados al reaplicar.

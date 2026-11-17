@@ -3,12 +3,12 @@
 pkgbase=omnia-launcher
 pkgname=(omnia-core omnia-ui omnia-kde)
 pkgver=0.1.0
-pkgrel=32
+pkgrel=33
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=('x86_64' 'aarch64')
 url="https://github.com/wasav1/omnia-launcher"
 license=('GPL-3.0-or-later')       # recomendada; decisión abierta, confirmar antes de publicar
-makedepends=(cmake qt6-base qt6-declarative python-build python-installer python-setuptools python-wheel)
+makedepends=(gcc make cmake qt6-base qt6-declarative python-build python-installer python-setuptools python-wheel)
 source=("$pkgbase-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')                # sustituir con `updpkgsums` al publicar una versión
 
@@ -23,7 +23,7 @@ build() {
 
 package_omnia-core() {
   pkgdesc="Núcleo de Omnia: biblioteca de juegos, API local, arte y mando"
-  depends=(python systemd glib2)          # glib2: `gio launch` abre las aplicaciones del Big Menu
+  depends=(python systemd glib2 python-gobject libpulse)          # glib2: `gio launch` abre las aplicaciones del Big Menu
   optdepends=('steam: juegos de Steam'
               'lutris: juegos de Lutris'
               'heroic-games-launcher-bin: juegos de Epic, GOG y Amazon'
@@ -50,7 +50,7 @@ package_omnia-ui() {
 
 package_omnia-kde() {
   pkgdesc="Integración de Omnia con KDE Plasma: Win+D, vigilante de ventanas y primer arranque"
-  depends=(omnia-ui kwin kdialog python-gobject qt6-declarative)
+  depends=(omnia-ui plasma-workspace kwin kdialog python-gobject qt6-declarative qt6-tools libksysguard)
   cd "$pkgbase-$pkgver"
   for s in omnia-showdesktop omnia-watch; do
     install -d "$pkgdir/usr/share/kwin/scripts/$s"

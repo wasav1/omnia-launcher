@@ -11,6 +11,7 @@ if [[ -e /run/ostree-booted ]]; then
   command -v kdialog >/dev/null && kdialog --error 'Esta edición OSTree necesita un instalador específico; este paquete es para distros KDE tradicionales.'
   exit 1
 fi
+bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
 if [[ -x "$ROOT/omnia-installer" ]]; then
   set +e
   export OMNIA_GUI_BINARY="$ROOT/omnia-installer"
