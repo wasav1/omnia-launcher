@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from omnia import paths, library_paths
 from omnia.store import load_json, write_json_atomic
 from route_inspection import effective_roots, inspect_route
-from candidate_import import prepare
+from candidate_import import prepare, requirements
 
 
 def volumes():
@@ -110,7 +110,7 @@ def validate_key(key, opener=None):
 
 
 def logo_path():
-    candidates = [ROOT / 'assets/branding/omnia-logo.png', paths.data_dir() / 'assets/branding/omnia-logo.png',
+    candidates = [ROOT / 'assets/branding/omnia-icon-bluegray.png', ROOT / 'assets/branding/omnia-logo.png', paths.data_dir() / 'assets/branding/omnia-logo.png',
                   Path('/usr/share/omnia/assets/branding/omnia-logo.png')]
     return str(next((p for p in candidates if p.is_file()), candidates[0]))
 
@@ -128,6 +128,19 @@ def main():
                           'installed': (paths.config_dir() / 'library.json').exists() or (paths.data_dir() / 'installer/omnia-installer').exists(),
                           'linked_roots': roots,
                           'key_exists': (paths.config_dir() / 'steamgriddb.key').exists()}))
+    elif mode == '--uninstall-plan':
+        from omnia.uninstall import plan
+        print(json.dumps(plan()))
+    elif mode == '--uninstall':
+        data = json.load(sys.stdin)
+        if data.get('accepted') is not True:
+            raise ValueError('Debes confirmar la eliminación de los datos de Omnia.')
+        from omnia.uninstall import uninstall
+        print(uninstall(remove_package=data.get('remove_package') is True))
+    elif mode == '--check-candidates':
+        data = json.load(sys.stdin)
+        missing = requirements(data.get('selected_candidates', []))
+        print(json.dumps({'missing': missing, 'ready': not missing}))
     elif mode == '--inspect-route':
         data = json.load(sys.stdin)
         games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
@@ -174,7 +187,7 @@ def main():
 if __name__ == '__main__':
     try:
         sys.exit(main())
-    except ValueError as error:
+    except (ValueError, RuntimeError) as error:
         print(str(error), file=sys.stderr)
         sys.exit(1)
     except Exception:

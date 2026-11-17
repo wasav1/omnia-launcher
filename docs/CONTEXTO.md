@@ -111,7 +111,7 @@ conserva la proporción con `PreserveAspectCrop`, un overscan del 14 % y paneo h
 panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
 ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
 
-**Instalador local:** revisión 5 del asistente Arch y `.run` de fuentes preparados con dependencias completas para CachyOS.
+**Instalador local:** revisión 11 del asistente Arch y `.run` de fuentes preparados con dependencias completas para CachyOS.
 El asistente ya compiló e instaló Omnia en este PC. Tras publicar QML_IMPORT_PATH y reiniciar Plasma,
 se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 pruebas de instalador OK.
 
@@ -137,7 +137,58 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+
+- 2026-11-17 — Revisión 12 del asistente: AppImage x86-64 regenerado con el icono circular azul grisáceo, catálogo de ports, revisión visual de candidatos, detección de complementos, desinstalador y paneo del fondo a doble velocidad. Cambio local listo para publicar.
+
+- 2026-11-16 — Se duplica la velocidad del paneo del fondo animado en `Backdrop.qml`: cada recorrido pasa de 150 a 75 segundos (ciclo completo de 5 a 2,5 minutos), manteniendo la curva suave `InOutSine`.
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-16 — Revisión 11: instalador AppImage x86-64 para este CachyOS, con Qt Widgets y plugins Wayland/XCB
+  incluidos para abrir el asistente sin compilarlo antes. Builder reproducible mediante herramientas externas
+  versionadas; registra hashes de appimagetool/runtime, bibliotecas incluidas y glibc del host. La instalación
+  compila los componentes con Qt del destino. Los procesos hijos recuperan el entorno del host para no mezclar
+  bibliotecas del AppImage con Python/CMake/Polkit. Icono circular Omnia en azul grisáceo, transparente,
+  conservando el logo original en el repositorio; se usa en AppImage, cabecera e iconos del asistente.
+
+
+- 2026-11-16 — Revisión 10: corregido el acceso local del desinstalador. Plasma no siempre incluye ~/.local/bin
+  en PATH; el instalador genera Exec con ruta absoluta y escape desktop, como ya hacía con Ajustes generales.
+
+
+- 2026-11-16 — Revisión 9: desinstalador gráfico con confirmación, disponible en Ajustes y menú de aplicaciones.
+  Retira componentes/datos de la instalación por usuario mediante lista explícita, restaura atajos y wallpaper/carpeta
+  anterior cuando existe el respaldo (o fondo nativo), detiene servicios y recupera procesos congelados. Conserva juegos,
+  partidas, respaldos, emuladores y dependencias; rechaza rutas redirigidas o que contengan partidas registradas.
+  Puede retirar solo el paquete del asistente Arch mediante Polkit, sin autoremove. Instalaciones antiguas con
+  omnia-core a nivel de sistema se remiten al gestor de paquetes antes de borrar datos de usuario.
+  Verificación: 9 pruebas de limpieza en directorios temporales/flujos simulados, 20 de instalador y 3 de
+  empaquetado OK; pantalla gráfica revisada sin ejecutar la desinstalación real.
+
+
+- 2026-11-16 — Revisión 8: casilla redondeada azul centrada en la columna Agregar, sin rectángulo de selección
+  vacío. Delegate conserva el estado del modelo, clic y barra espaciadora; foco dibujado alrededor de la casilla.
+  Las entradas vinculadas muestran una insignia verde.
+
+
+- 2026-11-16 — Instalador revisión 7: catálogo local de Longshot, Hookshot, NX2navi, Savage Wind y TOTK Recomp,
+  con nombre canónico de juego, plataforma de origen y propuesta de ejecutable. Agrupa versiones por port,
+  ignora launchers/builders/xlate y agrupa ports reconocidos del mismo juego conservando IDs existentes.
+  Nuevas versiones siguen disponibles aunque otra esté vinculada; solo se agregan al confirmar la selección.
+  Contadores por carpeta y totales distinguen juegos de ports/archivos y evitan contar dos veces rutas superpuestas.
+  Comprobación previa de Gopher64 (nativo/Flatpak), UMU y emuladores personalizados con aviso de instalación,
+  sin perder la selección; Gopher64 no se permite para ROMs ajenas a N64. No se modifica la biblioteca al actualizar.
+  Pruebas de catálogo/importación y Qt real para contador y aviso de complemento; probadas las rutas reales de NX2navi,
+  TOTK y Savage Wind sin ejecutar juegos. Verificación: 36 pruebas de instalador, catálogo, empaquetado y GUI OK.
+  La detección por nombre/contexto no certifica versión ni compatibilidad.
+
+
+- 2026-11-16 — Instalador revisión 6: rediseño Qt Widgets inspirado en el launcher de Longshot, con paleta oscura,
+  acento azul, cabecera de cinco pasos, tarjetas, resumen de configuración, capacidad real del volumen y detalles
+  desplegables. Progreso indeterminado durante trabajo y detalles abiertos automáticamente en fallo; se conserva
+  la clave al reintentar. Apariencia compartida con ajustes y revisión de candidatos. Capturas revisadas sin instalar
+  ni modificar la biblioteca. Verificación: 20 pruebas de instalador y 3 de empaquetado OK; smoke visual
+  de las cinco páginas, ajustes (4 pestañas) y candidatos OK.
+
 
 - 2026-11-16 — Clave SteamGridDB perdida al reintentar: la GUI limpiaba el campo incluso si --install fallaba
   antes de configure() (por ejemplo, por UMU ausente). Reintentar enviaba clave vacía y completaba sin arte.
@@ -481,7 +532,7 @@ Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secc
   Comprobaciones: compilación del asistente, apertura offscreen y navegación por sus cinco pantallas con bloqueo por
   consentimiento, 20 pruebas de setup (incluida migración desde Big Menu), 8 del monitor, 25 de juegos manuales y 3 del
   almacenamiento de ajustes/clave. No se ejecutó una instalación real ni una autorización Polkit con contraseña.
-  El `.run` es gráfico; no se ha generado un AppImage. El binario se construye para la máquina actual y el lanzador
+  El `.run` y el AppImage son gráficos; el AppImage se construye para la máquina actual y el lanzador
   intenta recompilar desde fuentes si el binario no arranca en otra distro. Compatibilidad entre distros aún pendiente.
 
 - 2026-11-16 — Falso negativo al validar SteamGridDB: comprobación real de la clave guardada dio HTTP 403 con

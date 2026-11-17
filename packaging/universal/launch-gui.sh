@@ -11,11 +11,13 @@ if [[ -e /run/ostree-booted ]]; then
   command -v kdialog >/dev/null && kdialog --error 'Esta edición OSTree necesita un instalador específico; este paquete es para distros KDE tradicionales.'
   exit 1
 fi
-bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
+if [[ "${1:-}" != --uninstall* ]]; then
+  bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
+fi
 if [[ -x "$ROOT/omnia-installer" ]]; then
   set +e
   export OMNIA_GUI_BINARY="$ROOT/omnia-installer"
-  "$ROOT/omnia-installer" "$ROOT/packaging/universal/installer_backend.py"
+  "$ROOT/omnia-installer" "$ROOT/packaging/universal/installer_backend.py" "$@"
   status=$?
   set -e
   [[ "$status" == 0 ]] && exit 0
@@ -30,4 +32,4 @@ if ! cmake -S "$ROOT/packaging/universal/gui" -B "$BUILD" >"$BUILD/log" 2>&1; th
 fi
 cmake --build "$BUILD" --parallel 2 >>"$BUILD/log" 2>&1 || { kdialog --error 'No se pudo compilar la interfaz gráfica.'; exit 1; }
 export OMNIA_GUI_BINARY="$BUILD/omnia-installer"
-"$BUILD/omnia-installer" "$ROOT/packaging/universal/installer_backend.py"
+"$BUILD/omnia-installer" "$ROOT/packaging/universal/installer_backend.py" "$@"

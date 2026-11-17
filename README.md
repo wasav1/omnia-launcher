@@ -10,6 +10,13 @@ monitor del sistema y ajustes generales en un solo proyecto.
 > **Descargas pendientes de publicación.** Los enlaces siguientes están preparados para la release `v0.1.0`.
 > Funcionarán cuando publiquemos esa release y adjuntemos los archivos. Hacer público el repositorio no los sube automáticamente.
 
+## Instalador AppImage local
+
+El instalador gráfico también se construye como **AppImage para CachyOS x86-64**, con el icono circular
+azul grisáceo de Omnia y Qt incluido. La salida actual es `Omnia-Installer-0.1.0-12-x86_64.AppImage`.
+Consulta [construcción y compatibilidad del AppImage](docs/INSTALADORES.md). Es un artefacto local;
+no se ha adjuntado todavía a una release de GitHub.
+
 ## Descargar e instalar
 
 Elige el archivo para tu distribución. Todos incluyen el mismo asistente gráfico.

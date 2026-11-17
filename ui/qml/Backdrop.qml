@@ -15,8 +15,8 @@ Item {
     SequentialAnimation on pan {
         running: bd.source.toString() !== ""
         loops: Animation.Infinite
-        NumberAnimation { from:0; to:1; duration:150000; easing.type:Easing.InOutSine }
-        NumberAnimation { from:1; to:0; duration:150000; easing.type:Easing.InOutSine }
+        NumberAnimation { from:0; to:1; duration:75000; easing.type:Easing.InOutSine }
+        NumberAnimation { from:1; to:0; duration:75000; easing.type:Easing.InOutSine }
     }
 
     function crossfade() {

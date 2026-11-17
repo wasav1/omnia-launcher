@@ -110,3 +110,73 @@ La superficie interactiva se ancla a la ventana del escritorio de su propio moni
 no a la celda movible y redimensionable del widget. Sigue cambios de resolución, escala y ventana sin fijar
 1920×1080 en la superficie. Se oculta al editar Plasma; los paneles conservan sus ventanas independientes.
 El layout reutiliza la instancia existente y retira duplicados al reaplicar.
+
+### Revisión 6: asistente visual
+
+Interfaz oscura con cabecera de pasos, tarjetas de configuración, capacidad real del volumen y resumen final.
+El progreso es indeterminado mientras se instala: no muestra porcentajes estimados. Los detalles están plegados
+inicialmente y se abren si falla la instalación. Se conserva el flujo de consentimiento y la clave de SteamGridDB
+al reintentar. El estilo también se aplica a Ajustes generales y al diálogo de candidatos.
+
+### Revisión 7: ports, selección y complementos
+
+El catálogo `core/omnia/port_catalog.py` reconoce inicialmente Longshot, Hookshot, NX2navi, Savage Wind y TOTK Recomp
+por el ejecutable y su contexto de carpeta. Propone el nombre del juego, Switch/Switch 2 y un lanzador; la propuesta
+es editable y requiere confirmación. Agrupa versiones y omite builders, launchers y traductores auxiliares.
+La identificación no valida hashes de la edición ni garantiza compatibilidad de cualquier versión.
+
+La revisión muestra juego, port/plataforma, ejecutable y emulador. N64 propone Gopher64. Antes de confirmar se
+comprueban Gopher64 nativo/Flatpak, UMU para Windows y los emuladores externos; si falta algo, se explica qué instalar
+y se conserva la selección para volver a confirmar. No se instalan emuladores automáticamente.
+
+Cada carpeta muestra juegos vinculados, candidatos y selección pendiente; el total distingue juegos de ports/archivos.
+Dos ports conocidos del mismo juego cuentan como un juego; las rutas superpuestas no duplican archivos.
+La importación agrupa esos ports sin cambiar el ID ni perder el historial de una entrada reconocida existente.
+Las entradas ya importadas no se renombran ni migran automáticamente al actualizar el asistente.
+
+### Revisión 8: selección de juegos
+
+Casillas centradas y redondeadas, sin resaltado vacío de celda; foco visible y control con Espacio.
+Las entradas ya vinculadas muestran una insignia verde y no se vuelven a importar.
+
+### Revisión 9: desinstalar
+
+Abre **Omnia — Desinstalar** o el botón de Ajustes generales. La pantalla explica los datos que se eliminarán
+(configuración, clave, historial, arte y componentes propios) y requiere marcar una confirmación antes de proceder.
+No elimina juegos, ROMs, emuladores, partidas ni respaldos externos. Utiliza una lista de rutas propias y bloquea
+el borrado si una ruta contiene juegos/partidas registrados o un padre está redirigido por un enlace.
+
+Retira solo los widgets de Omnia y restaura los atajos guardados. Para instalaciones nuevas se guarda el wallpaper
+y carpeta anterior de cada escritorio; para instalaciones previas sin ese registro se usa el fondo nativo de Plasma.
+Conserva otros widgets y paneles existentes. Reinicia Plasma al finalizar. No restaura el layout completo antiguo.
+
+En Arch/CachyOS puede retirar también `omnia-desktop-suite-installer` con autorización de Polkit, sin desinstalar
+sus dependencias. Si se cancela esa autorización, la interfaz informa que el asistente sigue instalado.
+La instalación antigua de paquetes `omnia-core`, `omnia-ui`, `omnia-kde` debe retirarse desde el gestor de paquetes
+antes de limpiar datos de usuario. El desinstalador no se ejecuta al actualizar el asistente.
+
+### Revisión 12: AppImage para CachyOS x86-64
+
+`Omnia-Installer-0.1.0-12-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
+El icono circular azul grisáceo está en `assets/branding/omnia-icon-bluegray.png`; se conserva el original.
+La GUI restaura el entorno de bibliotecas del host antes de iniciar Python, CMake o Polkit. No se copia
+la GUI con Qt del bundle a la instalación del usuario: se vuelve a compilar con Qt del destino.
+
+Construcción local:
+
+```sh
+python3 packaging/distros/build_appimage.py \
+  --appimagetool /ruta/appimagetool-x86_64.AppImage \
+  --runtime /ruta/runtime-x86_64
+```
+
+Herramientas oficiales usadas: appimagetool 1.9.1 y type2-runtime 20251108. Los hashes de ambas se registran
+en el manifiesto de salida, junto a la glibc del host; el archivo también tiene un checksum SHA-256.
+Se necesita CMake, compilador C++, qmake6, Qt Widgets/Wayland/SVG y sus plugins para construirlo.
+La GUI se puede abrir desde el AppImage antes de compilar el resto. La instalación de Omnia requiere
+Plasma 6, Python >=3.11 y las dependencias ya descritas (se comprueban desde el asistente).
+
+Este artefacto se compila en CachyOS para la máquina actual: no se anuncia compatibilidad universal con
+distribuciones cuya glibc sea más antigua. Para distribuirlo ampliamente habría que compilar y probar
+sobre una base compatible más antigua. Si no está disponible FUSE, se puede abrir con
+`./Omnia-Installer-0.1.0-11-x86_64.AppImage --appimage-extract-and-run`.

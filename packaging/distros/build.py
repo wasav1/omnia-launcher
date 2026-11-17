@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '5'
+RELEASE = '12'
 
 
 def source_files():
@@ -39,10 +39,13 @@ def stage(root):
     shutil.copyfile(REPO / 'docs/INSTALADORES.md', source / 'README.md')
     for src, dest in [('packaging/distros/omnia-desktop-suite-install', 'usr/bin/omnia-desktop-suite-install'),
                       ('packaging/xdg/org.omnia.installer.desktop', 'usr/share/applications/org.omnia.installer.desktop'),
-                      ('assets/branding/omnia-logo.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png'),
+                      ('packaging/xdg/org.omnia.uninstall.desktop', 'usr/share/applications/org.omnia.uninstall.desktop'),
+                      ('assets/branding/omnia-icon-bluegray.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png'),
                       ('assets/branding/omnia-menu.svg', 'usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg')]:
         target=root/dest;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(REPO/src,target)
         target.chmod(0o755 if dest.startswith('usr/bin') else 0o644)
+        if dest.endswith('org.omnia.uninstall.desktop'):
+            target.write_text(target.read_text().replace('Exec=omnia-uninstall', 'Exec=omnia-desktop-suite-install --uninstall'))
 
 
 def tar_tree(root, output, prefix=''):
@@ -132,6 +135,7 @@ cp -a usr %{{buildroot}}/
 /usr/bin/omnia-desktop-suite-install
 /usr/share/{NAME}
 /usr/share/applications/org.omnia.installer.desktop
+/usr/share/applications/org.omnia.uninstall.desktop
 /usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png
 '''
     spec=top/'SPECS/omnia.spec';spec.write_text(text)

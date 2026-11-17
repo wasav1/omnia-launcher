@@ -152,7 +152,7 @@ install -m755 "$GUI_BINARY" "$DATA/omnia/installer/omnia-installer"
 install -m644 "$ROOT/packaging/universal/installer_backend.py" "$DATA/omnia/installer/packaging/universal/installer_backend.py"
 install -m644 "$ROOT/packaging/universal/route_inspection.py" "$DATA/omnia/installer/packaging/universal/route_inspection.py"
 install -m644 "$ROOT/packaging/universal/candidate_import.py" "$DATA/omnia/installer/packaging/universal/candidate_import.py"
-install -m644 "$ROOT/assets/branding/omnia-logo.png" "$DATA/omnia/assets/branding/omnia-logo.png"
+install -m644 "$ROOT/assets/branding/omnia-icon-bluegray.png" "$DATA/omnia/assets/branding/omnia-logo.png"
 install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$DATA/omnia/assets/branding/omnia-menu.svg"
 install -d "$HOME/.local/share/icons/hicolor/scalable/apps"
 install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.menu.svg"
@@ -170,6 +170,14 @@ executable, icon, desktop = sys.argv[1:]
 quoted = '"' + executable.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
 Path(desktop).write_text('[Desktop Entry]\nType=Application\nName=Omnia — Ajustes generales\nComment=Bibliotecas, monitor y SteamGridDB\nExec=' + quoted + '\nIcon=' + icon + '\nTerminal=false\nCategories=Settings;Game;\n')
 PYDESKTOP
+install -m755 "$ROOT/packaging/universal/omnia-uninstall" "$PREFIX/bin/omnia-uninstall"
+python3 - "$ROOT/packaging/xdg/org.omnia.uninstall.desktop" "$PREFIX/bin/omnia-uninstall" "$DATA/applications/org.omnia.uninstall.desktop" <<'PYUNINSTALL'
+import sys
+from pathlib import Path
+source, executable, destination = sys.argv[1:]
+quoted = '"' + executable.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
+Path(destination).write_text(Path(source).read_text().replace('Exec=omnia-uninstall', 'Exec=' + quoted))
+PYUNINSTALL
 export PATH="$PREFIX/bin:$PATH"
 export PYTHONPATH="$PREFIX/lib/omnia${PYTHONPATH:+:$PYTHONPATH}"
 # Evita que la implementación antigua de capa QML tape o duplique el applet nativo.
@@ -199,6 +207,8 @@ if [[ -f "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" ]]; then
   install -d "$HOME/.config/omnia/layout-backups"
   cp -p "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$HOME/.config/omnia/layout-backups/plasma-$(date +%Y%m%d-%H%M%S).conf"
 fi
+# Guarda únicamente wallpaper/carpeta originales; el desinstalador no sustituye paneles del usuario.
+python3 -m omnia.uninstall --capture-desktop
 LAYOUT_APPLIED=0
 if command -v qdbus6 >/dev/null || command -v qdbus >/dev/null; then
   if "$PREFIX/bin/omnia-layout"; then

@@ -2,7 +2,7 @@
 import os
 import time
 from pathlib import Path
-from omnia import library_paths
+from omnia import library_paths, port_catalog
 
 
 def location(port):
@@ -45,6 +45,34 @@ def inspect_route(path, games, max_files=25000, max_seconds=3):
     deadline, visited, candidates = time.monotonic() + max_seconds, 0, {}
     linked_files = {location(p) for g in games for p in g.get('ports', []) if location(p)}
     def finish():
+        # Agrupa versiones y bin/ por port; conserva todos los lanzadores válidos para revisión.
+        grouped = {}
+        for candidate in candidates.values():
+            for file in candidate['files']:
+                record = port_catalog.identify(file)
+                if record:
+                    key = ('port', record['template'], record['group'])
+                    entry = grouped.setdefault(key, {'path': record['group'], 'root': root, 'name': record['game'],
+                        'kind': 'port', 'template': record['template'], 'platform': record['platform'],
+                        'port_name': record['port'], 'game_key': record['platform'] + ':' + port_catalog.normalize(record['game']), 'files': [], 'linked': False})
+                    if file not in entry['files']: entry['files'].append(file)
+                    entry['linked'] |= file in linked_files
+                else:
+                    key = ('candidate', candidate['path'])
+                    entry = grouped.setdefault(key, {**candidate, 'files': []})
+                    if file not in entry['files']: entry['files'].append(file)
+        for candidate in grouped.values():
+            if candidate['kind'] == 'port':
+                new_files = [p for p in candidate['files'] if p not in linked_files]
+                candidate['linked'] = not new_files
+                if new_files: candidate['files'] = new_files
+                candidate['files'].sort(key=lambda p: (port_catalog.version_key(p), Path(p).name == 'play.sh'), reverse=True)
+                candidate['suggested_file'] = candidate['files'][0]
+            if candidate['kind'] == 'rom' and Path(candidate['files'][0]).suffix.lower() in {'.n64', '.z64', '.v64'}:
+                candidate['suggested_emulator'] = 'gopher64'
+        port_roots = [c['path'] for c in grouped.values() if c['kind'] == 'port']
+        grouped = {k:c for k,c in grouped.items() if c['kind'] != 'executable' or not any(inside(c['path'], p) for p in port_roots)}
+        candidates.clear(); candidates.update(grouped)
         out['candidates'] = len(candidates)
         out['items'] = sorted(candidates.values(), key=lambda c: c['name'].casefold())
         return out
@@ -70,7 +98,7 @@ def inspect_route(path, games, max_files=25000, max_seconds=3):
                 continue
             suffix = file.suffix.lower()
             low = name.lower()
-            if any(word in low for word in ('unins', 'uninstall', 'crashreport', 'vcredist', 'dxsetup', 'setup', 'updater')):
+            if any(word in low for word in ('unins', 'uninstall', 'crashreport', 'vcredist', 'dxsetup', 'setup', 'updater', '_xlate', 'launcher', 'builder', 'crashhandler')):
                 continue
             if suffix in roms:
                 candidates[str(file)] = {'path': str(file), 'root': root, 'name': file.stem,

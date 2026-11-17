@@ -8,6 +8,20 @@ class RouteList : public QListWidget {
     QString backend;
     QStringList queue;
     bool busy=false;
+    QPointer<QLabel> counterLabel;
+    void refreshCounters() {
+        const auto selected = selectedCandidates();
+        for(int i=0;i<count();++i){
+            auto entry=item(i);auto root=entry->data(Qt::UserRole).toString();QSet<QString> games;
+            for(auto value:selected){auto choice=value.toObject();auto file=choice["file"].toString();if(file==root||file.startsWith(root+"/")){
+                auto key=choice["game_key"].toString();games.insert(key.isEmpty()?file:key);
+            }}
+            auto info=entry->data(Qt::UserRole+2).toString();
+            entry->setText(root+"\n"+info+QString("\n%1 juegos seleccionados para agregar").arg(games.size()));
+            entry->setToolTip(entry->text());
+        }
+        if(counterLabel)counterLabel->setText(QString("%1 juegos seleccionados · %2 ports / archivos · %3 carpetas").arg(selectedGameCount()).arg(selected.size()).arg(count()));
+    }
     QMap<QString,QJsonObject> choices;
     void scanNext() {
         if(busy || queue.isEmpty())return;
@@ -19,16 +33,21 @@ class RouteList : public QListWidget {
             if(!success||data.isEmpty())info="No se pudo analizar. Quita y vuelve a añadir la ruta para reintentar.";
             else if(!data["available"].toBool())info=QString("%1 vinculados · No disponible o sin permiso").arg(data["linked"].toInt());
             else info=QString("%1 juegos vinculados · %2 candidatos encontrados%3").arg(data["linked"].toInt()).arg(data["candidates"].toInt()).arg(data["partial"].toBool()?" · Análisis parcial":"");
-            for(int i=0;i<count();++i)if(item(i)->data(Qt::UserRole).toString()==path){item(i)->setData(Qt::UserRole+1,data);item(i)->setText(path+"\n"+info);item(i)->setToolTip(path+"\n"+info);}
-            busy=false;p->deleteLater();scanNext();
+            for(int i=0;i<count();++i)if(item(i)->data(Qt::UserRole).toString()==path){item(i)->setData(Qt::UserRole+1,data);item(i)->setData(Qt::UserRole+2,info);}
+            busy=false;refreshCounters();p->deleteLater();scanNext();
         };
         connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[done](int code,QProcess::ExitStatus status){done(code==0&&status==QProcess::NormalExit);});
         p->start("python3",{backend,"--inspect-route"});
         if(p->waitForStarted()){p->write(QJsonDocument(QJsonObject{{"path",path}}).toJson());p->closeWriteChannel();}else done(false);
     }
 public:
-    RouteList(const QString &path):backend(path){setWordWrap(true);}
+    RouteList(const QString &path):backend(path){setWordWrap(true);connect(model(),&QAbstractItemModel::rowsRemoved,this,[this]{refreshCounters();});}
+    void setCounterLabel(QLabel *label){counterLabel=label;refreshCounters();}
+    int selectedGameCount()const{
+        QSet<QString> games;for(auto value:selectedCandidates()){auto choice=value.toObject();auto key=choice["game_key"].toString();games.insert(key.isEmpty()?choice["file"].toString():key);}return games.size();
+    }
     ~RouteList() override {
+        disconnect(model(),nullptr,this,nullptr);
         for(auto process:findChildren<QProcess*>()) {
             process->disconnect(this);
             if(process->state()!=QProcess::NotRunning){process->kill();process->waitForFinished(1000);}
@@ -39,18 +58,18 @@ public:
         if(!entry){QMessageBox::information(this,"Omnia","Selecciona una ruta para revisar sus candidatos.");return;}
         auto scan=entry->data(Qt::UserRole+1).toJsonObject();
         if(scan.isEmpty()){QMessageBox::information(this,"Omnia","Espera a que termine el análisis de esta ruta.");return;}
-        CandidateReview dialog(scan,choices,this);
+        CandidateReview dialog(scan,choices,backend,this);
         if(dialog.exec()==QDialog::Accepted){
             for(auto record:scan["items"].toArray())choices.remove(record.toObject()["path"].toString());
             for(auto it=dialog.choices.begin();it!=dialog.choices.end();++it)choices[it.key()]=it.value();
-            entry->setToolTip(entry->text()+"\nSelección pendiente: "+QString::number(selectedCandidates().size()));
+            refreshCounters();
         }
     }
     QJsonArray selectedCandidates()const{
-        QJsonArray result;
+        QJsonArray result;QSet<QString> files;
         for(auto choice:choices){
             bool active=false;for(int i=0;i<count();++i){auto root=item(i)->data(Qt::UserRole).toString();auto file=choice["file"].toString();if(file==root||file.startsWith(root+"/")){active=true;break;}}
-            if(active)result.append(choice);
+            if(active&&!files.contains(choice["file"].toString())){result.append(choice);files.insert(choice["file"].toString());}
         }
         return result;
     }
@@ -58,17 +77,17 @@ public:
         choices.clear();
         for(int i=0;i<count();++i){
             auto path=item(i)->data(Qt::UserRole).toString();
-            item(i)->setData(Qt::UserRole+1,QJsonObject());item(i)->setText(path+"\nActualizando juegos vinculados…");
+            item(i)->setData(Qt::UserRole+1,QJsonObject());item(i)->setData(Qt::UserRole+2,"Actualizando juegos vinculados…");
             if(!queue.contains(path))queue.append(path);
         }
-        scanNext();
+        refreshCounters();scanNext();
     }
     void addPath(QString path){
         path=QDir::cleanPath(path);
         auto canonical=QFileInfo(path).canonicalFilePath();if(!canonical.isEmpty())path=canonical;
         for(int i=0;i<count();++i)if(item(i)->data(Qt::UserRole).toString()==path)return;
-        auto entry=new QListWidgetItem(path+"\nAnalizando juegos…",this);entry->setData(Qt::UserRole,path);entry->setToolTip(path);entry->setSizeHint(QSize(0,58));
-        queue.append(path);scanNext();
+        auto entry=new QListWidgetItem(path+"\nAnalizando juegos…",this);entry->setData(Qt::UserRole,path);entry->setToolTip(path);entry->setData(Qt::UserRole+2,"Analizando juegos…");entry->setSizeHint(QSize(0,84));
+        queue.append(path);refreshCounters();scanNext();
     }
 };
 
