@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,11 +43,16 @@ def configure(data, consent=True):
     # La actualización de una instalación existente solo puede guardar una
     # clave que el asistente ya validó. No consulta discos ni toca la biblioteca.
     if data.get('update_only') is True:
+        cfg = load_json(config_file, {})
+        if 'mangohud_enabled' not in cfg:
+            cfg['mangohud_enabled'] = True
+            write_json_atomic(config_file, cfg)
         key = data.get('steamgriddb_key', '').strip()
         if key:
             write_secret(paths.config_dir() / 'steamgriddb.key', key)
         return 0
     cfg = load_json(config_file, {})
+    cfg['mangohud_enabled'] = bool(data.get('mangohud_enabled', cfg.get('mangohud_enabled', True)))
     games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
     old_roots = effective_roots(cfg, games)
     roots = list(dict.fromkeys(str(Path(p).expanduser().resolve()) for p in data.get('external_roots', [])))
@@ -138,6 +144,7 @@ def main():
                           'logo': logo_path(),
                           'installed': (paths.config_dir() / 'library.json').exists() or (paths.data_dir() / 'installer/omnia-installer').exists(),
                           'linked_roots': roots,
+                          'mangohud_available': shutil.which('mangohud') is not None,
                           'key_exists': (paths.config_dir() / 'steamgriddb.key').exists()}))
     elif mode == '--uninstall-plan':
         from omnia.uninstall import plan

@@ -138,7 +138,8 @@ class Catalog:
         return next((a for a in self.apps() if a.id == app_id), None)
 
 
-def launch(app: App) -> subprocess.Popen:
+def launch(app: App, env: dict | None = None) -> subprocess.Popen:
     """`gio launch` interpreta Exec (códigos %u, %f…) y la activación por D-Bus como lo haría el escritorio."""
     return subprocess.Popen(["gio", "launch", app.path], start_new_session=True,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            env={**os.environ, **(env or {})}, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

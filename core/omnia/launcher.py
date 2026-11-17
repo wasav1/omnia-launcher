@@ -24,7 +24,13 @@ def launch(port: dict, gid: str, env: dict | None = None) -> subprocess.Popen:
     argv = port.get("launch") or []
     if not argv or not all(isinstance(a, str) for a in argv):
         raise ValueError("el port no tiene un comando de lanzamiento válido")
+    process_env = {**os.environ, **(env or {})}
+    if process_env.pop("OMNIA_MANGOHUD", "") == "1":
+        mangohud = shutil.which("mangohud")
+        if not mangohud:
+            raise ValueError("MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.")
+        argv = [mangohud, "--dlsym", *argv]
     cwd = os.path.expanduser(port.get("cwd") or "") or None
     return subprocess.Popen(build_command([os.path.expanduser(a) if a.startswith("~/") else a for a in argv], gid),
-                            cwd=cwd, env={**os.environ, **(env or {})}, start_new_session=True,
+                            cwd=cwd, env=process_env, start_new_session=True,
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

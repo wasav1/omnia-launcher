@@ -78,7 +78,9 @@ if ((CHECK)); then
 fi
 
 if ((UPDATE)); then
-  : # Una instalación existente ya tiene las dependencias; la actualización solo reemplaza archivos.
+  # MangoHud se incorporó en esta revisión. Si falta, el mismo comprobador pide
+  # autorización y agrega solo los paquetes que aún no estén instalados.
+  bash "$ROOT/packaging/universal/check-dependencies.sh" --ensure
 elif ((NO_DEPS)); then
   bash "$ROOT/packaging/universal/check-dependencies.sh" --check
 else
@@ -165,6 +167,11 @@ install -m644 "$ROOT/assets/branding/omnia-icon-bluegray.png" "$DATA/omnia/asset
 install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$DATA/omnia/assets/branding/omnia-menu.svg"
 install -d "$HOME/.local/share/icons/hicolor/scalable/apps"
 install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.menu.svg"
+# El HUD de MangoHud es propio de Omnia para no sobrescribir la configuración global del usuario.
+MANGOHUD_CONFIG="$HOME/.config/omnia/MangoHud.conf"
+if [[ -f "$ROOT/docs/MangoHud.conf" ]]; then
+  python3 "$ROOT/packaging/universal/mangohud_config.py" "$ROOT/docs/MangoHud.conf" "$MANGOHUD_CONFIG"
+fi
 cat > "$PREFIX/bin/omnia-settings" <<EOF
 #!/bin/sh
 export PYTHONPATH="$PREFIX/lib/omnia\${PYTHONPATH:+:\$PYTHONPATH}"

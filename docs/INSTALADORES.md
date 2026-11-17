@@ -155,6 +155,23 @@ sus dependencias. Si se cancela esa autorización, la interfaz informa que el as
 La instalación antigua de paquetes `omnia-core`, `omnia-ui`, `omnia-kde` debe retirarse desde el gestor de paquetes
 antes de limpiar datos de usuario. El desinstalador no se ejecuta al actualizar el asistente.
 
+### Revisión 20: etiquetas de CPU/GPU con los modelos detectados
+
+El generador de `~/.config/omnia/MangoHud.conf` detecta el nombre del procesador desde `/proc/cpuinfo`
+y los adaptadores gráficos con `lspci`, y los escribe en `cpu_text` y `gpu_text`. Así la superposición
+muestra modelos como «Intel Core i9…» y «GeForce RTX 3050…» en vez de etiquetas genéricas. En actualizaciones
+añade los nombres si la configuración previa aún no los tenía, conservando etiquetas personalizadas.
+
+### Revisión 19: superposición MangoHud
+
+Omnia instala MangoHud como dependencia. La configuración de `docs/MangoHud.conf` se copia por usuario
+a `~/.config/omnia/MangoHud.conf` sin reemplazar el archivo global de MangoHud ni sobreescribir una
+configuración previa de Omnia. Los juegos y ejecutables directos lanzados desde la biblioteca de Omnia
+se envuelven con MangoHud; los accesos directos de juegos Vulkan del menú de aplicaciones reciben el
+entorno de MangoHud. Steam, Lutris y Heroic delegan en clientes que ya suelen estar abiertos, así que
+requieren su opción de lanzamiento correspondiente. En Steam: `MANGOHUD_CONFIGFILE=$HOME/.config/omnia/MangoHud.conf mangohud %command%`.
+La pestaña **Ajustes → Monitor** permite activar o desactivar el HUD.
+
 ### Revisión 18: desvincular juegos y AppImage para CachyOS x86-64
 
 `Omnia-Installer-0.1.0-18-x86_64.AppImage` incluye la acción **Desvincular de Omnia** en el menú

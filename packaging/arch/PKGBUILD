@@ -23,12 +23,11 @@ build() {
 
 package_omnia-core() {
   pkgdesc="Núcleo de Omnia: biblioteca de juegos, API local, arte y mando"
-  depends=(python systemd glib2 python-gobject libpulse)          # glib2: `gio launch` abre las aplicaciones del Big Menu
+  depends=(python systemd glib2 python-gobject libpulse mangohud pciutils) # gio, overlay y nombre del hardware
   optdepends=('steam: juegos de Steam'
               'lutris: juegos de Lutris'
               'heroic-games-launcher-bin: juegos de Epic, GOG y Amazon'
               'umu-launcher: juegos de Windows con Proton'
-              'mangohud: indicadores de rendimiento'
               'pipewire-pulse: espectro de audio de salida para las ondas')
   cd "$pkgbase-$pkgver"
   python -m installer --destdir="$pkgdir" dist/*.whl

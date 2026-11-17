@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '18'
+RELEASE = '20'
 
 
 def source_files():
@@ -27,6 +27,7 @@ def source_files():
     yield REPO / 'packaging/distros/profiles.json'
     yield REPO / 'pyproject.toml'
     yield REPO / 'docs/INSTALADORES.md'
+    yield REPO / 'docs/MangoHud.conf'
 
 
 def stage(root):

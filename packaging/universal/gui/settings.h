@@ -12,7 +12,7 @@ class SettingsWindow : public QDialog {
     QComboBox *disks;
     QComboBox *notificationPosition;
     KeyPanel *keyPanel;
-    QCheckBox *clearKey;
+    QCheckBox *clearKey, *mangohud;
     QLabel *status;
     QPushButton *save;
     bool saving=false;
@@ -40,7 +40,12 @@ public:
         auto saved=initial["config"].toObject()["monitor_disk"].toObject();bool found=false;
         for(auto value:initial["volumes"].toArray()) {auto d=value.toObject();disks->addItem(d["label"].toString()+" — "+d["path"].toString(),d);if(d["uuid"]==saved["uuid"]&&d["path"]==saved["path"]){disks->setCurrentIndex(disks->count()-1);found=true;}}
         if(!saved.isEmpty()&&!found){disks->addItem(saved["label"].toString()+" (no conectado)",saved);disks->setCurrentIndex(disks->count()-1);}
-        diskLayout->addWidget(disks);auto note=new QLabel("Se usa la etiqueta real del volumen. Si no tiene etiqueta, se muestra el modelo y la partición. Puedes conservar un disco desconectado.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
+        diskLayout->addWidget(disks);
+        mangohud=new QCheckBox("Mostrar estadísticas de componentes mientras juegas (MangoHud)");
+        mangohud->setChecked(initial["config"].toObject().value("mangohud_enabled").toBool(true));
+        mangohud->setEnabled(initial["mangohud_available"].toBool());
+        diskLayout->addWidget(mangohud);
+        auto note=new QLabel("MangoHud muestra FPS, frametime, temperaturas, RAM y VRAM; las etiquetas de CPU y GPU usan los nombres de modelo detectados en este equipo. Se activa al lanzar juegos directamente desde Omnia. Para juegos de Steam añade «MANGOHUD_CONFIGFILE=$HOME/.config/omnia/MangoHud.conf mangohud %command%» en sus Opciones de lanzamiento; Steam no hereda el entorno de Omnia si ya está abierto.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
         auto notifications=new QWidget;auto notificationLayout=new QVBoxLayout(notifications);
         notificationLayout->addWidget(new QLabel("Posición de los avisos temporales de Omnia:"));
         notificationPosition=new QComboBox;
@@ -60,7 +65,7 @@ public:
         connect(save,&QPushButton::clicked,this,[this]{
             if(!clearKey->isChecked()&&!keyPanel->ready()){status->setText("Valida SteamGridDB o marca configurar después antes de aplicar.");return;}
             QJsonArray roots;for(int i=0;i<folders->count();++i)roots.append(folders->item(i)->data(Qt::UserRole).toString());
-            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disk",disks->currentData().toJsonObject()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()}};
+            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disk",disks->currentData().toJsonObject()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()}};
             auto p=new QProcess(this);p->setProcessChannelMode(QProcess::MergedChannels);saving=true;save->setEnabled(false);status->setText("Guardando…");
             connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){keyPanel->clearInput();clearKey->setChecked(false);folders->clearSelections();}p->deleteLater();});
             p->start("python3",{backend,"--save-settings"});if(p->waitForStarted()){p->write(QJsonDocument(data).toJson(QJsonDocument::Compact));p->closeWriteChannel();}else{saving=false;save->setEnabled(true);status->setText("No se pudo guardar la configuración.");p->deleteLater();}

@@ -9,6 +9,7 @@ Reglas de seguridad (ver security.py):
 import json
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -343,6 +344,15 @@ class Api:
     def refresh(self, q):
         return games_refresh.refresh(self.store, self.detectors)
 
+    def _mangohud_env(self):
+        cfg = load_json(self.store.dir / "config.json", {})
+        if not cfg.get("mangohud_enabled", False):
+            return {}
+        if not shutil.which("mangohud"):
+            raise ApiError(503, "MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.")
+        return {"OMNIA_MANGOHUD": "1", "MANGOHUD": "1", "MANGOHUD_DLSYM": "1",
+                "MANGOHUD_CONFIGFILE": str(self.store.dir / "MangoHud.conf")}
+
     def toggle(self, key, q):
         gid = q.get("id", "")
         if not self.store.find_game(gid):
@@ -359,7 +369,14 @@ class Api:
             raise ApiError(409, "no está instalado")
         if self._is_running(g, p, self.scan_fn()):
             raise ApiError(409, "ya está en ejecución")
-        self.launch_fn(p, g["id"])
+        # Steam/Lutris/Heroic suelen delegar el juego a un cliente ya abierto; el entorno de
+        # este proceso no llega al juego. Los ejecutables directos sí se envuelven con MangoHud.
+        if g.get("auto") not in {"steam", "lutris", "heroic"} and g.get("src") not in {"Steam", "Lutris", "Heroic"}:
+            env = self._mangohud_env()
+            if env: self.launch_fn(p, g["id"], env=env)
+            else: self.launch_fn(p, g["id"])
+        else:
+            self.launch_fn(p, g["id"])
         return {"ok": True}
 
     # --- aplicaciones (Big Menu)
@@ -383,7 +400,18 @@ class Api:
         a = self.catalog.find(q.get("id", ""))
         if not a:
             raise ApiError(404, "aplicación desconocida")      # solo se lanza lo que está en el catálogo
-        self.app_launch_fn(a)
+        # Para accesos directos de juegos Vulkan (p. ej. un AppImage), el entorno pasa al proceso
+        # del juego. Excluir los gestores para no dibujar el HUD sobre sus propias ventanas.
+        name = (a.name + " " + a.id).casefold()
+        launchers = ("steam", "lutris", "heroic", "gamescope", "epic games", "gog galaxy", "battle.net")
+        if a.group == "Juegos" and not any(item in name for item in launchers):
+            env = self._mangohud_env()
+            if env:
+                env.pop("OMNIA_MANGOHUD", None)
+                self.app_launch_fn(a, env=env)
+            else: self.app_launch_fn(a)
+        else:
+            self.app_launch_fn(a)
         with self.store.lock:
             u = self.store.state.setdefault("apps_used", {}).setdefault(a.id, {"n": 0, "t": 0})
             u["n"] += 1
