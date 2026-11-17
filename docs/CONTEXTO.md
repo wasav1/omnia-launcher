@@ -138,6 +138,8 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 
 ## 7. Registro de cambios
 
+- 2026-11-17 — Icono propio para el desinstalador: aro circular Omnia azul grisáceo con insignia de papelera. Integrado en la entrada del menú y en los paquetes Arch, AppImage y universal; revisión 13.
+
 - 2026-11-17 — Revisión 12 del asistente: AppImage x86-64 regenerado con el icono circular azul grisáceo, catálogo de ports, revisión visual de candidatos, detección de complementos, desinstalador y paneo del fondo a doble velocidad. Cambio local listo para publicar.
 
 - 2026-11-16 — Se duplica la velocidad del paneo del fondo animado en `Backdrop.qml`: cada recorrido pasa de 150 a 75 segundos (ciclo completo de 5 a 2,5 minutos), manteniendo la curva suave `InOutSine`.

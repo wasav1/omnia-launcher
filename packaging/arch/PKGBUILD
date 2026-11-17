@@ -64,6 +64,7 @@ package_omnia-kde() {
   install -Dm755 "$srcdir/omnia-installer-build/omnia-installer" "$pkgdir/usr/share/omnia/installer/omnia-installer"
   install -Dm755 packaging/universal/omnia-uninstall "$pkgdir/usr/bin/omnia-uninstall"
   install -Dm644 packaging/xdg/org.omnia.uninstall.desktop "$pkgdir/usr/share/applications/org.omnia.uninstall.desktop"
+  install -Dm644 assets/branding/omnia-uninstall-icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png"
   install -Dm755 packaging/universal/omnia-settings "$pkgdir/usr/bin/omnia-settings"
   install -Dm644 packaging/universal/candidate_import.py "$pkgdir/usr/share/omnia/installer/packaging/universal/candidate_import.py"
   install -Dm644 packaging/universal/route_inspection.py "$pkgdir/usr/share/omnia/installer/packaging/universal/route_inspection.py"

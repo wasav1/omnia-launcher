@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '12'
+RELEASE = '13'
 
 
 def source_files():
@@ -41,6 +41,7 @@ def stage(root):
                       ('packaging/xdg/org.omnia.installer.desktop', 'usr/share/applications/org.omnia.installer.desktop'),
                       ('packaging/xdg/org.omnia.uninstall.desktop', 'usr/share/applications/org.omnia.uninstall.desktop'),
                       ('assets/branding/omnia-icon-bluegray.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png'),
+                      ('assets/branding/omnia-uninstall-icon.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png'),
                       ('assets/branding/omnia-menu.svg', 'usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg')]:
         target=root/dest;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(REPO/src,target)
         target.chmod(0o755 if dest.startswith('usr/bin') else 0o644)

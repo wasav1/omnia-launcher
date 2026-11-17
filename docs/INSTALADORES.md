@@ -155,9 +155,9 @@ sus dependencias. Si se cancela esa autorización, la interfaz informa que el as
 La instalación antigua de paquetes `omnia-core`, `omnia-ui`, `omnia-kde` debe retirarse desde el gestor de paquetes
 antes de limpiar datos de usuario. El desinstalador no se ejecuta al actualizar el asistente.
 
-### Revisión 12: AppImage para CachyOS x86-64
+### Revisión 13: AppImage para CachyOS x86-64
 
-`Omnia-Installer-0.1.0-12-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
+`Omnia-Installer-0.1.0-13-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
 El icono circular azul grisáceo está en `assets/branding/omnia-icon-bluegray.png`; se conserva el original.
 La GUI restaura el entorno de bibliotecas del host antes de iniciar Python, CMake o Polkit. No se copia
 la GUI con Qt del bundle a la instalación del usuario: se vuelve a compilar con Qt del destino.

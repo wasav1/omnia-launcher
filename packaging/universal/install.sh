@@ -171,6 +171,7 @@ quoted = '"' + executable.replace('\\', '\\\\').replace('"', '\\"').replace('`',
 Path(desktop).write_text('[Desktop Entry]\nType=Application\nName=Omnia — Ajustes generales\nComment=Bibliotecas, monitor y SteamGridDB\nExec=' + quoted + '\nIcon=' + icon + '\nTerminal=false\nCategories=Settings;Game;\n')
 PYDESKTOP
 install -m755 "$ROOT/packaging/universal/omnia-uninstall" "$PREFIX/bin/omnia-uninstall"
+install -Dm644 "$ROOT/assets/branding/omnia-uninstall-icon.png" "$DATA/icons/hicolor/512x512/apps/org.omnia.uninstall.png"
 python3 - "$ROOT/packaging/xdg/org.omnia.uninstall.desktop" "$PREFIX/bin/omnia-uninstall" "$DATA/applications/org.omnia.uninstall.desktop" <<'PYUNINSTALL'
 import sys
 from pathlib import Path

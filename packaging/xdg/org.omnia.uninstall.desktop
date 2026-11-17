@@ -3,6 +3,6 @@ Type=Application
 Name=Omnia — Desinstalar
 Comment=Retira Omnia y sus datos conservando juegos y partidas
 Exec=omnia-uninstall
-Icon=org.omnia.menu
+Icon=org.omnia.uninstall
 Terminal=false
 Categories=Settings;Game;
