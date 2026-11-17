@@ -104,6 +104,7 @@ fi
 install -d "$DATA/plasma/wallpapers/org.omnia.launcher" "$DATA/plasma/plasmoids/org.omnia.desktop" "$DATA/omnia/ui/plasma-widgets" "$DATA/omnia/kwin" "$PREFIX/lib/omnia" "$PREFIX/bin"
 cp -a "$ROOT/plasma/wallpapers/org.omnia.launcher/." "$DATA/plasma/wallpapers/org.omnia.launcher/"
 install -Dm644 "$ROOT/packaging/universal/omnia-layout.js" "$DATA/omnia/omnia-layout.js"
+install -Dm644 "$ROOT/packaging/universal/omnia-maintain.js" "$DATA/omnia/omnia-maintain.js"
 cp -a "$ROOT/plasma/applets/org.omnia.desktop/." "$DATA/plasma/plasmoids/org.omnia.desktop/"
 # Mantén sincronizada la ruta plana heredada además de las rutas nuevas: una instalación antigua dejó
 # OmniaShell.qml directamente en ~/.local/share/omnia/ui y Plasma aún puede resolver ese URL.
@@ -151,6 +152,21 @@ SCRIPT=\$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[
 exec \$QDBUS org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "\$SCRIPT"
 EOF
 chmod 755 "$PREFIX/bin/omnia-layout"
+cat > "$PREFIX/bin/omnia-maintain" <<EOF
+#!/usr/bin/env bash
+sleep 6
+QDBUS=\$(command -v qdbus6 || command -v qdbus) || exit 1
+EMPTY_DESKTOP="$HOME/.local/share/omnia/empty-desktop"
+mkdir -p "\$EMPTY_DESKTOP"
+EMPTY_URL=\$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).as_uri())' "\$EMPTY_DESKTOP")
+SCRIPT=\$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text().replace("__OMNIA_EMPTY_DESKTOP_URL__", sys.argv[2]))' "$DATA/omnia/omnia-maintain.js" "\$EMPTY_URL")
+for attempt in {1..10}; do
+  "\$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "\$SCRIPT" && exit 0
+  sleep 2
+done
+exit 1
+EOF
+chmod 755 "$PREFIX/bin/omnia-maintain"
 # Ajustes gráficos persistentes, independientes del instalador temporal.
 install -d "$DATA/omnia/installer/packaging/universal" "$DATA/omnia/assets/branding" "$DATA/applications"
 GUI_BINARY="${OMNIA_GUI_BINARY:-$ROOT/omnia-installer}"

@@ -38,6 +38,18 @@ def volumes():
     return result
 
 
+def set_session_autostart(enabled):
+    entry = Path.home() / '.config/autostart/omnia-maintain.desktop'
+    if not enabled:
+        entry.unlink(missing_ok=True)
+        return
+    command = str(Path.home() / '.local/bin/omnia-maintain')
+    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry.write_text('[Desktop Entry]\nType=Application\nName=Omnia: restaurar escritorio\n'
+                     'Comment=Aplicar el fondo y el widget de Omnia al iniciar Plasma\n'
+                     f'Exec="{command}"\nIcon=org.omnia.menu\nTerminal=false\nX-KDE-autostart-phase=2\n')
+
+
 def configure(data, consent=True):
     config_file = paths.config_dir() / 'config.json'
     # La actualización de una instalación existente solo puede guardar una
@@ -46,10 +58,12 @@ def configure(data, consent=True):
         cfg = load_json(config_file, {})
         if 'mangohud_enabled' not in cfg:
             cfg['mangohud_enabled'] = True
-            write_json_atomic(config_file, cfg)
+        cfg.setdefault('keep_omnia_session', True)
+        set_session_autostart(cfg['keep_omnia_session'])
         key = data.get('steamgriddb_key', '').strip()
         if key:
             write_secret(paths.config_dir() / 'steamgriddb.key', key)
+        write_json_atomic(config_file, cfg)
         return 0
     cfg = load_json(config_file, {})
     cfg['mangohud_enabled'] = bool(data.get('mangohud_enabled', cfg.get('mangohud_enabled', True)))
@@ -58,33 +72,75 @@ def configure(data, consent=True):
     roots = list(dict.fromkeys(str(Path(p).expanduser().resolve()) for p in data.get('external_roots', [])))
     if any((not Path(p).is_dir() or not os.access(p, os.R_OK | os.X_OK)) and p not in old_roots for p in roots):
         raise ValueError('Una carpeta elegida no existe o no es accesible.')
-    disk = data.get('monitor_disk', {})
-    matches = [v for v in volumes() if v['path'] == disk.get('path') and v['uuid'] == disk.get('uuid', '')]
-    if not matches:
-        if not consent and disk == cfg.get('monitor_disk', {}):
-            matches = [disk]
+    requested = data.get('monitor_disks')
+    if requested is None:
+        old = data.get('monitor_disk', cfg.get('monitor_disk', {}))
+        requested = [old] if old else cfg.get('monitor_disks', [])
+    if not isinstance(requested, list) or any(not isinstance(x, dict) for x in requested):
+        raise ValueError('La selección de discos no es válida.')
+    available = volumes(); matches = []
+    saved_volumes = cfg.get('monitor_disks')
+    if saved_volumes is None and cfg.get('monitor_disk'):
+        saved_volumes = [cfg['monitor_disk']]
+    for disk in requested:
+        match = next((v for v in available if v['path'] == disk.get('path') and v['uuid'] == disk.get('uuid', '')), None)
+        if match:
+            matches.append(match)
+        elif not consent and disk in saved_volumes:
+            matches.append(disk)
         else:
-            raise ValueError('El volumen seleccionado ya no está montado. Vuelve a seleccionarlo.')
+            raise ValueError('Uno de los volúmenes seleccionados ya no está montado. Vuelve a seleccionarlo.')
     excluded = library_paths.update_excluded({**cfg, "external_roots": old_roots}, roots)
-    prepared, added = prepare(games, data.get('selected_candidates', []), roots)
+    selected = data.get('selected_candidates', [])
+    if not isinstance(selected, list):
+        raise ValueError('La selección de juegos no es válida.')
+    unlink = [x for x in selected if isinstance(x, dict) and x.get('unlink') is True]
+    additions = [x for x in selected if not (isinstance(x, dict) and x.get('unlink') is True)]
+    prepared, added = prepare(games, additions, roots)
+    unlinked = 0
+    for item in unlink:
+        path = os.path.realpath(str(item.get('file', '')))
+        if not os.path.isfile(path) or not any(path == root or path.startswith(root.rstrip('/') + '/') for root in roots):
+            raise ValueError('No se puede desvincular un juego fuera de las rutas seleccionadas.')
+        removed = False
+        updated = []
+        for game in prepared:
+            if game.get('auto'):
+                updated.append(game); continue
+            ports = game.get('ports', [])
+            kept = [port for port in ports if os.path.realpath(os.path.expanduser(port.get('check') or (port.get('launch') or [''])[0])) != path]
+            if len(kept) != len(ports):
+                removed = True
+                if kept:
+                    game = {**game, 'ports': kept}
+                    updated.append(game)
+            else:
+                updated.append(game)
+        if not removed:
+            raise ValueError('El juego ya no está vinculado o no pertenece a esta carpeta.')
+        prepared = updated
+        unlinked += 1
     notification_position = str(data.get('notification_position', cfg.get('notification_position', 'bottom-right')))
     if notification_position not in {'bottom-right', 'bottom-left', 'top-right', 'top-left'}:
         notification_position = 'bottom-right'
-    cfg.update(external_roots=roots, excluded_external_roots=excluded, monitor_disk=matches[0],
-               notification_position=notification_position)
+    cfg.update(external_roots=roots, excluded_external_roots=excluded, monitor_disks=matches,
+               monitor_disk=matches[0] if matches else {}, notification_position=notification_position)
+    if 'keep_omnia_session' in data:
+        cfg['keep_omnia_session'] = bool(data['keep_omnia_session'])
+        set_session_autostart(cfg['keep_omnia_session'])
     write_json_atomic(config_file, cfg)
     key = data.get('steamgriddb_key', '').strip()
     if data.get('clear_key'):
         (paths.config_dir() / 'steamgriddb.key').unlink(missing_ok=True)
     elif key:
         write_secret(paths.config_dir() / 'steamgriddb.key', key)
-    if added:
+    if added or unlinked:
         library = load_json(paths.config_dir() / 'library.json', {})
         library['games'] = prepared
         write_json_atomic(paths.config_dir() / 'library.json', library)
     if consent:
         write_json_atomic(paths.config_dir() / 'installer-consent.json', {'accepted': True, 'notice_version': 1})
-    return added
+    return {'added': added, 'unlinked': unlinked}
 
 
 def write_secret(path, text):
@@ -180,13 +236,13 @@ def main():
             print('No se pudo detener el núcleo para guardar con seguridad. No se cambiaron los ajustes.')
             return 1
         try:
-            added = configure(data, consent=False)
+            changes = configure(data, consent=False)
         finally:
             restart = subprocess.run(['systemctl', '--user', 'start', 'omnia.service'], capture_output=True)
         if restart.returncode:
             print('Ajustes guardados. No se pudo iniciar el servicio; ejecuta systemctl --user start omnia.service.')
             return 2
-        print(f'Ajustes guardados. {added} juegos agregados. La biblioteca se actualizará automáticamente.')
+        print(f"Ajustes guardados. {changes.get('added', 0)} juegos vinculados y {changes.get('unlinked', 0)} desvinculados. La biblioteca se actualizará automáticamente.")
     elif mode == '--configure':
         configure(json.loads(Path(sys.argv[2]).read_text()))
     elif mode == '--install':

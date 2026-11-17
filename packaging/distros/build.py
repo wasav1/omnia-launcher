@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '20'
+RELEASE = '30'
 
 
 def source_files():

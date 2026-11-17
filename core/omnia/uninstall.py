@@ -18,15 +18,15 @@ def owned_paths(home=None):
     data = home/'.local/share'
     cache = paths.cache_dir() if home == Path.home() else home/'.cache/omnia'
     result = [config, cache, home/'.local/lib/omnia', home/'.local/lib/qt6/qml/org/omnia/session']
-    result += [data/'omnia'/name for name in ('art','ui','kwin','assets','installer','empty-desktop','omnia-layout.js')]
+    result += [data/'omnia'/name for name in ('art','ui','kwin','assets','installer','empty-desktop','omnia-layout.js','omnia-maintain.js')]
     result += [data/'plasma/plasmoids'/name for name in APPLETS]
     result += [data/'plasma/wallpapers/org.omnia.launcher']
     result += [data/'kwin/scripts'/name for name in ('omnia-showdesktop','omnia-watch')]
-    result += [home/'.local/bin'/name for name in ('omnia-core','omnia-ui','omnia-setup','omnia-first-run','omnia-layout','omnia-settings','omnia-uninstall')]
+    result += [home/'.local/bin'/name for name in ('omnia-core','omnia-ui','omnia-setup','omnia-first-run','omnia-layout','omnia-maintain','omnia-settings','omnia-uninstall')]
     result += [home/'.config/systemd/user'/name for name in ('omnia.service','omnia-ui.service')]
     result += [home/'.config/plasma-workspace/env/omnia.sh',home/'.config/environment.d/60-omnia-qml.conf']
     result += [data/'applications'/name for name in ('org.omnia.settings.desktop','org.omnia.uninstall.desktop')]
-    result += [data/'icons/hicolor/scalable/apps/org.omnia.menu.svg',home/'.config/autostart/omnia-first-run.desktop']
+    result += [data/'icons/hicolor/scalable/apps/org.omnia.menu.svg',home/'.config/autostart/omnia-first-run.desktop',home/'.config/autostart/omnia-maintain.desktop']
     if home == Path.home() and paths.data_dir() != data/'omnia': result.append(paths.data_dir()/'art')
     return list(dict.fromkeys(result))
 

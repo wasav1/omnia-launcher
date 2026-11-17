@@ -50,13 +50,13 @@ class CandidateReview : public QDialog {
     QString backend;
     bool checking = false;
     void updateCounter() {
-        QSet<QString> games; int files = 0;
+        QSet<QString> games; int files = 0, unlink = 0;
         for (int row=0; row<records.size(); ++row) {
-            if (records[row].toObject()["linked"].toBool() || table->item(row,0)->checkState()!=Qt::Checked) continue;
+            if (table->item(row,0)->checkState()!=Qt::Checked) continue;
             auto c=records[row].toObject(); ++files;
-            games.insert(c["game_key"].toString(c["path"].toString()));
+            if(c["linked"].toBool())++unlink;else games.insert(c["game_key"].toString(c["path"].toString()));
         }
-        counter->setText(QString("Selección: %1 %2 · %3 ports / archivos").arg(games.size()).arg(games.size()==1?"juego":"juegos").arg(files));
+        counter->setText(QString("Vincular: %1 juegos · %2 ports / archivos   |   Desvincular: %3").arg(games.size()).arg(files-unlink).arg(unlink));
     }
 public:
     QMap<QString,QJsonObject> choices;
@@ -64,20 +64,21 @@ public:
         :QDialog(parent),records(scan["items"].toArray()),backend(backendPath) {
         setWindowTitle("Revisar juegos — Omnia");resize(1150,650);auto layout=new QVBoxLayout(this);
         auto title=new QLabel("Elige los juegos de esta carpeta");title->setObjectName("CardTitle");layout->addWidget(title);
-        auto info=new QLabel("Los ports conocidos proponen el nombre del juego, su plataforma y su lanzador. Revisa las propuestas y marca los que quieres agregar. Nada se ejecuta durante este análisis.");info->setWordWrap(true);layout->addWidget(info);
+        auto info=new QLabel("Los ports conocidos proponen el juego y el ejecutable que lo inicia; se ignoran launchers y herramientas auxiliares. Revisa y marca lo que quieras vincular o desvincular. Nada se ejecuta durante este análisis y desvincular no borra archivos ni partidas.");info->setWordWrap(true);layout->addWidget(info);
         auto hint=new QLabel("N64: se propone Gopher64. Al confirmar se comprobarán el emulador y los complementos necesarios; si falta alguno, verás qué instalar antes de continuar.");hint->setWordWrap(true);hint->setObjectName("Muted");layout->addWidget(hint);
         counter=new QLabel;counter->setObjectName("CardTitle");layout->addWidget(counter);
+        auto search=new QLineEdit;search->setClearButtonEnabled(true);search->setPlaceholderText("Buscar por juego, port o archivo…");layout->addWidget(search);
         if(scan["partial"].toBool())layout->addWidget(new QLabel("Análisis parcial: se muestran solo los candidatos encontrados dentro del límite."));
         table=new QTableWidget(records.size(),5);table->setAlternatingRowColors(true);table->verticalHeader()->hide();table->verticalHeader()->setDefaultSectionSize(48);table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-        table->setHorizontalHeaderLabels({"Agregar","Juego","Port / plataforma","Archivo de inicio / ROM","Emulador"});
+        table->setHorizontalHeaderLabels({"Vincular / quitar","Juego","Port / plataforma","Archivo de inicio / ROM","Emulador"});
         table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);table->horizontalHeader()->setStretchLastSection(true);
         table->setItemDelegateForColumn(0,new CandidateCheckDelegate(table));table->setColumnWidth(0,85);table->setColumnWidth(1,260);table->setColumnWidth(2,175);table->setColumnWidth(3,320);layout->addWidget(table);
         for(int row=0;row<records.size();++row){
             auto candidate=records[row].toObject();auto saved=previous.value(candidate["path"].toString());bool linked=candidate["linked"].toBool();
-            auto select=new QTableWidgetItem(linked?"Vinculado":"");select->setFlags(linked?Qt::ItemIsEnabled:Qt::ItemIsEnabled|Qt::ItemIsSelectable|Qt::ItemIsUserCheckable);if(!linked)select->setCheckState(saved.isEmpty()?Qt::Unchecked:Qt::Checked);select->setToolTip(linked?"Este juego ya está vinculado":"Seleccionar para agregar · Espacio para cambiar");table->setItem(row,0,select);
+            auto select=new QTableWidgetItem("");select->setFlags(Qt::ItemIsEnabled|Qt::ItemIsSelectable|Qt::ItemIsUserCheckable);select->setCheckState(!linked&&!saved.isEmpty()?Qt::Checked:Qt::Unchecked);select->setToolTip(linked?"Marcar para desvincular de Omnia (no borra archivos ni partidas)":"Marcar para vincular · Espacio para cambiar");table->setItem(row,0,select);
             auto name=new QTableWidgetItem(saved.isEmpty()?candidate["name"].toString():saved["name"].toString());name->setToolTip(name->text());table->setItem(row,1,name);
             QString type=candidate["kind"]=="rom"?"ROM":"Ejecutable";
-            if(candidate["kind"]=="port") type=candidate["port_name"].toString()+" · "+(candidate["platform"]=="sw2"?"Switch 2":"Switch");
+            if(candidate["kind"]=="port") type=candidate["port_name"].toString()+" · "+(candidate["platform"]=="sw2"?"Switch 2":candidate["platform"]=="pc"?"PC":"Switch");
             auto category=new QTableWidgetItem(type);category->setToolTip(type+(candidate["kind"]=="port"?"\nIdentificado por ejecutable y carpeta. Confirma la edición y versión de tus archivos.":""));category->setFlags(Qt::ItemIsEnabled);table->setItem(row,2,category);
             auto files=new QComboBox;for(auto file:candidate["files"].toArray())files->addItem(file.toString());
             if(!saved.isEmpty())files->setCurrentText(saved["file"].toString());
@@ -89,7 +90,9 @@ public:
             auto browse=new QPushButton("…");line->addWidget(exe);line->addWidget(browse);table->setCellWidget(row,4,emulator);
             bool rom=candidate["kind"]=="rom";emulator->setEnabled(rom&&!linked);files->setEnabled(!linked);
             connect(browse,&QPushButton::clicked,this,[this,exe]{auto file=QFileDialog::getOpenFileName(this,"Elige el ejecutable del emulador","/usr/bin");if(!file.isEmpty())exe->setText(file);});
+            connect(files,&QComboBox::currentTextChanged,this,[this,search](const QString&){const auto query=search->text().trimmed().toCaseFolded();for(int r=0;r<table->rowCount();++r){auto combo=qobject_cast<QComboBox*>(table->cellWidget(r,3));QString text=table->item(r,1)->text()+" "+table->item(r,2)->text()+" "+(combo?combo->currentText():QString());if(combo)for(int i=0;i<combo->count();++i)text+=" "+combo->itemText(i);table->setRowHidden(r,!query.isEmpty()&&!text.toCaseFolded().contains(query));}});
         }
+        connect(search,&QLineEdit::textChanged,this,[this](const QString &value){const auto query=value.trimmed().toCaseFolded();for(int r=0;r<table->rowCount();++r){auto combo=qobject_cast<QComboBox*>(table->cellWidget(r,3));QString text=table->item(r,1)->text()+" "+table->item(r,2)->text()+" "+(combo?combo->currentText():QString());if(combo)for(int i=0;i<combo->count();++i)text+=" "+combo->itemText(i);table->setRowHidden(r,!query.isEmpty()&&!text.toCaseFolded().contains(query));}});
         connect(table,&QTableWidget::itemChanged,this,[this](QTableWidgetItem*){updateCounter();});updateCounter();
         buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons->button(QDialogButtonBox::Ok)->setText("Confirmar selección");layout->addWidget(buttons);
         connect(buttons,&QDialogButtonBox::accepted,this,&CandidateReview::accept);connect(buttons,&QDialogButtonBox::rejected,this,&CandidateReview::reject);
@@ -97,8 +100,9 @@ public:
     void accept() override {
         if(checking)return;
         QMap<QString,QJsonObject> selected; QJsonArray payload;
-        for(int row=0;row<records.size();++row){auto candidate=records[row].toObject();if(candidate["linked"].toBool()||table->item(row,0)->checkState()!=Qt::Checked)continue;
+        for(int row=0;row<records.size();++row){auto candidate=records[row].toObject();if(table->item(row,0)->checkState()!=Qt::Checked)continue;
             auto file=static_cast<QComboBox*>(table->cellWidget(row,3))->currentText();auto name=table->item(row,1)->text().trimmed();auto emulator=table->cellWidget(row,4)->findChild<QLineEdit*>()->text().trimmed();
+            if(candidate["linked"].toBool()){if(file.isEmpty())continue;QJsonObject choice{{"name",name},{"file",file},{"kind",candidate["kind"]},{"unlink",true},{"root",candidate["root"]},{"game_key",candidate["game_key"]}};selected[candidate["path"].toString()]=choice;payload.append(choice);continue;}
             if(file.isEmpty()||name.isEmpty()||name.size()>80||(candidate["kind"]=="rom"&&emulator.isEmpty())){QMessageBox::warning(this,"Omnia","Completa nombre, archivo de inicio y emulador de cada juego marcado.");return;}
             QJsonObject choice{{"name",name},{"file",file},{"kind",candidate["kind"]},{"emulator",emulator},{"root",candidate["root"]},{"game_key",candidate["game_key"]}};
             selected[candidate["path"].toString()]=choice;payload.append(choice);

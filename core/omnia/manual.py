@@ -42,6 +42,8 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dic
     try:
         if tpl:
             built = templates.build(tpl, exe=exe, rom=rom, gopher64=gopher64)
+            if any(arg.startswith("/") and not _inside(arg, roots) for arg in built["launch"]):
+                raise ManualError("El lanzador asociado está fuera de las carpetas permitidas.")
         else:
             if not exe or not os.path.isfile(exe):
                 raise ManualError("Elige el ejecutable del juego.")
@@ -98,3 +100,23 @@ def remove_game(store, gid: str) -> bool:
             (st.get(key) or {}).pop(gid, None)
         store.save_state()
     return True
+
+
+def migrate_bedrock_on_linux(store) -> int:
+    """Corrige entradas antiguas de Minecraft que se guardaron como ejecutables Windows genéricos."""
+    changed = 0
+    with store.lock:
+        games = store.games()
+        for game in games:
+            for port in game.get("ports", []):
+                check = str(port.get("check", ""))
+                if not templates.bedrock_on_linux_appimage(check):
+                    continue
+                built = templates.build("bedrock-on-linux", exe=check)
+                port.update({key: built[key] for key in ("launch", "cwd", "check", "proc")})
+                port.update(name=templates.TEMPLATES["bedrock-on-linux"]["name"], chips=[KINDS["port"]])
+                game["sub"] = KINDS["port"]
+                changed += 1
+        if changed:
+            store.set_games(games)
+    return changed

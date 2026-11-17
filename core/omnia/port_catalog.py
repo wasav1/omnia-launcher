@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 
 CATALOG = {
+    # Se registran los puntos de inicio del juego; el wrapper de Longshot es el
+    # lanzador canónico del build y por eso tiene prioridad sobre bin/longshot.
     'longshot': {'game': 'The Legend of Zelda: Ocarina of Time', 'port': 'Longshot', 'platform': 'sw2', 'folders': ('longshot',), 'executables': ('longshot',)},
     'hookshot': {'game': 'The Legend of Zelda: Ocarina of Time', 'port': 'Hookshot', 'platform': 'sw2', 'folders': ('hookshot',), 'executables': ('hookshot',)},
     'nx2navi': {'game': 'The Legend of Zelda: Ocarina of Time', 'port': 'NX2navi', 'platform': 'sw2', 'folders': ('nx2navi',), 'executables': ('ocarina',)},
@@ -28,15 +30,19 @@ def identify(path):
         matches = stem in record['executables']
         if template == 'savagewind' and file.suffix.lower() == '.appimage':
             matches = bool(re.match(r'^savage[_-]?wind(?:[-_].*)?$', stem))
-        if template == 'nx2navi' and low == 'play.sh' and folder:
-            try:
-                matches = bool(re.search(r'exec\s+\./ocarina(?:\s|$)', file.read_text()[:4096])) and (file.parent / 'ocarina').is_file()
-            except (OSError, UnicodeError):
-                matches = False
         if matches and folder:
             # Un wrapper guarda partidas junto al ejecutable real, no junto al shell arbitrario.
             install = file.parent.parent if file.parent.name == 'bin' else file.parent
-            return {**record, 'template': template, 'group': str(folder), 'install': str(install)}
+            launcher_priority = 0
+            if template == 'longshot':
+                try:
+                    prefix = file.read_text(errors='replace')[:4096]
+                    if prefix.startswith('#!/bin/sh') and 'builder_line()' in prefix and '--launch "$HERE"' in prefix:
+                        launcher_priority = 1
+                except OSError:
+                    pass
+            return {**record, 'template': template, 'group': str(folder), 'install': str(install),
+                    'launcher_priority': launcher_priority}
     return None
 
 

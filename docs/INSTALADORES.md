@@ -1,5 +1,47 @@
 # Instaladores de Omnia Desktop Suite
 
+### Revisión 30: iniciar Longshot sin abrir su launcher
+
+El launcher de Longshot interpreta `--launch <carpeta>` como «abrir la interfaz en ese build»; `--play <carpeta>`
+inicia el juego sin ventana. Omnia lee el `builder=` de `longshot_version.txt` y usa `--play` para entradas que
+ya estaban guardadas con el wrapper `longshot`.
+
+### Revisión 29: lanzar AppImages bajo NoNewPrivileges
+
+Omnia ejecuta el núcleo con `NoNewPrivileges=true`. Esta protección impedía que `fusermount` montara los
+AppImages de juegos, aunque FUSE estuviera instalado. El lanzador ahora usa `APPIMAGE_EXTRACT_AND_RUN=1`
+para que los ports AppImage se extraigan temporalmente y conserven la protección del servicio.
+
+### Revisión 28: escaneo y vinculación en pasos separados
+
+El asistente primero escanea los discos y muestra los juegos reconocidos. Al continuar, abre la selección de carpetas
+y la revisión para vincular o desvincular juegos. La ventana de candidatos incluye búsqueda por nombre, port y archivo.
+Los ajustes de Omnia usan el mismo flujo de dos pasos. La revisión también incorpora la migración de Minecraft de la revisión 27.
+
+### Revisión 27: migración de Minecraft BedrockOnLinux
+
+Al iniciar el servicio, Omnia corrige las entradas anteriores de `Minecraft.Windows.exe` que se habían guardado
+como juegos Windows genéricos con UMU. Las cambia al AppImage BedrockOnLinux con argumento `play`, manteniendo
+el identificador y los datos del juego.
+
+### Revisión 26: Minecraft Bedrock en el escáner
+
+El escáner agrupa `Minecraft.Windows.exe` con el lanzador BedrockOnLinux y los presenta como **Minecraft Bedrock · PC**.
+Al confirmar, Omnia reutiliza `BedrockOnLinux-*.AppImage play`; no solicita UMU ni importa las herramientas internas.
+
+### Revisión 25: reconocimiento del marcador de Minecraft Bedrock
+
+BedrockOnLinux guarda su marcador de instalación junto a `Minecraft.Windows.exe`, dentro de la carpeta de versión.
+Omnia busca el marcador en esa ruta y sus directorios superiores, y lanza el AppImage asociado con el argumento
+`play`.
+
+### Revisión 24: detección y lanzamiento de Minecraft BedrockOnLinux
+
+El asistente reconoce `Minecraft.Windows.exe` de BedrockOnLinux y registra Minecraft Bedrock como juego manual.
+Omnia lo inicia mediante el AppImage `BedrockOnLinux-*.AppImage play`, reutilizando su prefijo, sesión y datos
+existentes; no crea un prefijo UMU genérico. Para agregarlo, usa **Añadir juego**, elige ese ejecutable y confirma
+el nombre sugerido.
+
 Todos estos formatos abren el mismo asistente para rutas, candidatos, SteamGridDB y volumen del monitor.
 Requieren una sesión KDE Plasma 6, Qt >= 6.6, Python >= 3.11 y systemd de usuario. No son compatibles con Plasma 5.
 
@@ -154,6 +196,32 @@ En Arch/CachyOS puede retirar también `omnia-desktop-suite-installer` con autor
 sus dependencias. Si se cancela esa autorización, la interfaz informa que el asistente sigue instalado.
 La instalación antigua de paquetes `omnia-core`, `omnia-ui`, `omnia-kde` debe retirarse desde el gestor de paquetes
 antes de limpiar datos de usuario. El desinstalador no se ejecuta al actualizar el asistente.
+
+### Revisión 23: reutilizar la selección del escáner y priorizar el lanzador Longshot
+
+El instalador ya no vuelve a pedir los discos en el paso **Escritorio**: el monitor usa los discos marcados
+en el escáner y los muestra como resumen. El catálogo distingue el wrapper oficial `rc/longshot` del binario
+interno `rc/bin/longshot` y propone primero el wrapper, que delega en Longshot Launcher con `--launch`.
+
+### Revisión 22: escáner por disco, monitor múltiple y restauración de Omnia
+
+La sección **Juegos y discos** permite marcar varios volúmenes montados y escanearlos antes de elegir carpetas
+manualmente. El escaneo es de solo lectura hasta confirmar; usa el catálogo de ports y propone el ejecutable que
+inicia el juego (para NX2navi, `ocarina`, no su script auxiliar). La revisión de candidatos ahora permite vincular
+o desvincular entradas sin borrar archivos ni partidas. Los volúmenes seleccionados aparecen individualmente en
+el monitor de Omnia.
+
+**Monitor** conserva las estadísticas de componentes y muestra uso, temperatura y VRAM en la fila de GPU.
+La sección **Escritorio** añade «Volver a aplicar el escritorio Omnia al iniciar sesión»: restaura wallpaper y
+widget en las pantallas sin reemplazar el shell de Caelestia ni quitar otros widgets. La opción queda activada
+por defecto al actualizar una instalación existente; se puede desactivar desde Ajustes.
+
+### Revisión 21: selección de la GPU dedicada para MangoHud
+
+El generador detecta los adaptadores PCI y prioriza una GPU dedicada sobre la integrada; cuando hay
+varias dedicadas, usa la VRAM disponible para desempatar. Escribe `pci_dev` para que MangoHud use ese
+adaptador de forma explícita, sin depender del orden de enumeración, y actualiza su etiqueta `gpu_text`.
+Esta revisión elimina `gpu_list` de la configuración generada porque su índice podría contradecir el PCI.
 
 ### Revisión 20: etiquetas de CPU/GPU con los modelos detectados
 

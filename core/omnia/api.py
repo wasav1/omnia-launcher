@@ -8,6 +8,7 @@ Reglas de seguridad (ver security.py):
 """
 import json
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -38,6 +39,7 @@ class Api:
     def __init__(self, store, token: str, detectors=(), port: int = 0, launch_fn=launcher.launch, scan_fn=procs.scan, bus=None,
                  catalog=None, app_launch_fn=apps.launch, fs_roots=None, open_fn=None, backup_root=DEFAULT_BACKUP_ROOT):
         self.store, self.token, self.detectors, self.launch_fn, self.scan_fn = store, token, list(detectors), launch_fn, scan_fn
+        manual.migrate_bedrock_on_linux(store)
         self.bus = bus or EventBus()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
@@ -281,7 +283,11 @@ class Api:
         now = time.time()
         cache = getattr(self, "_system_cache", None)
         if cache is None or now - cache[0] > 2.0:                 # el panel sondea cada pocos segundos: no releer /sys a cada petición
-            cache = (now, system.snapshot(monitor=load_json(self.store.dir / "config.json", {}).get("monitor_disk")))
+            config = load_json(self.store.dir / "config.json", {})
+            monitor = config.get("monitor_disks")
+            if monitor is None:
+                monitor = config.get("monitor_disk")
+            cache = (now, system.snapshot(monitor=monitor))
             self._system_cache = cache
         return cache[1]
 
@@ -508,6 +514,9 @@ class Api:
 
     def game_suggest(self, q):
         path = str(q.get("path", ""))
+        if templates.bedrock_on_linux_appimage(path):
+            return {"name": "Minecraft Bedrock", "kind": "port", "template": "bedrock-on-linux",
+                    "platform": "pc", "recognized": "BedrockOnLinux · Minecraft Bedrock"}
         recognized = port_catalog.identify(path) if path else None
         if recognized:
             return {"name": recognized["game"], "kind": "port", "template": recognized["template"],

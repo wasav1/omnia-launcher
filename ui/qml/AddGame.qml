@@ -28,7 +28,7 @@ FocusScope {
             sel = { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc" }
             name = body.name || baseName(path)
             recognized = body.recognized || ""
-            note = recognized ? "Reconocido como " + recognized + " · " + (body.platform === "sw2" ? "Switch 2" : "Switch") : "Revisa el nombre antes de añadirlo."
+            note = recognized ? "Reconocido como " + recognized + (body.platform === "pc" ? "" : " · " + (body.platform === "sw2" ? "Switch 2" : "Switch")) : "Revisa el nombre antes de añadirlo."
             stage = "name"
             nameInput.forceActiveFocus()
         })
@@ -144,12 +144,7 @@ FocusScope {
             heading: ag.sel && ag.sel.needs === "rom" ? "Elige la ROM" : "Elige el ejecutable"
             onChosen: function (path) {
                 browser.active = false
-                ag.file = path
-                ag.name = ag.baseName(path)
-                ag.note = ""
-                ag.stage = "name"
-                ag.forceActiveFocus()
-                nameInput.forceActiveFocus()
+                ag.prepareDirect(path)
             }
             onCancelled: { browser.active = false; ag.forceActiveFocus() }
         }

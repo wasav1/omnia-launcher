@@ -4,6 +4,18 @@
 #include <QJsonObject>
 #include "candidate_review.h"
 
+class VolumePicker : public QListWidget {
+public:
+    explicit VolumePicker(QWidget *parent=nullptr):QListWidget(parent){setSelectionMode(QAbstractItemView::NoSelection);setMaximumHeight(150);}
+    void populate(const QJsonArray &available,const QJsonArray &saved){
+        clear();QSet<QString> found;
+        auto selected=[&](const QJsonObject &d){for(auto value:saved){auto old=value.toObject();if(old["uuid"]==d["uuid"]&&old["path"]==d["path"])return true;}return false;};
+        for(auto value:available){auto d=value.toObject();if(d["path"].toString().isEmpty())continue;auto row=new QListWidgetItem(QString("%1 — %2").arg(d["label"].toString(),d["path"].toString()),this);row->setFlags(row->flags()|Qt::ItemIsUserCheckable);row->setCheckState(selected(d)?Qt::Checked:Qt::Unchecked);row->setData(Qt::UserRole,d);found.insert(d["uuid"].toString()+"|"+d["path"].toString());}
+        for(auto value:saved){auto d=value.toObject();auto key=d["uuid"].toString()+"|"+d["path"].toString();if(found.contains(key)||d["path"].toString().isEmpty())continue;auto row=new QListWidgetItem(QString("%1 (no conectado) — %2").arg(d["label"].toString(),d["path"].toString()),this);row->setFlags(row->flags()|Qt::ItemIsUserCheckable);row->setCheckState(Qt::Checked);row->setData(Qt::UserRole,d);}
+    }
+    QJsonArray checkedVolumes()const{QJsonArray out;for(int i=0;i<count();++i)if(item(i)->checkState()==Qt::Checked)out.append(item(i)->data(Qt::UserRole).toJsonObject());return out;}
+};
+
 class RouteList : public QListWidget {
     QString backend;
     QStringList queue;
@@ -13,18 +25,20 @@ class RouteList : public QListWidget {
         const auto selected = selectedCandidates();
         for(int i=0;i<count();++i){
             auto entry=item(i);auto root=entry->data(Qt::UserRole).toString();QSet<QString> games;
-            for(auto value:selected){auto choice=value.toObject();auto file=choice["file"].toString();if(file==root||file.startsWith(root+"/")){
+            for(auto value:selected){auto choice=value.toObject();auto file=choice["file"].toString();if(!choice["unlink"].toBool()&&(file==root||file.startsWith(root+"/"))){
                 auto key=choice["game_key"].toString();games.insert(key.isEmpty()?file:key);
             }}
             auto info=entry->data(Qt::UserRole+2).toString();
-            entry->setText(root+"\n"+info+QString("\n%1 juegos seleccionados para agregar").arg(games.size()));
+            int unlinkCount=0;for(auto value:selected){auto choice=value.toObject();auto file=choice["file"].toString();if(choice["unlink"].toBool()&&(file==root||file.startsWith(root+"/")))++unlinkCount;}
+            entry->setText(root+"\n"+info+QString("\n%1 para vincular · %2 para desvincular").arg(games.size()).arg(unlinkCount));
             entry->setToolTip(entry->text());
         }
-        if(counterLabel)counterLabel->setText(QString("%1 juegos seleccionados · %2 ports / archivos · %3 carpetas").arg(selectedGameCount()).arg(selected.size()).arg(count()));
+        if(counterLabel)counterLabel->setText(QString("%1 juegos para vincular · %2 para desvincular · %3 ports / archivos · %4 carpetas").arg(selectedGameCount()).arg(selectedUnlinkCount()).arg(selected.size()).arg(count()));
     }
     QMap<QString,QJsonObject> choices;
     void scanNext() {
-        if(busy || queue.isEmpty())return;
+        if(busy)return;
+        if(queue.isEmpty()){if(scanFinished)QTimer::singleShot(0,this,scanFinished);return;}
         QString path=queue.takeFirst();busy=true;
         auto p=new QProcess(this);
         auto done=[this,p,path](bool success){
@@ -41,11 +55,13 @@ class RouteList : public QListWidget {
         if(p->waitForStarted()){p->write(QJsonDocument(QJsonObject{{"path",path}}).toJson());p->closeWriteChannel();}else done(false);
     }
 public:
+    std::function<void()> scanFinished;
     RouteList(const QString &path):backend(path){setWordWrap(true);connect(model(),&QAbstractItemModel::rowsRemoved,this,[this]{refreshCounters();});}
     void setCounterLabel(QLabel *label){counterLabel=label;refreshCounters();}
     int selectedGameCount()const{
-        QSet<QString> games;for(auto value:selectedCandidates()){auto choice=value.toObject();auto key=choice["game_key"].toString();games.insert(key.isEmpty()?choice["file"].toString():key);}return games.size();
+        QSet<QString> games;for(auto value:selectedCandidates()){auto choice=value.toObject();if(choice["unlink"].toBool())continue;auto key=choice["game_key"].toString();games.insert(key.isEmpty()?choice["file"].toString():key);}return games.size();
     }
+    int selectedUnlinkCount()const{int count=0;for(auto value:selectedCandidates())if(value.toObject()["unlink"].toBool())++count;return count;}
     ~RouteList() override {
         disconnect(model(),nullptr,this,nullptr);
         for(auto process:findChildren<QProcess*>()) {
@@ -88,6 +104,30 @@ public:
         for(int i=0;i<count();++i)if(item(i)->data(Qt::UserRole).toString()==path)return;
         auto entry=new QListWidgetItem(path+"\nAnalizando juegos…",this);entry->setData(Qt::UserRole,path);entry->setToolTip(path);entry->setData(Qt::UserRole+2,"Analizando juegos…");entry->setSizeHint(QSize(0,84));
         queue.append(path);refreshCounters();scanNext();
+    }
+    void scanPaths(const QStringList &paths){
+        for(QString path:paths){
+            path=QDir::cleanPath(path);auto canonical=QFileInfo(path).canonicalFilePath();if(!canonical.isEmpty())path=canonical;
+            int row=-1;for(int i=0;i<count();++i)if(item(i)->data(Qt::UserRole).toString()==path){row=i;break;}
+            if(row<0){addPath(path);continue;}
+            auto entry=item(row);entry->setData(Qt::UserRole+1,QJsonObject());entry->setData(Qt::UserRole+2,"Analizando juegos…");
+            if(!queue.contains(path))queue.append(path);
+        }
+        refreshCounters();scanNext();
+    }
+    QString knownGamesSummary()const{
+        QMap<QString,QString> found;
+        for(int i=0;i<count();++i){auto data=item(i)->data(Qt::UserRole+1).toJsonObject();for(auto value:data["items"].toArray()){
+            auto candidate=value.toObject();if(candidate["kind"]!="port"&&candidate["kind"]!="rom")continue;
+            QString name=candidate["name"].toString().trimmed();if(name.isEmpty())continue;
+            QString platform=candidate["platform"].toString();QString label=name;
+            if(!candidate["port_name"].toString().isEmpty())label+=" · "+candidate["port_name"].toString();
+            if(platform=="sw1")label+=" · Switch";else if(platform=="sw2")label+=" · Switch 2";else if(platform=="n64")label+=" · N64";
+            found.insert(label.toCaseFolded(),label);
+        }}
+        if(found.isEmpty())return "No encontramos ports del catálogo Omnia ni ROM de N64 en los discos escaneados. Puedes agregar carpetas y revisar otros archivos en el siguiente paso.";
+        QStringList labels=found.values();constexpr int limit=40;int extra=qMax(0,labels.size()-limit);if(extra)labels=labels.mid(0,limit);
+        return QString("Juegos reconocidos: %1\n\n%2%3").arg(found.size()).arg(labels.join("\n")).arg(extra?QString("\n… y %1 más").arg(extra):QString());
     }
 };
 

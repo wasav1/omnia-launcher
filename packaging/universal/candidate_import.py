@@ -10,6 +10,7 @@ from omnia.store import Store
 
 def requirements(selected):
     """Requisitos de los archivos seleccionados, recalculados antes de guardar."""
+    selected = [item for item in selected if not item.get('unlink')]
     missing = []
     n64 = [item for item in selected if item.get('kind') == 'rom' and item.get('emulator') == 'gopher64']
     invalid_n64 = [item for item in n64 if Path(str(item.get('file', ''))).suffix.lower() not in {'.z64', '.n64', '.v64'}]
@@ -21,7 +22,8 @@ def requirements(selected):
             templates.gopher64_install()
         except templates.TemplateError:
             missing.append({'component': 'Gopher64', 'message': 'Instala Gopher64 para importar las ROMs de N64 seleccionadas. En Arch/CachyOS: paquete AUR gopher64 o gopher64-bin; también se admite su Flatpak.'})
-    if any(Path(str(item.get('file', ''))).suffix.lower() == '.exe' and item.get('kind') != 'rom' for item in selected) and not shutil.which('umu-run'):
+    if any(Path(str(item.get('file', ''))).suffix.lower() == '.exe' and item.get('kind') != 'rom'
+           and not templates.bedrock_on_linux_appimage(str(item.get('file', ''))) for item in selected) and not shutil.which('umu-run'):
         missing.append({'component': 'UMU Launcher', 'message': 'Instala umu-launcher para los ejecutables Windows seleccionados. En Arch/CachyOS está disponible desde el gestor de paquetes.'})
     for item in selected:
         if item.get('kind') == 'rom' and item.get('emulator') not in ('gopher64', ''):
@@ -72,6 +74,10 @@ def _prepare(games, selected, roots):
                            'launch':[emulator,path],'check':path,'proc':os.path.basename(emulator)}]}
                     staging.set_games(staging.games()+[entry])
             else:
+                if item.get('template') == 'bedrock-on-linux':
+                    manual.add_game(staging, {'name': name, 'exe': path, 'template': 'bedrock-on-linux'}, roots)
+                    known.add(path); added += 1
+                    continue
                 record = port_catalog.identify(path)
                 if record:
                     windows = Path(path).suffix.lower() == '.exe'
@@ -83,8 +89,6 @@ def _prepare(games, selected, roots):
                     entry['art']['sgdb'] = record['game']
                     port = entry['ports'][0]
                     port.update(name=record['port'], template=record['template'], chips=['Port recompilado'])
-                    # El wrapper NX2navi inicia ocarina; vigila el juego real.
-                    if record['template'] == 'nx2navi' and Path(path).name == 'play.sh': port['proc'] = 'ocarina'
                     rows = staging.games()
                     rows = [entry if g['id'] == entry['id'] else g for g in rows]
                     def same_game(game):

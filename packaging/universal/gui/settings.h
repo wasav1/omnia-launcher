@@ -9,10 +9,13 @@ class SettingsWindow : public QDialog {
     QString backend;
     QJsonObject initial;
     RouteList *folders;
-    QComboBox *disks;
+    RouteList *scanRoutes;
+    VolumePicker *disks;
+    QStackedWidget *librarySteps;
+    QLabel *scanSummary;
     QComboBox *notificationPosition;
     KeyPanel *keyPanel;
-    QCheckBox *clearKey, *mangohud;
+    QCheckBox *clearKey, *mangohud, *keepOmnia;
     QLabel *status;
     QPushButton *save;
     bool saving=false;
@@ -28,24 +31,32 @@ public:
         else brand->setText("OMNIA");
         layout->addWidget(brand);
         auto tabs=new QTabWidget;layout->addWidget(tabs);
-        auto libraries=new QWidget;auto routes=new QVBoxLayout(libraries);
-        auto help=new QLabel("Añade ubicaciones de ports y emuladores. Quitar una ruta excluye sus juegos del catálogo sin borrar sus archivos, partidas ni historial. Volver a añadirla recupera sus entradas.");help->setWordWrap(true);routes->addWidget(help);
+        auto libraries=new QWidget;auto routes=new QVBoxLayout(libraries);librarySteps=new QStackedWidget;routes->addWidget(librarySteps);
+        auto scanPage=new QWidget;auto scanLayout=new QVBoxLayout(scanPage);
+        auto scanHelp=new QLabel("Paso 1 de 2 · Selecciona los discos que contienen juegos y escanéalos. Aquí verás los ports del catálogo Omnia y las ROM de N64 reconocidas; todavía no se vincula ni desvincula nada.");scanHelp->setWordWrap(true);scanLayout->addWidget(scanHelp);
+        disks=new VolumePicker;auto cfg=initial["config"].toObject();QJsonArray monitorVolumes=cfg["monitor_disks"].toArray();if(monitorVolumes.isEmpty()&&!cfg["monitor_disk"].toObject().isEmpty())monitorVolumes.append(cfg["monitor_disk"].toObject());disks->populate(initial["volumes"].toArray(),monitorVolumes);scanLayout->addWidget(disks);
+        auto scanDisks=new QPushButton("Escanear discos seleccionados");scanLayout->addWidget(scanDisks);
+        scanRoutes=new RouteList(backend);scanRoutes->setMaximumHeight(115);scanLayout->addWidget(scanRoutes);
+        scanSummary=new QLabel("Selecciona discos y pulsa «Escanear» para ver los juegos reconocidos.");scanSummary->setWordWrap(true);scanLayout->addWidget(scanSummary);
+        scanRoutes->scanFinished=[this]{scanSummary->setText(scanRoutes->knownGamesSummary());};
+        auto continueToLinks=new QPushButton("Continuar a carpetas y vínculos");scanLayout->addWidget(continueToLinks);librarySteps->addWidget(scanPage);
+        auto linkPage=new QWidget;auto linkLayout=new QVBoxLayout(linkPage);
+        auto help=new QLabel("Paso 2 de 2 · Agrega carpetas adicionales y revisa qué juegos vincular o desvincular. Quitar una ruta excluye sus juegos del catálogo sin borrar archivos, partidas ni historial.");help->setWordWrap(true);linkLayout->addWidget(help);
         folders=new RouteList(backend);
         for(auto p:initial["linked_roots"].toArray())folders->addPath(p.toString());
-        routes->addWidget(folders);auto selectionCounter=new QLabel;selectionCounter->setObjectName("CardTitle");folders->setCounterLabel(selectionCounter);routes->addWidget(selectionCounter);auto buttons=new QHBoxLayout;auto add=new QPushButton("Añadir carpeta…"),remove=new QPushButton("Quitar ruta");buttons->addWidget(add);buttons->addWidget(remove);auto review=new QPushButton("Revisar candidatos…");buttons->addWidget(review);connect(review,&QPushButton::clicked,this,[this]{folders->reviewCandidates();});routes->addLayout(buttons);
-        auto steam=new QLabel(QString("Steam: %1 juegos detectados automáticamente. Las rutas externas no modifican sus bibliotecas.").arg(initial["steam_count"].toInt()));steam->setWordWrap(true);routes->addWidget(steam);tabs->addTab(libraries,"Bibliotecas");
+        linkLayout->addWidget(folders);auto selectionCounter=new QLabel;selectionCounter->setObjectName("CardTitle");folders->setCounterLabel(selectionCounter);linkLayout->addWidget(selectionCounter);auto buttons=new QHBoxLayout;auto backToScan=new QPushButton("Volver al escáner"),add=new QPushButton("Añadir carpeta…"),remove=new QPushButton("Quitar ruta");buttons->addWidget(backToScan);buttons->addWidget(add);buttons->addWidget(remove);auto review=new QPushButton("Revisar candidatos…");buttons->addWidget(review);connect(review,&QPushButton::clicked,this,[this]{folders->reviewCandidates();});linkLayout->addLayout(buttons);librarySteps->addWidget(linkPage);
+        connect(continueToLinks,&QPushButton::clicked,this,[this]{for(auto value:disks->checkedVolumes())folders->addPath(value.toObject()["path"].toString());librarySteps->setCurrentIndex(1);});connect(backToScan,&QPushButton::clicked,this,[this]{librarySteps->setCurrentIndex(0);});
+        auto steam=new QLabel(QString("Steam: %1 juegos detectados automáticamente. Las rutas externas no modifican sus bibliotecas. Para desvincular una carpeta completa, selecciónala y pulsa Quitar ruta; los archivos y partidas se conservan.").arg(initial["steam_count"].toInt()));steam->setWordWrap(true);routes->addWidget(steam);tabs->addTab(libraries,"Juegos y discos");
+        connect(scanDisks,&QPushButton::clicked,this,[this]{QStringList paths;for(auto value:disks->checkedVolumes())paths<<value.toObject()["path"].toString();if(paths.isEmpty()){QMessageBox::information(this,"Escanear discos","Marca al menos un disco o partición.");return;}scanSummary->setText("Analizando los discos seleccionados…");scanRoutes->scanPaths(paths);});
         connect(add,&QPushButton::clicked,this,[this]{auto path=QFileDialog::getExistingDirectory(this,"Carpeta de juegos",QDir::homePath());if(!path.isEmpty())folders->addPath(path);});
         connect(remove,&QPushButton::clicked,this,[this]{if(folders->currentRow()<0)return;delete folders->takeItem(folders->currentRow());});
-        auto monitor=new QWidget;auto diskLayout=new QVBoxLayout(monitor);diskLayout->addWidget(new QLabel("Volumen que muestra el monitor de Omnia:"));disks=new QComboBox;
-        auto saved=initial["config"].toObject()["monitor_disk"].toObject();bool found=false;
-        for(auto value:initial["volumes"].toArray()) {auto d=value.toObject();disks->addItem(d["label"].toString()+" — "+d["path"].toString(),d);if(d["uuid"]==saved["uuid"]&&d["path"]==saved["path"]){disks->setCurrentIndex(disks->count()-1);found=true;}}
-        if(!saved.isEmpty()&&!found){disks->addItem(saved["label"].toString()+" (no conectado)",saved);disks->setCurrentIndex(disks->count()-1);}
-        diskLayout->addWidget(disks);
+        auto monitor=new QWidget;auto diskLayout=new QVBoxLayout(monitor);
         mangohud=new QCheckBox("Mostrar estadísticas de componentes mientras juegas (MangoHud)");
         mangohud->setChecked(initial["config"].toObject().value("mangohud_enabled").toBool(true));
         mangohud->setEnabled(initial["mangohud_available"].toBool());
         diskLayout->addWidget(mangohud);
-        auto note=new QLabel("MangoHud muestra FPS, frametime, temperaturas, RAM y VRAM; las etiquetas de CPU y GPU usan los nombres de modelo detectados en este equipo. Se activa al lanzar juegos directamente desde Omnia. Para juegos de Steam añade «MANGOHUD_CONFIGFILE=$HOME/.config/omnia/MangoHud.conf mangohud %command%» en sus Opciones de lanzamiento; Steam no hereda el entorno de Omnia si ya está abierto.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
+        auto note=new QLabel("MangoHud muestra FPS, frametime, temperaturas, RAM y VRAM; las etiquetas usan los nombres de modelo detectados. Los juegos de Steam requieren «MANGOHUD_CONFIGFILE=$HOME/.config/omnia/MangoHud.conf mangohud %command%» en sus Opciones de lanzamiento.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
+        auto desktop=new QWidget;auto desktopLayout=new QVBoxLayout(desktop);keepOmnia=new QCheckBox("Volver a aplicar el escritorio Omnia al iniciar sesión");keepOmnia->setChecked(cfg.value("keep_omnia_session").toBool(true));desktopLayout->addWidget(keepOmnia);auto desktopNote=new QLabel("Después de iniciar sesión, Omnia restaura su fondo animado y su widget en cada pantalla. Conserva el shell de Caelestia y otros widgets existentes.");desktopNote->setWordWrap(true);desktopLayout->addWidget(desktopNote);desktopLayout->addStretch();tabs->addTab(desktop,"Escritorio");
         auto notifications=new QWidget;auto notificationLayout=new QVBoxLayout(notifications);
         notificationLayout->addWidget(new QLabel("Posición de los avisos temporales de Omnia:"));
         notificationPosition=new QComboBox;
@@ -65,7 +76,7 @@ public:
         connect(save,&QPushButton::clicked,this,[this]{
             if(!clearKey->isChecked()&&!keyPanel->ready()){status->setText("Valida SteamGridDB o marca configurar después antes de aplicar.");return;}
             QJsonArray roots;for(int i=0;i<folders->count();++i)roots.append(folders->item(i)->data(Qt::UserRole).toString());
-            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disk",disks->currentData().toJsonObject()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()}};
+            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disks",disks->checkedVolumes()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()},{"keep_omnia_session",keepOmnia->isChecked()}};
             auto p=new QProcess(this);p->setProcessChannelMode(QProcess::MergedChannels);saving=true;save->setEnabled(false);status->setText("Guardando…");
             connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){keyPanel->clearInput();clearKey->setChecked(false);folders->clearSelections();}p->deleteLater();});
             p->start("python3",{backend,"--save-settings"});if(p->waitForStarted()){p->write(QJsonDocument(data).toJson(QJsonDocument::Compact));p->closeWriteChannel();}else{saving=false;save->setEnabled(true);status->setText("No se pudo guardar la configuración.");p->deleteLater();}

@@ -14,13 +14,15 @@ class Installer : public QWizard {
     QJsonObject initial;
     QPixmap brandIcon;
     RouteList *folders;
-    QComboBox *disks;
+    RouteList *scanRoutes;
+    VolumePicker *scanDisks;
+    QLabel *scanSummary;
     KeyPanel *keyPanel;
     QCheckBox *consent;
-    QCheckBox *logoutOnComplete;
+    QCheckBox *logoutOnComplete, *keepOmnia;
     bool updateOnly = false;
     QPlainTextEdit *log;
-    QLabel *summary, *result;
+    QLabel *summary, *result, *monitorDisksSummary;
     QProgressBar *progress;
     QPushButton *details;
     void updateSteps() {
@@ -36,11 +38,11 @@ class Installer : public QWizard {
         painter.setFont(caption); painter.setPen(QColor("#92a0bc")); painter.drawText(QRect(81, 51, 125, 20), "DESKTOP SUITE");
         const QStringList steps = updateOnly
             ? QStringList{"Actualizar", "Confirmar"}
-            : QStringList{"Inicio", "Biblioteca", "Sistema", "Imágenes", "Instalar"};
+            : QStringList{"Inicio", "Escanear", "Vincular", "Sistema", "Imágenes", "Instalar"};
         const int stepWidth = (w - 225) / steps.size();
         for (int i = 0; i < steps.size(); ++i) {
             int x = 210 + i * stepWidth;
-            const int pageId = updateOnly ? i + 3 : i;
+            const int pageId = updateOnly ? i + 4 : i;
             bool active = currentId() == pageId, done = currentId() > pageId || completed;
             if (active) { painter.setPen(Qt::NoPen); painter.setBrush(QColor("#29375d")); painter.drawRoundedRect(QRectF(x - 7, 23, stepWidth - 3, 40), 20, 20); }
             painter.setPen(Qt::NoPen); painter.setBrush(QColor(done ? "#285b50" : active ? "#5478f5" : "#303745"));
@@ -71,7 +73,7 @@ class Installer : public QWizard {
             return {{"accepted", true}, {"update_only", true}, {"steamgriddb_key", keyPanel->keyForSave()}};
         QJsonArray roots; for(int i=0;i<folders->count();++i) roots.append(folders->item(i)->data(Qt::UserRole).toString());
         return {{"accepted",consent->isChecked()},{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},
-                {"monitor_disk",disks->currentData().toJsonObject()}, {"steamgriddb_key",keyPanel->keyForSave()}};
+                {"monitor_disks",scanDisks->checkedVolumes()}, {"keep_omnia_session",keepOmnia->isChecked()}, {"steamgriddb_key",keyPanel->keyForSave()}};
     }
 public:
     bool isUpdateOnly() const { return updateOnly; }
@@ -115,7 +117,15 @@ public:
         static_cast<QVBoxLayout*>(welcome->layout())->addStretch();
         consent=new QCheckBox("He leído y acepto estos cambios en mi sesión de KDE Plasma.");
         welcome->registerField("consent*",consent); add(welcome,consent);
-        auto libraries=page("Bibliotecas de juegos","Steam se detecta automáticamente. Añade todas tus carpetas externas.");
+        auto scanPage=page("Escanear discos","Primero elige los discos que guardan tus juegos. Omnia mostrará los ports y juegos que puede reconocer; después podrás revisar qué vincular.");
+        scanDisks=new VolumePicker;scanDisks->populate(initial["volumes"].toArray(),{});add(scanPage,omniaCard("Discos disponibles","Selecciona uno o varios discos o particiones. El escaneo solo lee archivos; todavía no agrega ni quita juegos."));add(scanPage,scanDisks);
+        auto scanButton=new QPushButton("Escanear discos seleccionados");add(scanPage,scanButton);
+        scanRoutes=new RouteList(backend);scanRoutes->setMaximumHeight(150);add(scanPage,scanRoutes);
+        scanSummary=new QLabel("Selecciona discos y pulsa «Escanear» para ver los juegos reconocidos.");scanSummary->setObjectName("Muted");scanSummary->setWordWrap(true);add(scanPage,scanSummary);
+        scanRoutes->scanFinished=[this]{scanSummary->setText(scanRoutes->knownGamesSummary());};
+        connect(scanButton,&QPushButton::clicked,this,[this]{QStringList paths;for(auto value:scanDisks->checkedVolumes())paths<<value.toObject()["path"].toString();if(paths.isEmpty()){QMessageBox::information(this,"Escanear discos","Marca al menos un disco o partición.");return;}scanSummary->setText("Analizando los discos seleccionados…");scanRoutes->scanPaths(paths);});
+
+        auto libraries=page("Carpetas y vinculación","Ahora agrega carpetas adicionales si hace falta y elige qué juegos deseas vincular o desvincular.");
         QStringList libs; for(auto v:initial["steam_libraries"].toArray()) libs<<v.toString();
         auto steam=new QLabel(QString("Steam: %1 juegos detectados\n%2").arg(initial["steam_count"].toInt()).arg(libs.isEmpty()?"No se encontraron bibliotecas registradas. Abre Steam y configura su biblioteca.":libs.join("\n")));
         steam->setWordWrap(true); steam->setObjectName("Muted");
@@ -126,25 +136,17 @@ public:
         auto plus=new QPushButton("Añadir carpeta…"), minus=new QPushButton("Quitar seleccionada"); buttons->addWidget(plus); buttons->addWidget(minus); auto review=new QPushButton("Revisar candidatos…");buttons->addWidget(review);connect(review,&QPushButton::clicked,this,[this]{folders->reviewCandidates();}); add(libraries,row);
         connect(plus,&QPushButton::clicked,this,[this]{auto path=QFileDialog::getExistingDirectory(this,"Carpeta de ports o juegos externos",QDir::homePath()); if(!path.isEmpty()) folders->addPath(path);});
         connect(minus,&QPushButton::clicked,this,[this]{delete folders->takeItem(folders->currentRow());});
+        connect(this,&QWizard::currentIdChanged,this,[this](int id){if(id==2)for(auto value:scanDisks->checkedVolumes())folders->addPath(value.toObject()["path"].toString());});
         auto note=new QLabel("Las ubicaciones estarán disponibles en el explorador de Omnia. Quitar una ruta excluye sus juegos del catálogo sin borrar archivos; añadirla de nuevo los recupera. Steam se administra por separado.");note->setWordWrap(true);add(libraries,note);
-        auto monitor=page("Elige tu disco de juegos","Omnia mostrará el espacio disponible y la actividad de este volumen en el escritorio.");
-        disks=new QComboBox;
-        for(auto v:initial["volumes"].toArray()) {auto d=v.toObject();disks->addItem(d["label"].toString()+" — "+d["path"].toString(),d);}
-        auto saved=initial["config"].toObject()["monitor_disk"].toObject();
-        for(int i=0;i<disks->count();++i) if(disks->itemData(i).toJsonObject()["uuid"]==saved["uuid"])disks->setCurrentIndex(i);
-        auto diskCard = omniaCard("Volumen del monitor", "Selecciona el disco que quieres consultar mientras juegas.");
-        diskCard->layout()->addWidget(disks); add(monitor,diskCard);
-        auto diskInfo = new QLabel; diskInfo->setObjectName("Muted"); diskInfo->setWordWrap(true); add(monitor,diskInfo);
-        auto updateDisk = [this,diskInfo] {
-            auto data = disks->currentData().toJsonObject();
-            QStorageInfo storage(data["path"].toString());
-            if (storage.isValid() && storage.isReady()) {
-                diskInfo->setText(QString("%1 GB disponibles de %2 GB\n%3").arg(storage.bytesAvailable()/1073741824.0,0,'f',1).arg(storage.bytesTotal()/1073741824.0,0,'f',1).arg(data["path"].toString()));
-            } else diskInfo->setText("El volumen no está disponible. Comprueba que esté montado.");
-        };
-        connect(disks, &QComboBox::currentIndexChanged, this, [updateDisk](int){updateDisk();}); updateDisk();
+        auto monitor=page("Escritorio","Omnia usará en el monitor los discos que marcaste en el escáner. Decide si también debe restaurar el escritorio al iniciar sesión.");
+        auto savedCfg=initial["config"].toObject();
+        auto diskCard = omniaCard("Discos del monitor", "La selección se toma del paso Biblioteca → Escanear discos; vuelve atrás para cambiarla.");
+        monitorDisksSummary=new QLabel;monitorDisksSummary->setObjectName("Muted");monitorDisksSummary->setWordWrap(true);diskCard->layout()->addWidget(monitorDisksSummary);add(monitor,diskCard);
+        auto updateMonitorDisks=[this]{QStringList labels;for(auto value:scanDisks->checkedVolumes()){auto d=value.toObject();labels<<QString("%1 — %2").arg(d["label"].toString(),d["path"].toString());}monitorDisksSummary->setText(labels.isEmpty()?"No hay discos marcados en el escáner.":labels.join("\n"));};
+        connect(scanDisks,&QListWidget::itemChanged,this,[updateMonitorDisks](QListWidgetItem*){updateMonitorDisks();});updateMonitorDisks();
+        keepOmnia=new QCheckBox("Volver a aplicar el escritorio Omnia al iniciar sesión");keepOmnia->setChecked(savedCfg.value("keep_omnia_session").toBool(true));add(monitor,keepOmnia);
+        auto keepNote=new QLabel("Omnia restaura su fondo animado y widget, conserva Caelestia y los demás widgets existentes.");keepNote->setObjectName("Muted");keepNote->setWordWrap(true);add(monitor,keepNote);
         static_cast<QVBoxLayout*>(monitor->layout())->addStretch();
-        if(disks->count()==0) add(monitor,new QLabel("No hay volúmenes compatibles montados. Monta el disco y vuelve a abrir el asistente."));
         auto art=page(updateOnly?"Validar SteamGridDB":"Dale imagen a tu biblioteca",
                       updateOnly?"Confirma la clave de SteamGridDB para conservar las imágenes automáticas.":"Conecta SteamGridDB para descargar portadas, fondos y logos de tus juegos.");
         add(art,omniaCard(updateOnly?"Actualización rápida":"Tu clave permanece privada",
@@ -165,17 +167,17 @@ public:
         static_cast<QVBoxLayout*>(final->layout())->addStretch();
         connect(this,&QWizard::currentIdChanged,this,[this](int id){
             updateSteps();
-            if(id==4) summary->setText(updateOnly
+            if(id==5) {QStringList labels;for(auto value:scanDisks->checkedVolumes())labels<<value.toObject()["label"].toString();QString monitorSummary=labels.isEmpty()?"No se seleccionaron discos":labels.join(", ");summary->setText(updateOnly
                 ? QString("<table cellspacing='9'><tr><td><b>Omnia</b></td><td>Archivos de la aplicación</td></tr><tr><td><b>Biblioteca</b></td><td>Se conserva</td></tr><tr><td><b>Ajustes</b></td><td>Se conservan</td></tr><tr><td><b>SteamGridDB</b></td><td>%1</td></tr></table>").arg(keyPanel->summary().toHtmlEscaped())
                 : QString("<table cellspacing='9'><tr><td><b>Bibliotecas</b></td><td>Steam + %1 carpetas externas</td></tr><tr><td><b>Selección</b></td><td>%2 juegos para agregar</td></tr><tr><td><b>Monitor</b></td><td>%3</td></tr><tr><td><b>Imágenes</b></td><td>%4</td></tr></table>")
-                .arg(folders->count()).arg(folders->selectedGameCount()).arg(disks->currentText().toHtmlEscaped()).arg(keyPanel->summary().toHtmlEscaped()));
-            if(updateOnly && id==3) button(BackButton)->setEnabled(false);
+                .arg(folders->count()).arg(folders->selectedGameCount()).arg(monitorSummary.toHtmlEscaped()).arg(keyPanel->summary().toHtmlEscaped()));}
+            if(updateOnly && id==4) button(BackButton)->setEnabled(false);
         });
-        if(updateOnly) { setStartId(3); setButtonText(FinishButton,"Actualizar"); }
+        if(updateOnly) { setStartId(4); setButtonText(FinishButton,"Actualizar"); }
         updateSteps();
     }
     bool validateCurrentPage() override {
-        if(currentId()==3 && !keyPanel->ready()) {
+        if(currentId()==4 && !keyPanel->ready()) {
             QMessageBox::information(this,"SteamGridDB","Valida la conexión o marca «Configurar SteamGridDB después» para continuar.");
             return false;
         }
@@ -183,7 +185,7 @@ public:
     }
     void accept() override {
         if(completed){QWizard::accept();return;} if(running)return;
-        if((!updateOnly && !consent->isChecked()) || (!updateOnly && disks->currentIndex()<0))return;
+        if(!updateOnly && !consent->isChecked())return;
 
         logoutOnComplete->setEnabled(false);
         running=true;button(FinishButton)->setEnabled(false);button(BackButton)->setEnabled(false);button(CancelButton)->setEnabled(false);
@@ -268,7 +270,7 @@ if(argc>2 && QString::fromLocal8Bit(argv[2])=="--smoke") {
             for(auto box:wizard.findChildren<QCheckBox*>()) if(box->text().startsWith("Configurar SteamGridDB"))box->setChecked(true);
             wizard.grab().save("/tmp/omnia-installer-update-key.png");
             wizard.next(); QApplication::processEvents();
-            if(wizard.currentId()!=4){app.exit(12);return;}
+            if(wizard.currentId()!=5){app.exit(12);return;}
             wizard.grab().save("/tmp/omnia-installer-summary.png"); app.exit(0); return;
         }
         if(wizard.button(QWizard::NextButton)->isEnabled()){app.exit(10);return;}
@@ -277,12 +279,12 @@ if(argc>2 && QString::fromLocal8Bit(argv[2])=="--smoke") {
         wizard.grab().save("/tmp/omnia-installer-welcome.png");
         check->setChecked(true);
         for(auto box:wizard.findChildren<QCheckBox*>()) if(box->text().startsWith("Configurar SteamGridDB"))box->setChecked(true);
-        for(int i=0;i<4;++i) {
+        for(int i=0;i<5;++i) {
             wizard.next();
             QApplication::processEvents();
             wizard.grab().save(QString("/tmp/omnia-installer-step-%1.png").arg(i+1));
         }
-        if(wizard.currentId()!=4){app.exit(12);return;}
+        if(wizard.currentId()!=5){app.exit(12);return;}
         wizard.grab().save("/tmp/omnia-installer-summary.png");
         app.exit(0);
     });

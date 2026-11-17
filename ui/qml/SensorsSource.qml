@@ -6,8 +6,11 @@ Item {
     id: src
     readonly property int rate: 1000
     Sensors.Sensor { id: gpu0Name; sensorId: "gpu/gpu0/name" }
-    readonly property string gpuName: String(gpu0Name.value || "").replace(/^NVIDIA GeForce /i, "").replace(/^AMD Radeon /i, "")
-    readonly property string gpuId: /nvidia|geforce|gtx|rtx/i.test(String(gpu0Name.value)) ? "gpu0" : "gpu1"
+    Sensors.Sensor { id: gpu1Name; sensorId: "gpu/gpu1/name" }
+    readonly property string gpu0Label: String(gpu0Name.value || "")
+    readonly property string gpu1Label: String(gpu1Name.value || "")
+    readonly property string gpuId: /nvidia|geforce|gtx|rtx|radeon rx|arc a\d/i.test(gpu0Label) ? "gpu0" : (/nvidia|geforce|gtx|rtx|radeon rx|arc a\d/i.test(gpu1Label) ? "gpu1" : (gpu0Label ? "gpu0" : "gpu1"))
+    readonly property string gpuName: String(gpuId === "gpu0" ? gpu0Label : gpu1Label).replace(/^NVIDIA GeForce /i, "").replace(/^AMD Radeon /i, "")
     Sensors.Sensor { id: cpuU;  sensorId: "cpu/all/usage";              updateRateLimit: src.rate }
     Sensors.Sensor { id: cpuT;  sensorId: "cpu/all/averageTemperature"; updateRateLimit: src.rate }
     Sensors.Sensor { id: gpuU;  sensorId: "gpu/" + src.gpuId + "/usage";       updateRateLimit: src.rate }

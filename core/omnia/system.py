@@ -98,14 +98,25 @@ def battery(sys_root: str = "/sys") -> dict:
 
 def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home: str | None = None, monitor=None) -> dict:
     out = {"cpu": cpu(proc, sys_root)}
-    selected = selected_volume(monitor) if monitor else None
-    d = disk(selected["path"], proc) if selected else ({} if monitor else disk(games_dir(home, games), proc))
-    if d and selected:
-        d["label"] = selected["label"]
-    elif monitor:
-        out["disk"] = {"label": monitor.get("label", "Disco"), "available": False}
-    if d:
-        out["disk"] = d
+    if isinstance(monitor, list):
+        selected = [selected_volume(item) for item in monitor]
+        out["disks"] = []
+        for item, volume in zip(monitor, selected):
+            d = disk(volume["path"], proc) if volume else {"label": item.get("label", "Disco"), "available": False}
+            if volume:
+                d["label"] = volume["label"]
+            out["disks"].append(d)
+        if out["disks"]:
+            out["disk"] = out["disks"][0]  # compatibilidad con layouts anteriores
+    else:
+        selected = selected_volume(monitor) if monitor else None
+        d = disk(selected["path"], proc) if selected else ({} if monitor else disk(games_dir(home, games), proc))
+        if d and selected:
+            d["label"] = selected["label"]
+        elif monitor:
+            d = {"label": monitor.get("label", "Disco"), "available": False}
+        if d:
+            out["disk"] = d
     out.update(battery(sys_root))
     return out
 
