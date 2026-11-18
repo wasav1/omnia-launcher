@@ -33,6 +33,10 @@ QtObject {
     property var apps: []
     property var appGroups: []
     property bool gameMode: false         // modo juego activo (descargas congeladas y perfil de energía alto)
+    readonly property bool gameRunning: {
+        for (let i = 0; i < api.games.length; i++) if (api.games[i].running) return true
+        return false
+    }                                      // estado inmediato para la interfaz; el modo de energía usa su propia histéresis
     property bool padOn: false
     property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
@@ -225,9 +229,9 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
-    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameMode && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
+    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameRunning && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
-    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameMode; triggeredOnStart: true; onTriggered: api.pollSystem() }
+    property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameRunning; triggeredOnStart: true; onTriggered: api.pollSystem() }
     property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: api.controlsEnabled; triggeredOnStart: true; onTriggered: api.loadPreferences() }
 
     Component.onCompleted: {

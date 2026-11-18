@@ -526,8 +526,8 @@ class Api:
                 "kind": "windows" if suffix == ".exe" else "native", "platform": "pc", "recognized": ""}
 
     def game_remove(self, q):
-        if not manual.remove_game(self.store, q.get("id", "")):
-            raise ApiError(404, "solo se pueden quitar los juegos añadidos a mano")
+        if not games_refresh.unlink(self.store, q.get("id", "")):
+            raise ApiError(404, "juego desconocido")
         return {"ok": True}
 
     def saves_suggest(self, q):

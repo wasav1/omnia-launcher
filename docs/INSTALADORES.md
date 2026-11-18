@@ -1,5 +1,11 @@
 # Instaladores de Omnia Desktop Suite
 
+### Revisión 31: sincronización inmediata del estado visual de juego
+
+La opacidad de la ficha, el reloj y el monitor, además de los sondeos de audio y sensores, ahora sigue el
+mismo estado inmediato de juego que la pantalla «Jugando». La histéresis del perfil de energía sigue siendo
+independiente para evitar cambios bruscos al cerrar un juego.
+
 ### Revisión 30: iniciar Longshot sin abrir su launcher
 
 El launcher de Longshot interpreta `--launch <carpeta>` como «abrir la interfaz en ese build»; `--play <carpeta>`

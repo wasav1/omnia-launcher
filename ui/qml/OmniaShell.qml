@@ -132,8 +132,7 @@ Rectangle {
             { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "starred-symbolic" },
             { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "view-visible" : "view-hidden" }
         ]
-        if (current.id.indexOf("manual-") === 0)
-            items.push({ label: "Desvincular de Omnia…", icon: "edit-delete" })
+        items.push({ label: "Desvincular de Omnia…", icon: "edit-delete" })
         if (searchText !== "") items.push({ label: "Borrar filtro de búsqueda", icon: "edit-clear" })
         return items
     }
@@ -401,7 +400,7 @@ Rectangle {
         if (!on) { searchPad = false; restoreControllerFocus() }
         else if (!searchPad) Qt.callLater(function() { searchField.forceActiveFocus() })       // con el mando no se enfoca el campo: manda el teclado virtual
     }
-    function showContext(x, y) { if (!current || api.gameMode) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
+    function showContext(x, y) { if (!current || api.gameRunning) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
     function activateContext(i) {
         contextOpen = false
         if (i === 0) launchCurrent()
@@ -410,7 +409,7 @@ Rectangle {
         else if (i === 3) openArt()
         else if (i === 4) toggleFavorite()
         else if (i === 5) toggleHidden()
-        else if (current && current.id.indexOf("manual-") === 0 && i === 6) {
+        else if (current && i === 6) {
             unlinkDialog.game = current
             unlinkDialog.open()
         }
@@ -730,7 +729,7 @@ Rectangle {
     } }
     Loader { id: music; source: "MusicSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
     Loader { id: sensors; source: "SensorsSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
-    Timer { interval: 1000; repeat: true; running: (shell.sectionMode === "system" || shell.sectionMode === "full") && !api.covered && !api.gameMode && sensors.item !== null
+    Timer { interval: 1000; repeat: true; running: (shell.sectionMode === "system" || shell.sectionMode === "full") && !api.covered && !api.gameRunning && sensors.item !== null
         onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
@@ -839,7 +838,7 @@ Rectangle {
         // Ficha del juego: icono/origen, estado, logo o título, descripción, chips, ports y Jugar.
         Column {
             id: hero; x: 84; y: 116; width: 650; spacing: 8
-            opacity: api.gameMode ? 0.12 : 1; Behavior on opacity { NumberAnimation { duration: 300 } }
+            opacity: api.gameRunning ? 0.12 : 1
             Row { spacing: 10
                 PlatIcon { key: shell.platformIcon(current); color: shell.platformColor(current ? current.platform : "pc"); size: 20; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: current ? (platformLabel(current) + (current.platform === "pc" && current.src ? " · " + current.src : "")) : "OMNIA"; color: shell.platformColor(current ? current.platform : "pc"); font.family: canvas.hud; font.pixelSize: 20; font.weight: Font.DemiBold; font.letterSpacing: 2; anchors.verticalCenter: parent.verticalCenter }
@@ -889,7 +888,7 @@ Rectangle {
         }
 
         // Reloj, mando, ranuras reales y ficha.
-        Item { x: 760; y: 80; width: 700; height: 140; opacity: api.gameMode ? 0.12 : 1
+        Item { x: 760; y: 80; width: 700; height: 140; opacity: api.gameRunning ? 0.12 : 1
             Row { id: clockDigits; spacing: 0
                 Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getHours()%12)||12 } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold }
                 Text { text: ":"; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold; opacity: new Date(shell.nowSecs*1000).getSeconds()%2 ? .2 : .85 }
@@ -904,7 +903,7 @@ Rectangle {
                 Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
             }
         }
-        Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; opacity: api.gameMode ? .12:1
+        Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; opacity: api.gameRunning ? .12:1
             Column { width: parent.width; spacing: 0
                 Row { width: parent.width; spacing: 14; height: 22
                     Text { id: saveHead; text: "PARTIDAS · " + (saveInfo && saveInfo.slots.length ? saveInfo.slots.length + " RANURAS" : "NINGUNA"); color: canvas.acc; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 3.2 }
@@ -965,7 +964,7 @@ Rectangle {
             property real position: 0
             property real length: 0
             property real level: 0
-            visible: level > 0.01 && !api.gameMode
+            visible: level > 0.01 && !api.gameRunning
             opacity: level
             Binding { target: player; property: "track"; value: music.item ? music.item.track : ""; when: player.live }
             Binding { target: player; property: "artist"; value: music.item ? music.item.artist : ""; when: player.live }
@@ -1023,7 +1022,7 @@ Rectangle {
         }
         function formatTrackTime(s) { s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
         Clasp { x:1530; y:232; color:canvas.acc; opacity:.9 }
-        Item { id:hud; x:1530;y:266;width:320;height:440; visible:sensors.item !== null && !api.gameMode
+        Item { id:hud; x:1530;y:266;width:320;height:440; visible:sensors.item !== null && !api.gameRunning
             Column { width:parent.width; spacing:0
                 Row { width:parent.width;spacing:14;height:24
                     Text { id:hudTitle;text:"SISTEMA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
@@ -1096,7 +1095,7 @@ Rectangle {
             }
         }
         // Siempre encendidas (reposo = oleaje suave abajo); solo se apagan con un juego en marcha o una ventana encima.
-        Waves { x:0;y:canvas.height-360;width:1920;height:360;active:true;playing:api.audioActive||(music.item?music.item.playing:false);real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameMode&&!shell.menuOpen&&shell.runningGame===null }
+        Waves { x:0;y:canvas.height-360;width:1920;height:360;active:true;playing:api.audioActive||(music.item?music.item.playing:false);real:api.audioAvailable;bands:api.audioBands;color:canvas.acc;visibleOnScreen:!api.covered&&!api.gameRunning&&!shell.menuOpen&&shell.runningGame===null }
         // Selección de la estantería. Antes era un ListView invisible SIN delegate: su contador era 0 y
         // incrementCurrentIndex()/decrementCurrentIndex() no hacían nada (ni teclado ni mando movían la selección).
         QtObject { id:list; property int currentIndex:0
@@ -1211,7 +1210,7 @@ Rectangle {
             standardButtons: Dialog.Cancel | Dialog.Yes
             contentItem: Label {
                 text: unlinkDialog.game
-                    ? "Se quitará «" + unlinkDialog.game.name + "» de tu biblioteca y de los datos de Omnia asociados. Sus ejecutables, carpetas y partidas en el disco no se borrarán."
+                    ? "Se quitará «" + unlinkDialog.game.name + "» de tu biblioteca y de los datos de Omnia asociados. Sus archivos no se borrarán. Si Omnia lo detectó desde un launcher, no volverá a aparecer mientras siga instalado."
                     : "Se quitará el juego de la biblioteca de Omnia."
                 wrapMode: Text.WordWrap
                 color: canvas.ink

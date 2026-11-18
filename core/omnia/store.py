@@ -30,6 +30,7 @@ def write_json_atomic(path: Path, obj, mode: int = 0o600) -> None:
 
 STATE_DEFAULT = {"last_played": {}, "sessions": {}, "art": {}, "art_sources": {}, "backups": {},
                  "apps_used": {}, "apps_fav": None, "game_fav": [], "game_hidden": [],
+                 "game_unlinked": {},
                  "active_sessions": {}, "history": [], "selected_game": "", "selected_filter_key": "",
                  "filter_key": "all", "search_text": ""}
 
