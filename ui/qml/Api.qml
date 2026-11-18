@@ -42,6 +42,7 @@ QtObject {
     property string padName: ""
     property int padSeq: -1
     property int gameRevision: -1
+    property int revision: -1
     property bool audioActive: false
     property bool audioAvailable: false
     property var audioBands: []
@@ -77,6 +78,7 @@ QtObject {
         }
         x.open(method, "http://127.0.0.1:" + api.port + path)
         x.setRequestHeader("Authorization", "Bearer " + api.token)
+        if (method === "POST") x.setRequestHeader("Content-Type", "application/json")
         x.send(method === "POST" ? (body ? JSON.stringify(body) : "{}") : null)
     }
 
@@ -87,11 +89,12 @@ QtObject {
     }
 
     function refresh() {
-        call("GET", "/library", function (status, body) {
+        call("GET", "/library?since=" + api.revision, function (status, body) {
             if (status === 200) {
                 api.ok = true; api.error = ""
-                let sig = JSON.stringify(body.games)
-                if (sig !== api._last) { api._last = sig; api.games = body.games }      // solo si cambió: la lista no se reconstruye en cada sondeo
+                if (body.revision !== undefined && body.revision !== api.revision && body.games)
+                    api.games = body.games
+                if (body.revision !== undefined) api.revision = body.revision
             }
             else {
                 api.ok = false
@@ -229,10 +232,10 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
-    property Timer audioPoll: Timer { interval: 42; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameRunning && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
+    property Timer audioPoll: Timer { interval: api.audioActive ? 42 : 1000; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameRunning && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
     property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameRunning; triggeredOnStart: true; onTriggered: api.pollSystem() }
-    property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: api.controlsEnabled; triggeredOnStart: true; onTriggered: api.loadPreferences() }
+    property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: false; triggeredOnStart: false; onTriggered: api.loadPreferences() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))

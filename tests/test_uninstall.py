@@ -46,6 +46,18 @@ class UninstallSafety(unittest.TestCase):
                 uninstall.validate_paths([redirect/'ui'],home/'.config/omnia')
             self.assertTrue((games/'ui').exists())
 
+    def test_symlinked_home_from_ostree_is_allowed(self):
+        # Fedora Atomic/Bazzite: /home -> /var/home hace que todo el home cuelgue de
+        # un enlace; no debe impedir la desinstalación normal.
+        with tempfile.TemporaryDirectory() as tmp:
+            real=Path(tmp)/'var/home/user';real.mkdir(parents=True)
+            linked=Path(tmp)/'home/user';linked.parent.mkdir(parents=True)
+            linked.symlink_to(real,target_is_directory=True)
+            config=linked/'.config/omnia';config.mkdir(parents=True)
+            with patch.object(Path,'home',return_value=linked):
+                uninstall.validate_paths([config],config)
+            self.assertTrue(config.exists())
+
     def test_game_stored_in_omnia_directory_blocks_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp);config=home/'.config/omnia';config.mkdir(parents=True)

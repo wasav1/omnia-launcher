@@ -1,9 +1,9 @@
 # Maintainer: wasav1
-# Paquete dividido: omnia-core (servicio y API), omnia-ui (estantería) y omnia-kde (integración con KDE Plasma).
+# Paquete dividido: omnia-core (servicio/API) y omnia-kde (interfaz e integración nativa de Plasma).
 pkgbase=omnia-launcher
-pkgname=(omnia-core omnia-ui omnia-kde)
+pkgname=(omnia-core omnia-kde)
 pkgver=0.1.0
-pkgrel=34
+pkgrel=${OMNIA_PKGREL:-34}
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=('x86_64' 'aarch64')
 url="https://github.com/wasav1/omnia-launcher"
@@ -15,7 +15,7 @@ sha256sums=('SKIP')                # sustituir con `updpkgsums` al publicar una 
 build() {
   cd "$pkgbase-$pkgver"
   python -m build --wheel --no-isolation
-  cmake -S plasma/tokenprovider -B "$srcdir/omnia-session-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  cmake -S plasma/tokenprovider -B "$srcdir/omnia-session-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/share/omnia/ui
   cmake --build "$srcdir/omnia-session-build"
   cmake -S packaging/universal/gui -B "$srcdir/omnia-installer-build" -DCMAKE_BUILD_TYPE=Release
   cmake --build "$srcdir/omnia-installer-build"
@@ -34,28 +34,17 @@ package_omnia-core() {
   install -Dm644 packaging/systemd/omnia.service "$pkgdir/usr/lib/systemd/user/omnia.service"
 }
 
-package_omnia-ui() {
-  pkgdesc="Estantería de Omnia: escritorio de juegos en capa de fondo (QML)"
-  depends=(omnia-core qt6-declarative qt6-wayland qt6-5compat layer-shell-qt kirigami)
-  cd "$pkgbase-$pkgver"
-  install -Dm755 ui/omnia-ui "$pkgdir/usr/bin/omnia-ui"
-  install -d "$pkgdir/usr/share/omnia/ui"
-  cp -r ui/qml/. "$pkgdir/usr/share/omnia/ui/"
-  cp -r ui/qml "$pkgdir/usr/share/omnia/ui/"
-  install -d "$pkgdir/usr/share/omnia/ui/plasma-widgets"
-  cp -r ui/qml "$pkgdir/usr/share/omnia/ui/plasma-widgets/"
-  install -Dm644 packaging/systemd/omnia-ui.service "$pkgdir/usr/lib/systemd/user/omnia-ui.service"
-}
-
 package_omnia-kde() {
   pkgdesc="Integración de Omnia con KDE Plasma: Win+D, vigilante de ventanas y primer arranque"
-  depends=(omnia-ui plasma-workspace kwin kdialog python-gobject qt6-declarative qt6-tools libksysguard)
+  depends=(omnia-core plasma-workspace kwin kdialog python-gobject qt6-declarative qt6-tools libksysguard)
   cd "$pkgbase-$pkgver"
   for s in omnia-showdesktop omnia-watch; do
     install -d "$pkgdir/usr/share/kwin/scripts/$s"
     cp -r "kwin/$s/." "$pkgdir/usr/share/kwin/scripts/$s/"
   done
   DESTDIR="$pkgdir" cmake --install "$srcdir/omnia-session-build"
+  install -d "$pkgdir/usr/share/omnia/ui"
+  cp -r ui/qml "$pkgdir/usr/share/omnia/ui/"
   install -d "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher"
   cp -r plasma/wallpapers/org.omnia.launcher/. "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher/"
   install -d "$pkgdir/usr/share/plasma/plasmoids/org.omnia.desktop"

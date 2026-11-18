@@ -16,7 +16,9 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = '31'
+RELEASE = os.environ.get('OMNIA_PKGREL', '34')
+if not RELEASE.isdigit():
+    raise ValueError('OMNIA_PKGREL debe ser un entero positivo')
 
 
 def source_files():
@@ -87,16 +89,20 @@ Description: Asistente grafico de Omnia Desktop Suite para KDE Plasma 6
 def arch(root,out,work):
     dest=work/'arch';shutil.copytree(root,dest)
     size=sum(p.stat().st_size for p in root.rglob('*') if p.is_file())
-    fields=[f'pkgname = {NAME}',f'pkgbase = {NAME}',f'pkgver = {VERSION}-{RELEASE}',
-            'pkgdesc = Asistente grafico de Omnia Desktop Suite para KDE Plasma 6',
-            'url = https://github.com/wasav1/omnia-launcher',f'builddate = {int(time.time())}',
-            'packager = wasav1',f'size = {size}','arch = any','license = GPL-3.0-or-later']
-    fields+=['depend = '+p for p in PROFILES['arch']['depends']]
-    (dest/'.PKGINFO').write_text('\n'.join(fields)+'\n')
+    (dest/'.PKGINFO').write_text(arch_pkginfo(size))
     tar_tree(dest,work/'arch.tar')
     target=out/f'{NAME}-{VERSION}-{RELEASE}-any.pkg.tar.zst'
     subprocess.run(['zstd','-q','-f',str(work/'arch.tar'),'-o',str(target)],check=True)
     return target
+
+
+def arch_pkginfo(size):
+    fields=[f'pkgname = {NAME}',f'pkgbase = {NAME}',f'pkgver = {VERSION}',f'pkgrel = {RELEASE}',
+            'pkgdesc = Asistente grafico de Omnia Desktop Suite para KDE Plasma 6',
+            'url = https://github.com/wasav1/omnia-launcher',f'builddate = {int(time.time())}',
+            'packager = wasav1',f'size = {size}','arch = any','license = GPL-3.0-or-later']
+    fields += ['depend = ' + p for p in PROFILES['arch']['depends']]
+    return '\n'.join(fields) + '\n'
 
 
 def rpm(root,out,work,flavor,rpmbuild):
@@ -151,7 +157,7 @@ cp -a usr %{{buildroot}}/
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--formats',default='deb,arch,fedora,opensuse,run,source')
-    parser.add_argument('--output',type=Path,default=REPO/'packaging/distros/out')
+    parser.add_argument('--output',type=Path,default=Path(os.environ.get('OMNIA_BUILD_DIR', Path.home()/'.cache/omnia-build')))
     parser.add_argument('--rpmbuild',default=shutil.which('rpmbuild'))
     args=parser.parse_args();formats=args.formats.split(',');out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
     if any(f in formats for f in ('fedora','opensuse')) and not args.rpmbuild:

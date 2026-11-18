@@ -8,6 +8,7 @@ Authorization entre orígenes sin pasar por un preflight CORS, que la API nunca 
 import hmac
 import os
 import secrets
+import stat
 from pathlib import Path
 
 from . import paths
@@ -16,10 +17,16 @@ from . import paths
 def new_token(runtime: Path | None = None) -> str:
     """Genera un token nuevo y lo escribe con permisos 0600 (reemplaza al anterior)."""
     d = paths.ensure(Path(runtime) if runtime else paths.runtime_dir())
+    st = d.lstat()
+    if stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid():
+        raise RuntimeError("el directorio de ejecución no pertenece al usuario actual")
+    if st.st_mode & 0o077:
+        os.chmod(d, 0o700)
     token = secrets.token_urlsafe(32)
     f = d / "token"
     tmp = d / "token.tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    os.fchmod(fd, 0o600)
     with os.fdopen(fd, "w") as fh:
         fh.write(token)
     os.replace(tmp, f)

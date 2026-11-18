@@ -1,27 +1,18 @@
-import os
-from pathlib import Path
-import subprocess
-import tempfile
 import unittest
+from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'packaging/universal/configure-qml.sh'
+ROOT = Path(__file__).resolve().parents[1]
 
 
-class QmlEnvironment(unittest.TestCase):
-    def test_publishes_plugin_path_preserves_other_imports_and_does_not_duplicate(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            binary = home / 'bin'; binary.mkdir()
-            qml = str(home / '.local/lib/qt6/qml')
-            mock = binary / 'systemctl'
-            mock.write_text('#!/bin/sh\n'
-                            'if [ "$2" = show-environment ]; then\n'
-                            ' printf "QML_IMPORT_PATH=%s:/other/qml\\n" "$HOME/.local/lib/qt6/qml"\n'
-                            'else\n'
-                            ' printf "%s\\n" "$3" > "$HOME/published"\n'
-                            'fi\n')
-            mock.chmod(0o755)
-            env = dict(os.environ, HOME=tmp, PATH=str(binary) + ':' + os.environ['PATH'])
-            subprocess.run(['bash', str(SCRIPT)], env=env, check=True)
-            self.assertEqual((home / 'published').read_text().strip(), 'QML_IMPORT_PATH=' + qml + ':/other/qml')
-            self.assertIn('${HOME}/.local/lib/qt6/qml', (home / '.config/environment.d/60-omnia-qml.conf').read_text())
+class QmlImportScope(unittest.TestCase):
+    def test_plasma_imports_token_provider_relatively(self):
+        for file in (ROOT / 'plasma/wallpapers/org.omnia.launcher/contents/ui/main.qml',
+                     ROOT / 'plasma/applets/org.omnia.desktop/contents/ui/main.qml'):
+            self.assertIn('import "../../../../../omnia/ui/session" as OmniaSession', file.read_text())
+
+    def test_plugin_installs_beside_shared_qml(self):
+        cmake = (ROOT / 'plasma/tokenprovider/CMakeLists.txt').read_text()
+        installer = (ROOT / 'packaging/universal/install.sh').read_text()
+        self.assertIn('DESTINATION session', cmake)
+        self.assertIn('CMAKE_INSTALL_PREFIX="$DATA/omnia/ui"', installer)
+        self.assertNotIn('configure-qml.sh', installer)

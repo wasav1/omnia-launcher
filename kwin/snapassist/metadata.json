@@ -9,5 +9,6 @@
   },
   "KPackageStructure": "KWin/Script",
   "X-Plasma-API": "javascript",
+    "X-Plasma-API-Minimum-Version": "6.1",
   "X-Plasma-MainScript": "code/main.js"
 }

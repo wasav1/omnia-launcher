@@ -206,7 +206,12 @@ public:
                 result->setText(updateOnly?"✓ Omnia se actualizó. La sesión se cerrará en unos segundos; guarda tu trabajo.":"✓ Omnia se instaló. La sesión se cerrará en unos segundos; guarda tu trabajo.");
                 button(CancelButton)->setEnabled(false);button(FinishButton)->setEnabled(false);
                 QTimer::singleShot(2500,this,[this]{
-                    if(!QProcess::startDetached("qdbus6",{"org.kde.Shutdown","/Shutdown","org.kde.Shutdown.logout"})) {
+                    // qdbus6 no existe en Fedora/Bazzite: allí el binario se llama qdbus-qt6.
+                    bool launched=false;
+                    for(const QString &tool:{"qdbus6","qdbus-qt6","qdbus"}) {
+                        if(QProcess::startDetached(tool,{"org.kde.Shutdown","/Shutdown","org.kde.Shutdown.logout"})) { launched=true; break; }
+                    }
+                    if(!launched) {
                         result->setText("Omnia se instaló, pero no se pudo cerrar la sesión automáticamente. Ciérrala desde el menú de KDE para completar los cambios.");
                         button(FinishButton)->setEnabled(true);
                     }

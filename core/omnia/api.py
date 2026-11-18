@@ -39,6 +39,8 @@ class Api:
     def __init__(self, store, token: str, detectors=(), port: int = 0, launch_fn=launcher.launch, scan_fn=procs.scan, bus=None,
                  catalog=None, app_launch_fn=apps.launch, fs_roots=None, open_fn=None, backup_root=DEFAULT_BACKUP_ROOT):
         self.store, self.token, self.detectors, self.launch_fn, self.scan_fn = store, token, list(detectors), launch_fn, scan_fn
+        self.detectors_by_src = {d.name: d for d in self.detectors}
+        self.process_snapshot = procs.Snapshot(scan_fn, ttl=1.0)
         manual.migrate_bedrock_on_linux(store)
         self.bus = bus or EventBus()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
@@ -98,7 +100,54 @@ class Api:
         }
         api = self
 
+        class BoundedHTTPServer(ThreadingHTTPServer):
+            request_queue_size = 32
+            daemon_threads = True
+            block_on_close = False
+
+            def __init__(self, address, handler):
+                self._slots = threading.BoundedSemaphore(32)
+                super().__init__(address, handler)
+
+            def process_request(self, request, client_address):
+                if not self._slots.acquire(blocking=False):
+                    try:
+                        request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+                    except OSError:
+                        pass
+                    self.shutdown_request(request)
+                    return
+                try:
+                    super().process_request(request, client_address)
+                except Exception:
+                    self._slots.release()
+                    raise
+
+            def process_request_thread(self, request, client_address):
+                try:
+                    super().process_request_thread(request, client_address)
+                finally:
+                    self._slots.release()
+
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+            disable_nagle_algorithm = True
+
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(15)
+
+            def parse_request(self):
+                if len(self.raw_requestline) > 8192:
+                    self.send_error(414, "URI demasiado larga")
+                    return False
+                if not super().parse_request():
+                    return False
+                if self.headers and len(self.headers.as_bytes()) > 16384:
+                    self.send_error(431, "cabeceras demasiado grandes")
+                    return False
+                return True
+
             def log_message(self, *a):
                 pass
 
@@ -108,6 +157,8 @@ class Api:
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(b)))
                 self.send_header("Cache-Control", "no-store")
+                if self.close_connection:
+                    self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(b)
 
@@ -125,10 +176,17 @@ class Api:
                     if needs_auth and not security.check_bearer(self.headers.get("Authorization", ""), api.token):
                         raise ApiError(401, "token inválido")
                     q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
-                    n = int(self.headers.get("Content-Length") or 0)
+                    try:
+                        n = int(self.headers.get("Content-Length") or 0)
+                    except ValueError:
+                        raise ApiError(400, "Content-Length no válido")
                     if n:
                         if n > 65536:
+                            self.close_connection = True
                             raise ApiError(413, "cuerpo demasiado grande")
+                        if method == "POST" and self.headers.get_content_type() not in {"application/json", "application/x-www-form-urlencoded"}:
+                            self.close_connection = True
+                            raise ApiError(415, "se requiere application/json")
                         body = json.loads(self.rfile.read(n) or b"{}")
                         if isinstance(body, dict):
                             q.update({k: v for k, v in body.items() if isinstance(v, (str, int, bool))})
@@ -150,8 +208,7 @@ class Api:
             def do_OPTIONS(self):          # sin CORS: el preflight de un navegador siempre falla
                 self._send(405, {"error": "sin CORS"})
 
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-        self.httpd.daemon_threads = True
+        self.httpd = BoundedHTTPServer(("127.0.0.1", port), Handler)
         self.port = self.httpd.server_address[1]
 
     # --- rutas
@@ -197,7 +254,7 @@ class Api:
                     or self.store.state.get("selected_filter_key", "") != filter_key):
                 self.store.state["selected_game"] = gid
                 self.store.state["selected_filter_key"] = filter_key
-                self.store.save_state()
+                self.store.save_state_soon()
                 changed = True
         if changed:
             self.bus.selection_changed()
@@ -216,7 +273,7 @@ class Api:
                 if view_changed and self.store.state.get("selected_filter_key", "") != key:
                     self.store.state["selected_game"] = ""
                     self.store.state["selected_filter_key"] = ""
-                self.store.save_state()
+                self.store.save_state_soon()
                 changed = True
         if changed:
             self.bus.selection_changed()
@@ -280,9 +337,9 @@ class Api:
         return {"notification_position": position}
 
     def system_status(self, q):
-        now = time.time()
+        now = time.monotonic()
         cache = getattr(self, "_system_cache", None)
-        if cache is None or now - cache[0] > 2.0:                 # el panel sondea cada pocos segundos: no releer /sys a cada petición
+        if cache is None or now - cache[0] > 5.0:                 # supera el sondeo de 3 s
             config = load_json(self.store.dir / "config.json", {})
             monitor = config.get("monitor_disks")
             if monitor is None:
@@ -296,27 +353,42 @@ class Api:
         return source.snapshot() if source else {"available": False, "active": False, "bands": []}
 
     def _detector(self, g):
-        return next((d for d in self.detectors if d.name == g.get("auto")), Detector())
+        return self.detectors_by_src.get(g.get("auto")) or Detector()
+
+    def _processes(self):
+        snapshot = getattr(self, "process_snapshot", None)
+        if snapshot is None:
+            return self.scan_fn()
+        snapshot.scan_fn = self.scan_fn
+        return snapshot.get()
 
     def _is_running(self, g, p, cmdlines):
         return self._detector(g).is_running(g, p, cmdlines)
 
     def library(self, q):
+        revision = self.store.revision * 1_000_000 + getattr(getattr(self, "bus", None), "game_revision", 0)
+        try:
+            if int(q.get("since", "-1")) == revision:
+                return {"revision": revision, "unchanged": True}
+        except ValueError:
+            raise ApiError(400, "revisión no válida")
         fav, hid = self.store.state.get("game_fav", []), self.store.state.get("game_hidden", [])
-        cmds = self.scan_fn()
+        cmds = self._processes()
         out = []
         config = load_json(self.store.dir / "config.json", {})
         for g in self.store.games():
-            ports = [p for p in g.get("ports", []) if games_refresh.port_installed(p) and library_paths.port_visible(g, p, config)]
+            ports = [(p, games_refresh.port_installed(p)) for p in g.get("ports", [])]
+            ports = [(p, installed) for p, installed in ports if installed and library_paths.port_visible(g, p, config)]
             if ports:
                 snap = self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}
                 platform = g.get("platform", "")
                 platform_accents = {"n64": "#d9a441", "sw1": "#e8604f", "sw2": "#58a6f0", "pc": "#6fc3c9"}
                 port_rows = []
-                for p in ports:
-                    port_rows.append({"id": p["id"], "name": p["name"], "running": self._is_running(g, p, cmds),
+                for p, installed in ports:
+                    running = self._is_running(g, p, cmds)
+                    port_rows.append({"id": p["id"], "name": p["name"], "running": running,
                                       "chips": list(p.get("chips") or []), "description": p.get("s", ""),
-                                      "canLaunch": games_refresh.port_installed(p), "canBackup": bool(p.get("saves"))})
+                                      "canLaunch": installed, "canBackup": bool(p.get("saves"))})
                 session = (self.store.state.get("sessions") or {}).get(g["id"]) or {}
                 btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
@@ -327,11 +399,11 @@ class Api:
                             "lastBackup": int(btime or 0), "lastPlayed": snap["lastPlayed"], "totalSecs": snap["totalSecs"],
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
                             "ports": port_rows,
-                            "running": any(self._is_running(g, p, cmds) for p in ports),
+                            "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
-        return {"games": out}
+        return {"games": out, "revision": revision, "unchanged": False}
 
     @staticmethod
     def _art(g, state=None):
@@ -373,7 +445,7 @@ class Api:
             raise ApiError(409, "La carpeta de este juego se retiró de las rutas de Omnia.")
         if not games_refresh.port_installed(p):
             raise ApiError(409, "no está instalado")
-        if self._is_running(g, p, self.scan_fn()):
+        if self._is_running(g, p, self._processes()):
             raise ApiError(409, "ya está en ejecución")
         # Steam/Lutris/Heroic suelen delegar el juego a un cliente ya abierto; el entorno de
         # este proceso no llega al juego. Los ejecutables directos sí se envuelven con MangoHud.
@@ -439,7 +511,7 @@ class Api:
 
     def running_list(self, cmds=None) -> list:
         """Juegos de la biblioteca en marcha (dicts de la biblioteca), con un solo repaso de los procesos."""
-        cmds = self.scan_fn() if cmds is None else cmds
+        cmds = self._processes() if cmds is None else cmds
         return [g for g in self.store.games()
                 if any(games_refresh.port_installed(p) and self._is_running(g, p, cmds) for p in g.get("ports", []))]
 
@@ -704,7 +776,9 @@ class Api:
         """¿Se entregan los botones del mando a la estantería? No con un juego abierto ni con el escritorio tapado."""
         now = time.time()
         if now - self._gate_t > 1.0:
-            cmds = self.scan_fn()
+            if hasattr(self, "process_snapshot"):
+                self.process_snapshot.at = 0.0
+            cmds = self._processes()
             self._gate_v = not any(self._is_running(g, p, cmds) for g in self.store.games()
                                    for p in g.get("ports", []) if games_refresh.port_installed(p))
             self._gate_t = now

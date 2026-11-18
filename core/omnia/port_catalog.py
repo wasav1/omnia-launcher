@@ -28,6 +28,12 @@ def identify(path):
     for template, record in CATALOG.items():
         folder = next((p for p in ancestors if normalize(p.name) in record['folders']), None)
         matches = stem in record['executables']
+        if template == 'nx2navi' and file.suffix.lower() == '.sh':
+            try:
+                content = file.read_text(errors='replace')[:4096]
+                matches = 'ocarina' in content and (file.parent / 'ocarina').is_file()
+            except OSError:
+                pass
         if template == 'savagewind' and file.suffix.lower() == '.appimage':
             matches = bool(re.match(r'^savage[_-]?wind(?:[-_].*)?$', stem))
         if matches and folder:
@@ -41,6 +47,8 @@ def identify(path):
                         launcher_priority = 1
                 except OSError:
                     pass
+            if template == 'nx2navi' and file.suffix.lower() == '.sh':
+                launcher_priority = 1
             return {**record, 'template': template, 'group': str(folder), 'install': str(install),
                     'launcher_priority': launcher_priority}
     return None

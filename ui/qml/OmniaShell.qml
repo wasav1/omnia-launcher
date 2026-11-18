@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 
 // Estantería a escala lógica 1920x1080, fiel al lienzo del prototipo.
@@ -122,6 +121,11 @@ Rectangle {
         return current.ports[i]
     }
     readonly property int selectedPortIndex: current && portSelection[current.id] !== undefined ? Math.min(portSelection[current.id], current.ports.length - 1) : 0
+    FontLoader { source: Qt.resolvedUrl("fonts/HankenGrotesk.ttf") }
+    FontLoader { source: Qt.resolvedUrl("fonts/Rajdhani-Regular.ttf") }
+    FontLoader { source: Qt.resolvedUrl("fonts/Rajdhani-Medium.ttf") }
+    FontLoader { source: Qt.resolvedUrl("fonts/Rajdhani-SemiBold.ttf") }
+    FontLoader { source: Qt.resolvedUrl("fonts/Rajdhani-Bold.ttf") }
     readonly property var contextItems: {
         if (!current) return []
         const items = [
@@ -249,7 +253,14 @@ Rectangle {
         const since = shell.selectionRevision >= 0 ? "?since=" + shell.selectionRevision + "&wait=25" : ""
         api.call("GET", "/selection" + since, function(status, body) {
             shell.selectionRequestActive = false
-            if (status !== 200) { selectionRetry.start(); return }
+            // Un 200 sin id ni revisión no es una selección. La versión anterior (Estantería)
+            // respondía {"error": "ruta desconocida"} con 200 y este bucle devolvía el carrusel
+            // al índice 0 sin parar. Reintentar con espera evita ese bloqueo.
+            if (status !== 200 || !body || typeof body !== "object"
+                    || (body.revision === undefined && body.id === undefined)) {
+                selectionRetry.start()
+                return
+            }
             shell.selectionRevision = body.revision === undefined ? shell.selectionRevision : body.revision
             const localViewChanged = viewRevisionAtRequest !== shell.localViewRevision || viewPendingAtRequest || shell.viewSyncPending
             const localSelectionChanged = selectionRevisionAtRequest !== shell.localSelectionRevision || selectionPendingAtRequest || shell.localSelectionPending
@@ -733,7 +744,7 @@ Rectangle {
         onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
-    Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
+    Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; covered: api.covered || api.gameRunning; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
     Rectangle {
         anchors.fill: parent
         visible: !shell.externalWallpaper
@@ -756,8 +767,8 @@ Rectangle {
         id: canvas
         readonly property real s: shell.scaleFactor
         width: 1920; height: shell.sectionMode === "full" ? shell.height / s : 1080
-        x: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.x * s
-        y: shell.sectionMode === "full" ? 0 : -shell.sectionViewport.y * s
+        x: shell.sectionMode === "full" ? Math.max(0, (shell.width - width * s) / 2) : -shell.sectionViewport.x * s
+        y: shell.sectionMode === "full" ? Math.max(0, (shell.height - height * s) / 2) : -shell.sectionViewport.y * s
         scale: s; transformOrigin: Item.TopLeft; clip: true
         property color brand: "#91a9c2"
         property color acc: shell.current && shell.current.acc ? shell.current.acc : brand
@@ -1073,7 +1084,6 @@ Rectangle {
                         delegate: Item { id:slot; required property var modelData; required property int index
                             readonly property bool selected:index===list.currentIndex
                             width:selected?290:190;height:435;z:selected?5:0
-                            Behavior on width { NumberAnimation { duration:420;easing.type:Easing.OutBack;easing.overshoot:.8 } }
                             readonly property real cx:x+track.x+width/2
                             opacity:Math.max(0,Math.min(1,cx/300,(1920-cx)/380))
                             Loader { anchors.bottom:parent.bottom;width:slot.width;height:slot.selected?435:285;active:Math.abs(slot.index-list.currentIndex)<=9
@@ -1307,7 +1317,7 @@ Rectangle {
             }
             Rectangle { x:artPanel.x+artPanel.width-160;y:766;width:160;height:42;radius:21;color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brand:"#303846";opacity:shell.artApplying?0.55:1
                 Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?"#111923":canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
-                MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
+                MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&!!(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
             }
             Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
                 Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:20 }

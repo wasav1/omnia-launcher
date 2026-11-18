@@ -87,7 +87,7 @@ exec "$APPDIR/usr/bin/omnia-installer" "$APPDIR/usr/share/omnia-desktop-suite-in
         subprocess.run([str(tool),'--appimage-extract-and-run','--no-appstream','--runtime-file',str(runtime),str(app),str(target)],env={**os.environ,'ARCH':'x86_64'},check=True)
         target.chmod(0o755)
     manifest={'file':target.name,'version':VERSION,'revision':RELEASE,'architecture':'x86_64',
-              'target':'CachyOS / KDE Plasma 6; Qt bundled for the graphical assistant',
+              'target':'CachyOS / Bazzite / KDE Plasma 6; Qt bundled for the graphical assistant',
               'host_glibc':os.confstr('CS_GNU_LIBC_VERSION'),
               'appimagetool_sha256':hashlib.sha256(tool.read_bytes()).hexdigest(),
               'runtime_sha256':hashlib.sha256(runtime.read_bytes()).hexdigest()}

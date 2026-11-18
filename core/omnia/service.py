@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import threading
+import time
 
 from . import __version__, art, audio, gamemode, pad, paths, security
 from .sessions import Sessions
@@ -24,29 +25,38 @@ def load_config() -> dict:
 def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
     """Descarga en segundo plano el arte que falte, con pausa entre juegos. Solo si hay clave de SteamGridDB."""
     warned = False
+    pending = []
+    scan_at = 0.0
+    seen_revision = -1
     while not stop.is_set():
         key = art.load_key()
         if key:
             if not art.key_permissions_ok() and not warned:
                 log.warning("la clave de SteamGridDB es legible por otros usuarios: chmod 600 %s", art.key_path())
                 warned = True
-            client = art.Client(key)
-            for g in store.games():
+            now = time.monotonic()
+            if now >= scan_at or seen_revision != store.revision:
+                pending = list(store.games())
+                scan_at, seen_revision = now + 60, store.revision
+            if pending and not stop.is_set():
+                g = pending.pop(0)
                 slug = (g.get("art") or {}).get("slug") or g.get("id", "")
-                if all(art.cached(slug, k) for k in art.KINDS):
-                    continue
-                if stop.is_set():
-                    return
-                try:
-                    got = art.fetch_game(client, g)
-                    if got:
-                        log.info("arte de %s: %s", g.get("name"), ", ".join(got))
-                        if bus and "fondo" in got and store.state.get("selected_game") == g.get("id"):
-                            bus.selection_changed()
-                except art.ArtError as e:
-                    log.warning("arte de %s: %s", g.get("name"), e)
+                if not all(art.cached(slug, k) or (art.art_dir(slug, k) / art.NONE_MARK).exists() for k in art.KINDS):
+                    try:
+                        got = art.fetch_game(art.Client(key), g)
+                        if got:
+                            with store.lock:
+                                store.revision += 1
+                            log.info("arte de %s: %s", g.get("name"), ", ".join(got))
+                            if bus and "fondo" in got and store.state.get("selected_game") == g.get("id"):
+                                bus.selection_changed()
+                    except art.ArtError as e:
+                        log.warning("arte de %s: %s", g.get("name"), e)
                 stop.wait(pause)
-        stop.wait(60)
+            else:
+                stop.wait(60)
+        else:
+            stop.wait(60)
 
 
 def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 0.35):

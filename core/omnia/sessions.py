@@ -14,7 +14,7 @@ import time
 
 log = logging.getLogger("omnia")
 
-START_AFTER, END_AFTER = 2, 2
+START_AFTER, END_AFTER = 2, 3
 MIN_SECS = 10
 PERSIST_EVERY = 30
 HISTORY_MAX = 200

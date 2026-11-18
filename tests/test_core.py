@@ -129,6 +129,8 @@ class ApiSeguridad(unittest.TestCase):
 
     def call(self, path, method="GET", token=True, host=None):
         req = urllib.request.Request(self.base + path, method=method, data=b"{}" if method == "POST" else None)
+        if method == "POST":
+            req.add_header("Content-Type", "application/json")
         if token:
             req.add_header("Authorization", "Bearer " + self.token)
         if host:
@@ -160,6 +162,58 @@ class ApiSeguridad(unittest.TestCase):
 
     def test_preflight_cors_rechazado(self):
         self.assertEqual(self.call("/launch", "OPTIONS", token=False)[0], 405)
+
+    def test_limite_y_tipo_de_cuerpo(self):
+        for data, content_type, expected in ((b"x" * 65537, "application/json", 413),
+                                             (b"{}", "text/plain", 415)):
+            req = urllib.request.Request(self.base + "/selection/set", data=data, method="POST",
+                                         headers={"Authorization": "Bearer " + self.token, "Content-Type": content_type})
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(req, timeout=5)
+            self.assertEqual(error.exception.code, expected)
+
+    def test_limite_de_concurrencia_devuelve_503(self):
+        slots = self.api.httpd._slots
+        acquired = sum(slots.acquire(blocking=False) for _ in range(32))
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(self.base + "/health", timeout=5)
+            self.assertEqual(error.exception.code, 503)
+        finally:
+            for _ in range(acquired):
+                slots.release()
+
+    def test_revision_de_biblioteca_evitar_reconstruccion_si_no_cambia(self):
+        self.store.set_games([{"id": "g", "name": "Juego", "ports": []}])
+        first = self.api.library({})
+        second = self.api.library({"since": str(first["revision"])})
+        self.assertTrue(second["unchanged"])
+        self.assertNotIn("games", second)
+
+    def test_library_con_500_juegos_mantiene_un_limite_amplio(self):
+        import time
+        self.store.set_games([{"id": "g-%d" % i, "name": "Juego %d" % i,
+                               "ports": [{"id": "p", "name": "Port", "proc": ""}]}
+                              for i in range(500)])
+        with mock.patch("omnia.api.games_refresh.port_installed", return_value=True), \
+                mock.patch("omnia.api.library_paths.port_visible", return_value=True):
+            started = time.perf_counter()
+            result = self.api.library({})
+            elapsed = time.perf_counter() - started
+        self.assertEqual(len(result["games"]), 500)
+        self.assertLess(elapsed, 1.0, "library con 500 juegos no debe bloquear el hilo por más de 1 s")
+
+    def test_limite_de_cuerpo_y_tipo_de_contenido(self):
+        req = urllib.request.Request(self.base + "/selection/set", data=b"x" * 65537, method="POST",
+                                     headers={"Authorization": "Bearer " + self.token, "Content-Type": "application/json"})
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(req, timeout=5)
+        self.assertEqual(error.exception.code, 413)
+        req = urllib.request.Request(self.base + "/selection/set", data=b"{}", method="POST",
+                                     headers={"Authorization": "Bearer " + self.token, "Content-Type": "text/plain"})
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(req, timeout=5)
+        self.assertEqual(error.exception.code, 415)
 
     def test_lanzar_flujo_normal(self):
         self.call("/library/refresh", "POST")

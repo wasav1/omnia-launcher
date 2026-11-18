@@ -114,6 +114,14 @@ class Arte(unittest.TestCase):
         with self.assertRaises(art.ArtError):
             art.Client("k", opener=roto).candidates({"id": "steam-10", "name": "x"}, "portada")
 
+    def test_indice_se_invalida_cuando_cambia_el_directorio(self):
+        folder = art.art_dir("game", "portada", self.tmp)
+        folder.mkdir(parents=True)
+        (folder / "1.png").write_bytes(b"one")
+        self.assertEqual([p.name for p in art.cached_files("game", "portada", self.tmp)], ["1.png"])
+        (folder / "2.png").write_bytes(b"two")
+        self.assertEqual([p.name for p in art.cached_files("game", "portada", self.tmp)], ["1.png", "2.png"])
+
 
 class ConApi(unittest.TestCase):
     def test_library_incluye_el_arte_cacheado(self):

@@ -1,6 +1,7 @@
 """El preflight no permite instalar si faltan dependencias del paquete nativo."""
 import importlib.util
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,6 +14,7 @@ spec.loader.exec_module(build)
 
 
 class InstallerDependencies(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('bsdtar'), 'libarchive (bsdtar) no instalado')
     def test_archive_declares_complete_dependency_contract_and_carries_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)

@@ -1,6 +1,6 @@
 import QtQuick
 import org.kde.plasma.plasmoid
-import org.omnia.session 1.0 as OmniaSession
+import "../../../../../omnia/ui/session" as OmniaSession
 import "../../../../../omnia/ui/qml" as Omnia
 
 WallpaperItem {
@@ -31,6 +31,13 @@ WallpaperItem {
             if (xhr.status !== 200) { retry.start(); return }
             try {
                 const next = JSON.parse(xhr.responseText)
+                // Solo una selección real trae revisión. Un 200 de otro programa en el puerto
+                // (Estantería devolvía {"error": ...}) dejaría el fondo vacío y en bucle.
+                if (!next || typeof next !== "object" || next.revision === undefined) {
+                    console.warn("Omnia wallpaper: respuesta sin selección; reintentando")
+                    retry.start()
+                    return
+                }
                 root.selected = next
                 root.refreshSelection()
             } catch (e) { console.warn("Omnia wallpaper: respuesta inválida"); retry.start() }

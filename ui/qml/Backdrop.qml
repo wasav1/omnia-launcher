@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Window
 
 // Telón del juego seleccionado: fundido cruzado y desenfoque esmerilado del prototipo.
 Item {
@@ -10,10 +11,11 @@ Item {
     property Item front: a
     property Item back: b
     property real pan: 0
+    property bool covered: false
     clip: true
 
     SequentialAnimation on pan {
-        running: bd.source.toString() !== ""
+        running: bd.visible && !bd.covered && bd.source.toString() !== ""
         loops: Animation.Infinite
         NumberAnimation { from:0; to:1; duration:75000; easing.type:Easing.InOutSine }
         NumberAnimation { from:1; to:0; duration:75000; easing.type:Easing.InOutSine }
@@ -51,13 +53,16 @@ Item {
             y: 0
             Image {
                 id: img
-                anchors.fill: parent; visible: false
+                anchors.fill: parent; visible: bd.blur <= 0 && bd.saturation === 0
                 asynchronous: true; cache: true; smooth: true
+                mipmap: true
+                sourceSize.width: Math.min(2880, Math.round(Screen.width * 1.15))
                 fillMode: Image.PreserveAspectCrop
             }
             MultiEffect {
                 anchors.fill: parent
                 source: img
+                visible: bd.blur > 0 || bd.saturation !== 0
                 blurEnabled: bd.blur > 0
                 blur: Math.min(1, bd.blur / 32)
                 blurMax: 32

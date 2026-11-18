@@ -1,5 +1,49 @@
 # Instaladores de Omnia Desktop Suite
 
+### Revisión 38: recuperación si falla el despliegue (Q-05)
+
+`Omnia-Installer-0.1.0-38-x86_64.AppImage` incluye el diario de transacción y el rollback ante errores detectables. El
+instalador universal crea un respaldo privado en `~/.local/share/.omnia-install-transaction-*` antes de modificar
+archivos. Si una etapa falla, repone los destinos previos, quita los archivos que creó, recarga systemd y restaura los
+servicios que estaban activos. También conserva el diario si no logra completar la restauración. Al finalizar con éxito,
+descarta el respaldo. El snapshot incluye código y recursos de Omnia, accesos systemd, configuración relacionada con la
+instalación y los archivos de Plasma que este flujo modifica; no incluye biblioteca, arte, historial ni partidas.
+
+Esta protección es rollback ante errores detectables mientras el instalador sigue ejecutándose, no una transacción
+atómica frente a apagado, corte eléctrico, `SIGKILL` o fallo del almacenamiento. Tampoco revierte las dependencias de
+sistema añadidas con `rpm-ostree`. La restauración de archivos y servicios tiene pruebas unitarias en directorios
+temporales y se verificó la extracción del AppImage con ambos scripts presentes. La revisión 38 se construyó en
+CachyOS x86-64 y se instaló en Bazzite. Se cotejaron con el repositorio el core, QML, wallpaper, applet, scripts KWin y
+fuentes instalados; `omnia.service` está activo/habilitado y `/health` y `/library` responden 200 (36 elementos).
+No se forzó un fallo en la máquina real para probar la ruta de rollback.
+
+### Revisión 34: conflicto con el puerto de Estantería y respuestas inválidas
+
+`Omnia-Installer-0.1.0-37-x86_64.AppImage` incorpora estos cambios. El prototipo anterior (`estanteria-helper.service`) escuchaba en el mismo puerto 47831 y respondía 200 a rutas
+desconocidas, incluida `/selection`. Al instalar Omnia encima, `omnia-core` no podía abrir el puerto y la interfaz
+hablaba con el servicio viejo: el carrusel volvía al índice 0 en un bucle y el wallpaper no recibía arte.
+El instalador ahora detiene y deshabilita `estanteria-helper.service` antes de arrancar Omnia y comprueba `/health`
+al terminar; si detecta la firma antigua (`padName`) o que el puerto no responde, muestra el diagnóstico y los
+comandos para resolverlo. `OmniaShell` y el wallpaper ignoran los 200 sin `id`/`revision` y reintentan con espera,
+en lugar de aceptarlos como una selección vacía.
+
+### Revisión 33: desinstalar en homes con enlace (Bazzite/OSTree)
+
+En Fedora Atomic y Bazzite, `/home` es un enlace a `/var/home`, así que todo el home cuelga de un enlace.
+El validador del desinstalador lo interpretaba como una redirección sospechosa y se detenía con
+«Ruta redirigida mediante enlace; se conserva: …». Ahora permite los enlaces que forman parte de la ruta del
+home y sigue bloqueando los que aparecen dentro de él (`~/.local/share/omnia/ui -> ~/Juegos`, por ejemplo),
+de modo que nunca se borra el destino de un enlace ni archivos de juegos o partidas.
+
+### Revisión 32: instalador para Bazzite (OSTree)
+
+`Omnia-Installer-0.1.0-32-x86_64.AppImage` incorpora la detección de Bazzite/Fedora OSTree y el flujo de
+dependencias con `rpm-ostree`: prepara el deployment con `--idempotent`, aplica en caliente solo si el cambio
+son adiciones y pide reiniciar cuando reemplaza o retira paquetes base. La comprobación Fedora acepta paquetes
+cubiertos por otro nombre (`rpm -q --whatprovides`), así que `mangohud` cuenta como satisfecho con
+`terra-mangohud`. La GUI se recompiló para cerrar la sesión con `qdbus6`, `qdbus-qt6` o `qdbus`, y el
+manifiesto del AppImage se etiqueta también para Bazzite.
+
 ### Revisión 31: sincronización inmediata del estado visual de juego
 
 La opacidad de la ficha, el reloj y el monitor, además de los sondeos de audio y sensores, ahora sigue el
@@ -93,8 +137,42 @@ Se verificaron los formatos, metadatos, dependencias declaradas y contenido. El 
 No se ha ejecutado todavía una instalación completa de estos nuevos paquetes en Debian, Fedora u openSUSE: requieren
 validación en máquinas virtuales de destino. No se empaquetan binarios Qt de CachyOS en estos archivos; la GUI y el
 puente QML se compilan en destino. El `omnia-kde.run` anterior con binario local se conserva para la máquina actual.
-Las ediciones OSTree/inmutables (Bazzite, Kinoite y similares) requieren un flujo específico y se rechazan por ahora;
-tener KDE Plasma por sí solo no garantiza que permitan instalar dependencias con dnf o escribir componentes de sesión.
+Las ediciones OSTree/inmutables (Bazzite, Kinoite y similares) son compatibles mediante el flujo descrito en
+[Instalación en Bazzite (OSTree)](#instalación-en-bazzite-ostree). Tener KDE Plasma por sí solo no garantiza que se
+puedan escribir componentes de sesión; Omnia los instala en `~/.local` y nunca toca `/usr`.
+
+## Instalación en Bazzite (OSTree)
+
+Bazzite (Kinoite, edición KDE) es un sistema **inmutable basado en Fedora con rpm-ostree**: `/usr` es de solo lectura y
+las dependencias del sistema se añaden como **capas** con `rpm-ostree install`. Omnia ya no rechaza estos sistemas:
+
+1. **Detección.** `packaging/universal/distro.sh` lee `/etc/os-release` (o `/run/host/os-release` si el asistente se
+   ejecuta desde un sandbox Flatpak) y detecta `ID=bazzite`, `ID_LIKE=fedora` y el marcador `/run/ostree-booted`.
+   Selecciona el perfil de dependencias `fedora` y el gestor `rpm-ostree`.
+2. **Dependencias.** El asistente propone instalar, mediante Polkit, los paquetes del perfil Fedora (Qt 6, CMake,
+   compilador, Kirigami, PyGObject, `qdbus6`/`qdbus-qt6`, MangoHud…). Primero se **prepara el deployment** con
+   `rpm-ostree install --idempotent`. Si el cambio son solo adiciones, se aplica en caliente con `rpm-ostree apply-live`;
+   si reemplaza o retira paquetes base (habitual al añadir `-devel` sobre un Qt algo más antiguo), el instalador avisa de
+   que hay que **reiniciar** y volver a ejecutarlo. Tras el reinicio, los paquetes de desarrollo ya están activos y la
+   instalación continúa. La comprobación Fedora acepta nombres alternativos mediante `rpm -q --whatprovides` (por
+   ejemplo, Bazzite cubre `mangohud` con `terra-mangohud`).
+3. **Instalación de Omnia.** El núcleo Python, el wallpaper, el widget Plasma, los scripts de KWin y los binarios de
+   usuario se copian a `~/.local`, igual que en CachyOS. No se escribe en `/usr`.
+4. **Reinicio de Plasma.** Tras compilar el proveedor del token QML con el Qt del sistema, se reinicia
+   `plasma-plasmashell.service` (o se pide cerrar sesión) y se aplica el layout del widget.
+
+El instalador ".run portable" o el AppImage se pueden abrir desde el menú de Plasma en Bazzite. Si se usa el `.run`,
+el propio asistente compila la GUI Qt contra el Qt del sistema; no se distribuye un binario ligado a otra distro.
+**Validación real (Bazzite 45 Kinoite, revisión 36, 2026-11-18):** actualización comprobada en la sesión KDE Plasma 6.8.3.
+`omnia.service` está habilitado y activo; `/health` devuelve 200 y `/library` responde con 36 juegos. Las dependencias
+del instalador pasan `--check`; el deployment activo tiene las capas Qt/CMake requeridas. Los árboles instalados de
+Python, QML, wallpaper, applet y KWin coinciden con los archivos del proyecto. Plasma registra el wallpaper Omnia y
+no hay errores de importación de su plugin. Tras reiniciar Plasma, ya no aparece la advertencia QML de `undefined`
+en el botón “Aceptar cambios” del editor de arte. Sigue apareciendo una advertencia ajena a Omnia sobre el plugin
+opcional `org.kde.plasma.panelcolorizer`, que solo afecta su fondo blur personalizado. No se verificaron interacciones
+manuales de todas las pantallas del asistente. La revisión 37 añade las fuentes licenciadas al árbol QML; su carga y
+archivos quedaron instalados con hashes coincidentes; tras reiniciar Plasma no hay errores QML de Omnia y el wallpaper
+carga. No se hizo una comparación visual de métricas tipográficas ni se recorrieron manualmente todas las pantallas.
 
 ## Construcción
 
@@ -148,9 +226,9 @@ Los lanzadores Linux de NX2navi, TOTK y Savage Wind no utilizan UMU.
 
 ### Revisión 4: carga del puente QML
 
-Se publica QML_IMPORT_PATH en systemd de usuario antes de reiniciar Plasma y se guarda en
-`~/.config/environment.d/60-omnia-qml.conf` para las siguientes sesiones. El script de sesión KDE
-se mantiene para los procesos iniciados directamente desde Plasma.
+El proveedor nativo de token se instala junto a los componentes QML de Omnia y wallpaper/widget lo importan
+por una ruta relativa. La instalación no añade `QML_IMPORT_PATH` al entorno de toda la sesión. El actualizador
+migra el plugin desde la ruta global usada por versiones anteriores.
 
 ### Revisión 5: tamaño automático por pantalla
 

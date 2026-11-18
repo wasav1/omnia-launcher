@@ -12,6 +12,7 @@ import re
 import datetime
 import urllib.parse
 import urllib.request
+import threading
 from pathlib import Path
 
 from . import paths
@@ -30,7 +31,17 @@ class ArtError(Exception):
     pass
 
 
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not url_allowed(newurl):
+            raise ArtError("redirección a un host no permitido")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 NONE_MARK = ".sin-arte"      # marca: SteamGridDB no tiene este tipo de arte para el juego
+_index_lock = threading.RLock()
+_file_index: dict[str, tuple[int, int, list[Path]]] = {}
+_best_index: dict[str, tuple[int, int, str]] = {}
 
 
 def safe_slug(slug: str) -> str:
@@ -45,11 +56,26 @@ def art_dir(slug: str, kind: str, base: Path | None = None) -> Path:
 def cached_files(slug: str, kind: str, base: Path | None = None) -> list[Path]:
     """Archivos de arte descargados en orden de selección."""
     d = art_dir(slug, kind, base)
+    key = str(d)
     try:
-        files = [f for f in d.iterdir() if f.suffix.lower() in EXTS.values() and f.is_file()]
+        stat = d.stat()
+        stamp = (stat.st_mtime_ns, stat.st_ino)
     except OSError:
+        with _index_lock:
+            _file_index.pop(key, None); _best_index.pop(key, None)
         return []
-    return sorted(files, key=lambda f: (0, int(f.stem)) if f.stem.isdigit() else (1, f.name.casefold()))
+    with _index_lock:
+        hit = _file_index.get(key)
+        if hit and hit[:2] == stamp:
+            return hit[2]
+        try:
+            files = [f for f in d.iterdir() if f.suffix.lower() in EXTS.values() and f.is_file()]
+        except OSError:
+            files = []
+        files.sort(key=lambda f: (0, int(f.stem)) if f.stem.isdigit() else (1, f.name.casefold()))
+        _file_index[key] = (*stamp, files)
+        _best_index.pop(key, None)
+        return files
 
 
 def cached(slug: str, kind: str, base: Path | None = None, index: int = 0) -> str:
@@ -109,7 +135,18 @@ def highest_resolution(slug: str, kind: str, base: Path | None = None) -> str:
     files = cached_files(slug, kind, base)
     if not files:
         return ""
-    return str(max(files, key=lambda f: image_dimensions(f)[0] * image_dimensions(f)[1]))
+    key = str(art_dir(slug, kind, base))
+    try:
+        stamp = (Path(key).stat().st_mtime_ns, Path(key).stat().st_ino)
+    except OSError:
+        return ""
+    with _index_lock:
+        hit = _best_index.get(key)
+        if hit and hit[:2] == stamp:
+            return hit[2]
+        best = str(max(files, key=lambda f: image_dimensions(f)[0] * image_dimensions(f)[1]))
+        _best_index[key] = (*stamp, best)
+        return best
 
 
 def key_path() -> Path:
@@ -170,7 +207,8 @@ def pick_edition(editions: list, game: dict) -> int:
 
 class Client:
     def __init__(self, key: str, opener=urllib.request.urlopen):
-        self.key, self.opener = key, opener
+        self.key = key
+        self.opener = urllib.request.build_opener(_SafeRedirect()).open if opener is urllib.request.urlopen else opener
 
     def _open(self, url: str, auth: bool):
         if not url_allowed(url):

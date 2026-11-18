@@ -9,6 +9,14 @@ Restart=on-failure
 RestartSec=3
 # Los juegos van en scopes propios (systemd-run), no dependen de este servicio.
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=default.target

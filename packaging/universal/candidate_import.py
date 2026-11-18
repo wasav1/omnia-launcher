@@ -89,6 +89,8 @@ def _prepare(games, selected, roots):
                     entry['art']['sgdb'] = record['game']
                     port = entry['ports'][0]
                     port.update(name=record['port'], template=record['template'], chips=['Port recompilado'])
+                    if record['template'] == 'nx2navi' and Path(path).suffix.lower() == '.sh':
+                        port['proc'] = 'ocarina'
                     rows = staging.games()
                     rows = [entry if g['id'] == entry['id'] else g for g in rows]
                     def same_game(game):

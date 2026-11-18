@@ -12,8 +12,9 @@ monitor del sistema y ajustes generales en un solo proyecto.
 
 ## Instalador AppImage local
 
-El instalador gráfico también se construye como **AppImage para CachyOS x86-64**, con el icono circular
-azul grisáceo de Omnia y Qt incluido. La salida actual es `Omnia-Installer-0.1.0-31-x86_64.AppImage`.
+El instalador gráfico también se construye como **AppImage x86-64 para CachyOS, Bazzite y KDE Plasma 6**, con el
+icono circular azul grisáceo, Qt y las tipografías de Omnia incluidos. La salida actual es
+`Omnia-Installer-0.1.0-37-x86_64.AppImage`.
 Consulta [construcción y compatibilidad del AppImage](docs/INSTALADORES.md). Es un artefacto local;
 no se ha adjuntado todavía a una release de GitHub.
 
@@ -27,6 +28,7 @@ Elige el archivo para tu distribución. Todos incluyen el mismo asistente gráfi
 | Arch Linux, CachyOS y EndeavourOS con dependencias compatibles | [Instalador .pkg.tar.zst](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1-any.pkg.tar.zst) | 0.1.0 / 1 | Formato verificado; instalación del paquete pendiente |
 | Fedora KDE y derivados tradicionales compatibles | [Instalador .rpm para Fedora](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1.fedora.noarch.rpm) | 0.1.0 / 1 | Pendiente de prueba en destino |
 | openSUSE Tumbleweed con KDE Plasma 6 | [Instalador .rpm para openSUSE](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1.opensuse.noarch.rpm) | 0.1.0 / 1 | Pendiente de prueba en destino |
+| Bazzite (Kinoite) y Fedora OSTree con Plasma 6 | [Instalador gráfico portable .run](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/Omnia-Desktop-Suite-0.1.0-source.run) | 0.1.0 | Detecta OSTree y usa `rpm-ostree`; validación en destino pendiente |
 | Familias anteriores, con las dependencias disponibles | [Instalador gráfico portable .run](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/Omnia-Desktop-Suite-0.1.0-source.run) | 0.1.0 | Variante basada en fuentes; validación entre distros pendiente |
 
 También disponibles: [fuentes del asistente](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-sources.tar.gz),
@@ -44,8 +46,12 @@ Los paquetes locales de esta versión aún no están firmados.
 - Herramientas de compilación Qt/C++; el asistente compila los componentes con la versión de Qt de tu sistema.
 - Conexión a Internet para descargar dependencias y, opcionalmente, arte de SteamGridDB.
 
-Tener KDE Plasma no basta si la versión de Qt o la distribución no cumplen los requisitos. Plasma 5 y las ediciones
-OSTree/inmutables como Bazzite o Fedora Kinoite no están cubiertos por estos instaladores todavía.
+Tener KDE Plasma no basta si la versión de Qt o la distribución no cumplen los requisitos. Plasma 5 no está cubierto.
+
+**Bazzite / Fedora OSTree (Kinoite):** el asistente detecta el sistema inmutable y usa `rpm-ostree` para crear una capa
+con las dependencias de compilación (Qt 6, CMake, PyGObject, etc.). Omnia se instala siempre en `~/.local`; no se
+modifica `/usr`. Si `rpm-ostree` no admite `--apply-live`, será necesario reiniciar para que la capa esté activa antes
+de compilar los componentes QML. Consulta [instalación en Bazzite](docs/INSTALADORES.md#instalación-en-bazzite-ostree).
 
 Los paquetes son `all`, `any` o `noarch` porque distribuyen **fuentes**, no binarios Qt de CachyOS. Eso no garantiza
 compatibilidad con cualquier arquitectura: los componentes y sus dependencias deben poder compilarse en el equipo.

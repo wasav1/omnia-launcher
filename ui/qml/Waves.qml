@@ -44,7 +44,7 @@ Item {
         onTriggered: {
             w.frameN++
             w.acc += frameTime
-            if (!w.playing && (w.frameN & 1)) return            // en reposo: 30 FPS bastan
+            if (w.frameN & 1) return                            // las ondas no necesitan más de 30 actualizaciones por segundo
             var dt = Math.min(0.06, w.acc); w.acc = 0
             var N = w.nb
             w.t += dt
@@ -53,7 +53,7 @@ Item {
 
             var useS = w.playing && w.real && w.bands && w.bands.length === N
             var kick = Math.exp(-((w.t * 1.6) % 1) * 4.5)
-            var ebs = w.eb.slice(), sm = [], fr = []
+            var ebs = w.eb
             for (var b = 0; b < N; b++) {
                 // oleaje de reposo: ondulación lenta, distinta en cada banda
                 var idle = 0.21 + 0.09 * Math.sin(w.phase * 1.3 + b * 0.42) + 0.05 * Math.sin(w.phase * 0.7 - b * 0.9)
@@ -65,10 +65,8 @@ Item {
             }
             w.eb = ebs
             for (b = 0; b < N; b++) {
-                sm.push((ebs[Math.max(0, b - 2)] + 2 * ebs[Math.max(0, b - 1)] + 3 * ebs[b] + 2 * ebs[Math.min(N - 1, b + 1)] + ebs[Math.min(N - 1, b + 2)]) / 9)
-                fr.push((ebs[Math.max(0, b - 1)] + 2 * ebs[b] + ebs[Math.min(N - 1, b + 1)]) / 4)
+                w.frontSpec[b] = (ebs[Math.max(0, b - 1)] + 2 * ebs[b] + ebs[Math.min(N - 1, b + 1)]) / 4
             }
-            w.frontSpec = fr
 
             var W = w.width, H = w.height, back = [Qt.point(0, H)], front = [Qt.point(0, H)], line = []
             for (var x = 0; ; x += 20) {
@@ -76,7 +74,7 @@ Item {
                 var wf = 0.64 + 0.36 * Math.sin(x * 0.0030 + w.phase * 1.6) + 0.10 * Math.sin(x * 0.0071 - w.phase * 1.1)
                 var wb = 0.64 + 0.36 * Math.sin(x * 0.0022 - w.phase * 1.1 + 1.7)
                 var yf = H - 14 - 175 * w.specAt(x, w.frontSpec) * w.amp * (0.78 + 0.22 * wf)
-                var yb = H - 14 - 120 * w.specAt(x, sm) * w.amp * (0.78 + 0.22 * wb) - 14
+                var yb = H - 14 - 120 * w.specAt(x, w.eb) * w.amp * (0.78 + 0.22 * wb) - 14
                 front.push(Qt.point(x, yf)); back.push(Qt.point(x, yb)); line.push(Qt.point(x, yf))
                 if (x >= W) break
             }
@@ -87,7 +85,7 @@ Item {
 
     Shape {
         anchors.fill: parent
-        preferredRendererType: Shape.CurveRenderer
+        preferredRendererType: Shape.GeometryRenderer
         ShapePath {
             strokeColor: "transparent"
             fillGradient: LinearGradient {

@@ -41,6 +41,7 @@
       "qt6-qtbase-devel >= 6.6",
       "qt6-qtdeclarative-devel >= 6.6",
       "qt6-qt5compat",
+      "qt6-qttools",
       "kf6-kirigami",
       "kdialog",
       "polkit",

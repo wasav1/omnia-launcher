@@ -101,7 +101,7 @@ class Ports(Base):
 
     def test_catalogo(self):
         ids = [t["id"] for t in templates.catalog()]
-        self.assertEqual(sorted(ids), sorted(["gopher64", "longshot", "hookshot", "nx2navi", "savagewind", "totkrecomp"]))
+        self.assertEqual(sorted(ids), sorted(["bedrock-on-linux", "gopher64", "longshot", "hookshot", "nx2navi", "savagewind", "totkrecomp"]))
 
 
 class Sugerencias(Base):
@@ -248,7 +248,7 @@ class ApiManual(Base):
             return e.code, json.load(e)
 
     def test_catalogo_y_token(self):
-        self.assertEqual(len(self.call("/templates")[1]["templates"]), 6)
+        self.assertEqual(len(self.call("/templates")[1]["templates"]), 7)
         self.assertEqual(self.call("/templates", token=False)[0], 401)
 
     def test_anadir_y_quitar_por_la_api(self):

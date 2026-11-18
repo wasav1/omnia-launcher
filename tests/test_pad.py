@@ -188,8 +188,8 @@ class ApiMando(unittest.TestCase):
 
     def test_la_tecla_windows_abre_el_menu_aunque_el_mando_este_silenciado(self):
         self.call("/desktop?visible=0", "POST")                            # ventana encima: el mando no actúa…
-        self.assertEqual(self.call("/menu", "POST")[0], 200)               # …pero la tecla Windows sí abre el menú
-        self.assertEqual([e["key"] for e in self.call("/events?since=0&wait=2")[1]["events"]], ["MENU"])
+        self.assertEqual(self.call("/menu", "POST")[0], 200)               # compatibilidad antigua: ahora no hace nada
+        self.assertEqual(self.call("/events?since=0&wait=0")[1]["events"], [])
         self.assertEqual(self.call("/menu", "POST", token=False)[0], 401)
 
     def test_el_menu_abierto_da_el_mando_al_menu_aunque_haya_ventanas(self):

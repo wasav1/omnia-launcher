@@ -7,9 +7,10 @@ if [[ "${KDE_SESSION_VERSION:-}" != 6 ]]; then
   exit 1
 fi
 if ((EUID == 0)); then echo 'Abre el asistente como usuario normal, sin sudo.' >&2; exit 1; fi
-if [[ -e /run/ostree-booted ]]; then
-  command -v kdialog >/dev/null && kdialog --error 'Esta edición OSTree necesita un instalador específico; este paquete es para distros KDE tradicionales.'
-  exit 1
+. "$ROOT/packaging/universal/distro.sh"
+omnia_distro_detect
+if omnia_is_ostree; then
+  printf 'Omnia: sistema OSTree detectado (%s); el asistente instalará dependencias con rpm-ostree.\n' "$OMNIA_DISTRO_ID"
 fi
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omnia"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/omnia"

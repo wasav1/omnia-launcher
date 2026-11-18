@@ -2,6 +2,7 @@ import importlib.util
 import io
 from pathlib import Path
 import subprocess
+import shutil
 import tarfile
 import tempfile
 import unittest
@@ -11,6 +12,12 @@ build=importlib.util.module_from_spec(spec);spec.loader.exec_module(build)
 
 
 class DistributionPackages(unittest.TestCase):
+    def test_pkginfo_separa_version_y_revision(self):
+        fields = dict(line.split(' = ', 1) for line in build.arch_pkginfo(123).splitlines() if ' = ' in line)
+        self.assertEqual(fields['pkgver'], build.VERSION)
+        self.assertEqual(fields['pkgrel'], build.RELEASE)
+        self.assertNotIn('-', fields['pkgver'])
+
     def test_payload_contains_sources_and_launcher_but_no_host_binary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);build.stage(root)
@@ -24,6 +31,7 @@ class DistributionPackages(unittest.TestCase):
                 if p.is_file():
                     with p.open('rb') as f:self.assertNotEqual(f.read(4),b'\x7fELF',str(p))
 
+    @unittest.skipUnless(shutil.which('ar'), 'binutils (ar) no instalado')
     def test_debian_archive_metadata_and_no_automatic_user_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp=Path(tmp);root=tmp/'stage';root.mkdir();work=tmp/'work';work.mkdir();out=tmp/'out';out.mkdir();build.stage(root)

@@ -14,5 +14,7 @@ git ls-files -co --exclude-standard | grep -v '^legacy/' | while IFS= read -r fi
 done | tar czf "$OUT/omnia-launcher-$VER.tar.gz" \
   --transform "s|^|omnia-launcher-$VER/|" -T -
 sed -e "s|^source=.*|source=(\"omnia-launcher-$VER.tar.gz\")|" packaging/arch/PKGBUILD > "$OUT/PKGBUILD"
+SUM="$(sha256sum "$OUT/omnia-launcher-$VER.tar.gz" | cut -d' ' -f1)"
+sed -i "s|^sha256sums=.*|sha256sums=('$SUM')|" "$OUT/PKGBUILD"
 cd "$OUT" && makepkg -f --nocheck "$@"
 ls -1 "$OUT"/*.pkg.tar.zst

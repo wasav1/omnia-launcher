@@ -10,6 +10,7 @@ import tempfile
 import urllib.request
 import urllib.error
 import socket
+import stat
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'core'))
@@ -154,6 +155,22 @@ def write_secret(path, text):
         if os.path.exists(name): os.unlink(name)
 
 
+def read_settings_file(name):
+    """Lee solo un JSON regular, pequeño y propiedad del usuario actual."""
+    fd = os.open(name, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_size > 1024 * 1024:
+            raise ValueError('El archivo de configuración no es válido.')
+        with os.fdopen(fd, 'r', encoding='utf-8', closefd=False) as stream:
+            payload = stream.read(1024 * 1024 + 1)
+        if len(payload) > 1024 * 1024:
+            raise ValueError('El archivo de configuración supera el tamaño permitido.')
+        return json.loads(payload)
+    finally:
+        os.close(fd)
+
+
 def validate_key(key, opener=None):
     """La misma identidad HTTP del cliente de arte; nunca incluye la clave en errores."""
     if not key:
@@ -244,7 +261,7 @@ def main():
             return 2
         print(f"Ajustes guardados. {changes.get('added', 0)} juegos vinculados y {changes.get('unlinked', 0)} desvinculados. La biblioteca se actualizará automáticamente.")
     elif mode == '--configure':
-        configure(json.loads(Path(sys.argv[2]).read_text()))
+        configure(read_settings_file(sys.argv[2]))
     elif mode == '--install':
         data = json.load(sys.stdin)
         if data.get('accepted') is not True:

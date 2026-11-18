@@ -13,5 +13,5 @@ add_library(omnia_sessionplugin MODULE
 target_compile_features(omnia_sessionplugin PRIVATE cxx_std_17)
 target_link_libraries(omnia_sessionplugin PRIVATE Qt6::Core Qt6::Qml)
 
-install(TARGETS omnia_sessionplugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/qt6/qml/org/omnia/session)
-install(FILES qmldir omnia_session.qmltypes DESTINATION ${CMAKE_INSTALL_LIBDIR}/qt6/qml/org/omnia/session)
+install(TARGETS omnia_sessionplugin LIBRARY DESTINATION session)
+install(FILES qmldir omnia_session.qmltypes DESTINATION session)

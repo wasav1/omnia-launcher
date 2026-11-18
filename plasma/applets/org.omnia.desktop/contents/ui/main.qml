@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.omnia.session 1.0 as OmniaSession
+import "../../../../../omnia/ui/session" as OmniaSession
 import "../../../../../omnia/ui/qml" as Omnia
 
 PlasmoidItem {

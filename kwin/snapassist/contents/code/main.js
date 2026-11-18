@@ -3,7 +3,7 @@
 var pending = null;   // {side:"L"|"R", src, t}
 
 function sideOf(w) {
-    if (!w || !w.tile) return null;
+    try { if (!w || !w.tile) return null; } catch (e) { return null; }
     var g = w.tile.absoluteGeometry, a = workspace.clientArea(KWin.MaximizeArea, w.output, workspace.currentDesktop);
     if (!g || !a) return null;
     var half = a.width / 2;
@@ -16,8 +16,11 @@ function sideOf(w) {
 function sameArea(a, b) {
     return a.output === b.output && (a.desktops.length === 0 || b.desktops.length === 0 || a.desktops.some(function (d) { return b.desktops.indexOf(d) >= 0; }));
 }
+function allWindows() {
+    try { return workspace.windowList(); } catch (e) { return workspace.stackingOrder || []; }
+}
 function others(src) {
-    return workspace.windowList().filter(function (w) {
+    return allWindows().filter(function (w) {
         return w !== src && w.normalWindow && !w.minimized && !w.skipTaskbar && sameArea(w, src);
     });
 }
@@ -38,7 +41,7 @@ function hook(w) {
         invoke("Expose");
     });
 }
-workspace.windowList().forEach(hook);
+allWindows().forEach(hook);
 workspace.windowAdded.connect(hook);
 
 workspace.windowActivated.connect(function (w) {

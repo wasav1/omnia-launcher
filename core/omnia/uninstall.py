@@ -57,7 +57,12 @@ def validate_paths(items, config):
     for item in items:
         item=Path(item).absolute()
         if item.is_symlink(): continue  # se elimina solo el enlace, nunca su destino
-        if any(parent.is_symlink() for parent in item.parents):
+        # En OSTree/Fedora Atomic el propio home suele ser un enlace (/home -> /var/home).
+        # Se permiten los enlaces que forman parte de la ruta del home; los que aparecen
+        # por debajo (p. ej. ~/.local/share/omnia/ui -> ~/Juegos) siguen bloqueados.
+        home=Path.home().absolute()
+        system_links={home,*home.parents}
+        if any(parent.is_symlink() and parent not in system_links for parent in item.parents):
             raise ValueError('Ruta redirigida mediante enlace; se conserva: '+str(item))
         if any(p == item or item in p.parents for p in protected):
             raise ValueError('Esta ruta contiene juegos o partidas registrados y se conserva: '+str(item))
@@ -71,7 +76,7 @@ def remove_paths(items):
 
 
 def qdbus(script):
-    binary=shutil.which('qdbus6') or shutil.which('qdbus')
+    binary=shutil.which('qdbus6') or shutil.which('qdbus-qt6') or shutil.which('qdbus')
     if not binary: raise RuntimeError('No se encontró qdbus para retirar Omnia del escritorio.')
     result=subprocess.run([binary,'org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script],capture_output=True,text=True,timeout=30)
     if result.returncode: raise RuntimeError('No se pudo actualizar Plasma. No se borraron los archivos de Omnia.')

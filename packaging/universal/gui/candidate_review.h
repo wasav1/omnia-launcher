@@ -56,7 +56,8 @@ class CandidateReview : public QDialog {
             auto c=records[row].toObject(); ++files;
             if(c["linked"].toBool())++unlink;else games.insert(c["game_key"].toString(c["path"].toString()));
         }
-        counter->setText(QString("Vincular: %1 juegos · %2 ports / archivos   |   Desvincular: %3").arg(games.size()).arg(files-unlink).arg(unlink));
+        counter->setText(QString("Selección: %1 %2 · %3 ports / archivos   |   Desvincular: %4")
+            .arg(games.size()).arg(games.size() == 1 ? "juego" : "juegos").arg(files-unlink).arg(unlink));
     }
 public:
     QMap<QString,QJsonObject> choices;

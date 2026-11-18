@@ -16,7 +16,7 @@ def load_json(path: Path, default):
         return default
 
 
-def write_json_atomic(path: Path, obj, mode: int = 0o600) -> None:
+def write_json_atomic(path: Path, obj, mode: int = 0o600, durable: bool = True) -> None:
     path = Path(path)
     paths.ensure(path.parent)
     tmp = path.with_name(path.name + ".tmp")
@@ -24,7 +24,8 @@ def write_json_atomic(path: Path, obj, mode: int = 0o600) -> None:
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=1, ensure_ascii=False)
         f.flush()
-        os.fsync(f.fileno())
+        if durable:
+            os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
@@ -43,6 +44,8 @@ class Store:
         self.lock = threading.RLock()
         self._library = load_json(self.lib_file, {"games": []})
         self.state = {**copy.deepcopy(STATE_DEFAULT), **load_json(self.state_file, {})}   # copia profunda: los dict internos no se comparten
+        self._state_timer = None
+        self.revision = 0
 
     # --- biblioteca
     def games(self) -> list:
@@ -53,6 +56,7 @@ class Store:
         with self.lock:
             self._library["games"] = games
             write_json_atomic(self.lib_file, self._library)
+            self.revision += 1
 
     def find_game(self, gid: str):
         return next((g for g in self.games() if g.get("id") == gid), None)
@@ -71,6 +75,22 @@ class Store:
     def save_state(self) -> None:
         with self.lock:
             write_json_atomic(self.state_file, self.state)
+            self.revision += 1
+
+    def save_state_soon(self, delay: float = 0.4) -> None:
+        """Agrupa cambios efímeros de navegación; biblioteca y configuración siguen siendo durables."""
+        with self.lock:
+            self.revision += 1
+            if self._state_timer:
+                self._state_timer.cancel()
+            self._state_timer = threading.Timer(delay, self._flush_ephemeral_state)
+            self._state_timer.daemon = True
+            self._state_timer.start()
+
+    def _flush_ephemeral_state(self) -> None:
+        with self.lock:
+            self._state_timer = None
+            write_json_atomic(self.state_file, self.state, durable=False)
 
     def toggle(self, key: str, gid: str) -> bool:
         """Añade o quita gid de la lista state[key] (favoritos u ocultos). Devuelve si queda activo."""
