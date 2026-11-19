@@ -1,5 +1,11 @@
 # Instaladores de Omnia Desktop Suite
 
+### Omnia 0.2.1
+
+`Omnia-Installer-0.2.1-1-x86_64.AppImage` incluye las correcciones de navegación QML,
+selección de archivos y comprobación de la sesión durante la instalación. GitHub Actions genera el AppImage,
+los paquetes nativos, el asistente portable y las fuentes a partir de la etiqueta de versión.
+
 ### Omnia 0.2.0
 
 `Omnia-Installer-0.2.0-1-x86_64.AppImage` empaqueta la revisión de Omnia que se validó en Plasma sobre Bazzite.

@@ -2,7 +2,7 @@
 # Paquete dividido: omnia-core (servicio/API) y omnia-kde (interfaz e integración nativa de Plasma).
 pkgbase=omnia-launcher
 pkgname=(omnia-core omnia-kde)
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=${OMNIA_PKGREL:-1}
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=('x86_64' 'aarch64')

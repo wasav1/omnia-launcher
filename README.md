@@ -5,7 +5,7 @@
 Tu biblioteca de juegos en el escritorio de **KDE Plasma 6**: Omnia Launcher, wallpaper animado por juego,
 monitor del sistema y ajustes generales en un solo proyecto.
 
-**Omnia 0.2.0 · Revisión de paquetes 1 · Validado en KDE Plasma 6 sobre Bazzite.**
+**Omnia 0.2.1 · Revisión de paquetes 1.**
 
 Esta versión renueva la ficha del juego, el monitor del sistema, el menú contextual y el asistente de instalación,
 actualización, ajustes y desinstalación.
@@ -13,11 +13,11 @@ actualización, ajustes y desinstalación.
 ## Instaladores
 
 El asistente se construye como **AppImage x86-64** con Qt e iconos incluidos. La salida local se llama
-`Omnia-Installer-0.2.0-1-x86_64.AppImage`. El proyecto también permite generar paquetes de fuentes `.deb`,
+`Omnia-Installer-0.2.1-1-x86_64.AppImage`. El proyecto también permite generar paquetes de fuentes `.deb`,
 `.pkg.tar.zst`, `.rpm` y un asistente portable `.run`.
 
 Consulta la [guía de construcción y compatibilidad](docs/INSTALADORES.md) para generar el formato de tu distribución.
-La validación en Bazzite corresponde al flujo AppImage.
+El flujo AppImage se validó en Bazzite con la compilación anterior del escritorio.
 
 ### Requisitos y compatibilidad
 
@@ -45,16 +45,16 @@ Puedes abrir el paquete con el gestor gráfico de software si tu distribución l
 
 ```sh
 # Debian / Ubuntu / Kubuntu compatibles
-sudo apt install ./omnia-desktop-suite-installer_0.2.0-1_all.deb
+sudo apt install ./omnia-desktop-suite-installer_0.2.1-1_all.deb
 
 # Arch Linux / CachyOS / EndeavourOS
-sudo pacman -U ./omnia-desktop-suite-installer-0.2.0-1-any.pkg.tar.zst
+sudo pacman -U ./omnia-desktop-suite-installer-0.2.1-1-any.pkg.tar.zst
 
 # Fedora KDE
-sudo dnf install ./omnia-desktop-suite-installer-0.2.0-1.fedora.noarch.rpm
+sudo dnf install ./omnia-desktop-suite-installer-0.2.1-1.fedora.noarch.rpm
 
 # openSUSE Tumbleweed
-sudo zypper install ./omnia-desktop-suite-installer-0.2.0-1.opensuse.noarch.rpm
+sudo zypper install ./omnia-desktop-suite-installer-0.2.1-1.opensuse.noarch.rpm
 ```
 
 Después abre **Omnia Desktop Suite — Instalar o actualizar** desde el menú de aplicaciones de Plasma,
@@ -65,8 +65,8 @@ Para el `.run`, activa **Propiedades → Permisos → Es ejecutable** y ábrelo 
 lo permite. También puedes ejecutarlo así, sin sudo:
 
 ```sh
-chmod +x Omnia-Desktop-Suite-0.2.0-source.run
-./Omnia-Desktop-Suite-0.2.0-source.run
+chmod +x Omnia-Desktop-Suite-0.2.1-source.run
+./Omnia-Desktop-Suite-0.2.1-source.run
 ```
 
 ### Configurar Omnia
