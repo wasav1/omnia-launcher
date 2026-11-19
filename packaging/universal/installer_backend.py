@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'core'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from omnia import paths, library_paths
+from omnia.themes import THEMES, normalize_theme
 from omnia.store import load_json, write_json_atomic
 from route_inspection import effective_roots, inspect_route
 from candidate_import import prepare, requirements
@@ -60,6 +61,8 @@ def configure(data, consent=True):
         if 'mangohud_enabled' not in cfg:
             cfg['mangohud_enabled'] = True
         cfg.setdefault('keep_omnia_session', True)
+        if 'theme' in data:
+            cfg['theme'] = normalize_theme(data.get('theme'))
         set_session_autostart(cfg['keep_omnia_session'])
         key = data.get('steamgriddb_key', '').strip()
         if key:
@@ -67,6 +70,7 @@ def configure(data, consent=True):
         write_json_atomic(config_file, cfg)
         return 0
     cfg = load_json(config_file, {})
+    cfg['theme'] = normalize_theme(data.get('theme', cfg.get('theme')))
     cfg['mangohud_enabled'] = bool(data.get('mangohud_enabled', cfg.get('mangohud_enabled', True)))
     games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
     old_roots = effective_roots(cfg, games)
@@ -213,6 +217,7 @@ def main():
         games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
         roots = effective_roots(cfg, games)
         print(json.dumps({'volumes': volumes(), 'config': cfg, 'steam_count': len(SteamDetector().detect()),
+                          'themes': THEMES,
                           'steam_libraries': [str(p.parent) for r in steam_roots() for p in library_dirs(r)],
                           'logo': logo_path(),
                           'installed': (paths.config_dir() / 'library.json').exists() or (paths.data_dir() / 'installer/omnia-installer').exists(),

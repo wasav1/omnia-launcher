@@ -17,6 +17,8 @@ QtObject {
     property var games: []
     property string toast: ""
     property string notificationPosition: "bottom-right"
+    property string theme: "blue"
+    property color themeAccent: "#336599"
     property real toastLevel: 0           // opacidad del aviso: 1 al mostrarlo, 3 s después se desvanece en 2 s
     function notify(text) { toast = ""; toast = text }
     onToastChanged: {
@@ -84,7 +86,11 @@ QtObject {
 
     function loadPreferences() {
         call("GET", "/settings", function(status, body) {
-            if (status === 200) api.notificationPosition = body.notification_position || "bottom-right"
+            if (status === 200) {
+                api.notificationPosition = body.notification_position || "bottom-right"
+                api.theme = body.theme || "blue"
+                api.themeAccent = body.theme_accent || "#336599"
+            }
         })
     }
 
@@ -235,7 +241,7 @@ QtObject {
     property Timer audioPoll: Timer { interval: api.audioActive ? 42 : 1000; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameRunning && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
     property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameRunning; triggeredOnStart: true; onTriggered: api.pollSystem() }
-    property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: false; triggeredOnStart: false; onTriggered: api.loadPreferences() }
+    property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: api.controlsEnabled && api.ok; triggeredOnStart: true; onTriggered: api.loadPreferences() }
 
     Component.onCompleted: {
         port = parseInt(arg("--port", "47831"))

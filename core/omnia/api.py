@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .store import load_json
 from . import library_paths, port_catalog
 from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
+from .themes import accent_for, normalize_theme
 from .events import EventBus
 from .games.base import Detector
 from .games import refresh as games_refresh
@@ -334,7 +335,8 @@ class Api:
         position = cfg.get("notification_position", "bottom-right")
         if position not in {"bottom-right", "bottom-left", "top-right", "top-left"}:
             position = "bottom-right"
-        return {"notification_position": position}
+        theme = normalize_theme(cfg.get("theme"))
+        return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme)}
 
     def system_status(self, q):
         now = time.monotonic()

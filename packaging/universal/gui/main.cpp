@@ -18,6 +18,7 @@ class Installer : public QWizard {
     VolumePicker *scanDisks;
     QLabel *scanSummary;
     KeyPanel *keyPanel;
+    QComboBox *themeChoice = nullptr;
     QCheckBox *consent;
     QCheckBox *logoutOnComplete, *keepOmnia;
     bool updateOnly = false;
@@ -29,6 +30,11 @@ class Installer : public QWizard {
         const int w = qMax(900, width());
         const qreal ratio = devicePixelRatioF();
         QPixmap banner(QSize(w, 88) * ratio); banner.setDevicePixelRatio(ratio); banner.fill(QColor("#191d25"));
+        QColor accent("#336599");
+        if(themeChoice) for(const auto &value:initial["themes"].toArray()) {
+            const auto item=value.toObject();
+            if(item["id"].toString()==themeChoice->currentData().toString()) { accent=QColor(item["accent"].toString()); break; }
+        }
         QPainter painter(&banner); painter.setRenderHint(QPainter::Antialiasing);
         QFont brand = font(); brand.setPixelSize(22); brand.setBold(true); brand.setLetterSpacing(QFont::AbsoluteSpacing, 2);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
@@ -44,8 +50,8 @@ class Installer : public QWizard {
             int x = 210 + i * stepWidth;
             const int pageId = updateOnly ? i + 4 : i;
             bool active = currentId() == pageId, done = currentId() > pageId || completed;
-            if (active) { painter.setPen(Qt::NoPen); painter.setBrush(QColor("#29375d")); painter.drawRoundedRect(QRectF(x - 7, 23, stepWidth - 3, 40), 20, 20); }
-            painter.setPen(Qt::NoPen); painter.setBrush(QColor(done ? "#285b50" : active ? "#5478f5" : "#303745"));
+            if (active) { painter.setPen(Qt::NoPen); painter.setBrush(accent.darker(190)); painter.drawRoundedRect(QRectF(x - 7, 23, stepWidth - 3, 40), 20, 20); }
+            painter.setPen(Qt::NoPen); painter.setBrush(done ? QColor("#285b50") : active ? accent : QColor("#303745"));
             painter.drawEllipse(QRectF(x, 31, 24, 24));
             QFont number = font(); number.setPixelSize(12); number.setBold(true); painter.setFont(number);
             painter.setPen(QColor(done ? "#9ee3c4" : "#ffffff")); painter.drawText(QRect(x,31,24,24), Qt::AlignCenter, done ? QString::fromUtf8("✓") : QString::number(i+1));
@@ -73,7 +79,8 @@ class Installer : public QWizard {
             return {{"accepted", true}, {"update_only", true}, {"steamgriddb_key", keyPanel->keyForSave()}};
         QJsonArray roots; for(int i=0;i<folders->count();++i) roots.append(folders->item(i)->data(Qt::UserRole).toString());
         return {{"accepted",consent->isChecked()},{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},
-                {"monitor_disks",scanDisks->checkedVolumes()}, {"keep_omnia_session",keepOmnia->isChecked()}, {"steamgriddb_key",keyPanel->keyForSave()}};
+                {"monitor_disks",scanDisks->checkedVolumes()}, {"keep_omnia_session",keepOmnia->isChecked()},
+                {"theme",themeChoice->currentData().toString()}, {"steamgriddb_key",keyPanel->keyForSave()}};
     }
 public:
     bool isUpdateOnly() const { return updateOnly; }
@@ -146,6 +153,16 @@ public:
         connect(scanDisks,&QListWidget::itemChanged,this,[updateMonitorDisks](QListWidgetItem*){updateMonitorDisks();});updateMonitorDisks();
         keepOmnia=new QCheckBox("Volver a aplicar el escritorio Omnia al iniciar sesión");keepOmnia->setChecked(savedCfg.value("keep_omnia_session").toBool(true));add(monitor,keepOmnia);
         auto keepNote=new QLabel("Omnia restaura su fondo animado y widget, conserva Caelestia y los demás widgets existentes.");keepNote->setObjectName("Muted");keepNote->setWordWrap(true);add(monitor,keepNote);
+        auto themeCard=omniaCard("Tema de Omnia", "El color principal y sus tonos derivados se aplican a los controles, selecciones y resaltados de la interfaz.");
+        themeChoice=new QComboBox;
+        for(const auto &value:initial["themes"].toArray()) {
+            const auto item=value.toObject();
+            themeChoice->addItem(QString("%1 · %2").arg(item["name"].toString(),item["accent"].toString()),item["id"].toString());
+        }
+        auto themeIndex=themeChoice->findData(savedCfg.value("theme").toString("blue"));
+        themeChoice->setCurrentIndex(themeIndex<0?0:themeIndex);
+        connect(themeChoice,qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{updateSteps();});
+        themeCard->layout()->addWidget(themeChoice);add(monitor,themeCard);
         static_cast<QVBoxLayout*>(monitor->layout())->addStretch();
         auto art=page(updateOnly?"Validar SteamGridDB":"Dale imagen a tu biblioteca",
                       updateOnly?"Confirma la clave de SteamGridDB para conservar las imágenes automáticas.":"Conecta SteamGridDB para descargar portadas, fondos y logos de tus juegos.");
@@ -169,8 +186,8 @@ public:
             updateSteps();
             if(id==5) {QStringList labels;for(auto value:scanDisks->checkedVolumes())labels<<value.toObject()["label"].toString();QString monitorSummary=labels.isEmpty()?"No se seleccionaron discos":labels.join(", ");summary->setText(updateOnly
                 ? QString("<table cellspacing='9'><tr><td><b>Omnia</b></td><td>Archivos de la aplicación</td></tr><tr><td><b>Biblioteca</b></td><td>Se conserva</td></tr><tr><td><b>Ajustes</b></td><td>Se conservan</td></tr><tr><td><b>SteamGridDB</b></td><td>%1</td></tr></table>").arg(keyPanel->summary().toHtmlEscaped())
-                : QString("<table cellspacing='9'><tr><td><b>Bibliotecas</b></td><td>Steam + %1 carpetas externas</td></tr><tr><td><b>Selección</b></td><td>%2 juegos para agregar</td></tr><tr><td><b>Monitor</b></td><td>%3</td></tr><tr><td><b>Imágenes</b></td><td>%4</td></tr></table>")
-                .arg(folders->count()).arg(folders->selectedGameCount()).arg(monitorSummary.toHtmlEscaped()).arg(keyPanel->summary().toHtmlEscaped()));}
+                : QString("<table cellspacing='9'><tr><td><b>Bibliotecas</b></td><td>Steam + %1 carpetas externas</td></tr><tr><td><b>Selección</b></td><td>%2 juegos para agregar</td></tr><tr><td><b>Monitor</b></td><td>%3</td></tr><tr><td><b>Tema</b></td><td>%4</td></tr><tr><td><b>Imágenes</b></td><td>%5</td></tr></table>")
+                .arg(folders->count()).arg(folders->selectedGameCount()).arg(monitorSummary.toHtmlEscaped()).arg(themeChoice->currentText().toHtmlEscaped()).arg(keyPanel->summary().toHtmlEscaped()));}
             if(updateOnly && id==4) button(BackButton)->setEnabled(false);
         });
         if(updateOnly) { setStartId(4); setButtonText(FinishButton,"Actualizar"); }

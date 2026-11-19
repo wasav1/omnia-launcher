@@ -11,8 +11,11 @@ Reglas, con el motivo de cada omisión:
 Las rutas /var/home/<usuario> y /home/<usuario> pasan al home actual; se conservan carpetas de partidas y de respaldos.
 """
 import json
+import difflib
+import hashlib
 import os
 import re
+import shutil
 from pathlib import Path
 
 from . import templates
@@ -179,3 +182,162 @@ def apply(store, plan_: dict, ids=None) -> list:
         if added:
             store.set_games(games)
     return added
+
+
+def _art_name(value: str) -> str:
+    """Compara nombres de juegos ignorando región/revisión de ROM, no palabras del título."""
+    value = re.sub(r"\([^)]*\)|\[[^]]*\]", " ", str(value).casefold())
+    value = re.sub(r"\bthe\b", " ", value)
+    return re.sub(r"[^a-z0-9]+", "", value)
+
+
+def _legacy_art_matches(old: dict, game: dict) -> bool:
+    old_platform, new_platform = old.get("platform", ""), game.get("platform", "")
+    if old_platform and new_platform and old_platform != new_platform:
+        return False
+    old_id = "manual-" + _slug(str(old.get("id", "")))
+    new_id = str(game.get("id", ""))
+    if old_id != "manual-" and (new_id == old_id or new_id.startswith(old_id + "-")):
+        return True
+    old_art, new_art = old.get("art") or {}, game.get("art") or {}
+    old_name = old_art.get("sgdb") or old.get("name", "")
+    new_name = new_art.get("sgdb") or game.get("name", "")
+    old_key, new_key = _art_name(old_name), _art_name(new_name)
+    return bool(old_key and new_key) and old_key == new_key
+
+
+def migrate_legacy_art(store, library_path: Path | None = None, art_root: Path | None = None) -> tuple[int, int]:
+    """Recupera el arte seleccionado de Estantería para juegos ya presentes en Omnia.
+
+    Copia solo una imagen seleccionada por tipo (no toda la caché histórica) y registra su índice
+    en state.json. Se puede ejecutar en cada inicio: las selecciones explícitas de Omnia y las
+    migraciones ya realizadas se respetan.
+    """
+    from . import art
+
+    home = Path.home()
+    library_path = Path(library_path or home / ".config/estanteria/library.json")
+    art_root = Path(art_root or home / ".local/share/estanteria/arte")
+    legacy_state_path = home / ".config/estanteria/state.json"
+    try:
+        legacy = load(library_path)
+        if not art_root.is_dir():
+            return 0, 0
+    except (ImportError_, OSError):
+        return 0, 0
+    try:
+        legacy_state = json.loads(legacy_state_path.read_text(encoding="utf-8"))
+        if not isinstance(legacy_state, dict):
+            legacy_state = {}
+    except (OSError, ValueError):
+        legacy_state = {}
+
+    # Algunas bibliotecas antiguas ya no enumeran todos los juegos, pero sus info.json y
+    # carpetas de imagen siguen en la caché; se usan solo si el nombre da una coincidencia única.
+    info_by_name = {}
+    folder_by_name = {}
+    root_real = art_root.resolve()
+    try:
+        for folder in art_root.iterdir():
+            if not folder.is_dir() or folder.is_symlink() or not folder.resolve().is_relative_to(root_real):
+                continue
+            # Las ROM usaban slugs como «n64-mario-party-3», sin info.json en cachés antiguas.
+            slug_name = re.sub(r"^(?:n64|sw1|sw2|ps[345]|pc)-", "", folder.name, count=1)
+            key = _art_name(slug_name)
+            if key and any((folder / kind).is_dir() for kind in art.KINDS):
+                folder_by_name.setdefault(key, []).append(folder.name)
+        for info_path in art_root.glob("*/info.json"):
+            try:
+                if info_path.is_symlink() or info_path.stat().st_size > 256 * 1024:
+                    continue
+                info = json.loads(info_path.read_text(encoding="utf-8"))
+                name = _art_name(info.get("nombre", "")) if isinstance(info, dict) else ""
+                folder = info_path.parent
+                if name and folder.resolve().is_relative_to(root_real):
+                    info_by_name.setdefault(name, []).append(folder.name)
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+
+    old_games = [g for g in legacy.get("games", []) if isinstance(g, dict) and (g.get("art") or {}).get("slug")]
+    old_state_art = legacy_state.get("art") if isinstance(legacy_state.get("art"), dict) else {}
+    copied = total_bytes = 0
+    state_changed = False
+    with store.lock:
+        for game in store.games():
+            new_id = str(game.get("id", ""))
+            new_art = game.get("art") or {}
+            target_slug = new_art.get("slug") or new_id
+            # Prefer matching the original catalog entry with platform context.
+            matches = [old for old in old_games if _legacy_art_matches(old, game)]
+            if not matches:
+                match_name = _art_name(new_art.get("sgdb") or game.get("name", ""))
+                slugs = list(dict.fromkeys(info_by_name.get(match_name, []) + folder_by_name.get(match_name, [])))
+                ranked = sorted(((difflib.SequenceMatcher(None, _art_name(slug), _art_name(new_id)).ratio(), slug)
+                                 for slug in slugs), reverse=True)
+                if not ranked or ranked[0][0] < 0.45 or (len(ranked) > 1 and ranked[0][0] - ranked[1][0] < 0.08):
+                    continue
+                source_slug = ranked[0][1]
+                old = next((item for item in old_games if (item.get("art") or {}).get("slug") == source_slug), None)
+            else:
+                # If duplicate titles exist, use the source slug closest to this game's stable id.
+                matches.sort(key=lambda item: difflib.SequenceMatcher(
+                    None, _art_name((item.get("art") or {}).get("slug", "")), _art_name(new_id)).ratio(), reverse=True)
+                old = matches[0]
+                source_slug = (old.get("art") or {}).get("slug", "")
+
+            for kind in art.KINDS:
+                # An explicit Omnia selection always wins over the old prototype.
+                current_selection = (store.state.get("art") or {}).get(new_id) or {}
+                if kind in current_selection:
+                    continue
+                source_dir = art.art_dir(source_slug, kind, base=art_root)
+                if not source_dir.resolve().is_relative_to(root_real):
+                    continue
+                legacy_files = art.cached_files(source_slug, kind, base=art_root)
+                if not legacy_files:
+                    continue
+                if old is not None:
+                    overrides = old_state_art.get(str(old.get("id", ""))) or {}
+                    selected = overrides.get(kind)
+                    if not isinstance(selected, int) or isinstance(selected, bool) or selected < 0:
+                        try:
+                            selected = max(0, int(((old.get("art") or {}).get(kind, 1) or 1)) - 1)
+                        except (TypeError, ValueError):
+                            selected = 0
+                else:
+                    selected = 0
+                source = legacy_files[min(selected, len(legacy_files) - 1)]
+                target_files = art.cached_files(target_slug, kind)
+                source_hash = hashlib.sha256(source.read_bytes()).digest()
+                duplicate = next((i for i, f in enumerate(target_files)
+                                  if f.stat().st_size == source.stat().st_size
+                                  and hashlib.sha256(f.read_bytes()).digest() == source_hash), -1)
+                if duplicate >= 0:
+                    selected_target = duplicate
+                else:
+                    target_dir = art.art_dir(target_slug, kind)
+                    target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    numbers = [int(f.stem) for f in target_files if f.stem.isdigit()]
+                    dest = target_dir / (str(max(numbers, default=0) + 1) + source.suffix.lower())
+                    tmp = dest.with_name(dest.name + ".tmp")
+                    try:
+                        shutil.copyfile(source, tmp)
+                        os.chmod(tmp, 0o600)
+                        os.replace(tmp, dest)
+                    except OSError:
+                        try:
+                            tmp.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+                        continue
+                    total_bytes += source.stat().st_size
+                    copied += 1
+                    refreshed = art.cached_files(target_slug, kind)
+                    selected_target = refreshed.index(dest) if dest in refreshed else max(0, len(refreshed) - 1)
+                store.state.setdefault("art", {}).setdefault(new_id, {})[kind] = selected_target
+                state_changed = True
+        if state_changed:
+            store.save_state()
+    return copied, total_bytes

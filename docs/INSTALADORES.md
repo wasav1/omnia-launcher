@@ -1,5 +1,85 @@
 # Instaladores de Omnia Desktop Suite
 
+### Revisión 55: estabilidad y precarga del carrusel
+
+`Omnia-Installer-0.1.0-55-x86_64.AppImage` evita que la tarjeta seleccionada parpadee al actualizarse los datos del
+juego, precarga más tarjetas para que las portadas aparezcan antes y hace simétrico el difuminado de ambos extremos
+para que la siguiente tarjeta asome parcialmente al lado derecho.
+
+### Revisión 54: animación y persistencia del arte
+
+`Omnia-Installer-0.1.0-54-x86_64.AppImage` recupera el crecimiento de la tarjeta seleccionada del prototipo Estantería:
+la ficha crece suavemente con `OutBack`, mientras la pista del carrusel usa `OutCubic`; mantiene el diseño actual,
+el anclaje inferior, el orden de la biblioteca y el difuminado de los extremos. También invalida la caché de imágenes
+cuando cambia un archivo y evita colisiones al descargar arte. En el primer inicio, importa de la caché local de
+Estantería solo la imagen seleccionada por tipo para cada juego coincidente y guarda esa elección en el estado de
+Omnia. Respeta el arte elegido ya en Omnia y deja intacta la caché antigua.
+
+### Revisión 53: alineación inferior y estado de juego
+
+`Omnia-Installer-0.1.0-53-x86_64.AppImage` alinea todas las portadas por abajo y quita el movimiento de la fila
+al cambiar de selección; las tarjetas laterales conservan el difuminado en los bordes y siguen permitiendo navegar
+por la biblioteca. El selector de ports bloquea la navegación de la biblioteca y permite elegir con clic, cancelar
+con Escape o B. En modo «Jugando» oculta la interfaz y muestra el logo, el nombre del juego y el estado sobre el
+wallpaper animado existente.
+
+### Revisión 52: carrusel estable y selector de ports
+
+`Omnia-Installer-0.1.0-52-x86_64.AppImage` fija la ficha seleccionada al inicio de los filtros y mantiene
+accesibles las tarjetas vecinas, sin desplazar el carrusel al cambiar de juego. Alinea las portadas inferiores,
+conserva el difuminado de los extremos y corrige el cierre del selector de ports con «Cancelar». Al abrirlo,
+oculta la interfaz y deja visible el wallpaper existente detrás del selector flotante con el logo del juego.
+
+### Revisión 51: disposición, selección y animaciones
+
+`Omnia-Installer-0.1.0-51-x86_64.AppImage` reserva espacio para la tarjeta seleccionada y mantiene visible y accesible
+con el mouse la tarjeta anterior. Aumenta 20% las portadas laterales, amplía el reloj y ordena reloj, reproductor y
+monitor con el separador ornamental. El selector de ports conserva el wallpaper animado existente y muestra el logo
+del juego. Suaviza las transiciones del carrusel.
+
+### Revisión 50: corrección al cargar el selector de ports
+
+`Omnia-Installer-0.1.0-50-x86_64.AppImage` corrige una asignación de espaciado tipográfico en la etiqueta de
+estado de un port. La propiedad ahora se asigna a `font.letterSpacing`, evitando que Qt rechace la carga completa
+de `OmniaShell.qml`.
+
+### Revisión 49: ficha integrada y selector de ports
+
+`Omnia-Installer-0.1.0-49-x86_64.AppImage` conserva el carrusel en la parte inferior y ancla la tarjeta seleccionada
+por el borde inferior derecho para que crezca hacia arriba y a la izquierda. Aumenta 10% el tamaño de las tarjetas
+laterales y pone en la ficha las partidas guardadas, el tiempo jugado y la última sesión. El botón «Jugar» abre un
+selector centrado de ports; al iniciar, queda visible la portada animada. Centra y amplía el reloj y mueve la guía del
+mando sobre la tarjeta seleccionada. También mantiene recortadas las superficies dentro de sus bordes redondeados.
+
+### Revisión 47: tema azul y colores configurables
+
+`Omnia-Installer-0.1.0-47-x86_64.AppImage` establece Azul Omnia (`#336599`) como tema predeterminado e incluye
+variantes Gris azulado, Verde petróleo, Violeta y Ámbar. El tema se elige durante la instalación o después desde
+Ajustes generales → Escritorio; el shell actualiza sus resaltados y controles al guardar.
+
+### Revisión 46: guía del mando junto a los filtros
+
+`Omnia-Installer-0.1.0-46-x86_64.AppImage` mueve las indicaciones de navegación del mando a la derecha de la fila de
+filtros y controles superiores. Reduce sus iconos y texto para mantener despejada la ficha del juego y la zona de
+portadas.
+
+### Revisión 45: mayor opacidad a la derecha en el wallpaper
+
+`Omnia-Installer-0.1.0-45-x86_64.AppImage` ajusta la sombra horizontal del wallpaper a 94%, 72% y 55% de opacidad
+de izquierda a derecha, manteniendo las posiciones intermedias y la sombra inferior de la revisión 44.
+
+### Revisión 44: degradado del wallpaper basado en el prototipo
+
+`Omnia-Installer-0.1.0-44-x86_64.AppImage` reemplaza la cortina gris azulada uniforme del wallpaper de Plasma por dos capas
+degradadas inspiradas en `.hero .cover .scrim` del prototipo: sombra horizontal más intensa a la izquierda y una sombra
+inferior. No añade blur. La carga debe confirmarse después de actualizar y reiniciar Plasma.
+
+### Revisión 43: suavizado de ondas
+
+`Omnia-Installer-0.1.0-43-x86_64.AppImage` cambia las ondas a `Shape.CurveRenderer` y densifica los puntos geométricos
+de 20 a 8 píxeles, manteniendo 30 actualizaciones por segundo. `qmllint` pasa para `Waves.qml`; falta revisar el aspecto
+en Plasma.
+
 ### Revisión 38: recuperación si falla el despliegue (Q-05)
 
 `Omnia-Installer-0.1.0-38-x86_64.AppImage` incluye el diario de transacción y el rollback ante errores detectables. El

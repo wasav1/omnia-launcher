@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="es" data-mode="install">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d13">
+<title>Omnia · Instalador de escritorio</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#080d13;
+  --bg-2:#0b131c;
+  --surface:#101923;
+  --surface-2:#141f2b;
+  --surface-3:#192634;
+  --line:rgba(184,209,226,.13);
+  --line-strong:rgba(184,209,226,.22);
+  --text:#edf4f8;
+  --muted:#a2b3c0;
+  --dim:#7e91a1;
+  --accent:#67a9dd;
+  --accent-2:#9ad8ff;
+  --accent-soft:rgba(103,169,221,.13);
+  --accent-ink:#06121c;
+  --ok:#6fd6aa;
+  --warn:#efc477;
+  --bad:#f08b84;
+  --shadow:0 30px 90px rgba(0,0,0,.45);
+  --radius:16px;
+  --radius-sm:11px;
+  --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html[data-mode="update"]{--accent:#6fd0ab;--accent-2:#b5f5dd;--accent-soft:rgba(111,208,171,.13);--accent-ink:#06140f}
+html[data-mode="settings"]{--accent:#b09cff;--accent-2:#d9ceff;--accent-soft:rgba(176,156,255,.12);--accent-ink:#100a20}
+html[data-mode="uninstall"]{--accent:#f08b84;--accent-2:#ffc2bd;--accent-soft:rgba(240,139,132,.12);--accent-ink:#200807}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;background:var(--bg);color:var(--text);
+  font:14.5px/1.55 var(--font);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 70% 55% at 12% -8%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 62%),
+    radial-gradient(ellipse 55% 45% at 96% 8%,rgba(84,139,180,.10),transparent 66%),
+    radial-gradient(ellipse 60% 50% at 50% 112%,rgba(50,110,130,.08),transparent 70%);
+  transition:background .35s ease;
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.22;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 72%);
+  mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 72%);
+}
+::selection{background:var(--accent);color:var(--accent-ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:var(--accent-2)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.app{position:relative;z-index:1;width:min(1240px,100%);min-height:100vh;margin:0 auto;padding:22px 32px 122px}
+.top{display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--line);padding:8px 0 19px;position:relative}
+.top::after{content:"";position:absolute;left:0;bottom:-1px;width:190px;height:1px;background:linear-gradient(90deg,var(--accent),transparent);opacity:.95}
+.brand{display:flex;align-items:center;gap:13px;min-width:250px;order:1}
+.brandmark{
+  width:46px;height:46px;border:1px solid color-mix(in srgb,var(--accent) 36%,transparent);border-radius:15px;
+  display:grid;place-items:center;color:var(--accent-2);
+  background:linear-gradient(145deg,var(--accent-soft),rgba(255,255,255,.02));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 10px 30px color-mix(in srgb,var(--accent) 12%,transparent);
+  flex:none;
+}
+.brandmark svg{width:29px;height:29px}
+.brand b{display:block;letter-spacing:.22em;font-size:17px;line-height:1;font-weight:750}
+.brand small{display:block;margin-top:6px;color:var(--dim);font-size:9px;letter-spacing:.16em;font-weight:650}
+.machine{
+  order:2;display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--ok);
+  border:1px solid color-mix(in srgb,var(--ok) 32%,transparent);
+  background:color-mix(in srgb,var(--ok) 8%,transparent);
+  border-radius:99px;padding:8px 12px;white-space:nowrap;
+}
+.machine::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);flex:none}
+.modes{
+  order:3;margin-left:auto;display:flex;gap:4px;padding:5px;
+  background:rgba(3,8,13,.56);border:1px solid var(--line);border-radius:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+.modes button{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:10px;padding:10px 14px;background:transparent;color:var(--muted);
+  font-size:12.5px;font-weight:650;white-space:nowrap;transition:background .18s,color .18s,box-shadow .18s;
+}
+.modes button::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.42;flex:none}
+.modes button:hover{color:var(--text);background:rgba(255,255,255,.045)}
+.modes button.active{
+  color:var(--accent-2);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 9%,transparent));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 36%,transparent),0 6px 18px rgba(0,0,0,.25);
+}
+.modes button.active::before{background:var(--accent);opacity:1;box-shadow:0 0 10px var(--accent)}
+.layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:34px;padding-top:26px;align-items:start}
+.sidebar{position:sticky;top:22px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.steps{padding:4px 0}
+.steps h3{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.18em;margin:0 0 12px 10px;font-weight:700}
+.rail-head{display:flex;align-items:baseline;justify-content:space-between;padding:0 10px 10px;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.16em;font-weight:700}
+.rail-head b{font-size:19px;color:var(--text);letter-spacing:-.03em;line-height:1}
+.rail-head b small{font-size:10px;color:var(--dim);letter-spacing:.04em;font-weight:600}
+.rail-progress{height:3px;border-radius:99px;background:rgba(255,255,255,.08);margin:0 10px 13px;overflow:hidden}
+.rail-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.step{
+  width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:11px 10px;
+  border:1px solid transparent;border-radius:12px;color:var(--muted);margin:3px 0;
+  transition:background .18s,border-color .18s,color .18s,box-shadow .18s;
+}
+.step:hover{background:rgba(255,255,255,.035);color:var(--text)}
+.step.active{
+  background:linear-gradient(90deg,var(--accent-soft),rgba(255,255,255,.02));
+  border-color:color-mix(in srgb,var(--accent) 30%,transparent);
+  color:var(--text);box-shadow:inset 3px 0 0 var(--accent);
+}
+.step.done .n{background:color-mix(in srgb,var(--ok) 18%,transparent);border-color:color-mix(in srgb,var(--ok) 34%,transparent);color:var(--ok)}
+.n{
+  width:30px;height:30px;display:grid;place-items:center;border-radius:50%;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--dim);
+  flex:none;font-size:11px;font-weight:750;
+}
+.step.active .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 4px var(--accent-soft)}
+.stxt b{display:block;font-size:12.5px;font-weight:650;letter-spacing:-.01em}
+.stxt small{display:block;margin-top:2px;font-size:10.5px;color:var(--dim);line-height:1.35}
+.step.active .stxt small{color:color-mix(in srgb,var(--accent-2) 72%,var(--muted))}
+.side-note,.side-card{
+  border:1px solid var(--line);border-radius:14px;
+  background:linear-gradient(160deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  padding:14px;color:var(--muted);font-size:11.5px;line-height:1.5;
+}
+.side-card{margin-top:2px}
+.side-kicker{display:flex;align-items:center;gap:8px;color:var(--accent-2);font-size:10px;font-weight:750;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.side-kicker::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);flex:none}
+.side-card p{margin:0;color:var(--muted);font-size:11.5px}
+.side-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:7px}
+.side-list li{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:11.5px}
+.side-list li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);margin-top:7px;flex:none;opacity:.8}
+.content{min-width:0;min-height:650px}
+.pane{display:none;animation:show .28s cubic-bezier(.2,.8,.2,1)}
+.pane.active{display:block}
+@keyframes show{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.page-head{margin:2px 0 24px;max-width:820px}
+.kicker{
+  display:inline-flex;align-items:center;gap:8px;color:var(--accent-2);
+  text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:750;margin:0 0 10px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:linear-gradient(90deg,var(--accent),transparent)}
+.title{font-size:clamp(30px,4.2vw,44px);line-height:1.06;margin:0 0 12px;letter-spacing:-.045em;font-weight:750;text-wrap:balance}
+.lead{color:var(--muted);max-width:760px;margin:0;font-size:15px;line-height:1.55}
+.section-title{
+  display:flex;align-items:center;gap:10px;font-size:11px;font-weight:750;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--dim);margin:28px 0 12px;
+}
+.section-title::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,var(--line),transparent)}
+.card{
+  background:linear-gradient(155deg,rgba(255,255,255,.045),rgba(255,255,255,.012) 42%,rgba(255,255,255,.02));
+  border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:12px 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 12px 30px rgba(0,0,0,.12);
+  transition:border-color .2s,transform .2s,box-shadow .2s;
+}
+.card:hover{border-color:color-mix(in srgb,var(--accent) 24%,var(--line));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 38px rgba(0,0,0,.18)}
+.card h3{font-size:14.5px;margin:0 0 5px;letter-spacing:-.01em}
+.card p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.feature{display:flex;gap:14px;align-items:flex-start}
+.icon{
+  width:40px;height:40px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:12px;
+  color:var(--accent-2);background:linear-gradient(145deg,var(--accent-soft),rgba(255,255,255,.02));
+  display:grid;place-items:center;flex:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-strong);border-radius:99px;
+  padding:4px 9px;font-size:10px;font-weight:650;color:var(--muted);white-space:nowrap;letter-spacing:.02em;
+}
+.badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.7;flex:none}
+.badge.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 36%,transparent);background:color-mix(in srgb,var(--ok) 8%,transparent)}
+.badge.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 38%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}
+.badge.blue{color:var(--accent-2);border-color:color-mix(in srgb,var(--accent) 38%,transparent);background:var(--accent-soft)}
+.req{display:flex;gap:16px;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);color:var(--muted);font-size:12.5px}
+.req:last-child{border:0}
+.req b{color:var(--text);font-weight:600;flex:none}
+.req .check{color:var(--ok)}
+.note{
+  padding:13px 15px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;
+  color:var(--muted);font-size:11.5px;margin-top:15px;background:var(--accent-soft);line-height:1.5;
+}
+.note.danger{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent);color:color-mix(in srgb,var(--bad) 55%,var(--text))}
+.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 6px}
+.hero-stats .stat{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.025)}
+.hero-stats .stat b{display:block;font-size:14px;margin:0 0 2px;color:var(--accent-2)}
+.volume,.route{
+  display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;gap:12px;align-items:center;
+  padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.022);margin:8px 0;
+  transition:border-color .18s,background .18s;
+}
+.volume:hover,.route:hover{border-color:color-mix(in srgb,var(--accent) 30%,var(--line));background:rgba(255,255,255,.035)}
+.volume input,.route input,.candidate input{accent-color:var(--accent);width:17px;height:17px}
+.volpath,.routepath{font-weight:650;font-size:12.5px;overflow-wrap:anywhere}
+.volmeta,.rmeta{color:var(--dim);font-size:10.5px}
+.route{grid-template-columns:28px minmax(0,1fr) auto}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}
+.btn{
+  border:1px solid var(--line-strong);border-radius:10px;background:rgba(255,255,255,.045);
+  padding:10px 16px;color:var(--text);font-weight:650;transition:background .18s,border-color .18s,transform .18s,box-shadow .18s;
+}
+.btn:hover{background:rgba(255,255,255,.085);border-color:color-mix(in srgb,var(--accent) 32%,var(--line-strong));transform:translateY(-1px)}
+.btn:active{transform:none}
+.btn.primary{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,white),var(--accent));
+  border-color:color-mix(in srgb,var(--accent) 82%,transparent);color:var(--accent-ink);
+  box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 22%,transparent);
+}
+.btn.primary:hover{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 76%,white),color-mix(in srgb,var(--accent) 88%,white));box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 28%,transparent)}
+.btn:disabled{opacity:.42;cursor:not-allowed;transform:none;box-shadow:none}
+.btn.ghost{background:transparent}
+.btn.small{font-size:11px;padding:7px 11px}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent);background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 15%,transparent);border-color:var(--bad)}
+.summarybar{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.stat{border:1px solid var(--line);background:rgba(255,255,255,.022);border-radius:10px;padding:9px 12px;font-size:11px;color:var(--muted)}
+.stat b{color:var(--text);font-size:17px;margin-right:4px;line-height:1}
+.switchrow{display:flex;justify-content:space-between;gap:18px;align-items:center;border-bottom:1px solid rgba(255,255,255,.06);padding:13px 2px}
+.switchrow:last-child{border:0}
+.switchrow b{display:block;font-size:12.5px;font-weight:600}
+.switchrow small{color:var(--muted);font-size:10.5px}
+.switch{width:42px;height:24px;background:#3a414d;border-radius:99px;position:relative;flex:none;border:0;box-shadow:inset 0 1px 3px rgba(0,0,0,.3)}
+.switch::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;background:#c1c9d6;border-radius:50%;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.switch.on{background:var(--accent)}
+.switch.on::after{left:21px;background:#fff}
+.themes{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:9px}
+.theme{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.022);text-align:left;transition:border-color .18s,transform .18s,background .18s}
+.theme:hover{border-color:var(--line-strong);transform:translateY(-1px);background:rgba(255,255,255,.04)}
+.theme.active{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent),0 8px 24px color-mix(in srgb,var(--accent) 12%,transparent)}
+.swatch{display:block;height:44px;border-radius:8px;margin-bottom:9px;background:linear-gradient(100deg,#336599 0 33%,#638bb4 33% 66%,#1d2938 66%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.theme b{font-size:11px;display:block}
+.theme small{font-size:9px;color:var(--dim)}
+.input{width:100%;background:rgba(3,8,13,.45);border:1px solid var(--line-strong);border-radius:10px;padding:11px 13px;color:var(--text)}
+.input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.field{margin:14px 0}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.footer{
+  position:fixed;bottom:0;left:0;right:0;z-index:5;
+  background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);padding:13px max(24px,calc((100vw - 1240px)/2 + 32px));
+  display:flex;align-items:center;gap:10px;box-shadow:0 -14px 44px rgba(0,0,0,.28);
+}
+.footer .footinfo{font-size:11px;color:var(--muted);margin-right:auto;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.foot-step{color:var(--accent-2);font-weight:700;letter-spacing:.02em}
+.foot-sep{color:var(--dim)}
+.footer .btn{min-width:96px}
+.progress{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:16px 0;box-shadow:inset 0 1px 3px rgba(0,0,0,.25)}
+.progress i{display:block;background:linear-gradient(90deg,var(--accent),var(--accent-2));height:100%;width:0;transition:width .4s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 18px color-mix(in srgb,var(--accent) 35%,transparent)}
+.log{display:none;max-height:180px;overflow:auto;background:rgba(2,6,10,.65);border:1px solid var(--line);border-radius:10px;padding:12px;font:10px/1.7 var(--mono);color:#b4c1d6}
+.log.show{display:block}
+.table{width:100%;border-collapse:collapse;font-size:11px}
+.table th{text-align:left;color:var(--accent-2);background:color-mix(in srgb,var(--accent) 10%,var(--surface-2));padding:10px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
+.table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+.table tr:nth-child(even){background:rgba(255,255,255,.018)}
+.tablewrap{max-height:330px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(3,8,13,.25)}
+.table input,.table select,.table .input{font-size:10px;padding:6px}
+.result{font-size:14px;color:var(--accent-2);padding:14px 0;font-weight:600}
+.hidden{display:none!important}
+.tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin:16px 0}
+.tab{background:transparent;border:0;padding:10px 12px;color:var(--muted);font-size:11px;border-bottom:2px solid transparent;font-weight:600}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent-2);border-color:var(--accent)}
+.modalback{position:fixed;inset:0;background:rgba(2,5,9,.76);backdrop-filter:blur(16px);display:none;place-items:center;z-index:10;padding:20px}
+.modalback.open{display:grid}
+.modal{width:min(1000px,96vw);max-height:90vh;overflow:auto;background:linear-gradient(155deg,var(--surface-3),var(--surface));border:1px solid color-mix(in srgb,var(--accent) 20%,var(--line-strong));border-radius:16px;box-shadow:var(--shadow);padding:24px}
+.modalhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.modal h2{margin:0;font-size:23px;letter-spacing:-.03em}
+.modal .lead{margin-top:6px;font-size:12px}
+.modalclose{background:transparent;border:1px solid var(--line-strong);border-radius:8px;color:var(--muted);padding:6px 11px}
+.modalclose:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.modalfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.settingsgrid{display:grid;grid-template-columns:190px minmax(0,1fr);gap:18px}
+.settingnav{display:grid;align-content:start;gap:4px}
+.settingnav button{text-align:left;background:transparent;border:1px solid transparent;border-radius:9px;padding:10px;color:var(--muted);font-size:11.5px;font-weight:600}
+.settingnav button:hover{background:rgba(255,255,255,.035);color:var(--text)}
+.settingnav button.active{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 26%,transparent);color:var(--accent-2)}
+.settingpane{display:none}
+.settingpane.active{display:block}
+.toast{
+  position:fixed;right:24px;bottom:86px;padding:12px 15px;background:linear-gradient(155deg,var(--surface-3),var(--surface));
+  border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line-strong));border-left:3px solid var(--accent);
+  border-radius:10px;color:#e6edf7;display:none;z-index:20;font-size:11.5px;box-shadow:0 16px 44px rgba(0,0,0,.38);max-width:320px;
+}
+.toast.show{display:block;animation:show .2s ease}
+.dangerText{color:var(--bad)}
+.update-box{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(120deg,var(--accent-soft),rgba(255,255,255,.02) 55%,rgba(255,255,255,.015))}
+.update-version{border:1px solid var(--line);border-radius:12px;padding:12px 16px;background:rgba(3,8,13,.28);min-width:132px}
+.update-version span{display:block;color:var(--dim);font-size:9.5px;text-transform:uppercase;letter-spacing:.14em;font-weight:700}
+.update-version b{display:block;margin-top:4px;font-size:18px;letter-spacing:-.02em}
+.update-version small{display:block;margin-top:2px;color:var(--dim);font-size:10px}
+.update-version.target{border-color:color-mix(in srgb,var(--accent) 42%,transparent);background:var(--accent-soft);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 18%,transparent)}
+.update-arrow{color:var(--accent);font-size:22px;line-height:1;opacity:.9}
+.update-copy{flex:1;min-width:190px}
+.update-copy p{margin:6px 0 0;color:var(--muted);font-size:11.5px}
+code{font-family:var(--mono);font-size:.92em;background:rgba(255,255,255,.06);border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:var(--accent-2)}
+@media(max-width:1020px){
+  .app{padding:20px 22px 122px}
+  .layout{grid-template-columns:1fr;gap:18px}
+  .sidebar{position:static;display:block}
+  .steps{display:flex;gap:4px;overflow:auto;padding:0 0 8px;scrollbar-width:thin}
+  .rail-head,.rail-progress{display:none}
+  .step{flex:1;min-width:152px;margin:0}
+  .side-card{margin-top:10px}
+  .top::after{width:130px}
+}
+@media(max-width:820px){
+  .app{padding:18px 18px 128px}
+  .top{flex-wrap:wrap;gap:12px}
+  .brand{min-width:0}
+  .machine{margin-left:auto;order:2}
+  .modes{order:3;width:100%;overflow:auto;margin-left:0}
+  .modes button{flex:1;padding:9px 10px}
+  .grid2,.grid3,.hero-stats{grid-template-columns:1fr}
+  .settingsgrid{display:block}
+  .settingnav{display:flex;overflow:auto;border-bottom:1px solid var(--line);margin-bottom:14px;gap:4px}
+  .settingnav button{white-space:nowrap;border-radius:9px 9px 0 0;border-bottom:2px solid transparent}
+  .settingnav button.active{border-bottom-color:var(--accent)}
+  .themes{grid-template-columns:repeat(2,1fr)}
+  .footer{padding:11px 18px}
+  .footer .footinfo{max-width:46%}
+}
+@media(max-width:560px){
+  .app{padding:14px 14px 138px}
+  .brandmark{width:40px;height:40px;border-radius:13px}
+  .brand b{font-size:15px}
+  .brand small{font-size:8px}
+  .title{font-size:30px}
+  .lead{font-size:13.5px}
+  .modes button{font-size:11px;gap:5px}
+  .modes button::before{display:none}
+  .machine{font-size:10px;padding:6px 9px}
+  .footer{padding:10px 14px;flex-wrap:wrap}
+  .footer .footinfo{width:100%;max-width:none;order:3;font-size:10px}
+  .footer .btn{flex:1;min-width:0}
+  .volume{grid-template-columns:22px 1fr auto}
+  .volume .badge{grid-column:2}
+  .route{grid-template-columns:22px 1fr auto}
+  .modal{padding:18px}
+  .update-box{gap:10px}
+  .update-version{min-width:0;flex:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="brandmark">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path d="M16 2.5 29 9.6v12.8L16 29.5 3 22.4V9.6z" stroke="currentColor"/>
+          <path d="M16 9.6 21.8 13v6L16 22.4 10.2 19v-6z" stroke="currentColor" stroke-width="1.7"/>
+          <circle cx="16" cy="16" r="2" fill="currentColor"/>
+        </svg>
+      </div>
+      <div><b>OMNIA</b><small>INSTALADOR · KDE PLASMA 6</small></div>
+    </div>
+    <div class="machine" id="machine">Vista interactiva · datos de ejemplo</div>
+    <nav class="modes" aria-label="Momentos del instalador">
+      <button class="active" data-mode="install" aria-pressed="true">Instalación</button>
+      <button data-mode="update" aria-pressed="false">Actualización</button>
+      <button data-mode="settings" aria-pressed="false">Configuración</button>
+      <button data-mode="uninstall" aria-pressed="false">Desinstalación</button>
+    </nav>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="steps" id="steps"></div>
+      <div class="side-card" id="sideCard"></div>
+    </aside>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+<footer class="footer" id="footer"><span class="footinfo" id="footinfo"></span><button class="btn ghost" id="back">Atrás</button><button class="btn primary" id="next">Continuar</button></footer>
+
+<div class="modalback" id="candidateModal" role="dialog" aria-modal="true" aria-labelledby="candidateTitle"><div class="modal">
+  <div class="modalhead"><div><p class="kicker">Vinculación de juegos</p><h2 id="candidateTitle">Elige qué vincular o quitar</h2><p class="lead">El análisis solo lee archivos. Al desvincular se conservan juegos, partidas y archivos.</p></div><button class="modalclose" data-close="candidateModal">Cerrar</button></div>
+  <div class="field"><input class="input" id="candidateSearch" placeholder="Buscar por juego, port o archivo…"></div>
+  <div class="summarybar"><div class="stat"><b id="selGames">0</b> juegos seleccionados</div><div class="stat"><b id="selFiles">0</b> ports / archivos</div><div class="stat"><b id="selUnlink">0</b> para desvincular</div></div>
+  <div class="tablewrap"><table class="table"><thead><tr><th>Vincular / quitar</th><th>Juego</th><th>Port / plataforma</th><th>Ejecutable / ROM</th><th>Emulador</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
+  <div class="note">Para ROM de N64 indica el emulador. Al confirmar, Omnia valida los complementos requeridos; si falta alguno, conserva la selección y muestra qué instalar.</div>
+  <div class="modalfoot"><button class="btn" data-close="candidateModal">Cancelar</button><button class="btn primary" id="confirmCandidates">Confirmar selección</button></div>
+</div></div>
+
+<div class="modalback" id="confirmModal" role="dialog" aria-modal="true"><div class="modal" style="max-width:560px"><div class="modalhead"><div><p class="kicker">Confirmación</p><h2 id="confirmTitle">Confirmar</h2></div><button class="modalclose" data-close="confirmModal">Cerrar</button></div><div id="confirmBody" class="card"></div><div class="modalfoot"><button class="btn" data-close="confirmModal">Volver</button><button class="btn danger" id="confirmAction">Confirmar</button></div></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(()=>{'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const stepsNew=[['Bienvenida','Requisitos y consentimiento'],['Escanear discos','Unidades con juegos'],['Carpetas y vínculos','Candidatos de juegos'],['Escritorio','Monitor y tema'],['SteamGridDB','Arte de biblioteca'],['Revisar e instalar','Resumen y progreso']];
+const stepsUpdate=[['SteamGridDB','Validar o posponer'],['Actualizar Omnia','Resumen y progreso']];
+let mode='install',step=0,scanned=false,installState='ready',settingsTab='Juegos y discos',settingsSub=0,settingsDirty=false;
+window.logOpen=false;
+let roots=[{path:'~/Juegos/Ports',info:'12 juegos vinculados · 3 candidatos encontrados'},{path:'~/Juegos/ROMs',info:'8 juegos vinculados · 2 candidatos encontrados'}];
+let candidateChoice={};let theme='blue';let logs=[];
+const sampleCandidates=[
+ {name:'The Legend of Zelda: Ocarina of Time',type:'Longshot · Switch 2',file:'/juegos/Ocarina/Ports/Longshot/longshot',kind:'port',linked:false,emulator:'',key:'zelda-ooc'},
+ {name:'The Legend of Zelda: Ocarina of Time',type:'NX2navi · Switch 2',file:'/juegos/Ocarina/Ports/NX2navi/play.sh',kind:'port',linked:false,emulator:'',key:'zelda-ooc'},
+ {name:'Hollow Knight',type:'PC · Manual',file:'/juegos/HollowKnight/start.sh',kind:'port',linked:true,emulator:'',key:'hollow-knight'},
+ {name:'Super Mario 64',type:'ROM · N64',file:'/juegos/ROMs/Mario.z64',kind:'rom',linked:false,emulator:'gopher64',key:'mario64'},
+ {name:'Mario Party 3',type:'ROM · N64',file:'/juegos/ROMs/MarioParty3.z64',kind:'rom',linked:false,emulator:'gopher64',key:'mp3'}
+];
+function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function showModal(id){$('#'+id).classList.add('open')};function closeModal(id){$('#'+id).classList.remove('open')}
+function stepList(){if(mode==='install')return stepsNew;if(mode==='update')return stepsUpdate;return []}
+function setMode(m){mode=m;step=0;installState='ready';document.documentElement.dataset.mode=m;$$('.modes button').forEach(b=>{const on=b.dataset.mode===m;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});render()}
+function header(k,title,lead){return `<header class="page-head"><p class="kicker">${k}</p><h1 class="title">${title}</h1><p class="lead">${lead}</p></header>`}
+const ico=(name)=>{let p={monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',disk:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 7c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',folder:'<path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',game:'<path d="M6 10h12l2 8a2 2 0 0 1-3.2 1.6L13 17h-2l-3.8 2.6A2 2 0 0 1 4 18z"/><path d="M8 13v4m-2-2h4m6-1h.01M18 16h.01"/>',palette:'<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 1.5-3.3c-.6-.7-.1-1.7.8-1.7H18a3 3 0 0 0 3-3c0-5-4-10-9-10z"/><path d="M7.5 10h.01M10 7.5h.01M14 7.5h.01M17 10h.01"/>',check:'<path d="m5 12.5 4.5 4.5L19 7"/>',shield:'<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"/><path d="m9 12 2 2 4-4"/>',image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"/>',play:'<path d="m7 4 14 8-14 8z"/>',info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v5m0-8h.01"/>'};return `<span class="icon"><svg viewBox="0 0 24 24">${p[name]||p.info}</svg></span>`};
+function render(){
+  const list=stepList();
+  $('#machine').textContent=mode==='settings'?'Configuración · demostración':mode==='uninstall'?'Desinstalación · demostración':'Vista interactiva · datos de ejemplo';
+  const nav=$('#steps');
+  const side=$('#sideCard');
+  if(mode==='install'||mode==='update'){
+    const pct=Math.round(((step+1)/Math.max(list.length,1))*100);
+    nav.innerHTML=`<div class="rail-head"><span>${mode==='update'?'Actualización':'Instalación'}</span><b>${step+1}<small>/${list.length}</small></b></div><div class="rail-progress"><i style="width:${pct}%"></i></div>`+list.map((s,i)=>`<button class="step ${i===step?'active':''} ${i<step?'done':''}" data-step="${i}" aria-current="${i===step?'step':'false'}"><span class="n">${i<step?'✓':i+1}</span><span class="stxt"><b>${s[0]}</b><small>${s[1]}</small></span></button>`).join('');
+    side.innerHTML=mode==='update'
+      ?`<div class="side-kicker">Actualización segura</div><p>Se reemplazan solo los archivos de Omnia. Biblioteca, partidas y ajustes se conservan.</p><ul class="side-list"><li>Sin perder datos de usuario</li><li>Se puede reintentar</li><li>Se conserva la clave guardada</li></ul>`
+      :`<div class="side-kicker">Instalación segura</div><p>Todo se instala en tu usuario, sin tocar el sistema.</p><ul class="side-list"><li>Archivos en ~/.local</li><li>Configuración en ~/.config</li><li>Sin permisos de administrador</li></ul>`;
+    $$('.step').forEach(b=>b.onclick=()=>{const n=+b.dataset.step;if(n<=step)step=n;render()});
+  }else if(mode==='settings'){
+    nav.innerHTML=`<div class="rail-head"><span>Configuración</span><b>6<small> áreas</small></b></div><div class="rail-progress"><i style="width:100%"></i></div><div class="side-note">Los ajustes se guardan en tu usuario y se aplican al núcleo de Omnia.</div>`;
+    side.innerHTML=`<div class="side-kicker">Ajustes guardados</div><p>Administra bibliotecas, monitor, apariencia y SteamGridDB sin reinstalar.</p><ul class="side-list"><li>Cambios reversibles</li><li>Sin sudo</li><li>Se aplican al instante</li></ul>`;
+  }else{
+    nav.innerHTML=`<div class="rail-head"><span>Desinstalación</span><b>1<small>/1</small></b></div><div class="rail-progress"><i style="width:100%"></i></div><div class="side-note">Esta acción elimina los datos de Omnia de este usuario.</div>`;
+    side.innerHTML=`<div class="side-kicker">Antes de continuar</div><p>Los juegos, ROMs, emuladores y partidas no se tocan. Solo se retira Omnia.</p><ul class="side-list"><li>Se conserva tu biblioteca de juegos</li><li>Se conserva el wallpaper anterior si existe</li><li>Puedes volver a instalar cuando quieras</li></ul>`;
+  }
+  const main=$('#content');main.innerHTML=mode==='install'?newPage():mode==='update'?updatePage():mode==='settings'?settingsPage():uninstallPage();
+const footer=$('#footer');footer.classList.remove('hidden');if(mode==='settings'||mode==='uninstall'){footer.classList.add('hidden')}else{const final=step===list.length-1;$('#back').disabled=step===0||installState==='running';$('#back').classList.toggle('hidden',installState==='done');$('#next').textContent=mode==='update'?(step===0?'Continuar':installState==='running'?'Aplicando…':installState==='done'?'Cerrar':'Actualizar'):final?(installState==='ready'?'Instalar ahora':installState==='running'?'Instalando…':installState==='done'?'Finalizar':'Reintentar'):'Continuar';$('#next').disabled=installState==='running'||(mode==='install'&&step===0&&!$('#consent')?.checked)||(mode==='install'&&step===1&&!scanned);const footInfo=mode==='update'?['Clave opcional · validación de SteamGridDB','Actualización reparable · se conservan biblioteca y ajustes'][step]:['Sin permisos de administrador','Escaneo de lectura · no vincula juegos todavía','Revisa y selecciona qué vincular','Tema, monitor y sesión de Plasma','Clave opcional · puedes configurarla luego','Resumen antes de aplicar'][step]||'';$('#footinfo').innerHTML=(list.length?`<span class="foot-step">Paso ${step+1} de ${list.length}</span><span class="foot-sep">·</span>`:'')+footInfo}
+wire();}
+function newPage(){switch(step){case 0:return `<section class="pane active">${header('Paso 1 · Bienvenida','Bienvenido a Omnia Desktop Suite','Tu escritorio de juegos para KDE Plasma 6. Antes de aplicar cambios, revisa el alcance y acepta la instalación.')}
+<div class="summarybar hero-stats"><div class="stat"><b>~/.local</b>instalación de usuario</div><div class="stat"><b>Sin sudo</b>salvo dependencias</div><div class="stat"><b>Plasma 6</b>Wayland / X11</div></div>
+<div class="grid2"><div class="card feature">${ico('game')}<div><h3>Tu biblioteca, reunida</h3><p>Steam, ports y emuladores en un mismo escritorio.</p></div></div><div class="card feature">${ico('image')}<div><h3>Un fondo para cada juego</h3><p>Arte de SteamGridDB y un fondo con movimiento.</p></div></div></div>
+<h2 class="section-title">Antes de empezar</h2><div class="card"><p>Omnia se instala en tu usuario. Configura el wallpaper, el widget, las bibliotecas y las integraciones de escritorio. Al aplicar, Plasma puede reiniciarse unos segundos. Los juegos y partidas permanecen en sus carpetas.</p><details style="margin-top:12px"><summary>Ver todos los cambios de instalación</summary><div class="req"><span class="check">✓</span><span>Archivos de Omnia en <code>~/.local/share/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Configuración personal en <code>~/.config/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Widget de biblioteca, wallpaper animado y servicios de usuario</span></div><div class="req"><span class="check">✓</span><span>Integraciones que requieren autorización se pedirán mediante KDE/Polkit</span></div></details></div>
+<h2 class="section-title">Comprobaciones del equipo</h2><div class="grid2"><div class="card feature">${ico('monitor')}<div><h3>KDE Plasma 6</h3><p>Compatibilidad de sesión y Wayland/X11: se detecta durante la ejecución.</p></div><span class="badge ok">Comprobar</span></div><div class="card feature">${ico('shield')}<div><h3>Dependencias</h3><p>Paquetes, Python, Qt y systemd disponibles en esta distribución.</p></div><span class="badge">Pendiente</span></div></div>
+<div class="note">Esta vista es una maqueta navegable. Las comprobaciones y datos reales los aporta el instalador al ejecutarse en el equipo.</div><div class="card"><label><input type="checkbox" id="consent"> He leído y acepto los cambios en mi sesión de KDE Plasma.</label></div></section>`;
+case 1:return `<section class="pane active">${header('Paso 2 · Bibliotecas','Escanear discos','Selecciona los discos que contienen juegos. El escaneo busca ports del catálogo Omnia y ROM de N64; todavía no vincula ni desvincula nada.')}
+<h2 class="section-title">Discos y particiones disponibles</h2><div class="note">Unidades de ejemplo para mostrar el flujo. El instalador real obtiene la lista del sistema.</div>
+${[['/var/home','Sistema · Btrfs · disponible'],['/run/media/wsaenz/Juegos','Juegos · Btrfs · disponible'],['/mnt/backup','Respaldo · NTFS · disponible']].map((v,i)=>`<label class="volume"><input type="checkbox" ${i<2?'checked':''}><span><span class="volpath">${v[0]}</span><br><span class="volmeta">${v[1]}</span></span><span class="badge">${i===0?'Sistema':'Montado'}</span><span class="badge ${scanned?'ok':''}">${scanned?(i===1?'18 candidatos':'1 biblioteca Steam'):'Sin escanear'}</span></label>`).join('')}
+<div class="actions"><button class="btn primary" id="scanBtn">${scanned?'Volver a escanear':'Escanear discos seleccionados'}</button><span class="badge ${scanned?'ok':''}" id="scanStatus">${scanned?'Escaneo completado · muestra de resultados':'Selecciona discos y pulsa Escanear'}</span></div>
+<div class="card"><h3>Resumen del escaneo</h3><p id="scanResult">${scanned?'Se encontraron 18 candidatos en 2 ubicaciones. Revísalos en el siguiente paso; el escaneo no cambia la biblioteca.':'Aún no se ha iniciado el análisis.'}</p></div><div class="note">El escaneo puede tardar según el tamaño de los discos. No inicia juegos ni altera los archivos analizados.</div></section>`;
+case 2:return `<section class="pane active">${header('Paso 3 · Bibliotecas','Carpetas y vinculación','Agrega las carpetas de ports o juegos externos y decide qué candidatos entran o salen de la biblioteca de Omnia.')}
+<div class="card"><h3>Steam · detección automática</h3><p>Los juegos de Steam se detectan aparte. Las rutas externas no modifican sus bibliotecas. <span class="badge blue">Ejemplo: 42 juegos</span></p></div>
+<h2 class="section-title">Carpetas externas</h2><div id="roots">${rootRows()}</div><div class="summarybar"><div class="stat"><b>${roots.length}</b> carpetas</div><div class="stat"><b>20</b> juegos vinculados</div><div class="stat"><b>5</b> candidatos encontrados</div></div>
+<div class="actions"><button class="btn" id="addRoot">＋ Añadir carpeta…</button><button class="btn" id="removeRoot">Quitar seleccionada</button><button class="btn primary" id="reviewCandidates">Revisar candidatos…</button></div><div class="note">Quitar una ruta excluye sus juegos del catálogo sin borrar archivos, partidas ni historial. Steam se administra por separado.</div></section>`;
+case 3:return `<section class="pane active">${header('Paso 4 · Escritorio','Configurar Omnia','Elige qué discos consultará el monitor, si Omnia restaura su escritorio al iniciar sesión y el tema principal.')}
+<h2 class="section-title">Discos del monitor</h2><div class="card"><p>La selección viene del paso «Escanear discos». El monitor muestra espacio de juegos y estado de unidades elegidas.</p><div class="summarybar"><span class="badge blue">/var/home</span><span class="badge blue">/run/media/wsaenz/Juegos</span><button class="btn small" id="backToScan">Cambiar selección</button></div></div>
+<div class="card"><div class="switchrow"><span><b>Volver a aplicar el escritorio Omnia al iniciar sesión</b><small>Restaura wallpaper animado y widget; conserva los demás widgets.</small></span><button class="switch on" aria-label="Activar"></button></div><div class="switchrow"><span><b>MangoHud durante los juegos</b><small>FPS, frametime, temperaturas, RAM y VRAM. Requiere MangoHud instalado.</small></span><button class="switch on" aria-label="Activar"></button></div></div>
+<h2 class="section-title">Tema de Omnia · color principal y tonos derivados</h2><div class="themes">${[['blue','Azul Omnia','#336599'],['slate','Gris azulado','#596d84'],['teal','Verde petróleo','#287b79'],['violet','Violeta','#7664bd'],['amber','Ámbar','#af7935']].map(t=>`<button class="theme ${theme===t[0]?'active':''}" data-theme="${t[0]}"><span class="swatch" style="background:linear-gradient(100deg,${t[2]} 0 35%,color-mix(in srgb,${t[2]} 68%,white) 35% 68%,#1d2938 68%)"></span><b>${t[1]}</b><small>${t[2]}</small></button>`).join('')}</div><div class="note">Se puede cambiar más adelante desde Ajustes generales → Escritorio.</div></section>`;
+case 4:return `<section class="pane active">${header('Paso 5 · SteamGridDB','Dale imagen a tu biblioteca','Conecta SteamGridDB para descargar portadas, fondos y logos. Es opcional y puedes configurarlo después.')}
+<div class="card"><h3>Tu clave permanece privada</h3><p>La clave se guarda únicamente en tu usuario con permisos restringidos. Si ya existe una, puedes conservarla sin mostrar su contenido.</p></div>
+<div class="field"><label for="apiKey">Clave API de SteamGridDB (opcional)</label><input class="input" id="apiKey" type="password" placeholder="Introduce una clave para reemplazar la guardada"></div><div class="actions"><button class="btn" id="validateKey">Validar clave</button><span class="badge" id="keyState">${window.keyValid?'Conexión validada':'Sin clave · arte se configura después'}</span></div><div class="card"><label><input type="checkbox" id="deferKey" checked> Configurar SteamGridDB después (continuar sin validar).</label></div><div class="note">La clave no se necesita para instalar ni usar Omnia. La descarga de arte se puede iniciar desde la biblioteca.</div></section>`;
+case 5:return installPage();}}
+function rootRows(){return roots.map((r,i)=>`<div class="route"><input type="radio" name="root" ${i===0?'checked':''}><span><span class="routepath">${esc(r.path)}</span><br><span class="rmeta">${esc(r.info)}</span></span><span class="badge ok">Analizada</span></div>`).join('')||'<div class="card"><p>No hay carpetas externas. Puedes añadir una para buscar juegos.</p></div>'}
+function installPage(){const done=installState==='done',running=installState==='running',title=done?'Instalación completada':running?'Instalando Omnia':'Revisar e instalar';return `<section class="pane active">${header('Paso 6 · Resumen',title,done?'Omnia se instaló. Cierra sesión y vuelve a entrar para cargar el wallpaper y las integraciones.':'Comprueba la configuración antes de aplicar los cambios al escritorio.')}
+<div class="card"><h3>${mode==='update'?'Se conservarán tus datos':'Tu configuración'}</h3><div class="req"><b>Bibliotecas</b><span>${mode==='update'?'Se conservan biblioteca y vínculos':`Steam + ${roots.length} carpetas externas`}</span></div><div class="req"><b>Selección</b><span>${mode==='update'?'No se modifica':'5 juegos candidatos · 3 seleccionados (ejemplo)'}</span></div><div class="req"><b>Discos del monitor</b><span>${mode==='update'?'Configuración actual':'/var/home · Juegos (ejemplo)'}</span></div><div class="req"><b>Tema</b><span>${mode==='update'?'Se conserva':themeName()}</span></div><div class="req"><b>SteamGridDB</b><span>${mode==='update'?'Validación opcional':'Configuración opcional'}</span></div><div class="req"><b>Destino</b><span><code>~/.local/share/omnia</code></span></div></div>
+${!done?`<div class="card"><label><input type="checkbox" id="logout"> Cerrar sesión automáticamente al terminar <span class="badge warn">Guarda tu trabajo antes</span></label><p style="margin-top:6px">También puedes cerrar sesión manualmente después para cargar completamente los cambios.</p></div>`:''}
+<div class="progress ${running||done?'':'hidden'}"><i id="progressBar" style="width:${done?'100%':running?'18%':'0%'}"></i></div><div class="result" id="installResult">${done?'✓ Omnia se instaló correctamente.':running?'Preparando Omnia… Puedes consultar los detalles.':'Todo listo. Pulsa «Instalar ahora» para comenzar.'}</div><button class="btn small" id="toggleLog">${window.logOpen?'Ocultar':'Mostrar'} detalles de instalación</button><div class="log ${window.logOpen?'show':''}" id="log">${logs.map(esc).join('<br>')}</div><div class="note">La instalación se ejecuta con el backend real, conserva el registro de salida y ofrece reintentar ante errores. Esta página simula su progreso para mostrar el flujo.</div></section>`}
+function themeName(){return ({blue:'Azul Omnia · #336599',slate:'Gris azulado',teal:'Verde petróleo',violet:'Violeta',amber:'Ámbar'})[theme]}
+function updatePage(){if(step===0)return `<section class="pane active">${header('Actualización · Paso 1 de 2','Validar SteamGridDB','Omnia ya está instalado. Comprueba la clave guardada o deja la configuración de imágenes para después.')}
+<div class="card update-box"><div class="update-version"><span>Instalado</span><b>0.1.0-33</b><small>Revisión actual</small></div><div class="update-arrow">→</div><div class="update-version target"><span>Disponible</span><b>0.1.0-34</b><small>Nueva revisión</small></div><div class="update-copy"><span class="badge ok">Actualización segura</span><p>Se actualizan los archivos de Omnia. Biblioteca, partidas y ajustes se conservan.</p></div></div><div class="card"><h3>Actualización rápida</h3><p>Se actualizarán los archivos de Omnia. Tu biblioteca, juegos, partidas, fondos y ajustes personales permanecerán intactos.</p></div><div class="field"><label for="updateKey">Clave API nueva (opcional)</label><input id="updateKey" class="input" type="password" placeholder="Vacío = conservar la clave guardada"></div><div class="actions"><button class="btn" id="validateUpdate">Comprobar conexión / validar nueva clave</button><span class="badge" id="updateKeyState">Conexión guardada sin validar</span></div><label><input type="checkbox" id="updateDefer" checked> Configurar SteamGridDB después (continuar sin validar).</label></section>`;
+return `<section class="pane active">${header('Actualización · Paso 2 de 2',installState==='done'?'Omnia actualizado':'Actualizar Omnia',installState==='done'?'Cierra sesión y vuelve a entrar para cargar los cambios.':'Confirma qué se actualizará y qué se conservará.')}
+<div class="card"><h3>Se conservarán tus datos</h3><div class="req"><b>Omnia</b><span>Archivos de la aplicación · se actualizarán</span></div><div class="req"><b>Biblioteca</b><span>Se conserva</span></div><div class="req"><b>Ajustes</b><span>Se conservan</span></div><div class="req"><b>SteamGridDB</b><span>Configuración opcional</span></div></div><div class="progress ${installState==='running'||installState==='done'?'':'hidden'}"><i id="progressBar" style="width:${installState==='done'?'100%':installState==='running'?'18%':'0%'}"></i></div><div class="result" id="installResult">${installState==='done'?'✓ Omnia se actualizó.':installState==='running'?'Aplicando actualización…':'Todo listo. Pulsa «Actualizar» para comenzar.'}</div><button class="btn small" id="toggleLog">Mostrar detalles de instalación</button><div class="log ${window.logOpen?'show':''}" id="log">${logs.map(esc).join('<br>')}</div></section>`}
+function settingsPage(){const tabs=['Juegos y discos','Monitor','Escritorio','Notificaciones','SteamGridDB','Acerca de'];return `<section class="pane active">${header('Omnia Desktop Suite · Ajustes','Ajustes generales','Administra los vínculos de juegos, las unidades del monitor y las opciones guardadas en tu usuario.')}
+<div class="settingsgrid"><nav class="settingnav">${tabs.map(t=>`<button class="${settingsTab===t?'active':''}" data-setting="${t}">${t}</button>`).join('')}</nav><div>${settingsTab==='Juegos y discos'?settingsGames():settingsTab==='Monitor'?settingsMonitor():settingsTab==='Escritorio'?settingsDesktop():settingsTab==='Notificaciones'?settingsNotifications():settingsTab==='SteamGridDB'?settingsSteam():settingsAbout()}</div></div>
+<div class="actions"><span class="badge" id="settingsStatus">${settingsDirty?'Cambios sin aplicar':'Configuración actual'}</span><button class="btn" id="closeSettings">Cerrar</button><button class="btn primary" id="applySettings" ${settingsDirty?'':'disabled'}>Aplicar cambios</button></div></section>`}
+function settingsGames(){return `<div class="tabs"><button class="tab ${settingsSub===0?'active':''}" data-sub="0">Escanear discos</button><button class="tab ${settingsSub===1?'active':''}" data-sub="1">Carpetas y vínculos</button></div>${settingsSub===0?`<p class="lead">Paso 1 de 2 · Selecciona discos y escanéalos. El análisis muestra ports y ROM reconocidas; todavía no cambia la biblioteca.</p>${[['/var/home','Btrfs'],['/run/media/wsaenz/Juegos','Btrfs'],['/mnt/backup','NTFS']].map((v,i)=>`<label class="volume"><input type="checkbox" ${i<2?'checked':''}><span class="volpath">${v[0]}</span><span class="badge">${v[1]}</span></label>`).join('')}<button class="btn primary" id="settingsScan">Escanear discos seleccionados</button><div class="card" id="settingsScanResult">Selecciona discos y pulsa «Escanear» para ver los juegos reconocidos.</div>`:`<p class="lead">Paso 2 de 2 · Agrega carpetas y revisa qué vincular o desvincular. Quitar una ruta no borra archivos ni partidas.</p><div id="roots">${rootRows()}</div><div class="actions"><button class="btn" id="addRoot">Añadir carpeta…</button><button class="btn" id="removeRoot">Quitar ruta</button><button class="btn" id="reviewCandidates">Revisar candidatos…</button></div><div class="card"><h3>Steam · detección automática</h3><p>42 juegos detectados automáticamente (ejemplo). Steam se administra por separado.</p></div>`}`}
+function settingsMonitor(){return `<div class="card"><h3>MangoHud</h3><div class="switchrow"><span><b>Mostrar estadísticas mientras juegas</b><small>Requiere que MangoHud esté disponible en el sistema.</small></span><button class="switch on"></button></div><p>Para Steam, añade la variable de configuración indicada por Omnia en las opciones de lanzamiento del juego.</p></div><h3 class="section-title">Discos supervisados</h3>${[['/var/home','Btrfs'],['/run/media/wsaenz/Juegos','Btrfs']].map(v=>`<label class="volume"><input type="checkbox" checked><span class="volpath">${v[0]}</span><span class="badge">${v[1]}</span></label>`).join('')}<p class="note">El monitor muestra los discos marcados y actualiza su disponibilidad y espacio.</p>`}
+function settingsDesktop(){return `<div class="card"><div class="switchrow"><span><b>Volver a aplicar el escritorio Omnia al iniciar sesión</b><small>Restaura wallpaper animado y widget; conserva otros widgets.</small></span><button class="switch on"></button></div></div><h3 class="section-title">Tema de Omnia</h3><div class="themes">${[['blue','Azul Omnia','#336599'],['slate','Gris azulado','#596d84'],['teal','Verde petróleo','#287b79'],['violet','Violeta','#7664bd'],['amber','Ámbar','#af7935']].map(t=>`<button class="theme ${theme===t[0]?'active':''}" data-theme="${t[0]}"><span class="swatch" style="background:linear-gradient(100deg,${t[2]},#1d2938)"></span><b>${t[1]}</b><small>${t[2]}</small></button>`).join('')}</div>`}
+function settingsNotifications(){return `<div class="card"><h3>Posición de los avisos temporales</h3><div class="field"><label>Ubicación en el escritorio</label><select class="input"><option>Inferior derecha</option><option>Inferior izquierda</option><option>Superior derecha</option><option>Superior izquierda</option></select></div><p>Los avisos aparecen unos segundos y se desvanecen solos.</p></div>`}
+function settingsSteam(){return `<div class="card"><h3>Clave de SteamGridDB</h3><p>Introduce una clave nueva para reemplazar la guardada. Déjala vacía para conservarla.</p><div class="field"><input class="input" type="password" placeholder="Clave API"></div><div class="actions"><button class="btn" id="settingsValidate">Validar clave</button><button class="btn">Configurar después</button></div><label><input type="checkbox"> Eliminar la clave guardada al aplicar</label></div>`}
+function settingsAbout(){return `<div class="card"><h3>Omnia Desktop Suite</h3><p>Biblioteca, wallpaper animado y monitor del sistema. Los ajustes se guardan en tu usuario.</p></div><div class="card"><p>Aplicar reinicia solo el núcleo de Omnia; no requiere contraseña ni reinstalar.</p></div><button class="btn danger" id="goUninstall">Desinstalar Omnia…</button>`}
+function uninstallPage(){return `<section class="pane active">${header('Omnia Desktop Suite','Desinstalar Omnia','Retira el escritorio de Omnia y sus datos de este usuario.')}
+<div class="grid2"><div class="card"><h3>Se eliminará</h3><p>Configuración, biblioteca de Omnia, historial, favoritos, clave SteamGridDB, imágenes descargadas y componentes de escritorio.</p></div><div class="card"><h3>Se conservará</h3><p>Archivos de juegos, ROMs, emuladores, partidas y respaldos. Las aplicaciones y dependencias compartidas seguirán instaladas.</p></div></div>
+<div class="note danger">Se retirarán widgets y atajos de Omnia. Se recuperará el wallpaper anterior cuando exista un respaldo; si no, se usará el fondo nativo de Plasma. Plasma se reiniciará unos segundos al terminar.</div><div class="card"><label><input type="checkbox" id="removeAssistant" checked> Retirar también el asistente del sistema <span class="badge warn">Puede requerir autorización</span></label></div><div class="card"><label><input type="checkbox" id="confirmUninstall"> Confirmo que quiero eliminar los datos y componentes de Omnia.</label></div><div class="actions"><button class="btn danger" id="uninstallBtn" disabled>Desinstalar Omnia</button><span id="uninstallStatus" class="badge">Esperando confirmación</span></div></section>`}
+function wire(){
+$('#scanBtn')?.addEventListener('click',()=>{scanned=true;toast('Escaneo de ejemplo completado; no modifica archivos.');render()});$('#backToScan')?.addEventListener('click',()=>{step=1;render()});$('#consent')?.addEventListener('change',e=>{$('#next').disabled=!e.target.checked});
+$$('[data-theme]').forEach(b=>b.onclick=()=>{theme=b.dataset.theme;settingsDirty=true;render()});
+$$('.switch').forEach(b=>b.onclick=()=>{b.classList.toggle('on');settingsDirty=true});
+$$('[data-setting]').forEach(b=>b.onclick=()=>{settingsTab=b.dataset.setting;render()});$$('[data-sub]').forEach(b=>b.onclick=()=>{settingsSub=+b.dataset.sub;render()});
+$('#addRoot')?.addEventListener('click',()=>{const p=prompt('Ruta de carpeta (ejemplo):','~/Juegos/Otros');if(p){roots.push({path:p,info:'Por analizar'});settingsDirty=true;render()}});$('#removeRoot')?.addEventListener('click',()=>{const selected=$('input[name="root"]:checked');if(!selected){toast('Selecciona una carpeta primero.');return}const rows=$$('#roots .route');const index=rows.findIndex(r=>r.contains(selected));if(index>=0){roots.splice(index,1);settingsDirty=true;render()}});
+$('#reviewCandidates')?.addEventListener('click',openCandidates);if($('#candidateSearch'))$('#candidateSearch').oninput=filterCandidates;$$('[data-close]').forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
+$('#confirmCandidates').onclick=()=>{const selected=Object.entries(candidateChoice).filter(([,v])=>v).map(([i])=>sampleCandidates[+i]);const missing=Object.entries(candidateChoice).some(([i,v])=>v&&sampleCandidates[+i].kind==='rom'&&!document.querySelector(`tr[data-candidate="${i}"] .emulator`)?.value.trim());if(missing){$('#confirmTitle').textContent='Falta indicar el emulador';$('#confirmBody').innerHTML='<p>Completa el emulador de cada ROM marcada. La selección se conserva mientras vuelves a la tabla.</p>';$('#confirmAction').textContent='Volver a revisar';$('#confirmAction').onclick=()=>closeModal('confirmModal');showModal('confirmModal');return}if(selected.some(c=>c.kind==='rom')){ $('#confirmTitle').textContent='Comprobar complementos';$('#confirmBody').innerHTML='<p>Se comprobarían Gopher64 y los complementos requeridos. Si falta alguno, el instalador muestra el diagnóstico y conserva esta selección.</p>';$('#confirmAction').textContent='Entendido';$('#confirmAction').onclick=()=>{closeModal('confirmModal');closeModal('candidateModal');toast(`${selected.length} candidatos seleccionados (vista de ejemplo).`)};showModal('confirmModal');return}closeModal('candidateModal');toast(`${selected.length} candidatos seleccionados (vista de ejemplo).`)};
+$('#validateKey')?.addEventListener('click',()=>{const key=$('#apiKey').value.trim();$('#keyState').textContent=key?'Resultado de validación de ejemplo · el backend real consulta SteamGridDB':'No hay clave nueva · se conserva la guardada';$('#keyState').className='badge '+(key?'ok':'')});$('#validateUpdate')?.addEventListener('click',()=>{$('#updateKeyState').textContent=$('#updateKey').value.trim()?'Validación de ejemplo':'Conexión guardada sin validar';$('#updateKeyState').className='badge '+($('#updateKey').value.trim()?'ok':'')});$('#settingsValidate')?.addEventListener('click',()=>toast('La validación real se hace en el instalador de Omnia.'));
+$('#settingsScan')?.addEventListener('click',()=>{$('#settingsScanResult').innerHTML='<h3>Escaneo completado · ejemplo</h3><p>Ports del catálogo y ROM de N64 detectadas. Continúa a Carpetas y vínculos para revisar la selección.</p>';toast('Escaneo ilustrativo listo.')});
+$('#applySettings')?.addEventListener('click',()=>{settingsDirty=false;toast('Vista de demostración: estos cambios no se guardan.') ;render()});$('#closeSettings')?.addEventListener('click',()=>toast('Cerrando la vista de Ajustes.'));$('#goUninstall')?.addEventListener('click',()=>setMode('uninstall'));
+$('#confirmUninstall')?.addEventListener('change',e=>{$('#uninstallBtn').disabled=!e.target.checked});$('#uninstallBtn')?.addEventListener('click',()=>{if(!$('#confirmUninstall').checked)return;$('#uninstallStatus').textContent='Desinstalando…';$('#uninstallBtn').disabled=true;setTimeout(()=>{$('#uninstallStatus').textContent='Simulación completada · juegos y partidas conservados';toast('Vista previa: no se borró ningún archivo.')},900)});
+$('#toggleLog')?.addEventListener('click',()=>{$('#log')?.classList.toggle('show');window.logOpen=$('#log')?.classList.contains('show');$('#toggleLog').textContent=window.logOpen?'Ocultar detalles de instalación':'Mostrar detalles de instalación'});
+}
+function openCandidates(){candidateChoice={};$('#candidateRows').innerHTML=sampleCandidates.map((c,i)=>`<tr data-candidate="${i}"><td><input type="checkbox" data-choice="${i}" ${candidateChoice[i]?'checked':''} aria-label="Seleccionar"></td><td>${esc(c.name)} ${c.linked?'<span class="badge blue">Vinculado</span>':''}</td><td>${esc(c.type)}</td><td><select class="input">${[c.file,c.file.replace('/juegos/','/run/media/Juegos/')].map(f=>`<option>${esc(f)}</option>`).join('')}</select></td><td>${c.kind==='rom'?`<input class="input emulator" value="${esc(c.emulator)}" placeholder="gopher64 o /ruta/emulador">`:'<span class="badge">No aplica</span>'}</td></tr>`).join('');$$('[data-choice]').forEach(b=>b.onchange=()=>{candidateChoice[b.dataset.choice]=b.checked;updateCandidateCount()});$('#candidateRows').oninput=updateCandidateCount;updateCandidateCount();showModal('candidateModal')}
+function updateCandidateCount(){const selected=Object.entries(candidateChoice).filter(([,v])=>v).map(([i])=>sampleCandidates[+i]);const games=new Set(selected.filter(c=>!c.linked).map(c=>c.key));$('#selGames').textContent=games.size;$('#selFiles').textContent=selected.filter(c=>!c.linked).length;$('#selUnlink').textContent=selected.filter(c=>c.linked).length}
+function filterCandidates(){const q=$('#candidateSearch').value.toLocaleLowerCase();$$('#candidateRows tr').forEach(r=>r.classList.toggle('hidden',!r.textContent.toLocaleLowerCase().includes(q)))}
+function startInstall(){installState='running';logs=[];render();const tasks=['Comprobando dependencias del sistema…','Creando directorios de Omnia…','Copiando archivos y recursos…','Preparando reglas e integraciones de Plasma…','Aplicando biblioteca, tema y ajustes…','Configurando servicios de usuario…'];let i=0;const tick=()=>{if(i<tasks.length){logs.push('› '+tasks[i]);i++;render();const bar=$('#progressBar');if(bar)bar.style.width=Math.round(i/tasks.length*90)+'%';setTimeout(tick,520)}else{logs.push('› Instalación terminada correctamente.');installState='done';render()}};tick()}
+function wireFooter(){ }
+$('#back').onclick=()=>{if(step>0){step--;render()}};$('#next').onclick=()=>{if(mode==='install'){if(step<5){step++;render();return}if(installState==='ready'||installState==='error'){startInstall();return}if(installState==='done'){toast('Instalación lista. Cierra sesión y vuelve a entrar.');return}}if(mode==='update'){if(step===0){step=1;render();return}if(installState==='ready'||installState==='error'){startInstall();return}if(installState==='done'){toast('Actualización lista. Cierra sesión y vuelve a entrar.')}}};$$('.modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+function rerenderFooter(){render()};
+// Las opciones inferiores de cada pantalla permanecen en el footer del asistente.
+setMode('install');
+})();
+</script>
+</body></html>

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 
 // Ondas del escritorio: 2 capas + línea, dibujadas por la GPU (Shape) y animadas a la frecuencia de la pantalla.
+// CurveRenderer suaviza los bordes y los puntos más próximos evitan facetas en los cambios de curvatura.
 // - Siempre activas: sin sonido se quedan en la parte baja de la pantalla con un oleaje suave (reposo, a 30 FPS).
 // - Con sonido siguen el ESPECTRO real: 32 bandas (graves a la izquierda, agudos a la derecha), con ataque muy rápido.
 // - Se ocultan con visibleOnScreen = false (ventana maximizada, Big Menú, juego en ejecución).
@@ -69,7 +70,7 @@ Item {
             }
 
             var W = w.width, H = w.height, back = [Qt.point(0, H)], front = [Qt.point(0, H)], line = []
-            for (var x = 0; ; x += 20) {
+            for (var x = 0; ; x += 8) {
                 if (x > W) x = W                                  // el último punto cae justo en el borde derecho
                 var wf = 0.64 + 0.36 * Math.sin(x * 0.0030 + w.phase * 1.6) + 0.10 * Math.sin(x * 0.0071 - w.phase * 1.1)
                 var wb = 0.64 + 0.36 * Math.sin(x * 0.0022 - w.phase * 1.1 + 1.7)
@@ -85,7 +86,7 @@ Item {
 
     Shape {
         anchors.fill: parent
-        preferredRendererType: Shape.GeometryRenderer
+        preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeColor: "transparent"
             fillGradient: LinearGradient {

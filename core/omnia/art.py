@@ -40,8 +40,9 @@ class _SafeRedirect(urllib.request.HTTPRedirectHandler):
 
 NONE_MARK = ".sin-arte"      # marca: SteamGridDB no tiene este tipo de arte para el juego
 _index_lock = threading.RLock()
-_file_index: dict[str, tuple[int, int, list[Path]]] = {}
-_best_index: dict[str, tuple[int, int, str]] = {}
+_download_lock = threading.RLock()
+_file_index: dict[str, tuple[tuple, list[Path]]] = {}
+_best_index: dict[str, tuple[tuple, str]] = {}
 
 
 def safe_slug(slug: str) -> str:
@@ -53,27 +54,42 @@ def art_dir(slug: str, kind: str, base: Path | None = None) -> Path:
     return (Path(base) if base else paths.data_dir() / "art") / safe_slug(slug) / kind
 
 
+def _files_stamp(files: list[Path]) -> tuple:
+    """Huella de nombres e inodos: detecta también reemplazos sin cambio de carpeta."""
+    out = []
+    for path in files:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        out.append((path.name, stat.st_mtime_ns, stat.st_size, stat.st_ino))
+    return tuple(out)
+
+
 def cached_files(slug: str, kind: str, base: Path | None = None) -> list[Path]:
     """Archivos de arte descargados en orden de selección."""
     d = art_dir(slug, kind, base)
     key = str(d)
     try:
         stat = d.stat()
-        stamp = (stat.st_mtime_ns, stat.st_ino)
+        dir_stamp = (stat.st_mtime_ns, stat.st_ino)
     except OSError:
         with _index_lock:
             _file_index.pop(key, None); _best_index.pop(key, None)
         return []
-    with _index_lock:
-        hit = _file_index.get(key)
-        if hit and hit[:2] == stamp:
-            return hit[2]
+    # El mtime de un directorio no cambia al reemplazar un archivo existente.
+    # Leer la huella de cada imagen evita devolver índices/rutas cacheados obsoletos.
+    with _download_lock, _index_lock:
         try:
             files = [f for f in d.iterdir() if f.suffix.lower() in EXTS.values() and f.is_file()]
         except OSError:
             files = []
-        files.sort(key=lambda f: (0, int(f.stem)) if f.stem.isdigit() else (1, f.name.casefold()))
-        _file_index[key] = (*stamp, files)
+        files.sort(key=lambda f: (1, int(f.stem)) if f.stem.isdigit() else (0, f.name.casefold()))
+        stamp = (dir_stamp, _files_stamp(files))
+        hit = _file_index.get(key)
+        if hit and hit[0] == stamp:
+            return hit[1]
+        _file_index[key] = (stamp, files)
         _best_index.pop(key, None)
         return files
 
@@ -136,16 +152,13 @@ def highest_resolution(slug: str, kind: str, base: Path | None = None) -> str:
     if not files:
         return ""
     key = str(art_dir(slug, kind, base))
-    try:
-        stamp = (Path(key).stat().st_mtime_ns, Path(key).stat().st_ino)
-    except OSError:
-        return ""
+    stamp = _files_stamp(files)
     with _index_lock:
         hit = _best_index.get(key)
-        if hit and hit[:2] == stamp:
-            return hit[2]
+        if hit and hit[0] == stamp:
+            return hit[1]
         best = str(max(files, key=lambda f: image_dimensions(f)[0] * image_dimensions(f)[1]))
-        _best_index[key] = (*stamp, best)
+        _best_index[key] = (stamp, best)
         return best
 
 
@@ -295,12 +308,18 @@ class Client:
             data = r.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
             raise ArtError("imagen demasiado grande")
-        paths.ensure(Path(dest_dir), 0o700)
-        n = 1 + len([f for f in Path(dest_dir).iterdir() if f.suffix in EXTS.values()])
-        dest = Path(dest_dir) / ("%d%s" % (n, EXTS[ctype]))
-        tmp = dest.with_name(dest.name + ".tmp")
-        tmp.write_bytes(data)
-        os.replace(tmp, dest)
+        folder = paths.ensure(Path(dest_dir), 0o700)
+        # No reutilizar una ruta: Qt puede conservar el pixmap anterior en su caché
+        # aunque el contenido del archivo cambie. El número mayor mantiene estable
+        # el orden y permite guardar la selección como índice en state.json.
+        with _download_lock:
+            numbers = [int(f.stem) for f in folder.iterdir()
+                       if f.suffix.lower() in EXTS.values() and f.stem.isdigit()]
+            n = max(numbers, default=0) + 1
+            dest = folder / ("%d%s" % (n, EXTS[ctype]))
+            tmp = dest.with_name(dest.name + ".tmp")
+            tmp.write_bytes(data)
+            os.replace(tmp, dest)
         return dest
 
 

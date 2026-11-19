@@ -19,8 +19,26 @@ WallpaperItem {
         blur: 0
         saturation: 0
     }
-    // Cortina oscura gris azulada sobre el arte, sin blur.
-    Rectangle { anchors.fill: parent; color: "#80303B4A" }
+    // Scrim de la tarjeta hero del prototipo: base inferior y sombra horizontal tras el texto.
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#0004070B" }
+            GradientStop { position: 0.55; color: "#0004070B" }
+            GradientStop { position: 1.0; color: "#BF04070B" }
+        }
+    }
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "#F004070B" }
+            GradientStop { position: 0.08; color: "#F004070B" }
+            GradientStop { position: 0.42; color: "#B804070B" }
+            GradientStop { position: 0.78; color: "#8C04070B" }
+            GradientStop { position: 1.0; color: "#8C04070B" }
+        }
+    }
 
     function refreshSelection() {
         const serial = ++requestSerial

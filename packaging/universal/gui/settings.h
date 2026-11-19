@@ -14,6 +14,7 @@ class SettingsWindow : public QDialog {
     QStackedWidget *librarySteps;
     QLabel *scanSummary;
     QComboBox *notificationPosition;
+    QComboBox *themeChoice;
     KeyPanel *keyPanel;
     QCheckBox *clearKey, *mangohud, *keepOmnia;
     QLabel *status;
@@ -56,7 +57,12 @@ public:
         mangohud->setEnabled(initial["mangohud_available"].toBool());
         diskLayout->addWidget(mangohud);
         auto note=new QLabel("MangoHud muestra FPS, frametime, temperaturas, RAM y VRAM; las etiquetas usan los nombres de modelo detectados. Los juegos de Steam requieren «MANGOHUD_CONFIGFILE=$HOME/.config/omnia/MangoHud.conf mangohud %command%» en sus Opciones de lanzamiento.");note->setWordWrap(true);diskLayout->addWidget(note);diskLayout->addStretch();tabs->addTab(monitor,"Monitor");
-        auto desktop=new QWidget;auto desktopLayout=new QVBoxLayout(desktop);keepOmnia=new QCheckBox("Volver a aplicar el escritorio Omnia al iniciar sesión");keepOmnia->setChecked(cfg.value("keep_omnia_session").toBool(true));desktopLayout->addWidget(keepOmnia);auto desktopNote=new QLabel("Después de iniciar sesión, Omnia restaura su fondo animado y su widget en cada pantalla. Conserva el shell de Caelestia y otros widgets existentes.");desktopNote->setWordWrap(true);desktopLayout->addWidget(desktopNote);desktopLayout->addStretch();tabs->addTab(desktop,"Escritorio");
+        auto desktop=new QWidget;auto desktopLayout=new QVBoxLayout(desktop);keepOmnia=new QCheckBox("Volver a aplicar el escritorio Omnia al iniciar sesión");keepOmnia->setChecked(cfg.value("keep_omnia_session").toBool(true));desktopLayout->addWidget(keepOmnia);auto desktopNote=new QLabel("Después de iniciar sesión, Omnia restaura su fondo animado y su widget en cada pantalla. Conserva el shell de Caelestia y otros widgets existentes.");desktopNote->setWordWrap(true);desktopLayout->addWidget(desktopNote);
+        desktopLayout->addWidget(new QLabel("Tema de Omnia · color principal y tonos derivados:"));
+        themeChoice=new QComboBox;
+        for(const auto &value:initial["themes"].toArray()) {const auto item=value.toObject();themeChoice->addItem(QString("%1 · %2").arg(item["name"].toString(),item["accent"].toString()),item["id"].toString());}
+        auto themeIndex=themeChoice->findData(cfg.value("theme").toString("blue"));themeChoice->setCurrentIndex(themeIndex<0?0:themeIndex);
+        desktopLayout->addWidget(themeChoice);desktopLayout->addStretch();tabs->addTab(desktop,"Escritorio");
         auto notifications=new QWidget;auto notificationLayout=new QVBoxLayout(notifications);
         notificationLayout->addWidget(new QLabel("Posición de los avisos temporales de Omnia:"));
         notificationPosition=new QComboBox;
@@ -74,9 +80,9 @@ public:
         connect(uninstall,&QPushButton::clicked,this,[this,path]{if(!saving)QProcess::startDetached(QCoreApplication::applicationFilePath(),{path,"--uninstall"});});
         status=new QLabel;status->setWordWrap(true);layout->addWidget(status);auto footer=new QHBoxLayout;footer->addStretch();auto close=new QPushButton("Cerrar");save=new QPushButton("Aplicar cambios");footer->addWidget(close);footer->addWidget(save);layout->addLayout(footer);connect(close,&QPushButton::clicked,this,&QDialog::reject);
         connect(save,&QPushButton::clicked,this,[this]{
-            if(!clearKey->isChecked()&&!keyPanel->ready()){status->setText("Valida SteamGridDB o marca configurar después antes de aplicar.");return;}
+            if(!clearKey->isChecked()&&!keyPanel->key().isEmpty()&&!keyPanel->ready()){status->setText("Valida la nueva clave de SteamGridDB o bórrala para conservar la que ya está guardada.");return;}
             QJsonArray roots;for(int i=0;i<folders->count();++i)roots.append(folders->item(i)->data(Qt::UserRole).toString());
-            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disks",disks->checkedVolumes()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()},{"keep_omnia_session",keepOmnia->isChecked()}};
+            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disks",disks->checkedVolumes()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()},{"keep_omnia_session",keepOmnia->isChecked()},{"theme",themeChoice->currentData().toString()}};
             auto p=new QProcess(this);p->setProcessChannelMode(QProcess::MergedChannels);saving=true;save->setEnabled(false);status->setText("Guardando…");
             connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){keyPanel->clearInput();clearKey->setChecked(false);folders->clearSelections();}p->deleteLater();});
             p->start("python3",{backend,"--save-settings"});if(p->waitForStarted()){p->write(QJsonDocument(data).toJson(QJsonDocument::Compact));p->closeWriteChannel();}else{saving=false;save->setEnabled(true);status->setText("No se pudo guardar la configuración.");p->deleteLater();}

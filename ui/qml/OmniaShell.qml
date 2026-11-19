@@ -11,6 +11,7 @@ Rectangle {
 
     property int bottomInset: 0
     property bool menuOpen: false
+    property bool portPickerOpen: false
     property bool embedMenu: false
     property bool externalWallpaper: false
     property string sectionMode: "full"
@@ -115,6 +116,9 @@ Rectangle {
     }
     readonly property var visibleGames: filteredAndSorted()
     readonly property var current: (visibleGames.length && list.currentIndex >= 0 && list.currentIndex < visibleGames.length) ? visibleGames[list.currentIndex] : null
+    // El modelo conserva el orden real de la biblioteca. Así las tarjetas mantienen su arte
+    // asociado al juego mientras la pista se desplaza para alinear la selección a la izquierda.
+    readonly property var carouselGames: visibleGames
     readonly property var selectedPort: {
         if (!current || !current.ports || !current.ports.length) return null
         const i = portSelection[current.id] === undefined ? 0 : Math.min(portSelection[current.id], current.ports.length - 1)
@@ -317,6 +321,18 @@ Rectangle {
         saveFor = ""; saveInfo = null; loadSaves()
     }
     function stepPort(delta) { if (current && current.ports.length > 1) selectPort(selectedPortIndex + delta) }
+    function requestPlay() {
+        if (!current || !current.ports || !current.ports.length) return
+        if (current.ports.length > 1 && sectionMode === "full") {
+            portPickerOpen = true
+        } else launchCurrent()
+    }
+    function choosePlayPort(index) {
+        if (!current || !current.ports || index < 0 || index >= current.ports.length) return
+        selectPort(index)
+        portPickerOpen = false
+        Qt.callLater(function() { shell.launchCurrent() })
+    }
     function loadSaves() {
         if (!current || !selectedPort || saveFor === current.id + ":" + selectedPort.id) return
         const gid = current.id, pid = selectedPort.id
@@ -414,7 +430,7 @@ Rectangle {
     function showContext(x, y) { if (!current || api.gameRunning) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
     function activateContext(i) {
         contextOpen = false
-        if (i === 0) launchCurrent()
+        if (i === 0) requestPlay()
         else if (i === 1) backupCurrent()
         else if (i === 2) openSaveFolder()
         else if (i === 3) openArt()
@@ -460,6 +476,7 @@ Rectangle {
     }
     onMenuOpenChanged: { if (controllerOwner) api.reportMenu(menuOpen); if (!menuOpen) menuStartMode = "apps" }
     onCurrentChanged: {
+        if (portPickerOpen && !current) portPickerOpen = false
         if (filterTransition) return
         if (current) {
             selectedId = current.id
@@ -497,6 +514,10 @@ Rectangle {
         target: api
         function onPadKey(key) {
             if (!shell.controllerOwner) return
+            if (shell.portPickerOpen) {
+                if (key === "B" || key === "SELECT") shell.portPickerOpen = false
+                return
+            }
             if ((key === "MENU" || key === "START") && !shell.artOpen) {
                 if (shell.audOpen) { shell.audOpen = false; return }
                 if (shell.searchOpen && shell.searchPad) { shell.closeSearch(false); return }     // Start = BUSCAR
@@ -504,7 +525,7 @@ Rectangle {
             }
             if (key === "MENU_POWER") return
             if (shell.menuOpen) return
-            if (runLayer.visible) return                  // con un juego abierto el mando no mueve la estantería
+            if (runLayer.visible || (shell.sectionMode === "full" && api.gameRunning)) return // el juego deja visible solo su portada
             if (shell.artOpen) {
                 if (key === "B" || key === "SELECT") shell.closeArt()
                 else if (key === "A") shell.pickArt(shell.artIndex)
@@ -548,7 +569,11 @@ Rectangle {
     Keys.onPressed: function(e) {
         // Only the library applet owns global keyboard navigation. Other applets stay mouse-operable.
         if (!controllerOwner) { e.accepted = false; return }
-        if (runLayer.visible) {                          // estantería deshabilitada mientras corre un juego; Esc es la salida de emergencia
+        if (portPickerOpen) {
+            if (e.key === Qt.Key_Escape) portPickerOpen = false
+            e.accepted = true; return
+        }
+        if (runLayer.visible || (sectionMode === "full" && api.gameRunning)) { // el juego deja visible solo su portada
             if (e.key === Qt.Key_Escape) runIgnored = true
             e.accepted = true; return
         }
@@ -611,10 +636,9 @@ Rectangle {
         if (focusZone === "shelf") {
             if (d === "l") list.decrementCurrentIndex()
             else if (d === "r") list.incrementCurrentIndex()
-            else if (d === "u") goZone("hero", portCount)
+            else if (d === "u") goZone("hero", 0)
         } else if (focusZone === "hero") {
-            if (d === "l") focusIndex = Math.max(0, focusIndex - 1)
-            else if (d === "r") focusIndex = Math.min(portCount, focusIndex + 1)
+            if (d === "l" || d === "r") focusIndex = 0
             else if (d === "d") goZone("shelf", 0)
             else if (d === "u") { if (hasMusic) goZone("player", 1); else goZone("head", currentFilterIndex()) }
         } else if (focusZone === "player") {
@@ -625,12 +649,12 @@ Rectangle {
         } else {                                              // cabecera
             if (d === "l") focusIndex = Math.max(0, focusIndex - 1)
             else if (d === "r") focusIndex = Math.min(headCount - 1, focusIndex + 1)
-            else if (d === "d") { if (hasMusic) goZone("player", 1); else goZone("hero", portCount) }
+            else if (d === "d") { if (hasMusic) goZone("player", 1); else goZone("hero", 0) }
         }
     }
     function enter() {
-        if (focusZone === "shelf") launchCurrent()
-        else if (focusZone === "hero") { if (focusIndex < portCount) selectPort(focusIndex); else launchCurrent() }
+        if (focusZone === "shelf") goZone("hero", 0)
+        else if (focusZone === "hero") requestPlay()
         else if (focusZone === "player") { if (music.item) { if (focusIndex === 0) music.item.previous(); else if (focusIndex === 1) music.item.playPause(); else music.item.next() } }
         else activateHead(focusIndex)
     }
@@ -744,7 +768,7 @@ Rectangle {
         onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
-    Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; covered: api.covered || api.gameRunning; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
+    Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; covered: api.covered; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
     Rectangle {
         anchors.fill: parent
         visible: !shell.externalWallpaper
@@ -770,8 +794,13 @@ Rectangle {
         x: shell.sectionMode === "full" ? Math.max(0, (shell.width - width * s) / 2) : -shell.sectionViewport.x * s
         y: shell.sectionMode === "full" ? Math.max(0, (shell.height - height * s) / 2) : -shell.sectionViewport.y * s
         scale: s; transformOrigin: Item.TopLeft; clip: true
-        property color brand: "#91a9c2"
-        property color acc: shell.current && shell.current.acc ? shell.current.acc : brand
+        opacity: shell.portPickerOpen || api.gameRunning ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration:360; easing.type:Easing.OutCubic } }
+        property color brand: api.themeAccent
+        property color brandLight: Qt.lighter(brand, 1.35)
+        property color brandHover: Qt.lighter(brand, 1.5)
+        property color brandInk: brand.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"
+        property color acc: brand
         property color ink: "#f3efe3"
         property color ink2: "#d6d0bf"
         property color ink3: "#9aa9bc"
@@ -788,15 +817,15 @@ Rectangle {
                     property bool active: shell.filterKey === modelData.key
                     height: 34; radius: 17; width: label.implicitWidth + (modelData.key === "all" ? 26 : 32)
                     opacity: shell.searchOpen ? 0 : 1; Behavior on opacity { NumberAnimation { duration: 180 } }
-                    color: active ? "#ebffffff" : "#59000000"; border.width: active ? 0 : 1; border.color: "#47f3efe3"
+                    color: active ? canvas.brand : "#59000000"; border.width: active ? 0 : 1; border.color: "#47f3efe3"
                     // Icono y texto centrados en vertical: el icono por su caja y el texto por la ALTURA DE MAYÚSCULA medida
                     // (la caja de línea de Rajdhani no está centrada ópticamente y el texto se veía más abajo que el icono).
                     TextMetrics { id: capMetrics; font: pillText.font; text: "H" }
                     Row { id: label; anchors.horizontalCenter: parent.horizontalCenter; height: parent.height; spacing: 7
-                        PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: active ? "#10150f" : shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
-                        Text { id: starText; visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true
+                        PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: active ? canvas.brandInk : shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
+                        Text { id: starText; visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: active ? canvas.brandInk : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true
                             y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
-                        Text { id: pillText; text: modelData.label; color: active ? "#10150f" : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1
+                        Text { id: pillText; text: modelData.label; color: active ? canvas.brandInk : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1
                             y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
                     }
                     Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === index; anchors.fill: parent; anchors.margins: -4; radius: 22; color: "transparent"; border.width: 3; border.color: canvas.acc }
@@ -806,12 +835,12 @@ Rectangle {
             Rectangle {
                 id: searchBtn
                 width: 34; height: 34; radius: 17; color: searchOpen ? canvas.acc : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? "#10150f" : "#f3efe3" }
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: sbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.setSearchOpen(!searchOpen) }
             }
             Rectangle { id: refreshBtn; width: 34; height: 34; radius: 17; color: shell.refreshBusy ? canvas.acc : rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.refreshBusy ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: shell.refreshBusy ? "#10150f" : "#f3efe3" }
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: shell.refreshBusy ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 1; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.refreshLibrary() }
             }
@@ -823,10 +852,18 @@ Rectangle {
                 ToolTip.text: "Ajustes generales de Omnia"
             }
             Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? canvas.acc : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.audOpen ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: shell.audOpen ? "#10150f" : "#f3efe3" }
+                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: shell.audOpen ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 3; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.audShow() }
             }
+        }
+        // Mando y guía sobre la tarjeta activa.
+        PadGuide {
+            x: 84; y: 160; width: 430; height: 52
+            visible: api.padOn && shell.sectionMode === "full"
+            padName: api.padName; iconSize: 17; fontPx: 12; spacing: 7
+            textColor: canvas.ink2; fontFamily: canvas.hud
+            hints: [{k:"↑",t:"Jugar"},{k:"A",t:"Seleccionar"},{k:"B",t:"Volver"}]
         }
         Rectangle {
             id: searchBox; x: 84; y: 54; width: searchBtn.x - 10; height: 34; radius: 17; z: 5; clip: true
@@ -849,12 +886,14 @@ Rectangle {
         // Ficha del juego: icono/origen, estado, logo o título, descripción, chips, ports y Jugar.
         Column {
             id: hero; x: 84; y: 116; width: 650; spacing: 8
+            // En la vista completa, la ficha principal vive dentro de la tarjeta activa.
+            visible: shell.sectionMode !== "full" || !current
             opacity: api.gameRunning ? 0.12 : 1
             Row { spacing: 10
                 PlatIcon { key: shell.platformIcon(current); color: shell.platformColor(current ? current.platform : "pc"); size: 20; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: current ? (platformLabel(current) + (current.platform === "pc" && current.src ? " · " + current.src : "")) : "OMNIA"; color: shell.platformColor(current ? current.platform : "pc"); font.family: canvas.hud; font.pixelSize: 20; font.weight: Font.DemiBold; font.letterSpacing: 2; anchors.verticalCenter: parent.verticalCenter }
             }
-            Text { visible: !!current; text: current ? (current.plays > 0 ? platformLabel(current).toUpperCase() + " · " + shell.relativeTime(current.lastPlayed).toUpperCase() : platformLabel(current).toUpperCase() + " · SIN JUGAR") : ""; color: "#8de5c9"; font.family: canvas.hud; font.pixelSize: 16; font.letterSpacing: 3 }
+            Text { visible: !!current; text: current ? (current.plays > 0 ? platformLabel(current).toUpperCase() + " · " + shell.relativeTime(current.lastPlayed).toUpperCase() : platformLabel(current).toUpperCase() + " · SIN JUGAR") : ""; color: canvas.brandLight; font.family: canvas.hud; font.pixelSize: 16; font.letterSpacing: 3 }
             Item {
                 width: 520; height: 154
                 Image { anchors.fill: parent; source: current && current.logo ? current.logo : ""; fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft; verticalAlignment: Image.AlignTop; asynchronous: true; sourceSize.width: 1000; visible: status === Image.Ready }
@@ -869,7 +908,7 @@ Rectangle {
                     }
                 }
             }
-            Row { visible: current && current.ports.length > 1; spacing: 10; height: 36
+            Row { visible: false; spacing: 10; height: 36
                 Text { text: "PORT"; color: canvas.ink3; font.family: canvas.hud; font.pixelSize: 15; font.letterSpacing: 3; anchors.verticalCenter: parent.verticalCenter }
                 Repeater { model: current ? current.ports : []
                     delegate: Rectangle { required property var modelData; required property int index
@@ -877,7 +916,7 @@ Rectangle {
                         color: index === selectedPortIndex ? canvas.acc : "#59000000"; border.width: index === selectedPortIndex ? 0 : 1; border.color: "#47f3efe3"
                         Row { id: portName; anchors.centerIn: parent; spacing: 6
                             Rectangle { visible: modelData.running; width: 8; height: 8; radius: 4; color: "#6fd66f"; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: modelData.name; color: index === selectedPortIndex ? "#10150f" : canvas.ink; font.family: canvas.hud; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: modelData.name; color: index === selectedPortIndex ? canvas.brandInk : canvas.ink; font.family: canvas.hud; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                         }
                         Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === index; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: shell.selectPort(index) }
@@ -885,36 +924,35 @@ Rectangle {
                 }
             }
             Rectangle {
-                id: playButton; height: 48; radius: 24; width: playText.implicitWidth + 52; color: "#a5efc2"
+                id: playButton; height: 48; radius: 24; width: playText.implicitWidth + 52; color: playMouse.containsMouse ? canvas.brandHover : canvas.brandLight
                 Row { id: playText; anchors.centerIn: parent; spacing: 10
-                    Text { text: "▶"; color: "#10150f"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: current && current.running ? "En ejecución" : (selectedPort && current.ports.length > 1 ? "Jugar con " + selectedPort.name : "Jugar"); color: "#10150f"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: "▶"; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: "Jugar"; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
-                Rectangle { visible: shell.focusZone === "hero" && shell.focusIndex === shell.portCount; anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
-                MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: shell.launchCurrent() }
-            }
-            PadGuide { visible: api.padOn; width: 650; padName: api.padName; iconSize: 24; fontPx: 14; spacing: 8; textColor: canvas.ink2; fontFamily: canvas.hud
-                hints: [{k:"A",t:"Jugar"},{k:"X",t:"Respaldar"},{k:"LB+RB",t:"Filtro"},{k:"LT+RT",t:"Port"},{k:"SELECT",t:"Opciones"},{k:"START",t:"Big Menú"}]
+                Rectangle { visible: shell.focusZone === "hero"; anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
+                MouseArea { id: playMouse; cursorShape: Qt.PointingHandCursor; anchors.fill: parent; hoverEnabled: true; onClicked: shell.requestPlay() }
             }
         }
 
-        // Reloj, mando, ranuras reales y ficha.
-        Item { x: 760; y: 80; width: 700; height: 140; opacity: api.gameRunning ? 0.12 : 1
-            Row { id: clockDigits; spacing: 0
-                Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getHours()%12)||12 } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold }
-                Text { text: ":"; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold; opacity: new Date(shell.nowSecs*1000).getSeconds()%2 ? .2 : .85 }
-                Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getMinutes()<10?"0":"")+d.getMinutes() } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 104; font.weight: Font.DemiBold }
+        // Reloj principal centrado y ampliado.
+        Item { id:clock; x:0; y:110; width:1920; height:200; opacity: api.gameRunning ? 0.12 : 1
+            Column { anchors.centerIn:parent; spacing:0
+                Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:5
+                    Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getHours()%12)||12 } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 158; font.weight: Font.DemiBold }
+                    Text { text: ":"; color: canvas.ink; font.family: canvas.hud; font.pixelSize: 158; font.weight: Font.DemiBold; opacity: new Date(shell.nowSecs*1000).getSeconds()%2 ? .2 : .85 }
+                    Text { text: { const d=new Date(shell.nowSecs*1000); return (d.getMinutes()<10?"0":"")+d.getMinutes() } color: canvas.ink; font.family: canvas.hud; font.pixelSize: 158; font.weight: Font.DemiBold }
+                    Text { text: new Date(shell.nowSecs*1000).getHours()<12 ? "AM" : "PM"; color: canvas.acc; font.family: canvas.hud; font.pixelSize: 34; font.weight: Font.DemiBold; font.letterSpacing: 4; anchors.bottom:parent.bottom; anchors.bottomMargin:20 }
+                }
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text: clockDate(new Date(shell.nowSecs*1000)); color: canvas.ink2; font.family: canvas.hud; font.pixelSize: 21; font.letterSpacing: 3 }
             }
-            Text { x: clockDigits.width + 12; y: 60; text: new Date(shell.nowSecs*1000).getHours()<12 ? "AM" : "PM"; color: canvas.acc; font.family: canvas.hud; font.pixelSize: 32; font.weight: Font.DemiBold; font.letterSpacing: 4 }
-            Text { y: 112; text: clockDate(new Date(shell.nowSecs*1000)); color: canvas.ink2; font.family: canvas.hud; font.pixelSize: 22; font.letterSpacing: 3 }
         }
-        Rectangle { x: 1130; y: 118; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
+        Rectangle { x: 84; y: 112; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
             Row { id: padLabel; anchors.centerIn: parent; spacing: 8
                 Kirigami.Icon { width: 20; height: 20; source: "input-gamepad-symbolic"; isMask: true; color: api.padOn ? canvas.acc : "#80f3efe3"; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
             }
         }
-        Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; opacity: api.gameRunning ? .12:1
+        Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; visible:shell.sectionMode !== "full"; opacity: api.gameRunning ? .12:1
             Column { width: parent.width; spacing: 0
                 Row { width: parent.width; spacing: 14; height: 22
                     Text { id: saveHead; text: "PARTIDAS · " + (saveInfo && saveInfo.slots.length ? saveInfo.slots.length + " RANURAS" : "NINGUNA"); color: canvas.acc; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 3.2 }
@@ -966,7 +1004,7 @@ Rectangle {
         // MPRIS, broche y monitor del sistema con módulos KDE reales.
         // Reproductor MPRIS. Al terminar la canción o cambiar la reproducción NO desaparece de golpe: conserva lo último que
         // mostraba 2 s y se desvanece en otros 2 s. Mientras hay música todo se lee en vivo de MusicSource.
-        Item { id: player; x:1530; y:58; width:320; height:170
+        Item { id: player; x:800; y:360; width:320; height:170
             readonly property bool live: shell.hasMusic
             property string track: ""
             property string artist: ""
@@ -1032,8 +1070,8 @@ Rectangle {
             }
         }
         function formatTrackTime(s) { s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
-        Clasp { x:1530; y:232; color:canvas.acc; opacity:.9 }
-        Item { id:hud; x:1530;y:266;width:320;height:440; visible:sensors.item !== null && !api.gameRunning
+        Clasp { x:800; y:328; color:canvas.acc; opacity:.9 }
+        Item { id:hud; x:1530;y:58;width:320;height:440; visible:sensors.item !== null && !api.gameRunning
             Column { width:parent.width; spacing:0
                 Row { width:parent.width;spacing:14;height:24
                     Text { id:hudTitle;text:"SISTEMA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
@@ -1059,8 +1097,8 @@ Rectangle {
             }
         }
 
-        // Carrusel del prototipo: tarjeta activa en x=230, 290x435; laterales 190x285.
-        Item { id:shelfWrap; x:0; width:1920; height:640; y:canvas.height-136-height; clip:true
+        // Carrusel anclado abajo, sin mover la fila al cambiar de juego.
+        Item { id:shelfWrap; x:0; width:1920; height:shell.sectionMode === "full" ? 720 : 640; y:canvas.height-136-height; clip:true
             WheelHandler {
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                 onWheel: function(event) {
@@ -1078,22 +1116,50 @@ Rectangle {
                     event.accepted = true
                 }
             }
-            Item { id:track; x:230-list.currentIndex*210; height:parent.height; Behavior on x { NumberAnimation { duration:550;easing.type:Easing.OutCubic } }
+            Item { id:track; x:(shell.sectionMode === "full" ? 84 : 230) - list.currentIndex * 271; height:parent.height
+                Behavior on x { NumberAnimation { duration:550; easing.type:Easing.OutCubic } }
                 Row { id:cardsRow; spacing:20; anchors.bottom:parent.bottom
-                    Repeater { model:shell.visibleGames
-                        delegate: Item { id:slot; required property var modelData; required property int index
+                    Repeater { model:shell.visibleGames.length
+                        delegate: Item { id:slot; required property int index
+                            readonly property var entry:shell.carouselGames[index]
+                            readonly property int gameIndex:index
                             readonly property bool selected:index===list.currentIndex
-                            width:selected?290:190;height:435;z:selected?5:0
+                            readonly property bool expanded: selected && shell.sectionMode === "full"
+                            // Todos los slots comparten altura y línea de base; las portadas pequeñas
+                            // se dibujan abajo para no quedar alineadas con el borde superior de la ficha.
+                            readonly property int slotHeight: shell.sectionMode === "full" ? 720 : 574
+                            readonly property int visualHeight: selected ? slotHeight : 377
+                            width:selected?(expanded?420:383):251;height:slotHeight;z:selected?5:0
+                            Behavior on width { NumberAnimation { duration:420; easing.type:Easing.OutBack; easing.overshoot:0.8 } }
                             readonly property real cx:x+track.x+width/2
-                            opacity:Math.max(0,Math.min(1,cx/300,(1920-cx)/380))
-                            Loader { anchors.bottom:parent.bottom;width:slot.width;height:slot.selected?435:285;active:Math.abs(slot.index-list.currentIndex)<=9
-                                Behavior on height { NumberAnimation { duration:420;easing.type:Easing.OutBack;easing.overshoot:.8 } }
-                                sourceComponent: Component { GameCard { anchors.fill:parent; game:slot.modelData;current:slot.selected;api:shell.backend
-                                    platformLabel:shell.platformLabel(slot.modelData);platformColor:shell.platformColor(slot.modelData.platform);iconKey:shell.platformIcon(slot.modelData);coordinateRoot:canvas
-                                    onActivated: { if(slot.selected) shell.launchCurrent(); else list.currentIndex=slot.index }
+                            // Simetricamente desvanece por el espacio visible a cada extremo;
+                            // la fórmula anterior ocultaba por completo la siguiente tarjeta al borde derecho.
+                            opacity:Math.max(0,Math.min(1,(cx+210)/420,(1920+210-cx)/420))
+                            Behavior on opacity { NumberAnimation { duration:420;easing.type:Easing.OutCubic } }
+                            // Precarga más tarjetas hacia adelante para que sus portadas estén listas al navegar.
+                            Loader { anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom;height:slot.visualHeight;active:slot.index>=list.currentIndex-12&&slot.index<=list.currentIndex+14
+                                Behavior on height { NumberAnimation { duration:420; easing.type:Easing.OutBack; easing.overshoot:0.8 } }
+                                sourceComponent: Component { GameCard { anchors.fill:parent; game:slot.entry;current:slot.selected;expanded:slot.expanded;api:shell.backend
+                                    platformLabel:shell.platformLabel(slot.entry);platformColor:shell.platformColor(slot.entry.platform);iconKey:shell.platformIcon(slot.entry);coordinateRoot:canvas
+                                    accent:canvas.acc;titleColor:canvas.ink;secondaryColor:canvas.ink2;mutedColor:canvas.ink3
+                                    portName:slot.selected && shell.selectedPort ? shell.selectedPort.name : "";portCount:slot.selected && slot.entry.ports ? slot.entry.ports.length : 0
+                                    portIndex:slot.selected ? shell.selectedPortIndex : 0;description:slot.selected && shell.selectedPort && shell.selectedPort.description ? shell.selectedPort.description : (slot.entry.description || slot.entry.sub || "")
+                                    playedText:slot.entry.plays > 0 ? "Última vez · " + shell.relativeTime(slot.entry.lastPlayed) : "Sin jugar"
+                                    playtimeText:slot.entry.totalSecs > 0 ? "Tiempo jugado · " + (slot.entry.totalSecs >= 3600 ? Math.floor(slot.entry.totalSecs/3600) + " h" : Math.floor(slot.entry.totalSecs/60) + " min") : ""
+                                    savesSummary: {
+                                        if (!slot.selected) return ""
+                                        if (!shell.saveInfo) return "Partidas · consultando…"
+                                        if (!shell.saveInfo.slots || !shell.saveInfo.slots.length) return "Partidas · " + (shell.saveInfo.error || "ninguna guardada")
+                                        const entries = shell.saveInfo.slots.slice(0, 2).map(function(s) { return (s.name || "Partida") + " · " + (s.used ? shell.relativeTime(s.mtime) : "vacía") })
+                                        return "Partidas guardadas · " + shell.saveInfo.slots.length + " ranuras · " + entries.join(" / ")
+                                    }
+                                    launchFocused:slot.selected && shell.focusZone === "hero"
+                                    onPortStepRequested: function(delta) { if(slot.selected) shell.stepPort(delta) }
+                                    onLaunchRequested: if(slot.selected) shell.requestPlay()
+                                    onActivated: { if(!slot.selected) list.currentIndex=slot.gameIndex; else shell.goZone("hero",0) }
                                     onContextRequested: function(px,py) {
                                         if (!slot.selected) {
-                                            list.currentIndex = slot.index
+                                            list.currentIndex = slot.gameIndex
                                             Qt.callLater(function() { shell.showContext(px, py) })
                                         } else shell.showContext(px, py)
                                     }
@@ -1136,11 +1202,11 @@ Rectangle {
                             border.width:isCurrent&&!foc?1:0; border.color:canvas.acc
                             Kirigami.Icon { x:16; anchors.verticalCenter:parent.verticalCenter; width:24; height:24; isMask:true
                                 source:ait.modelData.kind==="hdmi"?"video-display-symbolic":(ait.modelData.kind==="usb"?"audio-headphones-symbolic":(ait.modelData.kind==="bt"?"bluetooth-symbolic":"audio-speakers-symbolic"))
-                                color:ait.foc?"#10150f":"#f3efe3" }
+                                color:ait.foc?canvas.brandInk:"#f3efe3" }
                             Text { x:58; width:parent.width-120; elide:Text.ElideRight; anchors.verticalCenter:parent.verticalCenter; text:ait.modelData.label
-                                color:ait.foc?"#10150f":"#f3efe3"; font.family:canvas.body; font.pixelSize:19; font.weight:Font.Medium }
+                                color:ait.foc?canvas.brandInk:"#f3efe3"; font.family:canvas.body; font.pixelSize:19; font.weight:Font.Medium }
                             Text { visible:ait.isCurrent; anchors.right:parent.right; anchors.rightMargin:18; anchors.verticalCenter:parent.verticalCenter; text:"✓"
-                                color:ait.foc?"#10150f":canvas.acc; font.family:canvas.hud; font.pixelSize:24; font.weight:Font.Bold }
+                                color:ait.foc?canvas.brandInk:canvas.acc; font.family:canvas.hud; font.pixelSize:24; font.weight:Font.Bold }
                             MouseArea { id:am; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onEntered:shell.audIdx=ait.index; onClicked:shell.audActivate(ait.index) }
                         } }
                 }
@@ -1179,7 +1245,7 @@ Rectangle {
             }
         }
         // «EN EJECUCIÓN»: bloquea ratón, teclado y mando de la estantería mientras el juego sigue abierto; se quita sola al cerrarlo.
-        Item { id:runLayer; anchors.fill:parent; z:40; visible:shell.runningGame!==null&&!shell.runIgnored
+        Item { id:runLayer; anchors.fill:parent; z:40; visible:shell.sectionMode !== "full" && shell.runningGame!==null&&!shell.runIgnored
             opacity:visible?1:0
             Rectangle { anchors.fill:parent; color:"#d9050806" }
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; hoverEnabled:true }
@@ -1204,8 +1270,8 @@ Rectangle {
                 Column { x:12;y:14;width:parent.width-24
                     Repeater { model:shell.contextItems;delegate:Rectangle { required property var modelData;required property int index;height:50;width:parent.width;radius:14
                         color:index===shell.contextIndex?canvas.acc:(hover.containsMouse?"#1fffffff":"transparent")
-                        Kirigami.Icon { x:16;anchors.verticalCenter:parent.verticalCenter;width:22;height:22;source:modelData.icon;isMask:true;color:index===shell.contextIndex?"#10150f":canvas.ink }
-                        Text { x:56;anchors.verticalCenter:parent.verticalCenter;text:modelData.label;color:index===shell.contextIndex?"#10150f":canvas.ink;font.family:canvas.body;font.pixelSize:18 }
+                        Kirigami.Icon { x:16;anchors.verticalCenter:parent.verticalCenter;width:22;height:22;source:modelData.icon;isMask:true;color:index===shell.contextIndex?canvas.brandInk:canvas.ink }
+                        Text { x:56;anchors.verticalCenter:parent.verticalCenter;text:modelData.label;color:index===shell.contextIndex?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:18 }
                         MouseArea { cursorShape: Qt.PointingHandCursor; id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
                     } }
                 }
@@ -1250,7 +1316,7 @@ Rectangle {
                 Repeater { model:shell.artKinds
                     delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
                         height:36;width:kindText.implicitWidth+32;radius:18;color:active?canvas.brand:"#25303d"
-                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?"#111923":canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
+                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
                         MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
                     }
                 }
@@ -1287,7 +1353,7 @@ Rectangle {
                             Text { id:usedText;anchors.centerIn:parent;text:"✓ EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
                         }
                         Rectangle { visible:shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:canvas.brand;width:selText.implicitWidth+16
-                            Text { id:selText;anchors.centerIn:parent;text:"SELECCIONADO";color:"#111923";font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
+                            Text { id:selText;anchors.centerIn:parent;text:"SELECCIONADO";color:canvas.brandInk;font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
                         }
                         Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:7;height:20;radius:10;color:"#d0000000";width:sizeText.implicitWidth+12
                             Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:10 }
@@ -1316,7 +1382,7 @@ Rectangle {
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying;cursorShape:Qt.PointingHandCursor;onClicked:shell.closeArt() }
             }
             Rectangle { x:artPanel.x+artPanel.width-160;y:766;width:160;height:42;radius:21;color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brand:"#303846";opacity:shell.artApplying?0.55:1
-                Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?"#111923":canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
+                Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brandInk:canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&!!(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
             }
             Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
@@ -1326,8 +1392,148 @@ Rectangle {
         }
     }
 
+    // Al elegir port o mientras corre un juego, Omnia deja solo la portada animada.
+    // El selector aparece encima de esa imagen y devuelve el foco al juego al elegir.
+    Item {
+        id: playScene
+        anchors.fill: parent
+        z: 100
+        clip: true
+        visible: shell.sectionMode === "full"
+        opacity: shell.portPickerOpen || api.gameRunning ? 1 : 0
+        enabled: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration:360; easing.type:Easing.OutCubic } }
+        // El fondo permanece transparente: solo se ve el wallpaper animado existente.
+        MouseArea {
+            anchors.fill:parent; acceptedButtons:Qt.AllButtons
+            onClicked:function(mouse) {
+                if (shell.portPickerOpen && (mouse.x < portOptions.x || mouse.x > portOptions.x + portOptions.width || mouse.y < portOptions.y || mouse.y > portOptions.y + portOptions.height))
+                    shell.portPickerOpen = false
+            }
+        }
+        Column {
+            id:playingStatus
+            visible:api.gameRunning && !shell.portPickerOpen
+            anchors.centerIn:parent
+            width:560
+            spacing:14
+            Item {
+                width:parent.width;height:150
+                Image {
+                    id:playingLogo
+                    anchors.centerIn:parent
+                    width:500;height:150
+                    source:shell.runningGame && shell.runningGame.logo ? shell.runningGame.logo : (shell.current ? shell.current.logo : "")
+                    fillMode:Image.PreserveAspectFit;asynchronous:true;smooth:true;sourceSize.width:1000
+                    visible:status===Image.Ready
+                }
+                Text {
+                    anchors.centerIn:parent
+                    visible:!playingLogo.visible
+                    text:shell.runningGame ? shell.runningGame.name : (shell.current ? shell.current.name : "")
+                    color:canvas.ink;font.family:canvas.hud;font.pixelSize:36;font.weight:Font.Bold
+                    horizontalAlignment:Text.AlignHCenter;wrapMode:Text.WordWrap;width:parent.width
+                }
+            }
+            Text {
+                width:parent.width;horizontalAlignment:Text.AlignHCenter
+                text:"JUGANDO AHORA"
+                color:canvas.acc;font.family:canvas.hud;font.pixelSize:19;font.weight:Font.DemiBold;font.letterSpacing:4
+            }
+            Text {
+                width:parent.width;horizontalAlignment:Text.AlignHCenter
+                text:shell.runningGame ? shell.runningGame.name : (shell.current ? shell.current.name : "El juego seleccionado")
+                color:canvas.ink;font.family:canvas.body;font.pixelSize:23;font.weight:Font.DemiBold;wrapMode:Text.WordWrap
+            }
+            Text {
+                width:parent.width;horizontalAlignment:Text.AlignHCenter
+                text:"La biblioteca volverá al cerrar el juego"
+                color:canvas.ink2;font.family:canvas.body;font.pixelSize:16
+            }
+        }
+        Column {
+            id:portOptions
+            visible: opacity > 0.01
+            opacity: shell.portPickerOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration:240; easing.type:Easing.OutCubic } }
+            width: 580
+            anchors.centerIn: parent
+            spacing: 13
+            Item {
+                width: parent.width; height: 92
+                Image {
+                    id: pickerLogo
+                    anchors.centerIn: parent
+                    width: 380; height: 92
+                    source: shell.current && shell.current.logo ? shell.current.logo : ""
+                    fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true
+                    sourceSize.width: 760
+                    visible: status === Image.Ready
+                }
+                Text {
+                    anchors.centerIn: parent
+                    visible: !shell.current || !shell.current.logo || pickerLogo.status !== Image.Ready
+                    text: shell.current ? shell.current.name : ""
+                    color: canvas.ink; font.family: canvas.hud; font.pixelSize: 30
+                    font.weight: Font.Bold; elide: Text.ElideRight; width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+            Text {
+                width: parent.width; horizontalAlignment: Text.AlignHCenter
+                text: shell.current ? shell.current.name : "Selecciona una versión"
+                color: canvas.ink; font.family: canvas.hud; font.pixelSize: 22; font.weight: Font.DemiBold
+                elide: Text.ElideRight
+            }
+            Text {
+                width: parent.width; horizontalAlignment: Text.AlignHCenter
+                text: "ELIGE CÓMO JUGAR"; color: canvas.acc; font.family: canvas.hud
+                font.pixelSize: 14; font.weight: Font.DemiBold; font.letterSpacing: 3
+            }
+            Repeater {
+                model: shell.current ? shell.current.ports : []
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    property bool hovered: false
+                    width: parent.width; height: 66; radius: 16
+                    color: hovered ? "#dd336599" : "#a9151c26"
+                    border.width: hovered ? 2 : 1
+                    border.color: hovered ? canvas.brandLight : "#66ffffff"
+                    Row {
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 20; rightMargin: 20 }
+                        spacing: 12
+                        PlatIcon { key: shell.platformIcon(shell.current); color: shell.platformColor(shell.current.platform); size: 22; anchors.verticalCenter: parent.verticalCenter }
+                        Column {
+                            width: parent.width - 40; anchors.verticalCenter: parent.verticalCenter; spacing: 2
+                            Text { width: parent.width; text: modelData.name; color: canvas.ink; font.family: canvas.body; font.pixelSize: 19; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                            Text { width: parent.width; text: modelData.description || shell.platformLabel(shell.current); color: canvas.ink2; font.family: canvas.body; font.pixelSize: 14; elide: Text.ElideRight }
+                        }
+                    }
+                    Text { visible: modelData.running; anchors.right: parent.right; anchors.rightMargin: 20; anchors.verticalCenter: parent.verticalCenter; text: "EN EJECUCIÓN"; color: canvas.brandLight; font.family: canvas.hud; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                    MouseArea { anchors.fill: parent; hoverEnabled:true; cursorShape: Qt.PointingHandCursor; onEntered: parent.hovered=true; onExited: parent.hovered=false; onClicked: shell.choosePlayPort(index) }
+                }
+            }
+            Row {
+                width:parent.width; spacing:14
+                Rectangle {
+                    width:138; height:42; radius:21
+                    color:cancelMouse.containsMouse?"#303b49":"#a9151c26"
+                    border.width:1; border.color:"#66ffffff"
+                    Text { anchors.centerIn:parent; text:"Cancelar"; color:canvas.ink; font.family:canvas.body; font.pixelSize:16; font.weight:Font.DemiBold }
+                    MouseArea { id:cancelMouse; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onClicked:shell.portPickerOpen=false }
+                }
+                Text {
+                    width:parent.width-152; anchors.verticalCenter:parent.verticalCenter
+                    text: api.padOn ? "Clic en una opción · B cancelar" : "Clic en una opción · Esc cancelar"
+                    color: canvas.ink2; font.family: canvas.body; font.pixelSize: 14; wrapMode:Text.WordWrap
+                }
+            }
+        }
+    }
+
     // aviso temporal: se muestra al actuar (p. ej. «Biblioteca actualizada») y se desvanece solo (ver Api.notify)
-    Rectangle { visible:api.toast!==""; opacity:api.toastLevel; x:shell.toastX(width); y:shell.toastY(height)
+    Rectangle { visible:api.toast!==""&&!shell.portPickerOpen&&!api.gameRunning; opacity:api.toastLevel; x:shell.toastX(width); y:shell.toastY(height)
         width:toastText.implicitWidth+28; height:toastText.implicitHeight+14; radius:height/2; color:"#b3000000"
         Text { id:toastText; anchors.centerIn:parent; text:api.toast; color:canvas.brand; font.family:"Rajdhani"; font.pixelSize:16; font.weight:Font.DemiBold } }
 }

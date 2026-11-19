@@ -4,6 +4,7 @@ import QtQuick
 ListView {
     id: lv
     property var items: []
+    property color accentColor: "#336599"
     signal activated(int index)
     model: items
     clip: true
@@ -40,8 +41,8 @@ ListView {
         required property int index
         width: lv.width; height: modelData.sub ? 64 : 48; radius: 14
         readonly property bool cur: ListView.isCurrentItem
-        color: cur ? Qt.rgba(0.9, 0.85, 0.63, 0.16) : (hov.containsMouse && !modelData.disabled ? Qt.rgba(1, 1, 1, 0.07) : "transparent")
-        border.width: cur ? 2 : 0; border.color: "#91a9c2"
+        color: cur ? Qt.rgba(lv.accentColor.r, lv.accentColor.g, lv.accentColor.b, 0.28) : (hov.containsMouse && !modelData.disabled ? Qt.rgba(1, 1, 1, 0.07) : "transparent")
+        border.width: cur ? 2 : 0; border.color: Qt.lighter(lv.accentColor, 1.15)
         opacity: modelData.disabled ? 0.4 : 1
         Column {
             anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }

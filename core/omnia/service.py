@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 
-from . import __version__, art, audio, gamemode, pad, paths, security
+from . import __version__, art, audio, gamemode, importer, pad, paths, security
 from .sessions import Sessions
 from .dbus import DesktopService
 from .api import Api
@@ -98,6 +98,12 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
             signal.signal(sig, lambda *_: stop.set())
 
     store = Store()
+    try:
+        migrated, size = importer.migrate_legacy_art(store)
+        if migrated:
+            log.info("arte: recuperadas %d imágenes seleccionadas de Estantería (%d MiB)", migrated, round(size / 1024 / 1024))
+    except Exception:
+        log.exception("no se pudo recuperar el arte seleccionado de Estantería")
     token = security.new_token()
     dets = detectors if detectors is not None else default_detectors()
     try:
