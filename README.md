@@ -5,39 +5,19 @@
 Tu biblioteca de juegos en el escritorio de **KDE Plasma 6**: Omnia Launcher, wallpaper animado por juego,
 monitor del sistema y ajustes generales en un solo proyecto.
 
-**Versión preparada: 0.1.0 · Revisión de paquetes: 1 · Estado: experimental.**
+**Omnia 0.2.0 · Revisión de paquetes 1 · Validado en KDE Plasma 6 sobre Bazzite.**
 
-> **Descargas pendientes de publicación.** Los enlaces siguientes están preparados para la release `v0.1.0`.
-> Funcionarán cuando publiquemos esa release y adjuntemos los archivos. Hacer público el repositorio no los sube automáticamente.
+Esta versión renueva la ficha del juego, el monitor del sistema, el menú contextual y el asistente de instalación,
+actualización, ajustes y desinstalación.
 
-## Instalador AppImage local
+## Instaladores
 
-El instalador gráfico también se construye como **AppImage x86-64 para CachyOS, Bazzite y KDE Plasma 6**, con el
-icono circular azul grisáceo, Qt y las tipografías de Omnia incluidos. La salida actual es
-`Omnia-Installer-0.1.0-37-x86_64.AppImage`.
-Consulta [construcción y compatibilidad del AppImage](docs/INSTALADORES.md). Es un artefacto local;
-no se ha adjuntado todavía a una release de GitHub.
+El asistente se construye como **AppImage x86-64** con Qt e iconos incluidos. La salida local se llama
+`Omnia-Installer-0.2.0-1-x86_64.AppImage`. El proyecto también permite generar paquetes de fuentes `.deb`,
+`.pkg.tar.zst`, `.rpm` y un asistente portable `.run`.
 
-## Descargar e instalar
-
-Elige el archivo para tu distribución. Todos incluyen el mismo asistente gráfico.
-
-| Distribución de destino | Descargar | Versión / revisión | Estado de instalación |
-| --- | --- | --- | --- |
-| Debian 13; Ubuntu/Kubuntu con Plasma 6 y Qt compatible | [Instalador .deb](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer_0.1.0-1_all.deb) | 0.1.0 / 1 | Pendiente de prueba en destino |
-| Arch Linux, CachyOS y EndeavourOS con dependencias compatibles | [Instalador .pkg.tar.zst](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1-any.pkg.tar.zst) | 0.1.0 / 1 | Formato verificado; instalación del paquete pendiente |
-| Fedora KDE y derivados tradicionales compatibles | [Instalador .rpm para Fedora](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1.fedora.noarch.rpm) | 0.1.0 / 1 | Pendiente de prueba en destino |
-| openSUSE Tumbleweed con KDE Plasma 6 | [Instalador .rpm para openSUSE](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-1.opensuse.noarch.rpm) | 0.1.0 / 1 | Pendiente de prueba en destino |
-| Bazzite (Kinoite) y Fedora OSTree con Plasma 6 | [Instalador gráfico portable .run](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/Omnia-Desktop-Suite-0.1.0-source.run) | 0.1.0 | Detecta OSTree y usa `rpm-ostree`; validación en destino pendiente |
-| Familias anteriores, con las dependencias disponibles | [Instalador gráfico portable .run](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/Omnia-Desktop-Suite-0.1.0-source.run) | 0.1.0 | Variante basada en fuentes; validación entre distros pendiente |
-
-También disponibles: [fuentes del asistente](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/omnia-desktop-suite-installer-0.1.0-sources.tar.gz),
-[checksums SHA256](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/SHA256SUMS) y
-[manifiesto de la versión](https://github.com/wasav1/omnia-launcher/releases/download/v0.1.0/manifest.json).
-
-Los formatos y contenidos de estos paquetes se verificaron localmente. El flujo universal de Omnia se ha usado en
-CachyOS; eso todavía no confirma la instalación completa de los nuevos paquetes en las demás distros.
-Los paquetes locales de esta versión aún no están firmados.
+Consulta la [guía de construcción y compatibilidad](docs/INSTALADORES.md) para generar el formato de tu distribución.
+La validación en Bazzite corresponde al flujo AppImage.
 
 ### Requisitos y compatibilidad
 
@@ -65,16 +45,16 @@ Puedes abrir el paquete con el gestor gráfico de software si tu distribución l
 
 ```sh
 # Debian / Ubuntu / Kubuntu compatibles
-sudo apt install ./omnia-desktop-suite-installer_0.1.0-1_all.deb
+sudo apt install ./omnia-desktop-suite-installer_0.2.0-1_all.deb
 
 # Arch Linux / CachyOS / EndeavourOS
-sudo pacman -U ./omnia-desktop-suite-installer-0.1.0-1-any.pkg.tar.zst
+sudo pacman -U ./omnia-desktop-suite-installer-0.2.0-1-any.pkg.tar.zst
 
 # Fedora KDE
-sudo dnf install ./omnia-desktop-suite-installer-0.1.0-1.fedora.noarch.rpm
+sudo dnf install ./omnia-desktop-suite-installer-0.2.0-1.fedora.noarch.rpm
 
 # openSUSE Tumbleweed
-sudo zypper install ./omnia-desktop-suite-installer-0.1.0-1.opensuse.noarch.rpm
+sudo zypper install ./omnia-desktop-suite-installer-0.2.0-1.opensuse.noarch.rpm
 ```
 
 Después abre **Omnia Desktop Suite — Instalar o actualizar** desde el menú de aplicaciones de Plasma,
@@ -85,8 +65,8 @@ Para el `.run`, activa **Propiedades → Permisos → Es ejecutable** y ábrelo 
 lo permite. También puedes ejecutarlo así, sin sudo:
 
 ```sh
-chmod +x Omnia-Desktop-Suite-0.1.0-source.run
-./Omnia-Desktop-Suite-0.1.0-source.run
+chmod +x Omnia-Desktop-Suite-0.2.0-source.run
+./Omnia-Desktop-Suite-0.2.0-source.run
 ```
 
 ### Configurar Omnia

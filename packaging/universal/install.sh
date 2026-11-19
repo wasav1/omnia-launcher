@@ -322,6 +322,11 @@ install -m755 "$GUI_BINARY" "$DATA/omnia/installer/omnia-installer"
 install -m644 "$ROOT/packaging/universal/installer_backend.py" "$DATA/omnia/installer/packaging/universal/installer_backend.py"
 install -m644 "$ROOT/packaging/universal/route_inspection.py" "$DATA/omnia/installer/packaging/universal/route_inspection.py"
 install -m644 "$ROOT/packaging/universal/candidate_import.py" "$DATA/omnia/installer/packaging/universal/candidate_import.py"
+if [[ -f "$ROOT/packaging/universal/release.json" ]]; then
+  install -m644 "$ROOT/packaging/universal/release.json" "$DATA/omnia/installer/release.json"
+else
+  rm -f "$DATA/omnia/installer/release.json"
+fi
 install -m644 "$ROOT/assets/branding/omnia-icon-bluegray.png" "$DATA/omnia/assets/branding/omnia-logo.png"
 install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$DATA/omnia/assets/branding/omnia-menu.svg"
 install -d "$HOME/.local/share/icons/hicolor/scalable/apps"

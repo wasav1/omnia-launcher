@@ -48,7 +48,7 @@ QtObject {
     property bool audioActive: false
     property bool audioAvailable: false
     property var audioBands: []
-    property var system: ({})             // /system: modelo y GHz de la CPU, disco de los juegos, batería
+    property var system: ({})             // /system: procesador, discos, batería, perfil energético y ventiladores
     signal padKey(string key)
     property string _last: ""
 

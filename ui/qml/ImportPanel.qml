@@ -33,7 +33,7 @@ FocusScope {
             else note = b.error || ("error " + st)
         })
     }
-    function mark(status) { return status === "new" ? "＋" : (status === "existing" ? "✓" : "–") }
+    function mark(status) { return status === "new" ? "plus" : (status === "existing" ? "check" : "minus") }
     function color(status) { return status === "new" ? "#7fd69f" : (status === "existing" ? "#c9bf8a" : "#8c8560") }
 
     Component.onCompleted: { load(); forceActiveFocus() }
@@ -77,7 +77,7 @@ FocusScope {
                 delegate: Item {
                     required property var modelData
                     width: items.width; height: 30
-                    Text { id: mk; x: 8; anchors.verticalCenter: parent.verticalCenter; text: ip.mark(parent.modelData.status); color: ip.color(parent.modelData.status); font.pixelSize: 18; font.bold: true }
+                    LucideIcon { x: 8; anchors.verticalCenter: parent.verticalCenter; name: ip.mark(parent.modelData.status); color: ip.color(parent.modelData.status) }
                     Text { x: 40; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.42; elide: Text.ElideRight
                            text: parent.modelData.name; color: ip.color(parent.modelData.status); font.pixelSize: 16 }
                     Text { x: parent.width * 0.46 + 30; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.54 - 40; elide: Text.ElideRight

@@ -1,5 +1,13 @@
 # Instaladores de Omnia Desktop Suite
 
+### Omnia 0.2.0
+
+`Omnia-Installer-0.2.0-1-x86_64.AppImage` empaqueta la revisión de Omnia que se validó en Plasma sobre Bazzite.
+Incluye el reloj sincronizado con el sistema, la ficha del juego con sesiones y partidas, el monitor con perfil
+energético y el menú contextual renovado. El asistente nativo cubre instalación, actualización, ajustes y
+desinstalación con el diseño del prototipo. Los iconos Lucide se incluyen en el instalador.
+
+
 ### Revisión 55: estabilidad y precarga del carrusel
 
 `Omnia-Installer-0.1.0-55-x86_64.AppImage` evita que la tarjeta seleccionada parpadee al actualizarse los datos del

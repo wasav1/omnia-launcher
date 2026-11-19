@@ -7,7 +7,11 @@
 #include "settings.h"
 #include "library_widgets.h"
 
-class ConsentPage : public QWizardPage { public: using QWizardPage::registerField; };
+class ConsentPage : public QWizardPage {
+public:
+    using QWizardPage::registerField;
+    QVBoxLayout *content = nullptr;
+};
 
 class Installer : public QWizard {
     QString backend;
@@ -26,54 +30,114 @@ class Installer : public QWizard {
     QLabel *summary, *result, *monitorDisksSummary;
     QProgressBar *progress;
     QPushButton *details;
+    QWidget *rail = nullptr;
+    QProgressBar *railProgress = nullptr;
+    QLabel *railCaption = nullptr;
+    QList<QFrame *> stepCards;
+    QList<QLabel *> stepIcons;
+
+    void setupRail() {
+        const QStringList names = updateOnly
+            ? QStringList{"SteamGridDB", "Actualizar Omnia"}
+            : QStringList{"Bienvenida", "Escanear discos", "Carpetas y vínculos",
+                          "Escritorio", "SteamGridDB", "Revisar e instalar"};
+        const QStringList captions = updateOnly
+            ? QStringList{"Validar o posponer", "Resumen y progreso"}
+            : QStringList{"Requisitos y consentimiento", "Unidades con juegos", "Candidatos de juegos",
+                          "Monitor y tema", "Arte de biblioteca", "Resumen y progreso"};
+        const QStringList icons = updateOnly
+            ? QStringList{"key-round", "refresh-cw"}
+            : QStringList{"shield-check", "hard-drive", "folder-open", "monitor", "key-round", "package-plus"};
+        rail = new QWidget;
+        rail->setObjectName("WizardRail");
+        rail->setFixedWidth(235);
+        auto layout = new QVBoxLayout(rail);
+        layout->setContentsMargins(12, 14, 12, 14);
+        layout->setSpacing(7);
+        railCaption = new QLabel;
+        railCaption->setObjectName("RailCaption");
+        layout->addWidget(railCaption);
+        railProgress = new QProgressBar;
+        railProgress->setTextVisible(false);
+        layout->addWidget(railProgress);
+        for (int i = 0; i < names.size(); ++i) {
+            auto step = new QFrame;
+            step->setObjectName("RailStep");
+            auto row = new QHBoxLayout(step);
+            row->setContentsMargins(9, 10, 9, 10);
+            auto glyph = new QLabel;
+            glyph->setProperty("glyph", icons[i]);
+            row->addWidget(glyph);
+            auto labels = new QVBoxLayout;
+            labels->setSpacing(1);
+            auto title = new QLabel(names[i]);
+            QFont weight = title->font();
+            weight.setBold(true);
+            title->setFont(weight);
+            labels->addWidget(title);
+            auto caption = new QLabel(captions[i]);
+            caption->setObjectName("Muted");
+            caption->setWordWrap(true);
+            labels->addWidget(caption);
+            row->addLayout(labels, 1);
+            stepCards.append(step);
+            stepIcons.append(glyph);
+            layout->addWidget(step);
+        }
+        layout->addStretch();
+        layout->addWidget(omniaCard(updateOnly ? "Actualización rápida" : "Instalación local",
+            updateOnly ? "Conserva tus ajustes y juegos." : "Para tu sesión de KDE Plasma.",
+            nullptr, updateOnly ? "refresh-cw" : "shield-check"));
+        setSideWidget(rail);
+        updateSteps();
+    }
+
     void updateSteps() {
-        const int w = qMax(900, width());
-        const qreal ratio = devicePixelRatioF();
-        QPixmap banner(QSize(w, 88) * ratio); banner.setDevicePixelRatio(ratio); banner.fill(QColor("#191d25"));
-        QColor accent("#336599");
-        if(themeChoice) for(const auto &value:initial["themes"].toArray()) {
-            const auto item=value.toObject();
-            if(item["id"].toString()==themeChoice->currentData().toString()) { accent=QColor(item["accent"].toString()); break; }
-        }
-        QPainter painter(&banner); painter.setRenderHint(QPainter::Antialiasing);
-        QFont brand = font(); brand.setPixelSize(22); brand.setBold(true); brand.setLetterSpacing(QFont::AbsoluteSpacing, 2);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        if(!brandIcon.isNull())painter.drawPixmap(QRect(25,20,48,48),brandIcon);
-        painter.setFont(brand); painter.setPen(QColor("#f1f4fc")); painter.drawText(QRect(80, 20, 125, 30), "OMNIA");
-        QFont caption = font(); caption.setPixelSize(10); caption.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-        painter.setFont(caption); painter.setPen(QColor("#92a0bc")); painter.drawText(QRect(81, 51, 125, 20), "DESKTOP SUITE");
-        const QStringList steps = updateOnly
-            ? QStringList{"Actualizar", "Confirmar"}
-            : QStringList{"Inicio", "Escanear", "Vincular", "Sistema", "Imágenes", "Instalar"};
-        const int stepWidth = (w - 225) / steps.size();
-        for (int i = 0; i < steps.size(); ++i) {
-            int x = 210 + i * stepWidth;
-            const int pageId = updateOnly ? i + 4 : i;
-            bool active = currentId() == pageId, done = currentId() > pageId || completed;
-            if (active) { painter.setPen(Qt::NoPen); painter.setBrush(accent.darker(190)); painter.drawRoundedRect(QRectF(x - 7, 23, stepWidth - 3, 40), 20, 20); }
-            painter.setPen(Qt::NoPen); painter.setBrush(done ? QColor("#285b50") : active ? accent : QColor("#303745"));
-            painter.drawEllipse(QRectF(x, 31, 24, 24));
-            QFont number = font(); number.setPixelSize(12); number.setBold(true); painter.setFont(number);
-            painter.setPen(QColor(done ? "#9ee3c4" : "#ffffff")); painter.drawText(QRect(x,31,24,24), Qt::AlignCenter, done ? QString::fromUtf8("✓") : QString::number(i+1));
-            QFont label = font(); label.setPixelSize(12); label.setBold(active); painter.setFont(label);
-            painter.setPen(QColor(active || done ? "#eef2fc" : "#97a3bb")); painter.drawText(QRect(x+32, 29, stepWidth-35, 28), Qt::AlignVCenter, steps[i]);
-        }
-        setPixmap(QWizard::BannerPixmap, banner);
-        for (auto which : {QWizard::NextButton, QWizard::FinishButton}) {
-            auto action = button(which); action->setProperty("primary", true);
-            action->style()->unpolish(action); action->style()->polish(action);
+        if (stepCards.isEmpty()) return;
+        const int step = qBound(0, currentId() - (updateOnly ? 4 : 0), int(stepCards.size()) - 1);
+        railCaption->setText(QString("PASOS    %1 / %2").arg(step + 1).arg(stepCards.size()));
+        railProgress->setRange(0, int(stepCards.size()));
+        railProgress->setValue(step + 1);
+        for (int i = 0; i < stepCards.size(); ++i) {
+            auto card = stepCards[i];
+            card->setProperty("active", i == step);
+            card->style()->unpolish(card);
+            card->style()->polish(card);
+            const bool done = i < step || completed;
+            const QColor color(done ? "#6fd6aa" : i == step ? "#9ad8ff" : "#7e91a1");
+            stepIcons[i]->setPixmap(lucideIcon(done ? "check" : stepIcons[i]->property("glyph").toString(), color).pixmap(20,20));
         }
     }
     QProcess *job = nullptr;
     bool running = false, completed = false;
     ConsentPage *page(const QString &title, const QString &subtitle) {
-        auto p = new ConsentPage; p->setTitle(" "); p->setSubTitle(" ");
-        auto layout = new QVBoxLayout(p); layout->setContentsMargins(24, 14, 24, 12); layout->setSpacing(13);
+        auto p = new ConsentPage;
+        auto pageLayout = new QVBoxLayout(p);
+        pageLayout->setContentsMargins(12, 12, 12, 0);
+        pageLayout->setSpacing(12);
+        const auto accent = QColor(updateOnly ? "#6fd6aa" : "#67a9dd");
+        pageLayout->addWidget(omniaHeader(updateOnly ? "Actualización" : "Instalación",
+                                          updateOnly ? "refresh-cw" : "package-plus", accent, brandIcon));
+
+        auto scroll = new QScrollArea;
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        auto content = new QWidget;
+        auto layout = new QVBoxLayout(content);
+        p->content = layout;
+        layout->setContentsMargins(8, 8, 10, 12);
+        layout->setSpacing(13);
+        auto kicker = new QLabel(updateOnly ? "OMNIA  /  ACTUALIZACIÓN" : "OMNIA  /  INSTALACIÓN");
+        kicker->setObjectName("Kicker");
+        kicker->setStyleSheet(QString("color: %1;").arg(accent.name()));
+        layout->addWidget(kicker);
+        scroll->setWidget(content);
+        pageLayout->addWidget(scroll, 1);
         auto heading = new QLabel(title); heading->setObjectName("PageTitle"); heading->setWordWrap(true); layout->addWidget(heading);
         auto description = new QLabel(subtitle); description->setObjectName("Subtitle"); description->setWordWrap(true); layout->addWidget(description);
         addPage(p); return p;
     }
-    void add(QWizardPage *p, QWidget *w) { p->layout()->addWidget(w); }
+    void add(ConsentPage *p, QWidget *w) { p->content->addWidget(w); }
     QJsonObject settings() {
         if (updateOnly)
             return {{"accepted", true}, {"update_only", true}, {"steamgriddb_key", keyPanel->keyForSave()}};
@@ -85,7 +149,7 @@ class Installer : public QWizard {
 public:
     bool isUpdateOnly() const { return updateOnly; }
     Installer(QString path, bool autoCheck=true): backend(path) {
-        setWindowTitle("Omnia Desktop Suite — Instalador"); resize(1020,790); setMinimumSize(960,740);
+        setWindowTitle("Omnia Desktop Suite — Instalador"); resize(1020,790); setMinimumSize(960,720);
         setWizardStyle(QWizard::ModernStyle);
         setOption(QWizard::NoBackButtonOnStartPage);
         setOption(QWizard::NoDefaultButton);
@@ -93,6 +157,10 @@ public:
         button(FinishButton)->setProperty("primary", true);
         setButtonText(NextButton,"Continuar"); setButtonText(BackButton,"Atrás");
         setButtonText(CancelButton,"Cancelar"); setButtonText(FinishButton,"Instalar");
+        button(NextButton)->setIcon(lucideIcon("arrow-right"));
+        button(BackButton)->setIcon(lucideIcon("arrow-left"));
+        button(CancelButton)->setIcon(lucideIcon("x"));
+        button(FinishButton)->setIcon(lucideIcon("package-check"));
         QProcess inspect; inspect.start("python3",{backend,"--inspect"});
         if(!inspect.waitForFinished(15000) || inspect.exitCode()!=0) {
             QMessageBox::critical(this,"Omnia","No se pudieron consultar los discos y la configuración.");
@@ -102,6 +170,12 @@ public:
         updateOnly=initial["installed"].toBool();
         QPixmap logo(initial["logo"].toString());brandIcon=logo;
         if(!logo.isNull()) {setWindowIcon(QIcon(logo));}
+        if (updateOnly) {
+            setWindowTitle("Omnia Desktop Suite — Actualización");
+            button(FinishButton)->setIcon(lucideIcon("refresh-cw"));
+            button(FinishButton)->setProperty("mode", "update");
+            button(NextButton)->setProperty("mode", "update");
+        }
         auto welcome=page(initial["installed"].toBool()?"Actualizar Omnia Desktop Suite":"Bienvenido a Omnia Desktop Suite",initial["installed"].toBool()?"Instalación detectada: revisa las rutas vinculadas y la conexión existente.":"Tu escritorio de juegos para KDE Plasma 6");
         auto notice=new QTextBrowser;
         notice->setPlainText("Lee antes de continuar\n\n"
@@ -113,20 +187,20 @@ public:
           "Al finalizar se reinicia plasmashell: escritorio y paneles desaparecerán unos segundos. Se aplica el wallpaper y el widget de biblioteca de Omnia en los escritorios disponibles; otros widgets y paneles permanecen. Omnia no cambia el tema, la paleta ni la decoración de ventanas de Plasma.\n\n"
           "Una instalación fallida puede dejar dependencias o archivos ya actualizados. Revisa el resultado y los detalles antes de reintentar.");
         auto cards = new QWidget; auto cardsLayout = new QHBoxLayout(cards); cardsLayout->setContentsMargins(0,0,0,0); cardsLayout->setSpacing(12);
-        cardsLayout->addWidget(omniaCard("Tu biblioteca, reunida", "Steam, ports y emuladores en un mismo escritorio."));
-        cardsLayout->addWidget(omniaCard("Un fondo para cada juego", "Arte de SteamGridDB y un fondo con movimiento."));
+        cardsLayout->addWidget(omniaCard("Tu biblioteca, reunida", "Steam, ports y emuladores en un mismo escritorio.", nullptr, "gamepad-2"));
+        cardsLayout->addWidget(omniaCard("Un fondo para cada juego", "Arte de SteamGridDB y un fondo con movimiento.", nullptr, "image"));
         add(welcome,cards);
         add(welcome,omniaCard("Antes de empezar", "Omnia se instala en tu usuario. Configura el fondo, el widget y los atajos de escritorio; al aplicar, Plasma se reiniciará unos segundos. Tus juegos y partidas permanecen en sus carpetas."));
-        auto noticeToggle = new QPushButton("Ver todos los cambios de instalación"); noticeToggle->setCheckable(true);
+        auto noticeToggle = new QPushButton(lucideIcon("info"), "Ver todos los cambios de instalación"); noticeToggle->setCheckable(true);
         notice->setVisible(false); notice->setMaximumHeight(155);
         connect(noticeToggle, &QPushButton::toggled, notice, &QWidget::setVisible);
         add(welcome,noticeToggle); add(welcome,notice);
-        static_cast<QVBoxLayout*>(welcome->layout())->addStretch();
+        welcome->content->addStretch();
         consent=new QCheckBox("He leído y acepto estos cambios en mi sesión de KDE Plasma.");
         welcome->registerField("consent*",consent); add(welcome,consent);
         auto scanPage=page("Escanear discos","Primero elige los discos que guardan tus juegos. Omnia mostrará los ports y juegos que puede reconocer; después podrás revisar qué vincular.");
         scanDisks=new VolumePicker;scanDisks->populate(initial["volumes"].toArray(),{});add(scanPage,omniaCard("Discos disponibles","Selecciona uno o varios discos o particiones. El escaneo solo lee archivos; todavía no agrega ni quita juegos."));add(scanPage,scanDisks);
-        auto scanButton=new QPushButton("Escanear discos seleccionados");add(scanPage,scanButton);
+        auto scanButton=new QPushButton(lucideIcon("search"), "Escanear discos seleccionados");add(scanPage,scanButton);
         scanRoutes=new RouteList(backend);scanRoutes->setMaximumHeight(150);add(scanPage,scanRoutes);
         scanSummary=new QLabel("Selecciona discos y pulsa «Escanear» para ver los juegos reconocidos.");scanSummary->setObjectName("Muted");scanSummary->setWordWrap(true);add(scanPage,scanSummary);
         scanRoutes->scanFinished=[this]{scanSummary->setText(scanRoutes->knownGamesSummary());};
@@ -140,7 +214,7 @@ public:
         folders=new RouteList(backend); for(auto v:initial["linked_roots"].toArray()) folders->addPath(v.toString()); add(libraries,folders); folders->setMinimumHeight(160);
         auto selectionCounter=new QLabel;selectionCounter->setObjectName("CardTitle");folders->setCounterLabel(selectionCounter);add(libraries,selectionCounter);
         auto row=new QWidget; auto buttons=new QHBoxLayout(row);
-        auto plus=new QPushButton("Añadir carpeta…"), minus=new QPushButton("Quitar seleccionada"); buttons->addWidget(plus); buttons->addWidget(minus); auto review=new QPushButton("Revisar candidatos…");buttons->addWidget(review);connect(review,&QPushButton::clicked,this,[this]{folders->reviewCandidates();}); add(libraries,row);
+        auto plus=new QPushButton(lucideIcon("folder-plus"), "Añadir carpeta…"), minus=new QPushButton(lucideIcon("minus"), "Quitar seleccionada"); buttons->addWidget(plus); buttons->addWidget(minus); auto review=new QPushButton(lucideIcon("layout-grid"), "Revisar candidatos…");buttons->addWidget(review);connect(review,&QPushButton::clicked,this,[this]{folders->reviewCandidates();}); add(libraries,row);
         connect(plus,&QPushButton::clicked,this,[this]{auto path=QFileDialog::getExistingDirectory(this,"Carpeta de ports o juegos externos",QDir::homePath()); if(!path.isEmpty()) folders->addPath(path);});
         connect(minus,&QPushButton::clicked,this,[this]{delete folders->takeItem(folders->currentRow());});
         connect(this,&QWizard::currentIdChanged,this,[this](int id){if(id==2)for(auto value:scanDisks->checkedVolumes())folders->addPath(value.toObject()["path"].toString());});
@@ -161,15 +235,24 @@ public:
         }
         auto themeIndex=themeChoice->findData(savedCfg.value("theme").toString("blue"));
         themeChoice->setCurrentIndex(themeIndex<0?0:themeIndex);
-        connect(themeChoice,qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{updateSteps();});
         themeCard->layout()->addWidget(themeChoice);add(monitor,themeCard);
-        static_cast<QVBoxLayout*>(monitor->layout())->addStretch();
+        monitor->content->addStretch();
         auto art=page(updateOnly?"Validar SteamGridDB":"Dale imagen a tu biblioteca",
                       updateOnly?"Confirma la clave de SteamGridDB para conservar las imágenes automáticas.":"Conecta SteamGridDB para descargar portadas, fondos y logos de tus juegos.");
         add(art,omniaCard(updateOnly?"Actualización rápida":"Tu clave permanece privada",
                           updateOnly?"Omnia ya está instalado. Se actualizarán sus archivos y se conservarán tus juegos y ajustes.":"Se guarda únicamente en tu usuario, con acceso restringido. Puedes conservar la clave existente o configurar las imágenes más adelante."));
+        if (updateOnly) {
+            auto comparison = new QWidget;
+            auto versions = new QHBoxLayout(comparison);
+            versions->setContentsMargins(0, 0, 0, 0);
+            versions->addWidget(omniaCard("Instalado", initial["installed_version"].toString("Revisión sin registrar"),
+                                          nullptr, "package-check"));
+            versions->addWidget(omniaCard("Disponible", initial["available_version"].toString("Revisión del instalador"),
+                                          nullptr, "download", "success"));
+            add(art, comparison);
+        }
         keyPanel=new KeyPanel(backend,initial["key_exists"].toBool(),autoCheck);add(art,keyPanel);
-        static_cast<QVBoxLayout*>(art->layout())->addStretch();
+        art->content->addStretch();
         auto final=page(updateOnly?"Actualizar Omnia":"Revisar e instalar",updateOnly?"No se volverán a configurar las bibliotecas ni el disco del monitor.":"La contraseña, si hace falta, la pedirá KDE. No la escribas en esta ventana.");
         auto summaryCard = omniaCard(updateOnly?"Se conservarán tus datos":"Tu configuración", updateOnly?"La biblioteca, los juegos y los ajustes personales quedarán intactos.":"Revisa estas opciones antes de aplicar Omnia a tu escritorio.");
         summary=new QLabel;summary->setMinimumHeight(155);summary->setWordWrap(true); summary->setTextFormat(Qt::RichText); summaryCard->layout()->addWidget(summary); add(final,summaryCard);
@@ -181,7 +264,7 @@ public:
         details=new QPushButton("Mostrar detalles de instalación"); details->setCheckable(true); add(final,details);
         log=new QPlainTextEdit;log->setReadOnly(true);log->setMaximumBlockCount(1800);log->setVisible(false); log->setMinimumHeight(110); add(final,log);
         connect(details,&QPushButton::toggled,this,[this](bool open){log->setVisible(open);details->setText(open?"Ocultar detalles de instalación":"Mostrar detalles de instalación");});
-        static_cast<QVBoxLayout*>(final->layout())->addStretch();
+        final->content->addStretch();
         connect(this,&QWizard::currentIdChanged,this,[this](int id){
             updateSteps();
             if(id==5) {QStringList labels;for(auto value:scanDisks->checkedVolumes())labels<<value.toObject()["label"].toString();QString monitorSummary=labels.isEmpty()?"No se seleccionaron discos":labels.join(", ");summary->setText(updateOnly
@@ -191,7 +274,7 @@ public:
             if(updateOnly && id==4) button(BackButton)->setEnabled(false);
         });
         if(updateOnly) { setStartId(4); setButtonText(FinishButton,"Actualizar"); }
-        updateSteps();
+        setupRail();
     }
     bool validateCurrentPage() override {
         if(currentId()==4 && !keyPanel->ready()) {
@@ -217,10 +300,10 @@ public:
             if(!completed) details->setChecked(true);
             if(!completed) logoutOnComplete->setEnabled(true);
             updateSteps();
-            result->setText(completed?(updateOnly?"✓ Omnia se actualizó. Cierra sesión y vuelve a entrar para cargar los cambios.":"✓ Omnia se instaló. Para que el fondo y las integraciones se carguen correctamente, cierra sesión y vuelve a entrar. Revisa abajo si alguna integración requiere atención."):"La instalación no se completó. Revisa los detalles; puedes volver atrás y reintentar.");
+            result->setText(completed?(updateOnly?"Omnia se actualizó. Cierra sesión y vuelve a entrar para cargar los cambios.":"Omnia se instaló. Para que el fondo y las integraciones se carguen correctamente, cierra sesión y vuelve a entrar. Revisa abajo si alguna integración requiere atención."):"La instalación no se completó. Revisa los detalles; puedes volver atrás y reintentar.");
             button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(!completed && !updateOnly);setButtonText(FinishButton,completed?"Cerrar":"Reintentar");
             if(completed && logoutOnComplete->isChecked()) {
-                result->setText(updateOnly?"✓ Omnia se actualizó. La sesión se cerrará en unos segundos; guarda tu trabajo.":"✓ Omnia se instaló. La sesión se cerrará en unos segundos; guarda tu trabajo.");
+                result->setText(updateOnly?"Omnia se actualizó. La sesión se cerrará en unos segundos; guarda tu trabajo.":"Omnia se instaló. La sesión se cerrará en unos segundos; guarda tu trabajo.");
                 button(CancelButton)->setEnabled(false);button(FinishButton)->setEnabled(false);
                 QTimer::singleShot(2500,this,[this]{
                     // qdbus6 no existe en Fedora/Bazzite: allí el binario se llama qdbus-qt6.
@@ -238,7 +321,6 @@ public:
         connect(job,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){if(e==QProcess::FailedToStart){running=false;progress->setRange(0,1);progress->setValue(0);result->setText("No se pudo iniciar el instalador.");button(FinishButton)->setEnabled(true);button(CancelButton)->setEnabled(true);button(BackButton)->setEnabled(true);}});
         job->start("python3",{backend,"--install"}); if(job->waitForStarted()){job->write(QJsonDocument(settings()).toJson(QJsonDocument::Compact));job->closeWriteChannel();}
     }
-    void resizeEvent(QResizeEvent *event) override { QWizard::resizeEvent(event); updateSteps(); }
     void reject() override {if(!running)QWizard::reject();}
     void closeEvent(QCloseEvent *event) override {if(running)event->ignore();else QWizard::closeEvent(event);}
 };
@@ -281,7 +363,7 @@ if(argc>2 && QString::fromLocal8Bit(argv[2]).startsWith("--settings")) {
 SettingsWindow window(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2])!="--settings-smoke");window.show();
 if(QString::fromLocal8Bit(argv[2])=="--settings-smoke") QTimer::singleShot(300,&window,[&]{
     auto tabs=window.findChild<QTabWidget*>();
-    if(!tabs || tabs->count()!=4){app.exit(13);return;}
+    if(!tabs || tabs->count()!=6){app.exit(13);return;}
     window.grab().save("/tmp/omnia-settings.png"); app.exit(0);
 });
 return app.exec();}

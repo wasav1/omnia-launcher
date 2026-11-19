@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMap>
+#include "appearance.h"
 
 // Conserva el estado accesible del modelo y dibuja solo el control centrado.
 class CandidateCheckDelegate : public QStyledItemDelegate {
@@ -25,8 +26,7 @@ public:
             painter->setPen(QPen(QColor(checked?"#7391ff":"#64718a"),1.4));
             painter->setBrush(QColor(checked?"#476cf0":"#202733"));painter->drawRoundedRect(box,6,6);
             if(checked){
-                QPainterPath tick;tick.moveTo(box.left()+5,box.top()+11);tick.lineTo(box.left()+9,box.top()+15);tick.lineTo(box.left()+17,box.top()+7);
-                painter->setPen(QPen(Qt::white,2.4,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));painter->drawPath(tick);
+                lucideIcon("check").paint(painter, box.adjusted(3, 3, -3, -3).toRect());
             }
         }
         painter->restore();
@@ -64,7 +64,8 @@ public:
     CandidateReview(QJsonObject scan,const QMap<QString,QJsonObject> &previous,const QString &backendPath=QString(),QWidget *parent=nullptr)
         :QDialog(parent),records(scan["items"].toArray()),backend(backendPath) {
         setWindowTitle("Revisar juegos — Omnia");resize(1150,650);auto layout=new QVBoxLayout(this);
-        auto title=new QLabel("Elige los juegos de esta carpeta");title->setObjectName("CardTitle");layout->addWidget(title);
+        layout->addWidget(omniaHeader("Vinculación de juegos", "layout-grid", QColor("#67a9dd")));
+        auto title=new QLabel("Elige qué vincular o quitar");title->setObjectName("PageTitle");layout->addWidget(title);
         auto info=new QLabel("Los ports conocidos proponen el juego y el ejecutable que lo inicia; se ignoran launchers y herramientas auxiliares. Revisa y marca lo que quieras vincular o desvincular. Nada se ejecuta durante este análisis y desvincular no borra archivos ni partidas.");info->setWordWrap(true);layout->addWidget(info);
         auto hint=new QLabel("N64: se propone Gopher64. Al confirmar se comprobarán el emulador y los complementos necesarios; si falta alguno, verás qué instalar antes de continuar.");hint->setWordWrap(true);hint->setObjectName("Muted");layout->addWidget(hint);
         counter=new QLabel;counter->setObjectName("CardTitle");layout->addWidget(counter);
@@ -88,14 +89,14 @@ public:
             files->setToolTip(files->currentText());connect(files,&QComboBox::currentTextChanged,files,&QWidget::setToolTip);table->setCellWidget(row,3,files);
             auto emulator=new QWidget;auto line=new QHBoxLayout(emulator);line->setContentsMargins(0,0,0,0);
             auto exe=new QLineEdit(saved.isEmpty()?candidate["suggested_emulator"].toString():saved["emulator"].toString());exe->setPlaceholderText("gopher64 o /ruta/emulador");
-            auto browse=new QPushButton("…");line->addWidget(exe);line->addWidget(browse);table->setCellWidget(row,4,emulator);
+            auto browse=new QPushButton(lucideIcon("folder-open"), "");browse->setAccessibleName("Buscar emulador");line->addWidget(exe);line->addWidget(browse);table->setCellWidget(row,4,emulator);
             bool rom=candidate["kind"]=="rom";emulator->setEnabled(rom&&!linked);files->setEnabled(!linked);
             connect(browse,&QPushButton::clicked,this,[this,exe]{auto file=QFileDialog::getOpenFileName(this,"Elige el ejecutable del emulador","/usr/bin");if(!file.isEmpty())exe->setText(file);});
             connect(files,&QComboBox::currentTextChanged,this,[this,search](const QString&){const auto query=search->text().trimmed().toCaseFolded();for(int r=0;r<table->rowCount();++r){auto combo=qobject_cast<QComboBox*>(table->cellWidget(r,3));QString text=table->item(r,1)->text()+" "+table->item(r,2)->text()+" "+(combo?combo->currentText():QString());if(combo)for(int i=0;i<combo->count();++i)text+=" "+combo->itemText(i);table->setRowHidden(r,!query.isEmpty()&&!text.toCaseFolded().contains(query));}});
         }
         connect(search,&QLineEdit::textChanged,this,[this](const QString &value){const auto query=value.trimmed().toCaseFolded();for(int r=0;r<table->rowCount();++r){auto combo=qobject_cast<QComboBox*>(table->cellWidget(r,3));QString text=table->item(r,1)->text()+" "+table->item(r,2)->text()+" "+(combo?combo->currentText():QString());if(combo)for(int i=0;i<combo->count();++i)text+=" "+combo->itemText(i);table->setRowHidden(r,!query.isEmpty()&&!text.toCaseFolded().contains(query));}});
         connect(table,&QTableWidget::itemChanged,this,[this](QTableWidgetItem*){updateCounter();});updateCounter();
-        buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons->button(QDialogButtonBox::Ok)->setText("Confirmar selección");layout->addWidget(buttons);
+        buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);buttons->button(QDialogButtonBox::Ok)->setText("Confirmar selección");buttons->button(QDialogButtonBox::Ok)->setIcon(lucideIcon("check"));buttons->button(QDialogButtonBox::Ok)->setProperty("primary",true);layout->addWidget(buttons);
         connect(buttons,&QDialogButtonBox::accepted,this,&CandidateReview::accept);connect(buttons,&QDialogButtonBox::rejected,this,&CandidateReview::reject);
     }
     void accept() override {

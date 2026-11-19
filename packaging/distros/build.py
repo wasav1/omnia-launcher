@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 PROFILES = json.loads((REPO / 'packaging/distros/profiles.json').read_text())
 NAME = 'omnia-desktop-suite-installer'
 VERSION = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['version']
-RELEASE = os.environ.get('OMNIA_PKGREL', '34')
+RELEASE = os.environ.get('OMNIA_PKGREL', '1')
 if not RELEASE.isdigit():
     raise ValueError('OMNIA_PKGREL debe ser un entero positivo')
 
@@ -39,6 +39,7 @@ def stage(root):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(file, dest)
         dest.chmod(0o755 if file.suffix == '.sh' else 0o644)
+    (source / 'packaging/universal/release.json').write_text(json.dumps({'label': f'{VERSION}-{RELEASE}'}) + '\n')
     shutil.copyfile(REPO / 'docs/INSTALADORES.md', source / 'README.md')
     for src, dest in [('packaging/distros/omnia-desktop-suite-install', 'usr/bin/omnia-desktop-suite-install'),
                       ('packaging/xdg/org.omnia.installer.desktop', 'usr/share/applications/org.omnia.installer.desktop'),

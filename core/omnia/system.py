@@ -1,4 +1,4 @@
-"""Datos del equipo para el panel «Sistema»: modelo y frecuencia de la CPU, disco de los juegos y batería.
+"""Datos del equipo para el panel «Sistema»: procesador, discos, batería, perfil térmico y ventiladores.
 
 Solo lee /proc y /sys (la carga, las temperaturas y la VRAM las da KDE por KSysGuard en la UI). Las rutas son
 parámetros para poder probarlo con árboles falsos.
@@ -96,6 +96,28 @@ def battery(sys_root: str = "/sys") -> dict:
     return out
 
 
+def platform_profile(sys_root: str = "/sys") -> str:
+    """Perfil térmico/energético ACPI expuesto por el firmware, si existe."""
+    profile = _read(f"{sys_root}/firmware/acpi/platform_profile").lower()
+    labels = {"quiet": "Silencioso", "balanced": "Equilibrado", "low-power": "Ahorro", "performance": "Rendimiento"}
+    return labels.get(profile, profile.replace("-", " ").capitalize() if profile else "No disponible")
+
+
+def fan_speeds(sys_root: str = "/sys") -> list[dict]:
+    """Lecturas de ventilador válidas; varios firmwares reportan cero cuando no ofrecen RPM."""
+    out = []
+    for path in sorted(glob.glob(f"{sys_root}/class/hwmon/hwmon*/fan*_input")):
+        raw = _read(path)
+        if not raw.isdigit() or int(raw) <= 0:
+            continue
+        name = _read(path[:-6] + "_label")
+        if not name:
+            match = re.search(r"fan(\d+)_input$", path)
+            name = "Ventilador " + (match.group(1) if match else "")
+        out.append({"name": name, "rpm": int(raw)})
+    return out
+
+
 def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home: str | None = None, monitor=None) -> dict:
     out = {"cpu": cpu(proc, sys_root)}
     if isinstance(monitor, list):
@@ -118,6 +140,8 @@ def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home:
         if d:
             out["disk"] = d
     out.update(battery(sys_root))
+    out["profile"] = platform_profile(sys_root)
+    out["fans"] = fan_speeds(sys_root)
     return out
 
 

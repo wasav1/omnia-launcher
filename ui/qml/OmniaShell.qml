@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import org.kde.kirigami as Kirigami
 
 // Estantería a escala lógica 1920x1080, fiel al lienzo del prototipo.
 Rectangle {
@@ -68,7 +67,6 @@ Rectangle {
     readonly property var artKinds: ["portada", "fondo", "logo"]
     readonly property int artColumns: artKind === "portada" ? 6 : (artKind === "fondo" ? 3 : 4)
     property real nowSecs: Date.now() / 1000
-    property string clockText: Qt.formatTime(new Date(), "h:mm AP")
     property bool powerRequested: false
     property bool refreshBusy: false
     property string menuStartMode: "apps" // "power": el botón de apagado abre el Big Menú directamente en Energía y sesión
@@ -87,7 +85,6 @@ Rectangle {
         return null
     }
     onRunningGameChanged: runIgnored = false
-    property var tempHist: []             // últimas 60 lecturas de la temperatura de la CPU (1 por segundo)
 
     readonly property real scaleFactor: sectionMode === "full" ? Math.min(width / 1920, height / 1080)
                                                               : Math.min(width / sectionViewport.width, height / sectionViewport.height)
@@ -133,15 +130,15 @@ Rectangle {
     readonly property var contextItems: {
         if (!current) return []
         const items = [
-            { label: "Jugar", icon: "media-playback-start" },
-            { label: "Respaldar partidas", icon: "document-save" },
+            { label: "Jugar", icon: "play" },
+            { label: "Respaldar partidas", icon: "download" },
             { label: "Abrir carpeta", icon: "folder-open" },
-            { label: "Elegir arte (SteamGridDB)…", icon: "images-flickr" },
-            { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "starred-symbolic" },
-            { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "view-visible" : "view-hidden" }
+            { label: "Elegir arte (SteamGridDB)…", icon: "image-plus" },
+            { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "star" },
+            { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "eye" : "eye-off" }
         ]
-        items.push({ label: "Desvincular de Omnia…", icon: "edit-delete" })
-        if (searchText !== "") items.push({ label: "Borrar filtro de búsqueda", icon: "edit-clear" })
+        items.push({ label: "Desvincular de Omnia…", icon: "trash-2" })
+        if (searchText !== "") items.push({ label: "Borrar filtro de búsqueda", icon: "x" })
         return items
     }
 
@@ -427,7 +424,7 @@ Rectangle {
         if (!on) { searchPad = false; restoreControllerFocus() }
         else if (!searchPad) Qt.callLater(function() { searchField.forceActiveFocus() })       // con el mando no se enfoca el campo: manda el teclado virtual
     }
-    function showContext(x, y) { if (!current || api.gameRunning) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true }
+    function showContext(x, y) { if (!current || api.gameRunning) return; contextPoint = Qt.point(x, y); contextIndex = 0; contextOpen = true; restoreControllerFocus() }
     function activateContext(i) {
         contextOpen = false
         if (i === 0) requestPlay()
@@ -453,13 +450,18 @@ Rectangle {
         const d = new Date(ts * 1000), now = new Date(nowSecs * 1000), fmt = Qt.locale("es_MX")
         const hm = (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        if (d.getTime() >= start) return "hoy " + hm
-        if (d.getTime() >= start - 86400000) return "ayer " + hm
+        if (d.getTime() >= start) return "hoy, " + hm
+        if (d.getTime() >= start - 86400000) return "ayer, " + hm
         return d.getDate() + " " + ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][d.getMonth()]
     }
     function duration(s) {
         const m = Math.floor((s || 0) / 60), h = Math.floor(m / 60)
         return h ? h + " h " + (m % 60) + " min" : Math.max(1,m) + " min"
+    }
+    function thermalColor(celsius) {
+        if (celsius >= 85) return "#e7837d"
+        if (celsius >= 70) return "#e6b866"
+        return canvas.ink2
     }
     function clockDate(d) { return d.toLocaleDateString(Qt.locale("es_MX"), "dddd d 'de' MMMM").toUpperCase() }
     function restoreControllerFocus() { if (controllerOwner) shell.forceActiveFocus() }
@@ -503,7 +505,8 @@ Rectangle {
         })
     }
     Timer { interval: 6000; running: !api.covered; repeat: true; onTriggered: api.refresh() }
-    Timer { interval: 1000; running: !api.covered; repeat: true; onTriggered: { shell.nowSecs = Date.now()/1000; shell.clockText = Qt.formatTime(new Date(), "h:mm AP") } }
+    // El reloj siempre sigue la hora de pared del sistema, incluso cuando el escritorio cubre Omnia.
+    Timer { interval: 250; running: true; repeat: true; onTriggered: shell.nowSecs = Date.now()/1000 }
     Component.onCompleted: {
         if (controllerOwner) forceActiveFocus()
         if (visibleGames.length) list.currentIndex = 0
@@ -514,6 +517,18 @@ Rectangle {
         target: api
         function onPadKey(key) {
             if (!shell.controllerOwner) return
+            if (unlinkDialog.opened) {
+                const cancel = unlinkDialog.standardButton(Dialog.Cancel)
+                const confirm = unlinkDialog.standardButton(Dialog.Yes)
+                if (key === "B" || key === "SELECT") unlinkDialog.reject()
+                else if (key === "l" || key === "r" || key === "u" || key === "d")
+                    (confirm.activeFocus ? cancel : confirm).forceActiveFocus()
+                else if (key === "A") {
+                    if (confirm.activeFocus) unlinkDialog.accept()
+                    else unlinkDialog.reject()
+                }
+                return
+            }
             if (shell.portPickerOpen) {
                 if (key === "B" || key === "SELECT") shell.portPickerOpen = false
                 return
@@ -764,8 +779,6 @@ Rectangle {
     } }
     Loader { id: music; source: "MusicSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
     Loader { id: sensors; source: "SensorsSource.qml"; active: shell.sectionMode === "system" || shell.sectionMode === "full" }
-    Timer { interval: 1000; repeat: true; running: (shell.sectionMode === "system" || shell.sectionMode === "full") && !api.covered && !api.gameRunning && sensors.item !== null
-        onTriggered: { const h = shell.tempHist.slice(); h.push(sensors.item ? sensors.item.cpuTemp : 0); if (h.length > 60) h.shift(); shell.tempHist = h } }
 
     // Telón de arte desenfocado y película del juego seleccionado.
     Backdrop { anchors.fill: parent; visible: !shell.externalWallpaper; covered: api.covered; source: shell.current && shell.current.fondo ? shell.current.fondo : ""; blur: 18 }
@@ -807,6 +820,10 @@ Rectangle {
         property string hud: "Rajdhani"
         property string body: "Hanken Grotesk"
 
+        Item {
+            id: contextScene
+            anchors.fill: parent
+
         // Filtros en píldoras, a las coordenadas de referencia del prototipo.
         Row {
             id: header; x: 84; y: 54; spacing: 10
@@ -823,8 +840,7 @@ Rectangle {
                     TextMetrics { id: capMetrics; font: pillText.font; text: "H" }
                     Row { id: label; anchors.horizontalCenter: parent.horizontalCenter; height: parent.height; spacing: 7
                         PlatIcon { visible: modelData.key !== "all" && modelData.key !== "fav" && modelData.key !== "hidden"; key: modelData.key; size: 17; color: active ? canvas.brandInk : shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
-                        Text { id: starText; visible: modelData.key === "fav" || modelData.key === "hidden"; text: modelData.key === "fav" ? "★" : "◉"; color: active ? canvas.brandInk : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.bold: true
-                            y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
+                        LucideIcon { visible: modelData.key === "fav" || modelData.key === "hidden"; name: modelData.key === "fav" ? "star" : "eye-off"; width: 17; height: 17; color: active ? canvas.brandInk : shell.platformColor(modelData.key); anchors.verticalCenter: parent.verticalCenter }
                         Text { id: pillText; text: modelData.label; color: active ? canvas.brandInk : shell.platformColor(modelData.key); font.family: canvas.hud; font.pixelSize: 17; font.weight: Font.DemiBold; font.letterSpacing: 1
                             y: Math.round(parent.height / 2 - (baselineOffset + capMetrics.tightBoundingRect.y + capMetrics.tightBoundingRect.height / 2)) }
                     }
@@ -835,24 +851,24 @@ Rectangle {
             Rectangle {
                 id: searchBtn
                 width: 34; height: 34; radius: 17; color: searchOpen ? canvas.acc : (sbm.containsMouse ? "#33ffffff" : "#59000000"); border.width: searchOpen ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "search"; isMask: true; color: searchOpen ? canvas.brandInk : "#f3efe3" }
+                LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "search"; color: searchOpen ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: sbm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.setSearchOpen(!searchOpen) }
             }
             Rectangle { id: refreshBtn; width: 34; height: 34; radius: 17; color: shell.refreshBusy ? canvas.acc : rfm.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.refreshBusy ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "view-refresh"; isMask: true; color: shell.refreshBusy ? canvas.brandInk : "#f3efe3" }
+                LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "refresh-cw"; color: shell.refreshBusy ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 1; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: rfm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.refreshLibrary() }
             }
             Rectangle { width: 34; height: 34; radius: 17; color: settingsMouse.containsMouse ? "#33ffffff" : "#59000000"; border.width: 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "configure"; isMask: true; color: "#f3efe3" }
+                LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "settings"; color: "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 2; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: settingsMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.openSettings() }
                 ToolTip.visible: settingsMouse.containsMouse
                 ToolTip.text: "Ajustes generales de Omnia"
             }
             Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? canvas.acc : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.audOpen ? 0 : 1; border.color: "#47f3efe3"
-                Kirigami.Icon { anchors.centerIn: parent; width: 18; height: 18; source: "audio-speakers-symbolic"; isMask: true; color: shell.audOpen ? canvas.brandInk : "#f3efe3" }
+                LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "speaker"; color: shell.audOpen ? canvas.brandInk : "#f3efe3" }
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 3; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: aum; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.audShow() }
             }
@@ -878,7 +894,7 @@ Rectangle {
             }
             Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
             Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + (shell.visibleGames.length === 1 ? " juego" : " juegos") : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
-            Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "✕"; color: canvas.ink; visible: shell.searchText !== ""
+            LucideIcon { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; name: "x"; color: canvas.ink; visible: shell.searchText !== ""
                 MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
             }
         }
@@ -926,7 +942,7 @@ Rectangle {
             Rectangle {
                 id: playButton; height: 48; radius: 24; width: playText.implicitWidth + 52; color: playMouse.containsMouse ? canvas.brandHover : canvas.brandLight
                 Row { id: playText; anchors.centerIn: parent; spacing: 10
-                    Text { text: "▶"; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                    LucideIcon { name: "play"; width: 18; height: 18; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; anchors.verticalCenter: parent.verticalCenter }
                     Text { text: "Jugar"; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Rectangle { visible: shell.focusZone === "hero"; anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
@@ -948,7 +964,7 @@ Rectangle {
         }
         Rectangle { x: 84; y: 112; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
             Row { id: padLabel; anchors.centerIn: parent; spacing: 8
-                Kirigami.Icon { width: 20; height: 20; source: "input-gamepad-symbolic"; isMask: true; color: api.padOn ? canvas.acc : "#80f3efe3"; anchors.verticalCenter: parent.verticalCenter }
+                LucideIcon { width: 20; height: 20; name: "gamepad-2"; color: api.padOn ? canvas.acc : "#80f3efe3"; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
             }
         }
@@ -976,7 +992,7 @@ Rectangle {
                     Text { visible: !saveInfo || !saveInfo.slots.length; width:560; wrapMode:Text.WordWrap; text:saveInfo ? (saveInfo.error || "Aún no hay partidas. Aparecerán aquí cuando juegues.") : "Consultando partidas…"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:19 }
                 }
                 Row { spacing:10; height:30
-                    Kirigami.Icon { source:"application-menu"; isMask:true; color:canvas.ink3; width:18; height:18; opacity:0.7; anchors.verticalCenter:parent.verticalCenter }
+                    LucideIcon { name:"menu"; color:canvas.ink3; width:18; height:18; opacity:0.7; anchors.verticalCenter:parent.verticalCenter }
                     Text { text:"Más opciones: clic derecho · botón Select del mando"; color:canvas.ink3; font.family:canvas.body; font.pixelSize:16; anchors.verticalCenter:parent.verticalCenter }
                 }
                 Item { width:1;height:14 }
@@ -1071,28 +1087,40 @@ Rectangle {
         }
         function formatTrackTime(s) { s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
         Clasp { x:800; y:328; color:canvas.acc; opacity:.9 }
-        Item { id:hud; x:1530;y:58;width:320;height:440; visible:sensors.item !== null && !api.gameRunning
-            Column { width:parent.width; spacing:0
+        Item {
+            id: hud
+            x: 1530; y: 58; width: 340
+            height: hudContent.implicitHeight + 40
+            visible: sensors.item !== null && !api.gameRunning && !shell.portPickerOpen
+
+            FrostedSurface {
+                anchors.fill: parent
+                tint: "#48101722"
+                feather: 24
+                radius: 24
+            }
+            Column {
+                id: hudContent
+                x: 16; y: 20; width: parent.width - 32; spacing: 0
                 Row { width:parent.width;spacing:14;height:24
                     Text { id:hudTitle;text:"SISTEMA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
                     Rectangle { width:parent.width-hudTitle.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
                 }
-                HudRow { label:"CPU";sub:api.system.cpu&&api.system.cpu.model?api.system.cpu.model:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:(sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—")+(api.system.cpu&&api.system.cpu.ghz?"  "+api.system.cpu.ghz.toFixed(1)+" GHz":"");extraColor:sensors.item&&sensors.item.cpuTemp>=88?"#e2604f":(sensors.item&&sensors.item.cpuTemp>=75?"#e6a850":canvas.ink2);acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?Math.max(sensors.item.gpu,sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100):0;vtext:sensors.item?Math.round(sensors.item.gpu)+" %":"—";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C · "+(sensors.item.vramUsed/1073741824).toFixed(1)+"/"+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";extraColor:sensors.item&&sensors.item.gpuTemp>=85?"#e2604f":(sensors.item&&sensors.item.gpuTemp>=75?"#e6a850":canvas.ink2);acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                HudRow { label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { width:parent.width; label:"CPU";sub:api.system.cpu&&api.system.cpu.model?api.system.cpu.model:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:(sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—")+(api.system.cpu&&api.system.cpu.ghz?"  "+api.system.cpu.ghz.toFixed(1)+" GHz":"");extraColor:sensors.item?shell.thermalColor(sensors.item.cpuTemp):canvas.ink2;acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { width:parent.width; label:"GPU";sub:sensors.item?sensors.item.gpuName:"";pct:sensors.item?Math.max(sensors.item.gpu,sensors.item.vramUsed/Math.max(1,sensors.item.vramTotal)*100):0;vtext:sensors.item?Math.round(sensors.item.gpu)+" %":"—";extra:sensors.item?Math.round(sensors.item.gpuTemp)+" °C · "+(sensors.item.vramUsed/1073741824).toFixed(1)+"/"+(sensors.item.vramTotal/1073741824).toFixed(1)+" GB":"";extraColor:sensors.item?shell.thermalColor(sensors.item.gpuTemp):canvas.ink2;acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { width:parent.width; label:"RAM";sub:sensors.item?Math.round(sensors.item.ramTotal/1073741824)+" GB":"";pct:sensors.item?sensors.item.ramUsed/Math.max(1,sensors.item.ramTotal)*100:0;vtext:sensors.item?(sensors.item.ramUsed/1073741824).toFixed(1):"—";extra:sensors.item?"/ "+(sensors.item.ramTotal/1073741824).toFixed(1)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Repeater { model:api.system.disks&&api.system.disks.length?api.system.disks:(api.system.disk?[api.system.disk]:[])
-                    HudRow { required property var modelData;label:modelData.label||"DISCO";sub:modelData.fs||(!modelData.available?"no conectado":"");pct:modelData.total?modelData.used/modelData.total*100:0;vtext:modelData.total?Math.round(modelData.used/1073741824)+"":"—";extra:modelData.total?"/ "+Math.round(modelData.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                    HudRow { width:parent.width; required property var modelData;label:modelData.label||"DISCO";sub:modelData.fs||(!modelData.available?"no conectado":"");pct:modelData.total?modelData.used/modelData.total*100:0;vtext:modelData.total?Math.round(modelData.used/1073741824)+"":"—";extra:modelData.total?"/ "+Math.round(modelData.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 }
-                HudRow { visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
-                Item { width:parent.width;height:62
-                    Canvas { id:spark;width:parent.width;height:34;property var h:shell.tempHist;onHChanged:requestPaint()
-                        onPaint:{let c=getContext("2d");c.reset();if(h.length<2)return
-                            let lo=h[0],hi=h[0];for(let k=1;k<h.length;k++){lo=Math.min(lo,h[k]);hi=Math.max(hi,h[k])}
-                            const mid=(lo+hi)/2,half=Math.max(6,(hi-lo)/2+2)
-                            c.strokeStyle=canvas.acc;c.lineWidth=2;c.lineJoin="round";c.beginPath()
-                            for(let n=0;n<h.length;n++){const x=(60-h.length+n)*width/59,y=17-(h[n]-mid)/half*14;if(n===0)c.moveTo(x,y);else c.lineTo(x,y)}
-                            c.stroke() } }
-                    Text { y:38;text:"TEMP. CPU · 60 S";color:canvas.ink3;font.family:canvas.hud;font.pixelSize:15;font.letterSpacing:2.5 }
+                HudRow { width:parent.width; visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                Item { width:parent.width; height:34
+                    Row { anchors.verticalCenter:parent.verticalCenter; spacing:6
+                        Text { text:"PERFIL"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:12; font.letterSpacing:1 }
+                        Text { text:api.system.profile||"No disponible"; color:canvas.ink2; font.family:canvas.hud; font.pixelSize:14; elide:Text.ElideRight; width:92 }
+                        Rectangle { width:1; height:18; color:"#477d8da2"; anchors.verticalCenter:parent.verticalCenter }
+                        Text { text:"RPM"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:12; font.letterSpacing:1 }
+                        Text { text:api.system.fans&&api.system.fans.length?api.system.fans.map(function(f){return f.rpm+" RPM"}).join(" · "):"RPM no disponible"; color:canvas.ink2; font.family:canvas.hud; font.pixelSize:13; elide:Text.ElideRight; width:104 }
+                    }
                 }
             }
         }
@@ -1144,14 +1172,38 @@ Rectangle {
                                     accent:canvas.acc;titleColor:canvas.ink;secondaryColor:canvas.ink2;mutedColor:canvas.ink3
                                     portName:slot.selected && shell.selectedPort ? shell.selectedPort.name : "";portCount:slot.selected && slot.entry.ports ? slot.entry.ports.length : 0
                                     portIndex:slot.selected ? shell.selectedPortIndex : 0;description:slot.selected && shell.selectedPort && shell.selectedPort.description ? shell.selectedPort.description : (slot.entry.description || slot.entry.sub || "")
-                                    playedText:slot.entry.plays > 0 ? "Última vez · " + shell.relativeTime(slot.entry.lastPlayed) : "Sin jugar"
-                                    playtimeText:slot.entry.totalSecs > 0 ? "Tiempo jugado · " + (slot.entry.totalSecs >= 3600 ? Math.floor(slot.entry.totalSecs/3600) + " h" : Math.floor(slot.entry.totalSecs/60) + " min") : ""
-                                    savesSummary: {
+                                    originBadges: {
+                                        const badges = [shell.platformLabel(slot.entry)]
+                                        const chips = slot.selected && shell.selectedPort ? (shell.selectedPort.chips || []) : (slot.entry.chips || [])
+                                        for (let i=0;i<chips.length;i++) if (chips[i] && badges.indexOf(chips[i])<0) badges.push(chips[i])
+                                        if (slot.selected && slot.entry.ports && slot.entry.ports.length>1 && shell.selectedPort && badges.indexOf(shell.selectedPort.name)<0) badges.push(shell.selectedPort.name)
+                                        return badges
+                                    }
+                                    lastSessionText: {
+                                        if (!slot.entry.plays) return "Sin sesiones"
+                                        const value=shell.relativeTime(slot.entry.lastPlayed)
+                                        return value.charAt(0).toUpperCase()+value.slice(1)
+                                    }
+                                    playtimeText:slot.entry.totalSecs > 0 ? shell.duration(slot.entry.totalSecs) : "Sin tiempo"
+                                    savesCount:slot.selected && shell.saveInfo && shell.saveInfo.slots ? shell.saveInfo.slots.length : 0
+                                    saveSlots: {
+                                        if (!slot.selected || !shell.saveInfo || !shell.saveInfo.slots) return []
+                                        const slots = shell.saveInfo.slots.slice()
+                                        slots.sort(function(a,b){return (b.mtime||0)-(a.mtime||0)})
+                                        return slots
+                                    }
+                                    latestSaveText: {
                                         if (!slot.selected) return ""
-                                        if (!shell.saveInfo) return "Partidas · consultando…"
-                                        if (!shell.saveInfo.slots || !shell.saveInfo.slots.length) return "Partidas · " + (shell.saveInfo.error || "ninguna guardada")
-                                        const entries = shell.saveInfo.slots.slice(0, 2).map(function(s) { return (s.name || "Partida") + " · " + (s.used ? shell.relativeTime(s.mtime) : "vacía") })
-                                        return "Partidas guardadas · " + shell.saveInfo.slots.length + " ranuras · " + entries.join(" / ")
+                                        if (!shell.saveInfo) return "Buscando la ranura reciente…"
+                                        if (!shell.saveInfo.slots || !shell.saveInfo.slots.length) return shell.saveInfo.configured ? "Aún no hay partidas guardadas" : "Partidas sin configurar"
+                                        const slots=shell.saveInfo.slots.slice().sort(function(a,b){return (b.mtime||0)-(a.mtime||0)})
+                                        const when=slots[0].used?shell.relativeTime(slots[0].mtime):"vacía"
+                                        return (slots[0].name||"Partida") + " · " + when.charAt(0).toUpperCase()+when.slice(1)
+                                    }
+                                    backupText: {
+                                        if (!slot.selected || !shell.saveInfo) return "Sin respaldo"
+                                        const backup=shell.saveInfo.lastBackup||slot.entry.lastBackup||(shell.saveInfo.backups&&shell.saveInfo.backups.length?shell.saveInfo.backups[0].mtime:0)||0
+                                        return backup>0 ? "Respaldo · " + shell.relativeTime(backup) : "Sin respaldo"
                                     }
                                     launchFocused:slot.selected && shell.focusZone === "hero"
                                     onPortStepRequested: function(delta) { if(slot.selected) shell.stepPort(delta) }
@@ -1200,13 +1252,12 @@ Rectangle {
                             width:parent.width; height:54; radius:14
                             color:foc?canvas.acc:(isCurrent?Qt.rgba(canvas.acc.r,canvas.acc.g,canvas.acc.b,0.16):(am.containsMouse?"#1fffffff":"transparent"))
                             border.width:isCurrent&&!foc?1:0; border.color:canvas.acc
-                            Kirigami.Icon { x:16; anchors.verticalCenter:parent.verticalCenter; width:24; height:24; isMask:true
-                                source:ait.modelData.kind==="hdmi"?"video-display-symbolic":(ait.modelData.kind==="usb"?"audio-headphones-symbolic":(ait.modelData.kind==="bt"?"bluetooth-symbolic":"audio-speakers-symbolic"))
+                            LucideIcon { x:16; anchors.verticalCenter:parent.verticalCenter; width:24; height:24
+                                name: ait.modelData.kind === "hdmi" ? "monitor" : ait.modelData.kind === "usb" ? "headphones" : ait.modelData.kind === "bt" ? "bluetooth" : "speaker"
                                 color:ait.foc?canvas.brandInk:"#f3efe3" }
                             Text { x:58; width:parent.width-120; elide:Text.ElideRight; anchors.verticalCenter:parent.verticalCenter; text:ait.modelData.label
                                 color:ait.foc?canvas.brandInk:"#f3efe3"; font.family:canvas.body; font.pixelSize:19; font.weight:Font.Medium }
-                            Text { visible:ait.isCurrent; anchors.right:parent.right; anchors.rightMargin:18; anchors.verticalCenter:parent.verticalCenter; text:"✓"
-                                color:ait.foc?canvas.brandInk:canvas.acc; font.family:canvas.hud; font.pixelSize:24; font.weight:Font.Bold }
+                            LucideIcon { visible: ait.isCurrent; anchors.right: parent.right; anchors.rightMargin: 18; anchors.verticalCenter: parent.verticalCenter; name: "check"; color: ait.foc ? canvas.brandInk : canvas.acc }
                             MouseArea { id:am; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onEntered:shell.audIdx=ait.index; onClicked:shell.audActivate(ait.index) }
                         } }
                 }
@@ -1230,7 +1281,8 @@ Rectangle {
                                 color:foc?canvas.acc:(modelData.k==="shift"&&shell.oskShift?"#5991a9c2":"#1affffff")
                                 border.width:foc?0:1; border.color:"#3391a9c2"; scale:foc?1.06:1
                                 Behavior on scale { NumberAnimation { duration:100 } }
-                                Text { anchors.centerIn:parent; text:kk.modelData.t; color:kk.foc?"#14211a":"#f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:kk.modelData.k==="ch"?24:17 }
+                                LucideIcon { anchors.centerIn: parent; visible: name !== ""; name: kk.modelData.k === "shift" ? "arrow-up" : kk.modelData.k === "back" ? "delete" : ""; color: kk.foc ? "#14211a" : "#f3efe3" }
+                                Text { anchors.centerIn:parent; visible: kk.modelData.k !== "shift" && kk.modelData.k !== "back"; text:kk.modelData.t; color:kk.foc?"#14211a":"#f3efe3"; font.family:canvas.hud; font.weight:Font.DemiBold; font.pixelSize:kk.modelData.k==="ch"?24:17 }
                                 MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{shell.oskR=kbRow.index;shell.oskC=kk.index;shell.oskPress()} }
                             } }
                     } }
@@ -1243,6 +1295,7 @@ Rectangle {
                         } }
                 }
             }
+        }
         }
         // «EN EJECUCIÓN»: bloquea ratón, teclado y mando de la estantería mientras el juego sigue abierto; se quita sola al cerrarlo.
         Item { id:runLayer; anchors.fill:parent; z:40; visible:shell.sectionMode !== "full" && shell.runningGame!==null&&!shell.runIgnored
@@ -1261,19 +1314,99 @@ Rectangle {
                     MouseArea { anchors.fill:parent; anchors.margins:-10; cursorShape:Qt.PointingHandCursor; onClicked:shell.runIgnored=true } }
             }
         }
-        Item { anchors.fill:parent;z:35;visible:contextOpen
-            MouseArea { anchors.fill:parent;acceptedButtons:Qt.LeftButton|Qt.RightButton;onClicked:shell.contextOpen=false }
-            Rectangle { id:ctx; width:360;height:shell.contextItems.length*50+28;radius:20
-                x:contextPoint.x<0?560:Math.max(20,Math.min(1920-width-20,contextPoint.x)); y:contextPoint.y<0?470:Math.max(100,Math.min(canvas.height-height-130,contextPoint.y))
-                color:"#ff141a23";border.width:1;border.color:"#637d99"
-                MouseArea { anchors.fill:parent;acceptedButtons:Qt.AllButtons }
-                Column { x:12;y:14;width:parent.width-24
-                    Repeater { model:shell.contextItems;delegate:Rectangle { required property var modelData;required property int index;height:50;width:parent.width;radius:14
-                        color:index===shell.contextIndex?canvas.acc:(hover.containsMouse?"#1fffffff":"transparent")
-                        Kirigami.Icon { x:16;anchors.verticalCenter:parent.verticalCenter;width:22;height:22;source:modelData.icon;isMask:true;color:index===shell.contextIndex?canvas.brandInk:canvas.ink }
-                        Text { x:56;anchors.verticalCenter:parent.verticalCenter;text:modelData.label;color:index===shell.contextIndex?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:18 }
-                        MouseArea { cursorShape: Qt.PointingHandCursor; id:hover;anchors.fill:parent;hoverEnabled:true;onEntered:shell.contextIndex=index;onClicked:shell.activateContext(index) }
-                    } }
+        Item {
+            anchors.fill: parent
+            z: 35
+            visible: shell.contextOpen && shell.contextItems.length > 0
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: shell.contextOpen = false
+            }
+            Item {
+                id: contextPanel
+                width: 432
+                height: contextRows.implicitHeight + 40
+                x: Math.max(16, Math.min(parent.width - width - 16,
+                    shell.contextPoint.x < 0 ? 560 : shell.contextPoint.x))
+                y: Math.max(16, Math.min(parent.height - height - 24,
+                    shell.contextPoint.y < 0 ? 470 : shell.contextPoint.y))
+
+                FrostedSurface {
+                    anchors.fill: parent
+                    backdrop: contextScene
+                    backdropRect: Qt.rect(contextPanel.x, contextPanel.y, width, height)
+                    tint: "#ed111a24"
+                    radius: 23
+                    feather: 1
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 23
+                    color: "transparent"
+                    border.color: "#62778b"
+                    border.width: 1
+                }
+                MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
+                Column {
+                    id: contextRows
+                    x: 17; y: 20; width: parent.width - 34
+                    spacing: 3
+                    Repeater {
+                        model: shell.contextItems
+                        delegate: Column {
+                            id: entry
+                            required property var modelData
+                            required property int index
+                            readonly property bool destructive: index === 6
+                            width: contextRows.width
+                            spacing: 5
+
+                            Rectangle {
+                                visible: entry.index === 1 || entry.index === 4 || entry.destructive || entry.index === 7
+                                width: parent.width; height: 1
+                                color: "#3e5368"
+                            }
+                            Text {
+                                visible: entry.destructive
+                                leftPadding: 63; topPadding: 7
+                                text: "Acción destructiva"
+                                color: "#e3867e"
+                                font.family: canvas.body
+                                font.pixelSize: 17
+                            }
+                            Rectangle {
+                                width: parent.width; height: entry.index === 0 ? 46 : 43
+                                radius: entry.index === 0 ? height / 2 : 12
+                                color: entry.index === 0 ? (shell.contextIndex === 0 ? canvas.acc : Qt.darker(canvas.acc, 1.22))
+                                    : shell.contextIndex === entry.index ? (entry.destructive ? "#463039" : "#2b4156") : "transparent"
+
+                                LucideIcon {
+                                    x: 20; width: 22; height: 22
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    name: entry.modelData.icon
+                                    color: entry.destructive ? "#ee9289" : canvas.ink
+                                }
+                                Text {
+                                    x: 63; width: parent.width - x - 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: entry.modelData.label
+                                    elide: Text.ElideRight
+                                    color: entry.destructive ? "#ee9289" : canvas.ink
+                                    font.family: canvas.body
+                                    font.pixelSize: 21
+                                    font.weight: entry.index === 0 || entry.destructive ? Font.DemiBold : Font.Normal
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onEntered: shell.contextIndex = entry.index
+                                    onClicked: shell.activateContext(entry.index)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1284,6 +1417,15 @@ Rectangle {
             modal: true
             title: "Desvincular juego de Omnia"
             standardButtons: Dialog.Cancel | Dialog.Yes
+            onOpened: {
+                const cancel = standardButton(Dialog.Cancel)
+                const confirm = standardButton(Dialog.Yes)
+                cancel.icon.source = Qt.resolvedUrl("images/lucide/x.svg")
+                confirm.icon.source = Qt.resolvedUrl("images/lucide/trash-2.svg")
+                confirm.text = "Desvincular"
+                cancel.forceActiveFocus()
+            }
+            onClosed: shell.restoreControllerFocus()
             contentItem: Label {
                 text: unlinkDialog.game
                     ? "Se quitará «" + unlinkDialog.game.name + "» de tu biblioteca y de los datos de Omnia asociados. Sus archivos no se borrarán. Si Omnia lo detectó desde un launcher, no volverá a aparecer mientras siga instalado."
@@ -1296,11 +1438,11 @@ Rectangle {
             onAccepted: {
                 if (!game) return
                 const target = game
-                shell.api.removeGame(target, function(status, body) {
+                api.removeGame(target, function(status, body) {
                     if (status === 200) {
                         if (shell.selectedId === target.id) shell.selectedId = ""
-                        shell.api.toast = "«" + target.name + "» se quitó de Omnia. Sus archivos siguen en el disco."
-                    } else shell.api.toast = (body && body.error) || "No se pudo desvincular el juego."
+                        api.toast = "«" + target.name + "» se quitó de Omnia. Sus archivos siguen en el disco."
+                    } else api.toast = (body && body.error) || "No se pudo desvincular el juego."
                 })
                 game = null
             }
@@ -1350,7 +1492,7 @@ Rectangle {
                         }
                         Rectangle { anchors.fill:parent;radius:11;color:"transparent";border.width:artTile.focused?3:(artTile.modelData.cur||shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?2:1);border.color:artTile.focused?canvas.brand:(shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?canvas.brand:(artTile.modelData.cur?"#7fd99a":"#394656")) }
                         Rectangle { visible:artTile.modelData.cur===true;anchors.left:parent.left;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:"#7fd99a";width:usedText.implicitWidth+16
-                            Text { id:usedText;anchors.centerIn:parent;text:"✓ EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
+                            Text { id:usedText;anchors.centerIn:parent;text:"EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
                         }
                         Rectangle { visible:shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:canvas.brand;width:selText.implicitWidth+16
                             Text { id:selText;anchors.centerIn:parent;text:"SELECCIONADO";color:canvas.brandInk;font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
@@ -1386,7 +1528,7 @@ Rectangle {
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&!!(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
             }
             Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
-                Text { anchors.centerIn:parent;text:"×";color:canvas.ink;font.pixelSize:20 }
+                LucideIcon { anchors.centerIn: parent; name: "x"; color: canvas.ink }
                 MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;enabled:!shell.artApplying;onClicked:shell.closeArt() }
             }
         }

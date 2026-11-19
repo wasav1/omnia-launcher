@@ -159,7 +159,7 @@ public:
         auto layout=new QVBoxLayout(this);layout->setContentsMargins(0,0,0,0);
         auto label=new QLabel(saved?"Se encontró una clave guardada. Se comprobará sin mostrarla. Déjala vacía para conservarla.":"Introduce tu clave API de SteamGridDB (opcional).");label->setWordWrap(true);layout->addWidget(label);
         input=new QLineEdit;input->setEchoMode(QLineEdit::Password);input->setPlaceholderText(saved?"Nueva clave, solo si necesitas reemplazarla":"Clave API");layout->addWidget(input);
-        validate=new QPushButton(saved?"Comprobar conexión / validar nueva clave":"Validar clave");layout->addWidget(validate);
+        validate=new QPushButton(lucideIcon("key-round"),saved?"Comprobar conexión / validar nueva clave":"Validar clave");layout->addWidget(validate);
         status=new QLabel(saved?"Conexión pendiente de comprobar.":"Puedes configurar el arte más adelante.");status->setWordWrap(true);layout->addWidget(status);
         defer=new QCheckBox("Configurar SteamGridDB después (continuar sin validar)");layout->addWidget(defer);
         connect(validate,&QPushButton::clicked,this,[this]{check(input->text().trimmed().isEmpty()&&saved);});

@@ -209,6 +209,12 @@ def logo_path():
     return str(next((p for p in candidates if p.is_file()), candidates[0]))
 
 
+def release_label(path):
+    value = load_json(path, {})
+    label = value.get('label') if isinstance(value, dict) else None
+    return label if isinstance(label, str) and label else None
+
+
 def main():
     mode = sys.argv[1]
     if mode == '--inspect':
@@ -220,6 +226,8 @@ def main():
                           'themes': THEMES,
                           'steam_libraries': [str(p.parent) for r in steam_roots() for p in library_dirs(r)],
                           'logo': logo_path(),
+                          'installed_version': release_label(paths.data_dir() / 'installer/release.json'),
+                          'available_version': release_label(Path(__file__).parent / 'release.json'),
                           'installed': (paths.config_dir() / 'library.json').exists() or (paths.data_dir() / 'installer/omnia-installer').exists(),
                           'linked_roots': roots,
                           'mangohud_available': shutil.which('mangohud') is not None,

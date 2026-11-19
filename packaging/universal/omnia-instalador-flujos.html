@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#080d13">
+<meta name="description" content="Vista interactiva de los flujos de instalación, actualización, configuración y desinstalación de Omnia Desktop Suite.">
 <title>Omnia · Instalador de escritorio</title>
 <style>
 :root{
@@ -56,6 +57,7 @@ body::after{
   mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 72%);
 }
 ::selection{background:var(--accent);color:var(--accent-ink)}
+input[type="checkbox"],input[type="radio"]{accent-color:var(--accent)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 a{color:var(--accent-2)}
@@ -75,12 +77,12 @@ a{color:var(--accent-2)}
 .brand b{display:block;letter-spacing:.22em;font-size:17px;line-height:1;font-weight:750}
 .brand small{display:block;margin-top:6px;color:var(--dim);font-size:9px;letter-spacing:.16em;font-weight:650}
 .machine{
-  order:2;display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--ok);
-  border:1px solid color-mix(in srgb,var(--ok) 32%,transparent);
-  background:color-mix(in srgb,var(--ok) 8%,transparent);
+  order:2;display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--accent-2);
+  border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);
+  background:var(--accent-soft);
   border-radius:99px;padding:8px 12px;white-space:nowrap;
 }
-.machine::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);flex:none}
+.machine::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);flex:none}
 .modes{
   order:3;margin-left:auto;display:flex;gap:4px;padding:5px;
   background:rgba(3,8,13,.56);border:1px solid var(--line);border-radius:14px;
@@ -188,6 +190,12 @@ a{color:var(--accent-2)}
 .req:last-child{border:0}
 .req b{color:var(--text);font-weight:600;flex:none}
 .req .check{color:var(--ok)}
+details summary{cursor:pointer;color:var(--accent-2);font-size:12px;font-weight:600;width:max-content;max-width:100%}
+details summary::marker{color:var(--accent)}
+details[open] summary{margin-bottom:4px}
+.consentrow{margin-top:14px;padding-top:13px;border-top:1px solid rgba(255,255,255,.08);color:var(--text);font-size:12px;font-weight:500}
+.consentrow label{display:flex;align-items:flex-start;gap:9px;cursor:pointer}
+.consentrow input{margin-top:2px;flex:none}
 .note{
   padding:13px 15px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;
   color:var(--muted);font-size:11.5px;margin-top:15px;background:var(--accent-soft);line-height:1.5;
@@ -312,22 +320,25 @@ code{font-family:var(--mono);font-size:.92em;background:rgba(255,255,255,.06);bo
   .steps{display:flex;gap:4px;overflow:auto;padding:0 0 8px;scrollbar-width:thin}
   .rail-head,.rail-progress{display:none}
   .step{flex:1;min-width:152px;margin:0}
-  .side-card{margin-top:10px}
+  .side-card{display:none}
   .top::after{width:130px}
 }
-@media(max-width:820px){
-  .app{padding:18px 18px 128px}
+@media(max-width:1040px){
   .top{flex-wrap:wrap;gap:12px}
   .brand{min-width:0}
   .machine{margin-left:auto;order:2}
   .modes{order:3;width:100%;overflow:auto;margin-left:0}
   .modes button{flex:1;padding:9px 10px}
+}
+@media(max-width:820px){
+  .app{padding:18px 18px 128px}
   .grid2,.grid3,.hero-stats{grid-template-columns:1fr}
   .settingsgrid{display:block}
   .settingnav{display:flex;overflow:auto;border-bottom:1px solid var(--line);margin-bottom:14px;gap:4px}
   .settingnav button{white-space:nowrap;border-radius:9px 9px 0 0;border-bottom:2px solid transparent}
   .settingnav button.active{border-bottom-color:var(--accent)}
   .themes{grid-template-columns:repeat(2,1fr)}
+  .table{min-width:720px}
   .footer{padding:11px 18px}
   .footer .footinfo{max-width:46%}
 }
@@ -338,14 +349,23 @@ code{font-family:var(--mono);font-size:.92em;background:rgba(255,255,255,.06);bo
   .brand small{font-size:8px}
   .title{font-size:30px}
   .lead{font-size:13.5px}
-  .modes button{font-size:11px;gap:5px}
+  .modes{display:grid;grid-template-columns:1fr 1fr;overflow:visible}
+  .modes button{font-size:11px;gap:5px;width:100%}
   .modes button::before{display:none}
   .machine{font-size:10px;padding:6px 9px}
+  .hero-stats{grid-template-columns:1fr 1fr}
+  .hero-stats .stat:last-child{grid-column:1/-1}
+  .steps{display:block;overflow:visible;padding:0 0 8px}
+  .rail-head{display:flex}
+  .rail-progress{display:block}
+  .step{display:none}
+  .step.active{display:flex;width:100%;min-width:0;margin:0}
   .footer{padding:10px 14px;flex-wrap:wrap}
   .footer .footinfo{width:100%;max-width:none;order:3;font-size:10px}
   .footer .btn{flex:1;min-width:0}
-  .volume{grid-template-columns:22px 1fr auto}
-  .volume .badge{grid-column:2}
+  .toast{left:14px;right:14px;bottom:132px;max-width:none}
+  .volume{grid-template-columns:22px minmax(0,1fr)}
+  .volume .badge{grid-column:2;justify-self:start}
   .route{grid-template-columns:22px 1fr auto}
   .modal{padding:18px}
   .update-box{gap:10px}
@@ -397,7 +417,7 @@ code{font-family:var(--mono);font-size:.92em;background:rgba(255,255,255,.06);bo
   <div class="modalfoot"><button class="btn" data-close="candidateModal">Cancelar</button><button class="btn primary" id="confirmCandidates">Confirmar selección</button></div>
 </div></div>
 
-<div class="modalback" id="confirmModal" role="dialog" aria-modal="true"><div class="modal" style="max-width:560px"><div class="modalhead"><div><p class="kicker">Confirmación</p><h2 id="confirmTitle">Confirmar</h2></div><button class="modalclose" data-close="confirmModal">Cerrar</button></div><div id="confirmBody" class="card"></div><div class="modalfoot"><button class="btn" data-close="confirmModal">Volver</button><button class="btn danger" id="confirmAction">Confirmar</button></div></div></div>
+<div class="modalback" id="confirmModal" role="dialog" aria-modal="true"><div class="modal" style="max-width:560px"><div class="modalhead"><div><p class="kicker">Confirmación</p><h2 id="confirmTitle">Confirmar</h2></div><button class="modalclose" data-close="confirmModal">Cerrar</button></div><div id="confirmBody" class="card"></div><div class="modalfoot"><button class="btn" data-close="confirmModal">Volver</button><button class="btn primary" id="confirmAction">Confirmar</button></div></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -420,7 +440,7 @@ function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');se
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function showModal(id){$('#'+id).classList.add('open')};function closeModal(id){$('#'+id).classList.remove('open')}
 function stepList(){if(mode==='install')return stepsNew;if(mode==='update')return stepsUpdate;return []}
-function setMode(m){mode=m;step=0;installState='ready';document.documentElement.dataset.mode=m;$$('.modes button').forEach(b=>{const on=b.dataset.mode===m;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});render()}
+function setMode(m){mode=m;step=0;installState='ready';document.documentElement.dataset.mode=m;closeModal('candidateModal');closeModal('confirmModal');$$('.modes button').forEach(b=>{const on=b.dataset.mode===m;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});render()}
 function header(k,title,lead){return `<header class="page-head"><p class="kicker">${k}</p><h1 class="title">${title}</h1><p class="lead">${lead}</p></header>`}
 const ico=(name)=>{let p={monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',disk:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 7c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',folder:'<path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',game:'<path d="M6 10h12l2 8a2 2 0 0 1-3.2 1.6L13 17h-2l-3.8 2.6A2 2 0 0 1 4 18z"/><path d="M8 13v4m-2-2h4m6-1h.01M18 16h.01"/>',palette:'<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 1.5-3.3c-.6-.7-.1-1.7.8-1.7H18a3 3 0 0 0 3-3c0-5-4-10-9-10z"/><path d="M7.5 10h.01M10 7.5h.01M14 7.5h.01M17 10h.01"/>',check:'<path d="m5 12.5 4.5 4.5L19 7"/>',shield:'<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"/><path d="m9 12 2 2 4-4"/>',image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"/>',play:'<path d="m7 4 14 8-14 8z"/>',info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v5m0-8h.01"/>'};return `<span class="icon"><svg viewBox="0 0 24 24">${p[name]||p.info}</svg></span>`};
 function render(){
@@ -436,10 +456,10 @@ function render(){
       :`<div class="side-kicker">Instalación segura</div><p>Todo se instala en tu usuario, sin tocar el sistema.</p><ul class="side-list"><li>Archivos en ~/.local</li><li>Configuración en ~/.config</li><li>Sin permisos de administrador</li></ul>`;
     $$('.step').forEach(b=>b.onclick=()=>{const n=+b.dataset.step;if(n<=step)step=n;render()});
   }else if(mode==='settings'){
-    nav.innerHTML=`<div class="rail-head"><span>Configuración</span><b>6<small> áreas</small></b></div><div class="rail-progress"><i style="width:100%"></i></div><div class="side-note">Los ajustes se guardan en tu usuario y se aplican al núcleo de Omnia.</div>`;
+    nav.innerHTML=`<div class="rail-head"><span>Configuración</span><b>6<small> áreas</small></b></div><div class="rail-progress"><i style="width:100%"></i></div>`;
     side.innerHTML=`<div class="side-kicker">Ajustes guardados</div><p>Administra bibliotecas, monitor, apariencia y SteamGridDB sin reinstalar.</p><ul class="side-list"><li>Cambios reversibles</li><li>Sin sudo</li><li>Se aplican al instante</li></ul>`;
   }else{
-    nav.innerHTML=`<div class="rail-head"><span>Desinstalación</span><b>1<small>/1</small></b></div><div class="rail-progress"><i style="width:100%"></i></div><div class="side-note">Esta acción elimina los datos de Omnia de este usuario.</div>`;
+    nav.innerHTML=`<div class="rail-head"><span>Desinstalación</span><b>1<small>/1</small></b></div><div class="rail-progress"><i style="width:100%"></i></div>`;
     side.innerHTML=`<div class="side-kicker">Antes de continuar</div><p>Los juegos, ROMs, emuladores y partidas no se tocan. Solo se retira Omnia.</p><ul class="side-list"><li>Se conserva tu biblioteca de juegos</li><li>Se conserva el wallpaper anterior si existe</li><li>Puedes volver a instalar cuando quieras</li></ul>`;
   }
   const main=$('#content');main.innerHTML=mode==='install'?newPage():mode==='update'?updatePage():mode==='settings'?settingsPage():uninstallPage();
@@ -447,10 +467,10 @@ const footer=$('#footer');footer.classList.remove('hidden');if(mode==='settings'
 wire();}
 function newPage(){switch(step){case 0:return `<section class="pane active">${header('Paso 1 · Bienvenida','Bienvenido a Omnia Desktop Suite','Tu escritorio de juegos para KDE Plasma 6. Antes de aplicar cambios, revisa el alcance y acepta la instalación.')}
 <div class="summarybar hero-stats"><div class="stat"><b>~/.local</b>instalación de usuario</div><div class="stat"><b>Sin sudo</b>salvo dependencias</div><div class="stat"><b>Plasma 6</b>Wayland / X11</div></div>
-<div class="grid2"><div class="card feature">${ico('game')}<div><h3>Tu biblioteca, reunida</h3><p>Steam, ports y emuladores en un mismo escritorio.</p></div></div><div class="card feature">${ico('image')}<div><h3>Un fondo para cada juego</h3><p>Arte de SteamGridDB y un fondo con movimiento.</p></div></div></div>
-<h2 class="section-title">Antes de empezar</h2><div class="card"><p>Omnia se instala en tu usuario. Configura el wallpaper, el widget, las bibliotecas y las integraciones de escritorio. Al aplicar, Plasma puede reiniciarse unos segundos. Los juegos y partidas permanecen en sus carpetas.</p><details style="margin-top:12px"><summary>Ver todos los cambios de instalación</summary><div class="req"><span class="check">✓</span><span>Archivos de Omnia en <code>~/.local/share/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Configuración personal en <code>~/.config/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Widget de biblioteca, wallpaper animado y servicios de usuario</span></div><div class="req"><span class="check">✓</span><span>Integraciones que requieren autorización se pedirán mediante KDE/Polkit</span></div></details></div>
+<h2 class="section-title">Qué incluye</h2><div class="grid2"><div class="card feature">${ico('game')}<div><h3>Tu biblioteca, reunida</h3><p>Steam, ports y emuladores en un mismo escritorio.</p></div></div><div class="card feature">${ico('image')}<div><h3>Un fondo para cada juego</h3><p>Arte de SteamGridDB y un fondo con movimiento.</p></div></div></div>
+<h2 class="section-title">Antes de empezar</h2><div class="card"><p>Omnia se instala en tu usuario. Configura el wallpaper, el widget, las bibliotecas y las integraciones de escritorio. Al aplicar, Plasma puede reiniciarse unos segundos. Los juegos y partidas permanecen en sus carpetas.</p><details style="margin-top:12px"><summary>Ver todos los cambios de instalación</summary><div class="req"><span class="check">✓</span><span>Archivos de Omnia en <code>~/.local/share/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Configuración personal en <code>~/.config/omnia</code></span></div><div class="req"><span class="check">✓</span><span>Widget de biblioteca, wallpaper animado y servicios de usuario</span></div><div class="req"><span class="check">✓</span><span>Integraciones que requieren autorización se pedirán mediante KDE/Polkit</span></div></details><div class="consentrow"><label><input type="checkbox" id="consent">He leído y acepto los cambios en mi sesión de KDE Plasma.</label></div></div>
 <h2 class="section-title">Comprobaciones del equipo</h2><div class="grid2"><div class="card feature">${ico('monitor')}<div><h3>KDE Plasma 6</h3><p>Compatibilidad de sesión y Wayland/X11: se detecta durante la ejecución.</p></div><span class="badge ok">Comprobar</span></div><div class="card feature">${ico('shield')}<div><h3>Dependencias</h3><p>Paquetes, Python, Qt y systemd disponibles en esta distribución.</p></div><span class="badge">Pendiente</span></div></div>
-<div class="note">Esta vista es una maqueta navegable. Las comprobaciones y datos reales los aporta el instalador al ejecutarse en el equipo.</div><div class="card"><label><input type="checkbox" id="consent"> He leído y acepto los cambios en mi sesión de KDE Plasma.</label></div></section>`;
+<div class="note">Esta vista es una maqueta navegable. Las comprobaciones y datos reales los aporta el instalador al ejecutarse en el equipo.</div></section>`;
 case 1:return `<section class="pane active">${header('Paso 2 · Bibliotecas','Escanear discos','Selecciona los discos que contienen juegos. El escaneo busca ports del catálogo Omnia y ROM de N64; todavía no vincula ni desvincula nada.')}
 <h2 class="section-title">Discos y particiones disponibles</h2><div class="note">Unidades de ejemplo para mostrar el flujo. El instalador real obtiene la lista del sistema.</div>
 ${[['/var/home','Sistema · Btrfs · disponible'],['/run/media/wsaenz/Juegos','Juegos · Btrfs · disponible'],['/mnt/backup','Respaldo · NTFS · disponible']].map((v,i)=>`<label class="volume"><input type="checkbox" ${i<2?'checked':''}><span><span class="volpath">${v[0]}</span><br><span class="volmeta">${v[1]}</span></span><span class="badge">${i===0?'Sistema':'Montado'}</span><span class="badge ${scanned?'ok':''}">${scanned?(i===1?'18 candidatos':'1 biblioteca Steam'):'Sin escanear'}</span></label>`).join('')}
@@ -497,11 +517,11 @@ $$('.switch').forEach(b=>b.onclick=()=>{b.classList.toggle('on');settingsDirty=t
 $$('[data-setting]').forEach(b=>b.onclick=()=>{settingsTab=b.dataset.setting;render()});$$('[data-sub]').forEach(b=>b.onclick=()=>{settingsSub=+b.dataset.sub;render()});
 $('#addRoot')?.addEventListener('click',()=>{const p=prompt('Ruta de carpeta (ejemplo):','~/Juegos/Otros');if(p){roots.push({path:p,info:'Por analizar'});settingsDirty=true;render()}});$('#removeRoot')?.addEventListener('click',()=>{const selected=$('input[name="root"]:checked');if(!selected){toast('Selecciona una carpeta primero.');return}const rows=$$('#roots .route');const index=rows.findIndex(r=>r.contains(selected));if(index>=0){roots.splice(index,1);settingsDirty=true;render()}});
 $('#reviewCandidates')?.addEventListener('click',openCandidates);if($('#candidateSearch'))$('#candidateSearch').oninput=filterCandidates;$$('[data-close]').forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
-$('#confirmCandidates').onclick=()=>{const selected=Object.entries(candidateChoice).filter(([,v])=>v).map(([i])=>sampleCandidates[+i]);const missing=Object.entries(candidateChoice).some(([i,v])=>v&&sampleCandidates[+i].kind==='rom'&&!document.querySelector(`tr[data-candidate="${i}"] .emulator`)?.value.trim());if(missing){$('#confirmTitle').textContent='Falta indicar el emulador';$('#confirmBody').innerHTML='<p>Completa el emulador de cada ROM marcada. La selección se conserva mientras vuelves a la tabla.</p>';$('#confirmAction').textContent='Volver a revisar';$('#confirmAction').onclick=()=>closeModal('confirmModal');showModal('confirmModal');return}if(selected.some(c=>c.kind==='rom')){ $('#confirmTitle').textContent='Comprobar complementos';$('#confirmBody').innerHTML='<p>Se comprobarían Gopher64 y los complementos requeridos. Si falta alguno, el instalador muestra el diagnóstico y conserva esta selección.</p>';$('#confirmAction').textContent='Entendido';$('#confirmAction').onclick=()=>{closeModal('confirmModal');closeModal('candidateModal');toast(`${selected.length} candidatos seleccionados (vista de ejemplo).`)};showModal('confirmModal');return}closeModal('candidateModal');toast(`${selected.length} candidatos seleccionados (vista de ejemplo).`)};
+$('#confirmCandidates').onclick=()=>{const selected=Object.entries(candidateChoice).filter(([,v])=>v).map(([i])=>sampleCandidates[+i]);const missing=Object.entries(candidateChoice).some(([i,v])=>v&&sampleCandidates[+i].kind==='rom'&&!document.querySelector(`tr[data-candidate="${i}"] .emulator`)?.value.trim());if(missing){$('#confirmTitle').textContent='Falta indicar el emulador';$('#confirmBody').innerHTML='<p>Completa el emulador de cada ROM marcada. La selección se conserva mientras vuelves a la tabla.</p>';$('#confirmAction').textContent='Volver a revisar';$('#confirmAction').onclick=()=>closeModal('confirmModal');showModal('confirmModal');return}if(selected.some(c=>c.kind==='rom')){ $('#confirmTitle').textContent='Comprobar complementos';$('#confirmBody').innerHTML='<p>Se comprobarían Gopher64 y los complementos requeridos. Si falta alguno, el instalador muestra el diagnóstico y conserva esta selección.</p>';$('#confirmAction').textContent='Entendido';$('#confirmAction').onclick=()=>{closeModal('confirmModal');closeModal('candidateModal');toast(`${selected.length} ${selected.length===1?'candidato seleccionado':'candidatos seleccionados'} (vista de ejemplo).`)};showModal('confirmModal');return}closeModal('candidateModal');toast(`${selected.length} ${selected.length===1?'candidato seleccionado':'candidatos seleccionados'} (vista de ejemplo).`)};
 $('#validateKey')?.addEventListener('click',()=>{const key=$('#apiKey').value.trim();$('#keyState').textContent=key?'Resultado de validación de ejemplo · el backend real consulta SteamGridDB':'No hay clave nueva · se conserva la guardada';$('#keyState').className='badge '+(key?'ok':'')});$('#validateUpdate')?.addEventListener('click',()=>{$('#updateKeyState').textContent=$('#updateKey').value.trim()?'Validación de ejemplo':'Conexión guardada sin validar';$('#updateKeyState').className='badge '+($('#updateKey').value.trim()?'ok':'')});$('#settingsValidate')?.addEventListener('click',()=>toast('La validación real se hace en el instalador de Omnia.'));
 $('#settingsScan')?.addEventListener('click',()=>{$('#settingsScanResult').innerHTML='<h3>Escaneo completado · ejemplo</h3><p>Ports del catálogo y ROM de N64 detectadas. Continúa a Carpetas y vínculos para revisar la selección.</p>';toast('Escaneo ilustrativo listo.')});
 $('#applySettings')?.addEventListener('click',()=>{settingsDirty=false;toast('Vista de demostración: estos cambios no se guardan.') ;render()});$('#closeSettings')?.addEventListener('click',()=>toast('Cerrando la vista de Ajustes.'));$('#goUninstall')?.addEventListener('click',()=>setMode('uninstall'));
-$('#confirmUninstall')?.addEventListener('change',e=>{$('#uninstallBtn').disabled=!e.target.checked});$('#uninstallBtn')?.addEventListener('click',()=>{if(!$('#confirmUninstall').checked)return;$('#uninstallStatus').textContent='Desinstalando…';$('#uninstallBtn').disabled=true;setTimeout(()=>{$('#uninstallStatus').textContent='Simulación completada · juegos y partidas conservados';toast('Vista previa: no se borró ningún archivo.')},900)});
+$('#confirmUninstall')?.addEventListener('change',e=>{$('#uninstallBtn').disabled=!e.target.checked;$('#uninstallStatus').textContent=e.target.checked?'Listo para desinstalar':'Esperando confirmación';$('#uninstallStatus').className='badge '+(e.target.checked?'warn':'')});$('#uninstallBtn')?.addEventListener('click',()=>{if(!$('#confirmUninstall').checked)return;$('#uninstallStatus').textContent='Desinstalando…';$('#uninstallStatus').className='badge warn';$('#uninstallBtn').disabled=true;setTimeout(()=>{$('#uninstallStatus').textContent='Simulación completada · juegos y partidas conservados';$('#uninstallStatus').className='badge ok';toast('Vista previa: no se borró ningún archivo.')},900)});
 $('#toggleLog')?.addEventListener('click',()=>{$('#log')?.classList.toggle('show');window.logOpen=$('#log')?.classList.contains('show');$('#toggleLog').textContent=window.logOpen?'Ocultar detalles de instalación':'Mostrar detalles de instalación'});
 }
 function openCandidates(){candidateChoice={};$('#candidateRows').innerHTML=sampleCandidates.map((c,i)=>`<tr data-candidate="${i}"><td><input type="checkbox" data-choice="${i}" ${candidateChoice[i]?'checked':''} aria-label="Seleccionar"></td><td>${esc(c.name)} ${c.linked?'<span class="badge blue">Vinculado</span>':''}</td><td>${esc(c.type)}</td><td><select class="input">${[c.file,c.file.replace('/juegos/','/run/media/Juegos/')].map(f=>`<option>${esc(f)}</option>`).join('')}</select></td><td>${c.kind==='rom'?`<input class="input emulator" value="${esc(c.emulator)}" placeholder="gopher64 o /ruta/emulador">`:'<span class="badge">No aplica</span>'}</td></tr>`).join('');$$('[data-choice]').forEach(b=>b.onchange=()=>{candidateChoice[b.dataset.choice]=b.checked;updateCandidateCount()});$('#candidateRows').oninput=updateCandidateCount;updateCandidateCount();showModal('candidateModal')}
