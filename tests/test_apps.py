@@ -16,8 +16,8 @@ def desktop(d: Path, fname: str, **kw):
     f = Path(d) / fname
     f.parent.mkdir(parents=True, exist_ok=True)
     fields = {"Type": "Application", "Name": "App", "Exec": "app %u", **kw}
-    f.write_text("[Desktop Entry]\n" + "\n".join("%s=%s" % (k.replace("__", "["), v) if "__" not in k else
-                 "%s]=%s" % (k.replace("__", "["), v) for k, v in fields.items()) + "\n")
+    f.write_text("[Desktop Entry]\n" + "\n".join("{}={}".format(k.replace("__", "["), v) if "__" not in k else
+                 "{}]={}".format(k.replace("__", "["), v) for k, v in fields.items()) + "\n")
 
 
 class Catalogo(unittest.TestCase):
@@ -99,13 +99,13 @@ class ApiApps(unittest.TestCase):
         self.launched = []
         self.token = security.new_token(self.tmp / "run")
         self.store = Store(self.tmp / "cfg")
-        self.api = Api(self.store, self.token, [], catalog=apps.Catalog([self.apps_dir]), scan_fn=lambda: [],
+        self.api = Api(self.store, self.token, [], catalog=apps.Catalog([self.apps_dir]), scan_fn=list,
                        app_launch_fn=lambda a: self.launched.append(a.id))
         self.api.serve()
         self.addCleanup(self.api.stop)
 
     def call(self, path, method="GET", token=True):
-        r = urllib.request.Request("http://127.0.0.1:%d%s" % (self.api.port, path), method=method, data=b"{}" if method == "POST" else None)
+        r = urllib.request.Request(f'http://127.0.0.1:{self.api.port:d}{path}', method=method, data=b"{}" if method == "POST" else None)
         if token:
             r.add_header("Authorization", "Bearer " + self.token)
         try:

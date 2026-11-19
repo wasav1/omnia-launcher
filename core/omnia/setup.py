@@ -11,9 +11,6 @@ Un paquete de pacman no puede hacer esto (corre como root, sin sesión): se ejec
 Códigos de salida: 0 correcto · 2 error · 3 falta consentimiento (sin terminal y sin --yes).
 """
 import argparse
-import json
-import re
-import shutil
 import subprocess
 import sys
 import time
@@ -44,11 +41,11 @@ class KdeBackend:
 
     def _run(self, *cmd) -> str:
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            p = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=15)
         except (OSError, subprocess.TimeoutExpired) as e:
-            raise SetupError("no se pudo ejecutar %s: %s" % (cmd[0], e))
+            raise SetupError(f"no se pudo ejecutar {cmd[0]}: {e}")
         if p.returncode != 0:
-            raise SetupError("%s falló: %s" % (" ".join(cmd[:3]), (p.stderr or p.stdout).strip()))
+            raise SetupError("{} falló: {}".format(" ".join(cmd[:3]), (p.stderr or p.stdout).strip()))
         return p.stdout.strip()
 
     def _accel(self, method: str, *args) -> str:
@@ -71,7 +68,7 @@ class KdeBackend:
     def action_exists(self, action) -> bool:
         out = self._run("busctl", "--user", "call", "org.kde.kglobalaccel", "/component/" + action[0],
                         "org.kde.kglobalaccel.Component", "shortcutNames")
-        return '"%s"' % action[1] in out
+        return f'"{action[1]}"' in out
 
     def plugin_enabled(self, name: str) -> bool:
         return self._run("kreadconfig6", "--file", "kwinrc", "--group", "Plugins", "--key", name + "Enabled") == "true"
@@ -110,7 +107,7 @@ def plan(be, config: Path) -> list:
     todo = []
     for name, label in SCRIPTS.items():
         if not be.plugin_enabled(name):
-            todo.append("Activar el script de KWin «%s»" % label)
+            todo.append(f"Activar el script de KWin «{label}»")
     if META_D in be.shortcut_keys(NATIVE):
         todo.append("Quitar Meta+D al «Mostrar escritorio» nativo de KWin (se guarda para poder restaurarlo)")
     if not be.shortcut_keys(OURS):
@@ -143,7 +140,7 @@ def apply(be, config: Path, script_src: Path | None = None, wait: float = 5.0) -
         if not be.script_installed(name):
             src = Path(script_src) / name if script_src else None
             if not src or not src.is_dir():
-                raise SetupError("el script de KWin «%s» no está instalado y no se indicó --script-src" % name)
+                raise SetupError(f"el script de KWin «{name}» no está instalado y no se indicó --script-src")
             be.install_script(src)
             backup["we_installed_script"] = True
             write_json_atomic(bf, backup)
@@ -197,7 +194,7 @@ def undo(be, config: Path) -> list:
         if not before.get(name, False) and be.plugin_enabled(name):     # lo que no estaba activo antes de Omnia se apaga
             be.set_plugin_enabled(name, False)
             turned_off = True
-            done.append("Desactivado el script de KWin «%s»" % label)
+            done.append(f"Desactivado el script de KWin «{label}»")
     if turned_off:
         be.reload_kwin()
     if be.meta_shortcut() == OMNIA_META:
@@ -248,7 +245,7 @@ def main(argv=None, backend=None, config: Path | None = None) -> int:
         print("Listo. Para revertirlo: omnia-setup --undo")
         return 0
     except SetupError as e:
-        print("Error: %s" % e, file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 2
 
 

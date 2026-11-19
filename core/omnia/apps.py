@@ -85,7 +85,7 @@ def parse_desktop(path: Path, desktop_id: str, langs=None, only_in: str = "KDE")
 
     def localized(key):
         for lg in (langs if langs is not None else locales()):
-            v = e.get("%s[%s]" % (key, lg), "")
+            v = e.get(f"{key}[{lg}]", "")
             if v:
                 return v
         return e.get(key, "")

@@ -12,7 +12,6 @@ Seguridad ante fallos (un juego que se cierra de golpe no debe dejar tu sistema 
 import logging
 import os
 import signal
-import subprocess
 import time
 from pathlib import Path
 
@@ -111,7 +110,7 @@ class HoldPower:
                                GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, 5000, None)
             self.cookie = r.unpack()[0]
             return True
-        except Exception as e:           # sin PyGObject, sin power-profiles-daemon o perfil no disponible
+        except Exception as e:  # noqa: BLE001 — integración opcional con PyGObject y D-Bus.
             log.warning("modo juego: no se pudo retener el perfil «%s»: %s", profile, e)
             return False
 
@@ -123,7 +122,7 @@ class HoldPower:
             conn = self.conn or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
             conn.call_sync("net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles",
                            "ReleaseProfile", GLib.Variant("(u)", (self.cookie,)), None, Gio.DBusCallFlags.NONE, 5000, None)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — un fallo de D-Bus no debe bloquear el cierre del juego.
             log.warning("modo juego: no se pudo soltar el perfil: %s", e)
         self.cookie = self.conn = None
 

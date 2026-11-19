@@ -15,7 +15,7 @@ def scan() -> list:
         try:
             if os.stat("/proc/" + pid).st_uid != uid:
                 continue
-            with open("/proc/%s/cmdline" % pid, "rb") as f:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
                 raw = f.read(4096)
         except OSError:
             continue

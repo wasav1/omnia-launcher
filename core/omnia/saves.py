@@ -109,10 +109,10 @@ def folder(spec) -> str:
 
 # ---------------------------------------------------------------- respaldar
 def _unique(dest: Path, label: str, stamp: str) -> Path:
-    base = dest / ("%s-%s" % (label, stamp))
+    base = dest / (f"{label}-{stamp}")
     out, n = Path(str(base) + ".tar.gz"), 1
     while out.exists():
-        out, n = Path("%s-%d.tar.gz" % (base, n)), n + 1
+        out, n = Path(f'{base}-{n:d}.tar.gz'), n + 1
     return out
 
 
@@ -130,7 +130,7 @@ def backup(spec, dest_dir, label: str, meta: dict | None = None, max_bytes: int 
     entries = []
     with tarfile.open(tmp, "w:gz") as tf:
         for i, p in enumerate(found):
-            arc = "data/%d/%s" % (i, os.path.basename(p.rstrip("/")))
+            arc = 'data/{:d}/{}'.format(i, os.path.basename(p.rstrip("/")))
             entries.append({"arc": arc, "orig": os.path.abspath(p), "kind": "dir" if os.path.isdir(p) else "file"})
             tf.add(p, arcname=arc, filter=lambda ti: None if ti.issym() or ti.islnk() else ti)   # los enlaces no se respaldan
         raw = json.dumps({"version": 1, "created": int(time.time()), "label": label, "entries": entries, **(meta or {})},
@@ -202,7 +202,7 @@ def restore(archive, spec, dest_dir, label: str) -> dict:
                     break
     safety = None
     if matches(spec):
-        safety = backup(spec, dest_dir, "%s-antes-de-restaurar" % label)
+        safety = backup(spec, dest_dir, f"{label}-antes-de-restaurar")
     n = 0
     with tarfile.open(archive, "r:gz") as tf:
         for m, target in work:

@@ -29,7 +29,10 @@ omnia_distro_detect() {
   local release ostree=0
   release="$(_omnia_distro_read_os_release)"
   OMNIA_DISTRO_ID="$(printf '%s\n' "$release" | sed -n 's/^ID="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' | head -n1)"
+  # Estos campos forman parte de la interfaz del archivo cuando otro script lo carga.
+  # shellcheck disable=SC2034
   OMNIA_DISTRO_LIKE="$(printf '%s\n' "$release" | sed -n 's/^ID_LIKE="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' | head -n1)"
+  # shellcheck disable=SC2034
   OMNIA_DISTRO_PRETTY="$(printf '%s\n' "$release" | sed -n 's/^PRETTY_NAME="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' | head -n1)"
   OMNIA_DISTRO_ID="${OMNIA_DISTRO_ID:-unknown}"
 

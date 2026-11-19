@@ -1,10 +1,10 @@
 """Prueba QML real: el widget desplazado no altera la superficie del monitor."""
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -44,6 +44,6 @@ Window {
 }
 ''')
             env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software', QT_FORCE_STDERR_LOGGING='1', QT_LOGGING_TO_CONSOLE='1')
-            result = subprocess.run(['qml6', str(root / 'test.qml')], env=env, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(['qml6', str(root / 'test.qml')], check=False, env=env, capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('geometry-ok', result.stdout + result.stderr)

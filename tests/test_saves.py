@@ -18,9 +18,9 @@ class Base(unittest.TestCase):
         self.data, self.bk = self.tmp / "datos", self.tmp / "respaldos"
 
     def slot(self, i, contenido="partida"):
-        d = self.data / "save/cuenta1" / ("slot_%02d" % i)
+        d = self.data / "save/cuenta1" / (f'slot_{i:02d}')
         d.mkdir(parents=True, exist_ok=True)
-        (d / "save.dat").write_text("%s %d" % (contenido, i))
+        (d / "save.dat").write_text(f'{contenido} {i:d}')
         return d
 
     @property
@@ -257,7 +257,7 @@ class Explorador(Base):
     def test_limite_de_entradas(self):
         for i in range(12):
             (self.tmp / "muchas").mkdir(exist_ok=True)
-            (self.tmp / "muchas" / ("d%02d" % i)).mkdir()
+            (self.tmp / "muchas" / (f'd{i:02d}')).mkdir()
         r = fsbrowse.list_dir(self.tmp / "muchas", self.roots, limit=5)
         self.assertEqual((len(r["dirs"]), r["truncated"]), (5, True))
 

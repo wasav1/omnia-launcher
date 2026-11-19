@@ -27,12 +27,12 @@ class Estado(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         token = security.new_token(tmp / "run")
-        api = Api(Store(tmp / "cfg"), token, [], scan_fn=lambda: [])
+        api = Api(Store(tmp / "cfg"), token, [], scan_fn=list)
         api.serve()
         self.addCleanup(api.stop)
 
         def call(path, method="GET"):
-            r = urllib.request.Request("http://127.0.0.1:%d%s" % (api.port, path), method=method, data=b"{}" if method == "POST" else None,
+            r = urllib.request.Request(f'http://127.0.0.1:{api.port:d}{path}', method=method, data=b"{}" if method == "POST" else None,
                                        headers={"Authorization": "Bearer " + token})
             return json.load(urllib.request.urlopen(r, timeout=5))
 
@@ -49,7 +49,7 @@ class Estado(unittest.TestCase):
 def hay_bus():
     try:
         import gi  # noqa: F401
-        return bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS") or os.path.exists("/run/user/%d/bus" % os.getuid()))
+        return bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS") or os.path.exists(f'/run/user/{os.getuid():d}/bus'))
     except ImportError:
         return False
 
@@ -58,7 +58,7 @@ def hay_bus():
 class DBus(unittest.TestCase):
     def test_setdesktop_llega_al_callback(self):
         got = []
-        name = "org.omnia.TestA%d" % os.getpid()
+        name = f'org.omnia.TestA{os.getpid():d}'
         svc = DesktopService(lambda a, c: got.append((a, c)), name=name)
         self.assertTrue(svc.start())
         self.addCleanup(svc.stop)
@@ -72,7 +72,7 @@ class DBus(unittest.TestCase):
 
     def test_togglemenu_llega_al_callback(self):
         n = []
-        name = "org.omnia.TestC%d" % os.getpid()
+        name = f'org.omnia.TestC{os.getpid():d}'
         svc = DesktopService(lambda a, c: None, on_menu=lambda: n.append(1), name=name)
         self.assertTrue(svc.start())
         self.addCleanup(svc.stop)
@@ -81,7 +81,7 @@ class DBus(unittest.TestCase):
         self.assertEqual(n, [1])
 
     def test_nombre_ocupado_no_rompe(self):
-        name = "org.omnia.TestB%d" % os.getpid()
+        name = f'org.omnia.TestB{os.getpid():d}'
         a, b = DesktopService(lambda *x: None, name=name), DesktopService(lambda *x: None, name=name)
         self.assertTrue(a.start())
         self.addCleanup(a.stop)

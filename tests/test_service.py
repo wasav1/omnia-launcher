@@ -27,8 +27,8 @@ class Falso(Detector):
 
 
 def juego(i, existe):
-    return {"id": "f-%d" % i, "name": "Juego %d" % i, "auto": "falso",
-            "ports": [{"id": "f-%d-m" % i, "name": "X", "launch": ["x"], "check": existe}]}
+    return {"id": f'f-{i:d}', "name": f'Juego {i:d}', "auto": "falso",
+            "ports": [{"id": f'f-{i:d}-m', "name": "X", "launch": ["x"], "check": existe}]}
 
 
 def puerto_libre():
@@ -43,7 +43,7 @@ class Servicio(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         env = {"XDG_CONFIG_HOME": str(self.tmp / "cfg"), "XDG_DATA_HOME": str(self.tmp / "data"),
                "XDG_RUNTIME_DIR": str(self.tmp / "run"),
-               "OMNIA_DBUS_NAME": "org.omnia.Test%d" % os.getpid()}      # no choca con el omnia-core de la sesión
+               "OMNIA_DBUS_NAME": f'org.omnia.Test{os.getpid():d}'}      # no choca con el omnia-core de la sesión
         p = mock.patch.dict(os.environ, env)
         p.start()
         self.addCleanup(p.stop)
@@ -65,7 +65,7 @@ class Servicio(unittest.TestCase):
         self.fail("el servicio no arrancó")
 
     def get(self, path, auth=True):
-        r = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path))
+        r = urllib.request.Request(f'http://127.0.0.1:{self.port:d}{path}')
         if auth:
             r.add_header("Authorization", "Bearer " + (self.tmp / "run/omnia/token").read_text())
         with urllib.request.urlopen(r, timeout=5) as resp:

@@ -1,7 +1,7 @@
 """Sincroniza la biblioteca con lo que detectan los detectores: añade lo nuevo y quita lo desinstalado."""
+import copy
 import os
 import threading
-import copy
 
 _LOCK = threading.Lock()      # el refresco periódico y el de la API no deben pisarse
 

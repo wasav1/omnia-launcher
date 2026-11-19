@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from . import paths, setup
-from .store import load_json, write_json_atomic
+from .store import write_json_atomic
 
 SERVICES = ("omnia.service",)
 MARKER = "first-run.json"
@@ -24,21 +24,21 @@ TITLE = "Omnia"
 
 def message(todo: list) -> str:
     items = "\n".join("• " + t for t in todo)
-    return ("Omnia necesita configurar KDE para funcionar como escritorio de juegos:\n\n%s\n\n"
-            "Es reversible: puedes deshacerlo cuando quieras con «omnia-setup --undo»." % items)
+    return (f"Omnia necesita configurar KDE para funcionar como escritorio de juegos:\n\n{items}\n\n"
+            "Es reversible: puedes deshacerlo cuando quieras con «omnia-setup --undo».")
 
 
 def kdialog_ask(text: str):
     """True/False según la respuesta; None si no hay kdialog."""
     if not shutil.which("kdialog"):
         return None
-    r = subprocess.run(["kdialog", "--title", TITLE, "--yes-label", "Configurar", "--no-label", "Ahora no", "--yesno", text])
+    r = subprocess.run(["kdialog", "--title", TITLE, "--yes-label", "Configurar", "--no-label", "Ahora no", "--yesno", text], check=False)
     return r.returncode == 0
 
 
 def systemctl_enable(services=SERVICES) -> bool:
     try:
-        r = subprocess.run(["systemctl", "--user", "enable", "--now", *services], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["systemctl", "--user", "enable", "--now", *services], check=False, capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return False
     return r.returncode == 0
@@ -74,7 +74,7 @@ def run(config: Path, backend, ask=kdialog_ask, enable=systemctl_enable, script_
     if result == "declined":
         say("Configuración de KDE omitida. Cuando quieras: omnia-setup")
     if result == "error":
-        say("Error en la configuración: %s" % detail)
+        say(f"Error en la configuración: {detail}")
     started = enable() if services else None
     write_json_atomic(marker, {"done": True, "setup": result, "detail": detail, "services": started,
                                "when": time.strftime("%Y-%m-%d %H:%M:%S")})

@@ -5,12 +5,12 @@ parámetros para poder probarlo con árboles falsos.
 """
 from __future__ import annotations
 
-import json
-import subprocess
-import time
 import glob
+import json
 import os
 import re
+import subprocess
+import time
 from pathlib import Path
 
 
@@ -23,13 +23,13 @@ def _read(path: str) -> str:
 
 def short_cpu_name(model: str) -> str:
     """'Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz' -> 'i5-10300H'; 'AMD Ryzen 7 5800X 8-Core Processor' -> 'Ryzen 7 5800X'."""
-    m = re.search(r"\b(i[3579]-\w+|Core\s*Ultra\s*\d+\s*\w+)", model, re.I)
+    m = re.search(r"\b(i[3579]-\w+|Core\s*Ultra\s*\d+\s*\w+)", model, re.IGNORECASE)
     if m:
         return m.group(1)
-    m = re.search(r"(Ryzen\s+\d+\s+\w+)", model, re.I)
+    m = re.search(r"(Ryzen\s+\d+\s+\w+)", model, re.IGNORECASE)
     if m:
         return m.group(1)
-    m = re.search(r"(EPYC\s+\w+|Threadripper\s+\w+)", model, re.I)
+    m = re.search(r"(EPYC\s+\w+|Threadripper\s+\w+)", model, re.IGNORECASE)
     if m:
         return m.group(1)
     return re.sub(r"\s+", " ", re.sub(r"\((?:R|TM)\)|\bCPU\b|@.*$|\bProcessor\b", "", model)).strip()[:24]

@@ -82,8 +82,8 @@ FocusScope {
     focus: true
     Keys.onPressed: function (e) {
         if (browser.active) return
-        if (e.key === Qt.Key_Down) { list.move(1); e.accepted = true }
-        else if (e.key === Qt.Key_Up) { list.move(-1); e.accepted = true }
+        if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
+        else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { list.activate(); e.accepted = true }
         else if (e.key === Qt.Key_Escape) { back(); e.accepted = true }
     }
@@ -91,7 +91,7 @@ FocusScope {
         target: ag.api
         function onPadKey(key) {
             if (browser.active) return
-            if (key === "d") list.move(1); else if (key === "u") list.move(-1)
+            if (key === "d") list.moveSelection(1); else if (key === "u") list.moveSelection(-1)
             else if (key === "A") list.activate(); else if (key === "B") ag.back()
         }
     }
@@ -119,8 +119,8 @@ FocusScope {
                     Keys.onPressed: function (e) {
                         if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { list.activate(); e.accepted = true }
                         else if (e.key === Qt.Key_Escape) { ag.back(); e.accepted = true }
-                        else if (e.key === Qt.Key_Down) { list.move(1); e.accepted = true }
-                        else if (e.key === Qt.Key_Up) { list.move(-1); e.accepted = true }
+                        else if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
+                        else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
                     }
                 }
             }
@@ -154,7 +154,11 @@ FocusScope {
         title: "Selecciona el ejecutable del juego"
         fileMode: FileDialog.OpenFile
         nameFilters: ["Ejecutables y juegos (*)", "Ejecutables Linux (*)", "Juegos de Windows (*.exe)"]
-        onAccepted: ag.prepareDirect(selectedFile.toLocalFile())
+        onAccepted: {
+            const url = selectedFile.toString()
+            if (url.startsWith("file:///"))
+                ag.prepareDirect(decodeURIComponent(url.slice(7)))
+        }
         onRejected: if (ag.directStart) ag.finished()
     }
 }

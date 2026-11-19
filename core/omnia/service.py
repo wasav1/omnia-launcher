@@ -7,11 +7,11 @@ import threading
 import time
 
 from . import __version__, art, audio, gamemode, importer, pad, paths, security
-from .sessions import Sessions
-from .dbus import DesktopService
 from .api import Api
+from .dbus import DesktopService
 from .games import refresh as games_refresh
 from .games.registry import default_detectors
+from .sessions import Sessions
 from .store import Store, load_json
 
 log = logging.getLogger("omnia")

@@ -68,7 +68,7 @@ class Analyzer:
         self.peak = PEAK_FLOOR * 1.5
         self.parity = 0
 
-    def feed(self, chunk: "array.array") -> list[float]:
+    def feed(self, chunk: array.array) -> list[float]:
         if not len(chunk):
             return [0.0] * self.bands
         self.buf.extend(chunk)

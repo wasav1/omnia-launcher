@@ -39,8 +39,8 @@ FocusScope {
     Component.onCompleted: { load(); forceActiveFocus() }
     focus: true
     Keys.onPressed: function (e) {
-        if (e.key === Qt.Key_Down) { list.move(1); e.accepted = true }
-        else if (e.key === Qt.Key_Up) { list.move(-1); e.accepted = true }
+        if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
+        else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { list.activate(); e.accepted = true }
         else if (e.key === Qt.Key_PageDown) { items.contentY = Math.min(items.contentHeight - items.height, items.contentY + items.height * 0.8); e.accepted = true }
         else if (e.key === Qt.Key_PageUp) { items.contentY = Math.max(0, items.contentY - items.height * 0.8); e.accepted = true }
@@ -49,7 +49,7 @@ FocusScope {
     Connections {
         target: ip.api
         function onPadKey(key) {
-            if (key === "d") list.move(1); else if (key === "u") list.move(-1)
+            if (key === "d") list.moveSelection(1); else if (key === "u") list.moveSelection(-1)
             else if (key === "A") list.activate(); else if (key === "B") ip.finished()
             else if (key === "RB") items.contentY = Math.min(Math.max(0, items.contentHeight - items.height), items.contentY + items.height * 0.8)
             else if (key === "LB") items.contentY = Math.max(0, items.contentY - items.height * 0.8)

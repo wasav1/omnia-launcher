@@ -2,9 +2,10 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
+
 from . import paths, setup
 from .store import load_json, write_json_atomic
 
@@ -78,7 +79,7 @@ def remove_paths(items):
 def qdbus(script):
     binary=shutil.which('qdbus6') or shutil.which('qdbus-qt6') or shutil.which('qdbus')
     if not binary: raise RuntimeError('No se encontró qdbus para retirar Omnia del escritorio.')
-    result=subprocess.run([binary,'org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script],capture_output=True,text=True,timeout=30)
+    result=subprocess.run([binary,'org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script], check=False,capture_output=True,text=True,timeout=30)
     if result.returncode: raise RuntimeError('No se pudo actualizar Plasma. No se borraron los archivos de Omnia.')
     return result.stdout.strip()
 
@@ -109,7 +110,7 @@ for(var i=0;i<ds.length;i++){
 def plan():
     package=False
     if shutil.which('pacman'):
-        package=subprocess.run(['pacman','-Q',PACKAGE],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+        package=subprocess.run(['pacman','-Q',PACKAGE], check=False,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
     return {'paths':[str(p) for p in owned_paths() if p.exists() or p.is_symlink()], 'package_installed':package}
 
 
@@ -128,8 +129,8 @@ def uninstall(remove_package=False):
     desktop=next((p for p in (Path.home()/'Escritorio',Path.home()/'Desktop') if p.is_dir()),Path.home())
     qdbus(detach_script(previous,desktop.as_uri()))
     for service in ('omnia.service','omnia-ui.service'):
-        subprocess.run(['systemctl','--user','disable','--now',service],capture_output=True,text=True,timeout=30)
-        status=subprocess.run(['systemctl','--user','is-active','--quiet',service],timeout=10)
+        subprocess.run(['systemctl','--user','disable','--now',service], check=False,capture_output=True,text=True,timeout=30)
+        status=subprocess.run(['systemctl','--user','is-active','--quiet',service], check=False,timeout=10)
         if status.returncode==0: raise RuntimeError('No se pudo detener '+service+'. Se conservaron los archivos.')
     # Recupera descargas suspendidas si el servicio había fallado antes de cerrarse.
     from .gamemode import Freezer
@@ -152,9 +153,9 @@ def uninstall(remove_package=False):
     except OSError: pass  # conserva cualquier archivo ajeno a la lista del instalador
     subprocess.run(['systemctl','--user','daemon-reload'],check=True)
     subprocess.run(['systemctl','--user','restart','plasma-plasmashell.service'],check=True)
-    if shutil.which('kbuildsycoca6'): subprocess.run(['kbuildsycoca6','--noincremental'],capture_output=True)
+    if shutil.which('kbuildsycoca6'): subprocess.run(['kbuildsycoca6','--noincremental'], check=False,capture_output=True)
     if remove_package and plan()['package_installed']:
-        result=subprocess.run(['pkexec','/usr/bin/pacman','-R','--noconfirm',PACKAGE],capture_output=True,text=True)
+        result=subprocess.run(['pkexec','/usr/bin/pacman','-R','--noconfirm',PACKAGE], check=False,capture_output=True,text=True)
         if result.returncode: return 'Omnia se retiró de tu usuario. El asistente del sistema sigue instalado; puedes retirarlo desde el gestor de paquetes.'
     return 'Omnia y sus datos de usuario se retiraron. Tus juegos, emuladores, partidas y respaldos se conservaron.'
 

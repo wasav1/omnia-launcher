@@ -44,11 +44,11 @@ ensure_deps() {
 # La versión anterior (Estantería) escuchaba en el mismo puerto y respondía /health igual.
 # Si sigue viva, omnia-core falla al abrir 47831 y la interfaz recibe respuestas incompatibles.
 check_core() {
-  local body="" i
-  for i in 1 2 3 4 5 6 7 8 9 10; do
+  local body="" attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
     body="$(python3 -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:47831/health", timeout=1).read().decode())' 2>/dev/null || true)"
     [[ -n "$body" ]] && break
-    sleep 0.3
+    if ((attempt < 10)); then sleep 0.3; fi
   done
   if [[ "$body" == *'"padName"'* ]]; then
     printf 'Omnia: el puerto 47831 sigue ocupado por Estantería (estanteria-helper). Detenla y reinicia Omnia:\n  systemctl --user disable --now estanteria-helper.service\n  systemctl --user restart omnia.service\n' >&2
@@ -94,7 +94,9 @@ else
 fi
 [[ "$PLASMA_VERSION" == 6* ]] || die "se requiere Plasma 6 (detectado: ${PLASMA_VERSION:-desconocido})."
 if ((!CHECK)); then
-  command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1 || die 'se requiere una sesión KDE iniciada con systemd --user.'
+  if ! command -v systemctl >/dev/null || ! systemctl --user show-environment >/dev/null 2>&1; then
+    die 'se requiere una sesión KDE iniciada con systemd --user.'
+  fi
 fi
 command -v python3 >/dev/null || die 'falta Python 3.11 o posterior.'
 if ((UPDATE)) && [[ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/omnia/library.json" && ! -x "$HOME/.local/share/omnia/installer/omnia-installer" ]]; then
@@ -105,12 +107,8 @@ python3 -c 'import sys; raise SystemExit(sys.version_info < (3,11))' || die "Omn
 
 DISTRO="$OMNIA_DISTRO_ID"
 PROFILE="$(omnia_distro_profile)"
-packages=(cmake gcc-c++ qt6-declarative-devel)
 case "$PROFILE" in
-  arch) packages=(cmake gcc qt6-declarative) ;;
-  fedora) packages=(cmake gcc-c++ qt6-qtdeclarative-devel) ;;
-  opensuse) packages=(cmake gcc-c++ libQt6QuickControls2-devel qt6-declarative-devel) ;;
-  debian) packages=(cmake g++ qt6-declarative-dev qt6-base-dev) ;;
+  arch|fedora|opensuse|debian) ;;
   *) die "distro '$DISTRO' sin mapa de dependencias. Instala CMake, un compilador C++, Qt 6 Core/Qml y vuelve a ejecutar con --no-deps." ;;
 esac
 if omnia_is_ostree; then
@@ -417,7 +415,7 @@ fi
 cat <<EOF
 Omnia se instaló en este usuario (Plasma $PLASMA_VERSION).
 Se instaló el wallpaper pasivo y un único widget Omnia a pantalla completa, adaptado al display.
-El clic derecho fuera de las tarjetas deja disponible el menú contextual nativo de Plasma; las tarjetas conservan el menú de Omnia. Si el wallpaper aún no está seleccionado, elige “Omnia Animated Background” en Fondo de escritorio.
+El clic derecho fuera de las tarjetas deja disponible el menú contextual nativo de Plasma; las tarjetas conservan el menú de Omnia. Si el wallpaper aún no está seleccionado, elige «Omnia Animated Background» en Fondo de escritorio.
 Meta+D/Meta se configuran después con omnia-setup si el paquete de integración está presente.
 EOF
 if ((!LAYOUT_APPLIED)); then

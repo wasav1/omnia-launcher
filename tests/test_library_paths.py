@@ -1,4 +1,5 @@
 import unittest
+
 from omnia.library_paths import port_visible, update_excluded
 
 
@@ -33,6 +34,7 @@ class CatalogIntegration(unittest.TestCase):
     def test_removed_path_is_filtered_after_reload_and_readd_restores(self):
         import tempfile
         from pathlib import Path
+
         from omnia.api import Api, ApiError
         from omnia.store import Store, write_json_atomic
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,7 +47,7 @@ class CatalogIntegration(unittest.TestCase):
             store.set_games([game])
             api = Api.__new__(Api)
             api.store, api.sessions = store, None
-            api.scan_fn = lambda: []
+            api.scan_fn = list
             api._is_running = lambda *args: False
             api._art = lambda *args: {}
             write_json_atomic(store.dir / 'config.json', {'external_roots': [], 'excluded_external_roots': [str(folder)]})

@@ -18,7 +18,7 @@ class LongshotLaunch(unittest.TestCase):
         self.builder = self.tmp / "Longshot Launcher.AppImage"
         self.builder.write_text("AppImage fixture\n")
         self.builder.chmod(0o755)
-        (self.game / "longshot_version.txt").write_text("version=v3.0.0-rc.7\nbuilder=%s\n" % self.builder)
+        (self.game / "longshot_version.txt").write_text(f"version=v3.0.0-rc.7\nbuilder={self.builder}\n")
 
     def test_wrapper_usa_play_para_iniciar_el_juego_sin_abrir_el_launcher(self):
         argv = launcher._longshot_play([str(self.wrapper)], str(self.game))

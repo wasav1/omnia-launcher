@@ -82,8 +82,8 @@ FocusScope {
     focus: true
     Keys.onPressed: function (e) {
         if (browser.active) return
-        if (e.key === Qt.Key_Down) { list.move(1); e.accepted = true }
-        else if (e.key === Qt.Key_Up) { list.move(-1); e.accepted = true }
+        if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
+        else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { list.activate(); e.accepted = true }
         else if (e.key === Qt.Key_Escape) { back(); e.accepted = true }
     }
@@ -91,7 +91,7 @@ FocusScope {
         target: sp.api
         function onPadKey(key) {
             if (browser.active) return
-            if (key === "d") list.move(1); else if (key === "u") list.move(-1)
+            if (key === "d") list.moveSelection(1); else if (key === "u") list.moveSelection(-1)
             else if (key === "A") list.activate(); else if (key === "B") sp.back()
         }
     }

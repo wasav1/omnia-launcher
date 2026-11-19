@@ -25,14 +25,14 @@ class ApiPartidas(unittest.TestCase):
         self.store.set_games([{"id": "mio", "name": "Mi Port", "ports": [port]}, {"id": "otro", "name": "Otro", "ports": [dict(port)]}])
         self.token = security.new_token(self.tmp / "run")
         self.opened = []
-        self.api = Api(self.store, self.token, [], scan_fn=lambda: [], fs_roots=[self.home],
+        self.api = Api(self.store, self.token, [], scan_fn=list, fs_roots=[self.home],
                        open_fn=self.opened.append, backup_root=str(self.home / "Juegos/_Partidas"))
         self.api.serve()
         self.addCleanup(self.api.stop)
 
     def call(self, path, method="GET", body=None, token=True):
         data = json.dumps(body).encode() if body is not None else (b"{}" if method == "POST" else None)
-        r = urllib.request.Request("http://127.0.0.1:%d%s" % (self.api.port, path), method=method, data=data)
+        r = urllib.request.Request(f'http://127.0.0.1:{self.api.port:d}{path}', method=method, data=data)
         if token:
             r.add_header("Authorization", "Bearer " + self.token)
         try:
@@ -70,7 +70,7 @@ class ApiPartidas(unittest.TestCase):
 
     def test_configuracion_rechaza_rutas_fuera_del_home(self):
         for bad in ("/etc", "/root/.ssh", str(self.home / "../fuera"), "/"):
-            c, d = self.call("/saves/config?id=mio", "POST", {"dirs": [bad]})
+            c, _d = self.call("/saves/config?id=mio", "POST", {"dirs": [bad]})
             self.assertEqual(c, 403, bad)
         self.assertEqual(self.call("/saves/config?id=mio", "POST", {"dirs": [str(self.saves_dir)], "backup_dir": "/etc"})[0], 403)
         self.assertEqual(self.call("/saves/config?id=mio", "POST", {"glob": "/etc/*"})[0], 403)

@@ -1,12 +1,11 @@
 """Steam: juegos con appmanifest_*.acf completamente instalados."""
-import os
 import re
 from pathlib import Path
 
 from .base import Detector
 from .vdf import parse_vdf
 
-SKIP = re.compile(r"proton|steam linux runtime|steamworks|steamvr|redistributable", re.I)
+SKIP = re.compile(r"proton|steam linux runtime|steamworks|steamvr|redistributable", re.IGNORECASE)
 FULLY_INSTALLED = 4      # bit StateFlags de Steam
 
 
@@ -58,7 +57,7 @@ class SteamDetector(Detector):
     def is_running(self, game: dict, port: dict, cmdlines: list) -> bool:
         """Steam arranca el juego bajo su propio árbol: se reconoce por `reaper SteamLaunch AppId=<id> --`."""
         appid = game["id"].removeprefix("steam-")
-        tag = "SteamLaunch AppId=%s " % appid
+        tag = f"SteamLaunch AppId={appid} "
         return any(tag in c and "reaper" in c for c in cmdlines)
 
     @staticmethod
@@ -75,5 +74,5 @@ class SteamDetector(Detector):
             return None          # carpeta del juego borrada: no cuenta como instalado
         return {"id": "steam-" + appid, "name": name, "sub": "PC · Steam", "platform": "pc", "src": "Steam",
                 "auto": "steam", "art": {"slug": "steam-" + appid, "sgdb": name},
-                "ports": [{"id": "steam-%s-main" % appid, "name": "Steam", "chips": ["Steam"],
+                "ports": [{"id": f"steam-{appid}-main", "name": "Steam", "chips": ["Steam"],
                            "launch": ["steam", "steam://rungameid/" + appid], "check": str(acf), "proc": ""}]}

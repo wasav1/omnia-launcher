@@ -8,8 +8,8 @@ Item {
     property url source: ""
     property real blur: 0
     property real saturation: -0.16
-    property Item front: a
-    property Item back: b
+    property Layer front: a
+    property Layer back: b
     property real pan: 0
     property bool covered: false
     clip: true

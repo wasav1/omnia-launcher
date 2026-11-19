@@ -66,7 +66,7 @@ def discover(devices_file: str = "/proc/bus/input/devices", dev_dir: str = "/dev
             continue
         ev, js = re.search(r"\bevent(\d+)\b", h.group(1)), re.search(r"\bjs\d+\b", h.group(1))
         if ev and js:
-            out.append(Device(name.group(1), "%s/event%s" % (dev_dir, ev.group(1)), layout_for(name.group(1))))
+            out.append(Device(name.group(1), f"{dev_dir}/event{ev.group(1)}", layout_for(name.group(1))))
     return out
 
 
@@ -172,9 +172,9 @@ class PadReader(threading.Thread):
             if dev.path not in have:
                 try:
                     self._open(dev)
-                    self.log("mando conectado: %s (%s)" % (dev.name, dev.layout))
+                    self.log(f"mando conectado: {dev.name} ({dev.layout})")
                 except OSError as e:
-                    self.log("no se pudo abrir %s: %s" % (dev.path, e))
+                    self.log(f"no se pudo abrir {dev.path}: {e}")
         now_paths = {d.path for d in discover(self.devices_file, self.dev_dir)}
         for fd, (dev, _, _) in list(self.open.items()):
             if dev.path not in now_paths:
@@ -188,7 +188,7 @@ class PadReader(threading.Thread):
             os.close(fd)
         except OSError:
             pass
-        self.log("mando desconectado: %s" % dev.name)
+        self.log(f"mando desconectado: {dev.name}")
 
     def _emit(self, keys):
         if keys and self.gate():
@@ -241,9 +241,9 @@ def monitor(seconds: float = 20.0) -> int:
     for d in devs:
         try:
             fds[os.open(d.path, os.O_RDONLY | os.O_NONBLOCK)] = d
-            print("Leyendo %s (%s) — %s" % (d.name, d.path, d.layout))
+            print(f"Leyendo {d.name} ({d.path}) — {d.layout}")
         except OSError as e:
-            print("No se pudo abrir %s: %s" % (d.path, e))
+            print(f"No se pudo abrir {d.path}: {e}")
     end = time.time() + seconds
     while time.time() < end and fds:
         for fd in select.select(list(fds), [], [], 0.2)[0]:
@@ -251,7 +251,7 @@ def monitor(seconds: float = 20.0) -> int:
             for i in range(0, len(data) - EVENT.size + 1, EVENT.size):
                 _, _, t, c, v = EVENT.unpack_from(data, i)
                 if t in (EV_KEY, EV_ABS):
-                    print("%s code=0x%X value=%d" % ("KEY" if t == EV_KEY else "ABS", c, v), flush=True)
+                    print('{} code=0x{:X} value={:d}'.format("KEY" if t == EV_KEY else "ABS", c, v), flush=True)
     return 0
 
 

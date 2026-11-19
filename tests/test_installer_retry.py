@@ -1,11 +1,11 @@
 """Ejecuta la GUI Qt real contra un backend ficticio, sin secretos ni cambios de sesión."""
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -67,9 +67,9 @@ target_link_libraries(retry PRIVATE Qt6::Widgets)
 ''')
             for command in (['cmake', '-S', str(root), '-B', str(root / 'build')],
                             ['cmake', '--build', str(root / 'build'), '--parallel', '2']):
-                built = subprocess.run(command, capture_output=True, text=True, timeout=120)
+                built = subprocess.run(command, check=False, capture_output=True, text=True, timeout=120)
                 self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1')
-            result = subprocess.run([str(root / 'build/retry'), str(root / 'backend.py')], env=env, capture_output=True, text=True, timeout=15)
+            result = subprocess.run([str(root / 'build/retry'), str(root / 'backend.py')], check=False, env=env, capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(json.loads((root / 'attempts.json').read_text()), ['example-test-key', 'example-test-key'])

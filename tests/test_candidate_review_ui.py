@@ -1,10 +1,10 @@
 """La GUI conserva la selección si falta un complemento y cuenta ports del mismo juego una vez."""
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO=Path(__file__).resolve().parents[1]
 
@@ -54,7 +54,7 @@ target_compile_features(candidate-test PRIVATE cxx_std_17)
 target_link_libraries(candidate-test PRIVATE Qt6::Widgets)
 ''')
             for command in (['cmake','-S',str(root),'-B',str(root/'build')],['cmake','--build',str(root/'build'),'--parallel','2']):
-                result=subprocess.run(command,capture_output=True,text=True,timeout=120)
+                result=subprocess.run(command, check=False,capture_output=True,text=True,timeout=120)
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-            result=subprocess.run([str(root/'build/candidate-test'),str(root/'backend.py'),str(root/'ready')],env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_FORCE_STDERR_LOGGING='1'),capture_output=True,text=True,timeout=15)
+            result=subprocess.run([str(root/'build/candidate-test'),str(root/'backend.py'),str(root/'ready')], check=False,env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_FORCE_STDERR_LOGGING='1'),capture_output=True,text=True,timeout=15)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)

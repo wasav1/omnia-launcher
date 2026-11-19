@@ -12,7 +12,7 @@ Modal {
     signal chosen(string path)
     signal cancelled
 
-    property var data: ({ path: "", parent: null, dirs: [], files: [], shortcuts: [] })
+    property var listing: ({ path: "", parent: null, dirs: [], files: [], shortcuts: [] })
     property string error: ""
     property int shortcutIdx: 0
 
@@ -23,30 +23,30 @@ Modal {
 
     function go(path) {
         api.fsList(path, mode === "file", exts, function (status, body) {
-            if (status === 200) { data = body; error = ""; list.reset() }
+            if (status === 200) { listing = body; error = ""; list.reset() }
             else error = body.error || ("error " + status)
         })
     }
-    function up() { if (data.parent) go(data.parent); else br.cancelled() }
-    function useHere() { if (mode === "dir") br.chosen(data.path) }
+    function up() { if (listing.parent) go(listing.parent); else br.cancelled() }
+    function useHere() { if (mode === "dir") br.chosen(listing.path) }
     function step(d) {
-        const n = data.shortcuts.length
+        const n = listing.shortcuts.length
         if (n === 0) return
         shortcutIdx = (shortcutIdx + d + n) % n
-        go(data.shortcuts[shortcutIdx].path)
+        go(listing.shortcuts[shortcutIdx].path)
     }
     readonly property var rows: {
         const out = []
-        if (mode === "dir") out.push({ kind: "use", text: "✔  Usar esta carpeta", sub: data.path, accent: true })
-        if (data.parent) out.push({ kind: "up", text: "⬆  Subir", sub: data.parent })
-        for (let i = 0; i < data.dirs.length; i++) out.push({ kind: "dir", text: "📁  " + data.dirs[i].name, path: data.dirs[i].path })
-        for (let j = 0; j < data.files.length; j++) out.push({ kind: "file", text: "📄  " + data.files[j].name, path: data.files[j].path })
+        if (mode === "dir") out.push({ kind: "use", text: "✔  Usar esta carpeta", sub: listing.path, accent: true })
+        if (listing.parent) out.push({ kind: "up", text: "⬆  Subir", sub: listing.parent })
+        for (let i = 0; i < listing.dirs.length; i++) out.push({ kind: "dir", text: "📁  " + listing.dirs[i].name, path: listing.dirs[i].path })
+        for (let j = 0; j < listing.files.length; j++) out.push({ kind: "file", text: "📄  " + listing.files[j].name, path: listing.files[j].path })
         return out
     }
     function activate(i) {
         const r = rows[i]
         if (!r) return
-        if (r.kind === "use") br.chosen(data.path)
+        if (r.kind === "use") br.chosen(listing.path)
         else if (r.kind === "up") up()
         else if (r.kind === "dir") go(r.path)
         else if (r.kind === "file") br.chosen(r.path)
@@ -55,8 +55,8 @@ Modal {
     Component.onCompleted: { go(startPath); forceActiveFocus() }
     focus: true
     Keys.onPressed: function (e) {
-        if (e.key === Qt.Key_Down) { list.move(1); e.accepted = true }
-        else if (e.key === Qt.Key_Up) { list.move(-1); e.accepted = true }
+        if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
+        else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Right) { list.activate(); e.accepted = true }
         else if (e.key === Qt.Key_Left || e.key === Qt.Key_Backspace) { up(); e.accepted = true }
         else if (e.key === Qt.Key_Escape) { br.cancelled(); e.accepted = true }
@@ -65,7 +65,7 @@ Modal {
     Connections {
         target: br.api
         function onPadKey(key) {
-            if (key === "d") list.move(1); else if (key === "u") list.move(-1)
+            if (key === "d") list.moveSelection(1); else if (key === "u") list.moveSelection(-1)
             else if (key === "A") list.activate(); else if (key === "B") br.up()
             else if (key === "Y") br.useHere()
             else if (key === "RB") br.step(1); else if (key === "LB") br.step(-1)
@@ -76,15 +76,15 @@ Modal {
     Column {
         anchors.fill: parent
         spacing: 10
-        Text { width: parent.width; elide: Text.ElideMiddle; text: br.data.path; color: "#c9bf8a"; font.pixelSize: 16 }
+        Text { width: parent.width; elide: Text.ElideMiddle; text: br.listing.path; color: "#c9bf8a"; font.pixelSize: 16 }
         ListView {
             width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: 8; clip: true
-            model: br.data.shortcuts
+            model: br.listing.shortcuts
             delegate: Rectangle {
                 required property var modelData
                 required property int index
                 height: 34; width: sct.width + 28; radius: 17
-                color: br.data.path === modelData.path ? "#2e8b57" : Qt.rgba(1, 1, 1, 0.08)
+                color: br.listing.path === modelData.path ? "#2e8b57" : Qt.rgba(1, 1, 1, 0.08)
                 Text { id: sct; anchors.centerIn: parent; text: parent.modelData.name; color: "#f4efd8"; font.pixelSize: 15 }
                 MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: { br.shortcutIdx = parent.index; br.go(parent.modelData.path) } }
             }

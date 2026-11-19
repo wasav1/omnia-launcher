@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import struct
 import tempfile
 import threading
 import time
@@ -13,8 +12,21 @@ from pathlib import Path
 from omnia import pad, security
 from omnia.api import Api
 from omnia.events import EventBus
-from omnia.pad import (ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y, ABS_X, ABS_Y, BTN_EAST, BTN_NORTH, BTN_SOUTH, BTN_START,
-                       BTN_TL, EV_ABS, EV_KEY, PadLogic)
+from omnia.pad import (
+    ABS_BRAKE,
+    ABS_HAT0X,
+    ABS_HAT0Y,
+    ABS_X,
+    ABS_Y,
+    BTN_EAST,
+    BTN_NORTH,
+    BTN_SOUTH,
+    BTN_START,
+    BTN_TL,
+    EV_ABS,
+    EV_KEY,
+    PadLogic,
+)
 from omnia.store import Store
 
 DEVICES = '''I: Bus=0003 Vendor=046d Product=c52b Version=0111
@@ -141,7 +153,7 @@ class ApiMando(unittest.TestCase):
         self.api = Api(self.store, self.token, [], scan_fn=lambda: self.cmds)
         self.api.serve()
         self.addCleanup(self.api.stop)
-        self.base = "http://127.0.0.1:%d" % self.api.port
+        self.base = f'http://127.0.0.1:{self.api.port:d}'
 
     def call(self, path, method="GET", token=True):
         r = urllib.request.Request(self.base + path, method=method, data=b"{}" if method == "POST" else None)

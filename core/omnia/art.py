@@ -6,13 +6,13 @@ Reglas de seguridad (el prototipo descargaba cualquier URL que le pasaran):
   * El nombre de carpeta del arte sale de un «slug» saneado: no puede escapar de ~/.local/share/omnia/art.
 Si no hay clave, no se hace ninguna petición de red.
 """
+import datetime
 import json
 import os
 import re
-import datetime
+import threading
 import urllib.parse
 import urllib.request
-import threading
 from pathlib import Path
 
 from . import paths
@@ -225,7 +225,7 @@ class Client:
 
     def _open(self, url: str, auth: bool):
         if not url_allowed(url):
-            raise ArtError("URL no permitida: %s" % urllib.parse.urlparse(url).netloc)
+            raise ArtError(f"URL no permitida: {urllib.parse.urlparse(url).netloc}")
         req = urllib.request.Request(url, headers={"User-Agent": "omnia", **({"Authorization": "Bearer " + self.key} if auth else {})})
         return self.opener(req, timeout=15)
 
@@ -235,7 +235,7 @@ class Client:
             with self._open(API + path + q, True) as r:
                 return json.loads(r.read(2 * 1024 * 1024))
         except (OSError, ValueError) as e:
-            raise ArtError("SteamGridDB: %s" % e)
+            raise ArtError(f"SteamGridDB: {e}")
 
     def editions(self, name: str) -> list:
         """Ediciones del juego en SteamGridDB: [{id, name, year}] en el orden de la búsqueda."""
@@ -246,7 +246,7 @@ class Client:
                 continue
             release = item.get("release_date")
             try:
-                year = datetime.datetime.fromtimestamp(int(release), tz=datetime.timezone.utc).year if release else 0
+                year = datetime.datetime.fromtimestamp(int(release), tz=datetime.UTC).year if release else 0
             except (ValueError, TypeError, OSError, OverflowError):
                 year = 0
             out.append({"id": item["id"], "name": str(item.get("name") or ""), "year": year})
@@ -257,13 +257,13 @@ class Client:
         endpoint, params = KINDS[kind]
         gid = str(game.get("id", ""))
         if gid.startswith("steam-") and gid[6:].isdigit():
-            data = self.get_json("/%s/steam/%s" % (endpoint, gid[6:]), params)
+            data = self.get_json(f"/{endpoint}/steam/{gid[6:]}", params)
         else:
             name = (game.get("art") or {}).get("sgdb") or game.get("name", "")
             eds = self.editions(name)
             if not eds:
                 return []
-            data = self.get_json("/%s/game/%s" % (endpoint, pick_edition(eds, game)), params)
+            data = self.get_json(f"/{endpoint}/game/{pick_edition(eds, game)}", params)
         items = [x for x in (data.get("data") or []) if isinstance(x, dict) and x.get("url")]
         if kind == "fondo":
             items.sort(key=lambda x: int(x.get("width") or 0) * int(x.get("height") or 0), reverse=True)
@@ -284,7 +284,7 @@ class Client:
             return {"sgid": 0, "games": games, "items": [], "page": page, "more": False}
         endpoint, params = KINDS[kind]
         params = {**params, "page": page}
-        payload = self.get_json("/%s/game/%d" % (endpoint, int(sgid)), params)
+        payload = self.get_json(f'/{endpoint}/game/{int(sgid):d}', params)
         data = payload.get("data") or []
         items = []
         for item in data:
@@ -304,7 +304,7 @@ class Client:
         with self._open(url, False) as r:
             ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
             if ctype not in EXTS:
-                raise ArtError("tipo de archivo no permitido: %s" % ctype)
+                raise ArtError(f"tipo de archivo no permitido: {ctype}")
             data = r.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
             raise ArtError("imagen demasiado grande")
@@ -316,7 +316,7 @@ class Client:
             numbers = [int(f.stem) for f in folder.iterdir()
                        if f.suffix.lower() in EXTS.values() and f.stem.isdigit()]
             n = max(numbers, default=0) + 1
-            dest = folder / ("%d%s" % (n, EXTS[ctype]))
+            dest = folder / (f'{n:d}{EXTS[ctype]}')
             tmp = dest.with_name(dest.name + ".tmp")
             tmp.write_bytes(data)
             os.replace(tmp, dest)

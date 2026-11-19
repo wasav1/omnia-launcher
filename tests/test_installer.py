@@ -1,9 +1,9 @@
 import importlib.util
 import json
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('installer_backend', Path(__file__).resolve().parents[1] / 'packaging/universal/installer_backend.py')
@@ -30,9 +30,8 @@ class InstallerSettings(unittest.TestCase):
     def test_missing_volume_does_not_change_config(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch.object(installer.paths, 'config_dir', return_value=root), patch.object(installer, 'volumes', return_value=[]):
-                with self.assertRaises(ValueError):
-                    installer.configure({'monitor_disk': {'path': tmp, 'uuid': 'disconnected'}})
+            with patch.object(installer.paths, 'config_dir', return_value=root), patch.object(installer, 'volumes', return_value=[]), self.assertRaises(ValueError):
+                installer.configure({'monitor_disk': {'path': tmp, 'uuid': 'disconnected'}})
             self.assertFalse((root / 'config.json').exists())
 
     def test_changed_key_replaces_file_with_private_permissions(self):
@@ -167,8 +166,8 @@ class ReviewedCandidates(unittest.TestCase):
             data={'external_roots':[tmp],'monitor_disk':volume,'selected_candidates':[
                 {'file':str(exe),'name':'Valid','kind':'executable'},
                 {'file':str(root/'missing.sh'),'name':'Missing','kind':'executable'}]}
-            with patch.object(installer.paths,'config_dir',return_value=root),patch.object(installer,'volumes',return_value=[volume]):
-                with self.assertRaises(ValueError):installer.configure(data)
+            with patch.object(installer.paths,'config_dir',return_value=root),patch.object(installer,'volumes',return_value=[volume]), self.assertRaises(ValueError):
+                installer.configure(data)
             self.assertFalse((root/'library.json').exists())
             self.assertFalse((root/'config.json').exists())
 

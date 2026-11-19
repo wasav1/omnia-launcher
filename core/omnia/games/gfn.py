@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .base import Detector
 
-SUFFIX = re.compile(r"\s*\((?:GeForce NOW|GFN)\)\s*$", re.I)
+SUFFIX = re.compile(r"\s*\((?:GeForce NOW|GFN)\)\s*$", re.IGNORECASE)
 LAUNCHER_NAMES = {"geforce now", "nvidia geforce now", "geforcenow"}
 
 

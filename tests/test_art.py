@@ -89,9 +89,8 @@ class Arte(unittest.TestCase):
     def test_rechaza_tipo_y_tamano(self):
         with self.assertRaises(art.ArtError):
             art.Client("k", opener=lambda r, timeout=0: Resp(b"<html>", "text/html")).download("https://cdn2.steamgriddb.com/a", self.tmp)
-        with mock.patch.object(art, "MAX_BYTES", 10):
-            with self.assertRaises(art.ArtError):
-                art.Client("k", opener=lambda r, timeout=0: Resp(b"x" * 50, "image/png")).download("https://cdn2.steamgriddb.com/a.png", self.tmp)
+        with mock.patch.object(art, "MAX_BYTES", 10), self.assertRaises(art.ArtError):
+            art.Client("k", opener=lambda r, timeout=0: Resp(b"x" * 50, "image/png")).download("https://cdn2.steamgriddb.com/a.png", self.tmp)
 
     def test_slug_no_escapa_de_la_carpeta(self):
         d = art.art_dir("../../etc/passwd", "portada", self.tmp)
@@ -136,7 +135,7 @@ class ConApi(unittest.TestCase):
             st = Store(tmp / "cfg")
             st.set_games([{"id": "steam-10", "name": "Uno", "art": {"slug": "steam-10"},
                            "ports": [{"id": "p", "name": "S", "launch": ["x"], "check": str(tmp)}]}])
-            api = Api(st, "t", [], scan_fn=lambda: [])
+            api = Api(st, "t", [], scan_fn=list)
             self.addCleanup(api.httpd.server_close)
             g = api.library({})["games"][0]
             self.assertTrue(g["portada"].startswith("file://") and g["portada"].endswith("1.png"))
@@ -145,9 +144,9 @@ class ConApi(unittest.TestCase):
 
 class Ediciones(unittest.TestCase):
     """Ocarina of Time tiene dos ediciones con el mismo nombre en SteamGridDB: la de 1998 y la de Switch 2 (2026)."""
-    EDS = [{"id": 21202, "name": "The Legend of Zelda: Ocarina of Time", "year": 1998},
+    EDS = ({"id": 21202, "name": "The Legend of Zelda: Ocarina of Time", "year": 1998},
            {"id": 5532594, "name": "The Legend of Zelda: Ocarina of Time", "year": 2026},
-           {"id": 36271, "name": "The Legend of Zelda: Ocarina of Time 3D", "year": 2011}]
+           {"id": 36271, "name": "The Legend of Zelda: Ocarina of Time 3D", "year": 2011})
 
     def juego(self, platform, **art_extra):
         return {"name": "Ocarina of Time · Longshot", "platform": platform,

@@ -8,7 +8,6 @@ Reglas de seguridad (ver security.py):
 """
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -17,14 +16,28 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .store import load_json
-from . import library_paths, port_catalog
-from . import apps, art, audio_out, fsbrowse, importer, launcher, manual, power, procs, saves, security, system, templates
-from .themes import accent_for, normalize_theme
+from . import (
+    apps,
+    art,
+    audio_out,
+    fsbrowse,
+    importer,
+    launcher,
+    library_paths,
+    manual,
+    port_catalog,
+    power,
+    procs,
+    saves,
+    security,
+    system,
+    templates,
+)
 from .events import EventBus
-from .games.base import Detector
 from .games import refresh as games_refresh
-
+from .games.base import Detector
+from .store import load_json
+from .themes import accent_for, normalize_theme
 
 DEFAULT_BACKUP_ROOT = "~/Juegos/_Partidas"        # donde van los respaldos de un juego que no tiene carpeta propia
 PAD_KEYS = {"l", "r", "u", "d", "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "START", "SELECT", "MODE"}
@@ -197,7 +210,7 @@ class Api:
                     self._send(e.code, {"error": e.msg})
                 except (BrokenPipeError, ConnectionResetError):
                     pass
-                except Exception:
+                except Exception:  # noqa: BLE001 — el límite HTTP devuelve un error sin exponer detalles internos.
                     self._send(500, {"error": "error interno"})
 
             def do_GET(self):
@@ -323,7 +336,7 @@ class Api:
             if name in os.environ:
                 args.append("--setenv=" + name + "=" + os.environ[name])
         try:
-            result = subprocess.run(args + ["--", command], capture_output=True, text=True, timeout=15)
+            result = subprocess.run(args + ["--", command], check=False, capture_output=True, text=True, timeout=15)
         except (OSError, subprocess.TimeoutExpired):
             raise ApiError(503, "No se pudo iniciar la unidad de ajustes de Omnia.")
         if result.returncode:
@@ -629,7 +642,7 @@ class Api:
             vals = body.get(key)
             if vals is not None:
                 if not isinstance(vals, list) or not all(isinstance(v, str) for v in vals):
-                    raise ApiError(400, "«%s» debe ser una lista de rutas" % key)
+                    raise ApiError(400, f"«{key}» debe ser una lista de rutas")
                 spec[key] = vals
         if isinstance(body.get("glob"), str):
             spec["glob"] = body["glob"]
@@ -641,7 +654,7 @@ class Api:
                 ([backup_dir] if backup_dir else []):
             static = re.split(r"[*?\[]", os.path.expanduser(path), maxsplit=1)[0]
             if not os.path.isabs(static) or ".." in static.split("/") or not self._allowed(static or "/"):
-                raise ApiError(403, "carpeta fuera de las permitidas: %s" % path)
+                raise ApiError(403, f"carpeta fuera de las permitidas: {path}")
         with self.store.lock:
             ov = self.store.state.setdefault("saves", {})
             if spec:

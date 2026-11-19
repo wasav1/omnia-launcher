@@ -86,8 +86,8 @@ class HeroicDetector(Detector):
         aid = str(aid)
         title = v.get("title") or self._title(cfg, cache, key, aid) or os.path.basename(str(path).rstrip("/")) or aid
         exe = v.get("executable") or gog_exe(path)
-        return {"id": "heroic-%s-%s" % (runner, aid), "name": title, "sub": "PC · " + store, "platform": "pc",
-                "src": "Heroic", "auto": "heroic", "art": {"slug": "heroic-%s-%s" % (runner, aid), "sgdb": title},
-                "ports": [{"id": "heroic-%s-%s-main" % (runner, aid), "name": "Heroic", "chips": ["Heroic", store],
-                           "launch": cmd + ["heroic://launch/%s/%s" % (runner, aid)], "check": str(path),
+        return {"id": f"heroic-{runner}-{aid}", "name": title, "sub": "PC · " + store, "platform": "pc",
+                "src": "Heroic", "auto": "heroic", "art": {"slug": f"heroic-{runner}-{aid}", "sgdb": title},
+                "ports": [{"id": f"heroic-{runner}-{aid}-main", "name": "Heroic", "chips": ["Heroic", store],
+                           "launch": cmd + [f"heroic://launch/{runner}/{aid}"], "check": str(path),
                            "proc": os.path.basename(exe.replace("\\", "/")), "disk_dir": str(path)}]}

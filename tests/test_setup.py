@@ -203,7 +203,7 @@ class Setup(unittest.TestCase):
     def test_sin_terminal_y_sin_yes_pide_consentimiento(self):
         be = FakeKde()
         with mock.patch("sys.stdin.isatty", return_value=False):
-            rc, out, err = self.run_main(be)
+            rc, _out, _err = self.run_main(be)
         self.assertEqual(rc, 3)
         self.assertEqual(be.calls, [])                  # no cambió nada
 

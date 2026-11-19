@@ -151,11 +151,11 @@ class ApiHistorial(unittest.TestCase):
             store.state.setdefault("last_played", {})[gid] = t
             store.state.setdefault("sessions", {})[gid] = {"total_secs": 600, "count": 2}
         token = security.new_token(tmp / "run")
-        api = Api(store, token, [], scan_fn=lambda: [])
+        api = Api(store, token, [], scan_fn=list)
         api.sessions = ses
         api.serve()
         self.addCleanup(api.stop)
-        req = urllib.request.Request("http://127.0.0.1:%d/library" % api.port, headers={"Authorization": "Bearer " + token})
+        req = urllib.request.Request(f'http://127.0.0.1:{api.port:d}/library', headers={"Authorization": "Bearer " + token})
         games = json.load(urllib.request.urlopen(req, timeout=5))["games"]
         self.assertEqual([g["id"] for g in games], ["c", "a", "b"])        # último jugado primero; el nunca jugado, al final
         self.assertEqual((games[0]["totalSecs"], games[0]["plays"], games[0]["lastPlayed"]), (600, 2, 5000))

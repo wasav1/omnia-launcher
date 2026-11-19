@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def _unit_name(gid: str) -> str:
-    return "omnia-game-%s-%d" % (re.sub(r"[^A-Za-z0-9]+", "-", gid)[:40].strip("-"), int(time.time()))
+    return 'omnia-game-{}-{:d}'.format(re.sub(r"[^A-Za-z0-9]+", "-", gid)[:40].strip("-"), int(time.time()))
 
 
 def build_command(argv: list, gid: str) -> list:

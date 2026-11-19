@@ -1,16 +1,15 @@
-import importlib.util
-import os
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
 from omnia import port_catalog, templates
 
 UNIVERSAL=Path(__file__).resolve().parents[1]/'packaging/universal'
 sys.path.insert(0,str(UNIVERSAL))
-from route_inspection import inspect_route
 from candidate_import import prepare, requirements
+from route_inspection import inspect_route
 
 
 def executable(file, content='#!/bin/sh\nexit 0\n'):
@@ -54,7 +53,7 @@ class PortCandidates(unittest.TestCase):
             scan=inspect_route(tmp,[])
             self.assertEqual(scan['candidates'],1)
             self.assertEqual(scan['items'][0]['suggested_file'],wrapper)
-            games,count=prepare([], [{'file':wrapper,'name':scan['items'][0]['name'],'kind':'port'}],[tmp])
+            games,_count=prepare([], [{'file':wrapper,'name':scan['items'][0]['name'],'kind':'port'}],[tmp])
             self.assertEqual(games[0]['ports'][0]['proc'],'ocarina')
             self.assertEqual(games[0]['ports'][0]['name'],'NX2navi')
             self.assertEqual(games[0]['platform'],'sw2')
@@ -64,7 +63,7 @@ class PortCandidates(unittest.TestCase):
             first=executable(Path(tmp)/'Longshot/v3.0.0/longshot')
             second=executable(Path(tmp)/'Hookshot/v2.1.0/hookshot')
             selected=[{'file':p,'name':'Mi Ocarina','kind':'port'} for p in (first,second)]
-            games,count=prepare([],selected,[tmp])
+            games,_count=prepare([],selected,[tmp])
             self.assertEqual(len(games),1)
             self.assertEqual(games[0]['name'],'Mi Ocarina')
             self.assertEqual(len(games[0]['ports']),2)
@@ -89,7 +88,7 @@ class PortCandidates(unittest.TestCase):
             scan=inspect_route(tmp,previous)
             self.assertFalse(scan['items'][0]['linked'])
             self.assertEqual(scan['items'][0]['files'],[new])
-            games,count=prepare(previous,[{'file':new,'name':scan['items'][0]['name'],'kind':'port'}],[tmp])
+            games,_count=prepare(previous,[{'file':new,'name':scan['items'][0]['name'],'kind':'port'}],[tmp])
             self.assertEqual(len(games),1)
             self.assertEqual(games[0]['id'],'keep-me')
             self.assertEqual(games[0]['name'],'The Legend of Zelda: Ocarina of Time')

@@ -1,8 +1,5 @@
-import hashlib
 import json
-import os
 import shutil
-import stat
 import tempfile
 import unittest
 import urllib.error
@@ -69,7 +66,7 @@ class Gopher64(Base):
         b = templates.build("gopher64", rom=rom, gopher64={"argv": ["gopher64"], "saves": "/x/saves"})
         self.assertEqual(b["launch"], ["gopher64", "--fullscreen", rom])
         (h,) = templates.rom_hashes(rom)
-        self.assertEqual(b["saves"]["files"], ["/x/saves/*-%s.*" % h])
+        self.assertEqual(b["saves"]["files"], [f"/x/saves/*-{h}.*"])
         self.assertEqual((b["check"], b["proc"]), (rom, "MARIOKART64.z64"))
         with self.assertRaisesRegex(TemplateError, "ROM"):
             templates.build("gopher64", rom=str(self.tmp / "no-existe.z64"), gopher64={"argv": ["g"], "saves": "/x"})
@@ -231,14 +228,14 @@ class ApiManual(Base):
         super().setUp()
         self.store = Store(self.tmp / "cfg")
         self.token = security.new_token(self.tmp / "run")
-        self.api = Api(self.store, self.token, [], scan_fn=lambda: [], fs_roots=[self.tmp])
+        self.api = Api(self.store, self.token, [], scan_fn=list, fs_roots=[self.tmp])
         self.api.steam_root = str(self.tmp / "Steam")
         self.api.serve()
         self.addCleanup(self.api.stop)
 
     def call(self, path, method="GET", body=None, token=True):
         data = json.dumps(body).encode() if body is not None else (b"{}" if method == "POST" else None)
-        r = urllib.request.Request("http://127.0.0.1:%d%s" % (self.api.port, path), method=method, data=data)
+        r = urllib.request.Request(f'http://127.0.0.1:{self.api.port:d}{path}', method=method, data=data)
         if token:
             r.add_header("Authorization", "Bearer " + self.token)
         try:

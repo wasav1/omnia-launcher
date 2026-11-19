@@ -6,6 +6,7 @@ from pathlib import Path
 
 from omnia import firstrun, setup
 from omnia.setup import META_D, NATIVE, OURS
+
 try:
     from tests.test_setup import FakeKde
 except ImportError:          # al descubrir con `-s tests` la carpeta ya está en el path

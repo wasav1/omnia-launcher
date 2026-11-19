@@ -22,8 +22,7 @@ def make_steam(home: Path, games: dict):
     (lib / "common").mkdir(parents=True)
     for appid, (name, flags, exists) in games.items():
         (lib / f"appmanifest_{appid}.acf").write_text(
-            '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"name"\t\t"%s"\n\t"StateFlags"\t\t"%d"\n\t"installdir"\t\t"%s"\n}\n'
-            % (appid, name, flags, name))
+            f'"AppState"\n{{\n\t"appid"\t\t"{appid}"\n\t"name"\t\t"{name}"\n\t"StateFlags"\t\t"{flags:d}"\n\t"installdir"\t\t"{name}"\n}}\n')
         if exists:
             (lib / "common" / name).mkdir()
 
@@ -125,7 +124,7 @@ class ApiSeguridad(unittest.TestCase):
         self.api = Api(self.store, self.token, [SteamDetector(self.tmp)], launch_fn=lambda p, g: self.launched.append(g))
         self.api.serve()
         self.addCleanup(self.api.stop)
-        self.base = "http://127.0.0.1:%d" % self.api.port
+        self.base = f'http://127.0.0.1:{self.api.port:d}'
 
     def call(self, path, method="GET", token=True, host=None):
         req = urllib.request.Request(self.base + path, method=method, data=b"{}" if method == "POST" else None)
@@ -153,7 +152,7 @@ class ApiSeguridad(unittest.TestCase):
         self.assertEqual(self.call("/library")[0], 401)
 
     def test_host_ajeno_403(self):
-        self.assertEqual(self.call("/health", host="evil.example:%d" % self.api.port)[0], 403)
+        self.assertEqual(self.call("/health", host=f'evil.example:{self.api.port:d}')[0], 403)
 
     def test_acciones_solo_por_post(self):
         self.call("/library/refresh", "POST")
@@ -192,7 +191,7 @@ class ApiSeguridad(unittest.TestCase):
 
     def test_library_con_500_juegos_mantiene_un_limite_amplio(self):
         import time
-        self.store.set_games([{"id": "g-%d" % i, "name": "Juego %d" % i,
+        self.store.set_games([{"id": f'g-{i:d}', "name": f'Juego {i:d}',
                                "ports": [{"id": "p", "name": "Port", "proc": ""}]}
                               for i in range(500)])
         with mock.patch("omnia.api.games_refresh.port_installed", return_value=True), \

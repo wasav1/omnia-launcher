@@ -13,12 +13,12 @@ ListView {
     highlightMoveDuration: 0
     boundsBehavior: Flickable.StopAtBounds
 
-    // La posición solo la cambia el usuario (move, clic, reset). El modelo se reinicia al refrescarse la lista y ListView
+    // La posición solo la cambia el usuario (moveSelection, clic, reset). El modelo se reinicia al refrescarse la lista y ListView
     // devuelve entonces el cursor al principio: se restaura la última posición del usuario.
     property int lastIndex: 0
     function setIndex(i) { currentIndex = i; lastIndex = i }
-    function reset() { setIndex(0); move(0) }
-    function move(d) {
+    function reset() { setIndex(0); moveSelection(0) }
+    function moveSelection(d) {
         const n = items.length
         if (n === 0) return
         let i = currentIndex
@@ -32,7 +32,7 @@ ListView {
     onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)   // el cursor siempre a la vista
     onItemsChanged: Qt.callLater(function () {
         currentIndex = Math.max(0, Math.min(lastIndex, items.length - 1))
-        if (items[currentIndex] && items[currentIndex].disabled) move(1)
+        if (items[currentIndex] && items[currentIndex].disabled) moveSelection(1)
     })
 
     delegate: Rectangle {

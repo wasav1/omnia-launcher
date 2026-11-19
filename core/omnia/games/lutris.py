@@ -8,7 +8,7 @@ from .base import Detector
 
 # Un launcher nunca aparece como juego (regla heredada del prototipo).
 NOT_GAMES = re.compile(r"^(steam|hydra|ea[ -]?app|ea[ -]?desktop|origin|ubisoft[ -]?connect|uplay|battle\.?net|"
-                       r"epic[ -]games[ -]launcher|gog[ -]galaxy|rockstar[ -]games[ -]launcher|heroic.*|lutris)$", re.I)
+                       r"epic[ -]games[ -]launcher|gog[ -]galaxy|rockstar[ -]games[ -]launcher|heroic.*|lutris)$", re.IGNORECASE)
 
 
 def db_path(home: Path | None = None) -> Path:
@@ -29,7 +29,7 @@ class LutrisDetector(Detector):
         if not self.db.is_file():
             return []
         try:       # solo lectura: nunca se modifica la base de datos de Lutris
-            con = sqlite3.connect("file:%s?mode=ro" % self.db, uri=True, timeout=2)
+            con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True, timeout=2)
             rows = con.execute("SELECT id, name, slug, runner, directory FROM games WHERE installed = 1").fetchall()
             con.close()
         except sqlite3.Error:
@@ -38,10 +38,10 @@ class LutrisDetector(Detector):
         for gid, name, slug, runner, directory in rows:
             if not name or runner == "steam" or NOT_GAMES.match(name.strip()) or NOT_GAMES.match(slug or ""):
                 continue
-            games.append({"id": "lutris-%d" % gid, "name": name, "sub": "PC · Lutris", "platform": "pc", "src": "Lutris",
-                          "auto": "lutris", "art": {"slug": "lutris-%d" % gid, "sgdb": name},
-                          "ports": [{"id": "lutris-%d-main" % gid, "name": "Lutris", "chips": ["Lutris"],
-                                     "launch": ["lutris", "lutris:rungameid/%d" % gid],
+            games.append({"id": f'lutris-{gid:d}', "name": name, "sub": "PC · Lutris", "platform": "pc", "src": "Lutris",
+                          "auto": "lutris", "art": {"slug": f'lutris-{gid:d}', "sgdb": name},
+                          "ports": [{"id": f'lutris-{gid:d}-main', "name": "Lutris", "chips": ["Lutris"],
+                                     "launch": ["lutris", f'lutris:rungameid/{gid:d}'],
                                      "check": str(directory) if directory and os.path.isdir(directory) else "",
                                      "proc": "lutris-wrapper: " + name}]})
         return [g for g in games if g["ports"][0]["check"]]    # sin carpeta del juego no cuenta como instalado

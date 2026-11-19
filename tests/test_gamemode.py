@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import shutil
@@ -33,12 +34,10 @@ class Procesos(unittest.TestCase):
 
     def limpia(self):
         for p in self.procs:
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 p.send_signal(signal.SIGCONT)
                 p.kill()
-                p.wait(3)
-            except Exception:
-                pass
+            p.wait(3)
 
     def lanza(self, nombre):
         exe = self.tmp / nombre

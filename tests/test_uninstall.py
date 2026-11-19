@@ -1,9 +1,10 @@
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch, Mock
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
 from omnia import uninstall
 
 
@@ -118,7 +119,6 @@ class UninstallFlow(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config=Path(tmp)/'omnia';config.mkdir();(config/'state.json').write_text('{}')
             backend=Mock();backend.plugin_enabled.return_value=False
-            with patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',side_effect=RuntimeError('Plasma no disponible')):
-                with self.assertRaisesRegex(RuntimeError,'Plasma'):
-                    uninstall.uninstall()
+            with patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',side_effect=RuntimeError('Plasma no disponible')), self.assertRaisesRegex(RuntimeError,'Plasma'):
+                uninstall.uninstall()
             self.assertTrue((config/'state.json').exists())

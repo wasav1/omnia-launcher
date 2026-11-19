@@ -10,9 +10,9 @@ Reglas, con el motivo de cada omisión:
   * Un port sin lanzador o cuyo archivo ya no existe se omite.
 Las rutas /var/home/<usuario> y /home/<usuario> pasan al home actual; se conservan carpetas de partidas y de respaldos.
 """
-import json
 import difflib
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -57,7 +57,7 @@ def load(path) -> dict:
 
 
 def make_mapper(new_home: str, user: str):
-    pat = re.compile(r"(^|=)(?:/var/home/%s|/home/%s)(?=/|$)" % (re.escape(user), re.escape(user)))
+    pat = re.compile(rf"(^|=)(?:/var/home/{re.escape(user)}|/home/{re.escape(user)})(?=/|$)")
 
     def mp(value):
         if isinstance(value, str):
@@ -89,7 +89,7 @@ def _adapt_gopher64(port: dict, g64: dict, new_home: str) -> bool:
     if templates.FLATPAK_G64 not in launch or not launch or g64["argv"][:1] == ["flatpak"]:
         return False
     rom = launch[-1]
-    old_dir = "%s/.var/app/%s/data/gopher64/saves" % (new_home, templates.FLATPAK_G64)
+    old_dir = f"{new_home}/.var/app/{templates.FLATPAK_G64}/data/gopher64/saves"
     port["launch"] = g64["argv"] + ["--fullscreen", rom]
     files = (port.get("saves") or {}).get("files")
     if files:
@@ -132,19 +132,19 @@ def plan(legacy: dict, current_games: list, new_home: str | None = None, user: s
         for p in ports:
             mapped = mp(p)
             if not mapped.get("launch"):
-                items.append({"id": "", "legacyId": gid, "name": "%s · %s" % (name, p.get("name", p.get("id", ""))), "status": "skip",
+                items.append({"id": "", "legacyId": gid, "name": "{} · {}".format(name, p.get("name", p.get("id", ""))), "status": "skip",
                               "reason": "este port no tiene lanzador", "src": PLATFORM_LABEL.get(g.get("platform"), "")})
                 continue
             exe = _exe(mapped)
             if not exe or not exists(exe):
-                items.append({"id": "", "legacyId": gid, "name": "%s · %s" % (name, p.get("name", "")), "status": "skip",
-                              "reason": "ya no existe: %s" % exe, "src": PLATFORM_LABEL.get(g.get("platform"), "")})
+                items.append({"id": "", "legacyId": gid, "name": "{} · {}".format(name, p.get("name", "")), "status": "skip",
+                              "reason": f"ya no existe: {exe}", "src": PLATFORM_LABEL.get(g.get("platform"), "")})
                 continue
             ok.append((p, mapped))
         for p, mapped in ok:
             multi = len(ok) > 1
             new_id = "manual-" + _slug(gid) + ("-" + _slug(str(p.get("id", ""))) if multi else "")
-            shown = "%s · %s" % (name, p.get("name", "")) if multi else name
+            shown = "{} · {}".format(name, p.get("name", "")) if multi else name
             uses_g64 = any("gopher64" in str(a) for a in mapped["launch"])
             g64_used = g64_used or uses_g64
             if uses_g64 and g64:
@@ -303,7 +303,7 @@ def migrate_legacy_art(store, library_path: Path | None = None, art_root: Path |
                     selected = overrides.get(kind)
                     if not isinstance(selected, int) or isinstance(selected, bool) or selected < 0:
                         try:
-                            selected = max(0, int(((old.get("art") or {}).get(kind, 1) or 1)) - 1)
+                            selected = max(0, int((old.get("art") or {}).get(kind, 1) or 1) - 1)
                         except (TypeError, ValueError):
                             selected = 0
                 else:

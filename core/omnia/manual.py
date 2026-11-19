@@ -67,7 +67,7 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dic
         base = "manual-" + slug(name)
         gid, n = base, 2
         while any(g.get("id") == gid for g in games):
-            gid, n = "%s-%d" % (base, n), n + 1
+            gid, n = f'{base}-{n:d}', n + 1
         port = {"id": gid + "-main", "name": templates.TEMPLATES[tpl]["name"] if tpl else KINDS[kind], "chips": [KINDS[kind]],
                 "launch": built["launch"], "check": built["check"], "proc": built["proc"]}
         if built["cwd"]:

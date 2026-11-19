@@ -91,7 +91,7 @@ def build(template_id: str, exe: str = "", rom: str = "", gopher64=None) -> dict
             raise TemplateError("Elige la ROM del juego.")
         g = gopher64 or gopher64_install()
         return {"launch": g["argv"] + ["--fullscreen", rom], "cwd": "", "check": rom, "proc": os.path.basename(rom),
-                "saves": {"files": ["%s/*-%s.*" % (g["saves"], h) for h in sorted(rom_hashes(rom))], "name": "Partida"},
+                "saves": {"files": ["{}/*-{}.*".format(g["saves"], h) for h in sorted(rom_hashes(rom))], "name": "Partida"},
                 "suggest": []}
     if template_id == "bedrock-on-linux":
         if not exe or os.path.basename(exe).casefold() != "minecraft.windows.exe" or not os.path.isfile(exe):
@@ -163,7 +163,7 @@ def steam_suggestions(name: str, appid: str, manifest_path: str, steam_root: str
     carpetas cuyo nombre se parece al del juego. Solo sugiere: el usuario confirma. No propone el prefijo entero (enorme)."""
     out, tokens = [], _words(name)
     root = Path(steam_root) if steam_root else Path.home() / ".local/share/Steam"
-    for ud in sorted((root / "userdata").glob("*/%s/remote" % appid)) if (root / "userdata").is_dir() else []:
+    for ud in sorted((root / "userdata").glob(f"*/{appid}/remote")) if (root / "userdata").is_dir() else []:
         if ud.is_dir() and any(ud.iterdir()):
             out.append({"path": str(ud), "label": "Steam Cloud (caché local)", "score": 5, "mtime": ud.stat().st_mtime})
     pfx = proton_prefix(manifest_path, appid) if manifest_path else None

@@ -2,10 +2,10 @@
 import importlib.util
 import os
 import shutil
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('dependency_build', REPO / 'packaging/distros/build.py')
@@ -46,7 +46,7 @@ class InstallerDependencies(unittest.TestCase):
                 script.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + ':' + os.environ['PATH'])
             for mode in ('--check', '--ensure'):
-                result = subprocess.run(['bash', str(REPO / 'packaging/universal/check-dependencies.sh'), mode], env=env, capture_output=True, text=True)
+                result = subprocess.run(['bash', str(REPO / 'packaging/universal/check-dependencies.sh'), mode], check=False, env=env, capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('libksysguard', result.stderr)
             self.assertFalse((root / 'unexpected-install').exists())

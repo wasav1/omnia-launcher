@@ -1,8 +1,8 @@
 import os
 import subprocess
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / 'packaging/universal/distro.sh'
@@ -96,7 +96,7 @@ class CheckDependenciesScript(unittest.TestCase):
                 'OMNIA_OS_RELEASE': str(release),
             }
             return subprocess.run(
-                ['bash', str(ROOT / 'packaging/universal/check-dependencies.sh'), '--check'],
+                ['bash', str(ROOT / 'packaging/universal/check-dependencies.sh'), '--check'], check=False,
                 capture_output=True, text=True, env=env,
             )
 

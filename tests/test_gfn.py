@@ -9,7 +9,7 @@ from omnia.games.registry import default_detectors
 
 def acceso(d, fname, name, exec_):
     p = Path(d, fname)
-    p.write_text("[Desktop Entry]\nType=Application\nName=%s\nExec=%s\nIcon=x\n" % (name, exec_))
+    p.write_text(f"[Desktop Entry]\nType=Application\nName={name}\nExec={exec_}\nIcon=x\n")
     return p
 
 

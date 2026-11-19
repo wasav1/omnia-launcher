@@ -1,6 +1,6 @@
 """Identificación conservadora de ports locales. Nunca ejecuta archivos ni descarga datos."""
-from pathlib import Path
 import re
+from pathlib import Path
 
 CATALOG = {
     # Se registran los puntos de inicio del juego; el wrapper de Longshot es el
@@ -56,7 +56,7 @@ def identify(path):
 
 def version_key(path):
     """Prioriza versiones numeradas; el usuario confirma la selección propuesta."""
-    versions = re.findall(r'(?:^|[/_-])v?(\d+)\.(\d+)\.(\d+)(?:[-.]?(rc|alpha|beta)[.-]?(\d+))?', str(path), re.I)
+    versions = re.findall(r'(?:^|[/_-])v?(\d+)\.(\d+)\.(\d+)(?:[-.]?(rc|alpha|beta)[.-]?(\d+))?', str(path), re.IGNORECASE)
     if not versions:
         return (-1, -1, -1, -1, -1)
     major, minor, patch, stage, number = versions[-1]
