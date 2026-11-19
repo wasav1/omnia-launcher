@@ -2,7 +2,7 @@ import QtQuick
 import Qt5Compat.GraphicalEffects
 import org.kde.kirigami as Kirigami
 
-// Bienvenida "Estantería": wallpaper1 a pantalla completa + placa de cristal translúcido (blur real del fondo)
+// Bienvenida "Estantería": fondo degradado a pantalla completa + placa de cristal translúcido (blur real del fondo)
 // con el anillo de progreso y las cinco secciones animadas. Tipografía de Bazzite/Plasma (Noto Sans).
 // Ajustes aprobados: cristal (desenfoque) = 15, tinte = 25.
 Rectangle {
@@ -40,24 +40,12 @@ Rectangle {
         id: bgGroup
         anchors.fill: parent
 
-        Image {
-            id: bg
-            x: -parent.width * 0.04; y: -parent.height * 0.04
-            width: parent.width * 1.08; height: parent.height * 1.08
-            source: "images/wallpaper1.jpeg"
-            fillMode: Image.PreserveAspectCrop
-            smooth: true; mipmap: true                      // resolución completa del archivo, sin reducir
-            transformOrigin: Item.Center
-            scale: 1.02
-            SequentialAnimation on scale {
-                running: !root.reduced; loops: Animation.Infinite
-                NumberAnimation { to: 1.1; duration: 90000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 1.02; duration: 90000; easing.type: Easing.InOutSine }
-            }
-            SequentialAnimation on x {
-                running: !root.reduced; loops: Animation.Infinite
-                NumberAnimation { to: bgGroup.width * -0.048; duration: 90000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: bgGroup.width * -0.032; duration: 90000; easing.type: Easing.InOutSine }
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#06121a" }
+                GradientStop { position: 0.55; color: "#173b34" }
+                GradientStop { position: 1.0; color: "#05100c" }
             }
         }
 
