@@ -4,6 +4,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -23,7 +24,7 @@ def espera(cond, t=3.0):
 
 
 class Procesos(unittest.TestCase):
-    """Con procesos de verdad: copias de `sleep` con el nombre de un cliente de descargas."""
+    """Procesos reales con nombres de clientes de descargas."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -40,9 +41,18 @@ class Procesos(unittest.TestCase):
             p.wait(3)
 
     def lanza(self, nombre):
-        exe = self.tmp / nombre
-        shutil.copy("/usr/bin/sleep", exe)
-        p = subprocess.Popen([str(exe), "300"])
+        # Una copia renombrada de sleep falla si coreutils usa un binario multicall.
+        program = """
+import ctypes
+import sys
+import time
+
+libc = ctypes.CDLL(None, use_errno=True)
+if libc.prctl(15, ctypes.c_char_p(sys.argv[1].encode()), 0, 0, 0) != 0:  # PR_SET_NAME
+    raise OSError(ctypes.get_errno(), "PR_SET_NAME")
+time.sleep(300)
+"""
+        p = subprocess.Popen([sys.executable, "-c", program, nombre])
         self.procs.append(p)
         self.assertTrue(espera(lambda: (proc_info(p.pid) or ("",))[0] == nombre[:15]))
         return p
@@ -83,6 +93,7 @@ class Procesos(unittest.TestCase):
         estado["frozen"][0][1] += 12345                                   # otra «hora de arranque»: otro proceso con ese pid
         self.fz.state_file.write_text(json.dumps(estado))
         os.kill(a.pid, signal.SIGSTOP)
+        self.assertTrue(espera(lambda: self.estado(a) == "T"))
         self.assertEqual(self.fz.resume(), 0)
         self.assertEqual(self.estado(a), "T")                             # no se envió SIGCONT
 
