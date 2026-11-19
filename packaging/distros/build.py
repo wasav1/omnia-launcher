@@ -28,6 +28,7 @@ def source_files():
                 yield file
     yield REPO / 'packaging/distros/profiles.json'
     yield REPO / 'pyproject.toml'
+    yield REPO / 'LICENSE'
     yield REPO / 'docs/INSTALADORES.md'
     yield REPO / 'docs/MangoHud.conf'
 
@@ -146,6 +147,8 @@ cp -a usr %{{buildroot}}/
 /usr/share/applications/org.omnia.installer.desktop
 /usr/share/applications/org.omnia.uninstall.desktop
 /usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png
+/usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png
+/usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg
 '''
     spec=top/'SPECS/omnia.spec';spec.write_text(text)
     subprocess.run([rpmbuild,'--define',f'_topdir {top}','--define',f'_tmppath {top}', '--define', f'_dbpath {top}/rpmdb','--define','_buildhost omnia-builder','--nodeps','-bb',str(spec)],check=True)

@@ -46,7 +46,7 @@ def main():
         binary=app/'usr/bin/omnia-installer';shutil.copy2(work/'gui/omnia-installer',binary)
         plugins=Path(subprocess.check_output(['qmake6','-query','QT_INSTALL_PLUGINS'],text=True).strip())
         selected=[]
-        for folder,names in {'platforms':['libqxcb.so','libqwayland.so','libqoffscreen.so','libqminimal.so'],
+        for folder,names in {'platforms':['libqxcb.so','libqwayland.so','libqwayland-egl.so','libqwayland-generic.so','libqoffscreen.so','libqminimal.so'],
                              'imageformats':['libqjpeg.so','libqico.so','libqsvg.so'],
                              'iconengines':['libqsvgicon.so']}.items():
             selected += [plugins/folder/name for name in names if (plugins/folder/name).is_file()]
@@ -63,6 +63,13 @@ def main():
         for package in ('qt6-base','qt6-wayland','qt6-svg'):
             license_dir=Path('/usr/share/licenses')/package
             if license_dir.is_dir(): shutil.copytree(license_dir,app/'usr/share/licenses'/package,dirs_exist_ok=True)
+        # Los paquetes Qt de Debian y Ubuntu guardan sus avisos en /usr/share/doc.
+        debian_docs = Path('/usr/share/doc')
+        for pattern in ('libqt6*/copyright', 'qt6-wayland*/copyright', 'qt6-qpa-plugins*/copyright'):
+            for notice in debian_docs.glob(pattern):
+                target_notice = app / 'usr/share/licenses' / notice.parent.name / 'copyright'
+                target_notice.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(notice, target_notice)
         (app/'usr/share/omnia-bundled-libraries.txt').write_text('\n'.join(sorted(bundled))+'\n')
         shutil.copy2(icon,app/'omnia.png');(app/'.DirIcon').symlink_to('omnia.png')
         (app/'omnia.desktop').write_text('[Desktop Entry]\nType=Application\nName=Omnia — Instalador\nExec=omnia-installer\nIcon=omnia\nTerminal=false\nCategories=Game;\n')

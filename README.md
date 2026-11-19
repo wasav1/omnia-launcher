@@ -108,3 +108,9 @@ Los archivos de descarga se adjuntan a **GitHub Releases**, no se guardan como b
 Para preparar los paquetes consulta `packaging/distros/build.py`; su salida incluye los nombres de archivo usados arriba,
 `SHA256SUMS` y `manifest.json`. Al publicar otra versión se deben actualizar el tag, los nombres y el estado de pruebas
 en esta tabla para que cada enlace corresponda al paquete anunciado.
+
+## Licencia
+
+El código original de Omnia se distribuye bajo [GPL-3.0-or-later](LICENSE).
+Los recursos de terceros conservan sus licencias, incluidas las [tipografías](assets/fonts/README.md),
+los [iconos Lucide](ui/qml/images/lucide/LICENSE) y las [indicaciones de mando de Kenney](ui/qml/images/pad/LICENSE-Kenney-CC0.txt).

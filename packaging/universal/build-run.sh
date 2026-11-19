@@ -12,7 +12,7 @@ if ((!SOURCE_ONLY)); then
   cmake -S "$REPO/packaging/universal/gui" -B "$TMP/gui" -DCMAKE_BUILD_TYPE=Release
   cmake --build "$TMP/gui" --parallel 2
 fi
-git -C "$REPO" ls-files -co --exclude-standard | grep -v -e '^legacy/' -e '^packaging/universal/out/' -e '^packaging/distros/out/' | while IFS= read -r file; do
+git -C "$REPO" ls-files -co --exclude-standard | grep -v -e '^legacy/' -e '^plasmoid/' -e '^packaging/universal/out/' -e '^packaging/distros/out/' | while IFS= read -r file; do
   [[ ! -f "$REPO/$file" ]] || printf '%s\n' "$file"
 done | tar cf "$TMP/payload.tar" -C "$REPO" -T -
 if ((!SOURCE_ONLY)); then tar rf "$TMP/payload.tar" -C "$TMP/gui" omnia-installer; fi
