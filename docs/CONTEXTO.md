@@ -141,6 +141,8 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Arte que tardaba en aparecer (Minecraft Bedrock):** una ficha revisada cuando el catálogo aún no tenía imágenes se reconsultaba solo cada hora (o cada 24 h).
+  Ahora, al arrancar `art_worker` se descartan las revisiones de fichas sin arte (se vuelven a consultar enseguida) y los reintentos sin arte son cada 15 min.
 - **2026-11-23 — Enlace por nombre con títulos que llevan dos puntos:** el catálogo busca la frase tal cual, así que «The Legend of Zelda Ocarina of Time» (nombre de un
   `.nup`, sin los dos puntos del título oficial) no encontraba su ficha. `service._search_queries` prueba también con las últimas 4 y 3 palabras («Ocarina of Time»);
   la coincidencia final sigue siendo exacta (`match_local_game`). Probado contra el catálogo real: el NUP de Ocarina of Time enlaza con

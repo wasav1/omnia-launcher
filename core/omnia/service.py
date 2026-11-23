@@ -137,6 +137,10 @@ def sync_steam_art(game, retry_at: dict) -> bool:
 def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
     """Sincroniza periódicamente el artwork aprobado del catálogo público de Omnia."""
     pending = []
+    with store.lock:        # fichas revisadas sin arte (p. ej. antes de que el catálogo lo publicara): se vuelven a consultar al arrancar
+        checked = store.state.get("catalog_art_checked") or {}
+        for known in [k for k in checked if not (store.state.get("catalog_art") or {}).get(k)]:
+            checked.pop(known, None)
     scan_at = 0.0
     seen_revision = -1
     catalog_retry_at = {}
@@ -180,8 +184,8 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
                 # Sin las plataformas de la ficha (juegos revisados antes de guardarlas) se vuelve a consultar ya,
                 # para poder descartar el arte de una ficha de otra consola.
                 platforms_known = catalog_slug in (store.state.get("catalog_platforms") or {})
-                no_art_yet = not (store.state.get("catalog_art") or {}).get(catalog_slug)      # sin arte aún: se reintenta cada hora
-                if (not last_checked or not platforms_known or time.time() - last_checked >= (60 * 60 if no_art_yet else 24 * 60 * 60)) \
+                no_art_yet = not (store.state.get("catalog_art") or {}).get(catalog_slug)      # sin arte aún: se reintenta cada 15 min
+                if (not last_checked or not platforms_known or time.time() - last_checked >= (15 * 60 if no_art_yet else 24 * 60 * 60)) \
                         and time.time() >= catalog_retry_at.get(catalog_slug, 0):
                     try:
                         entry = online_catalog.fetch_entry(catalog_slug)
@@ -198,7 +202,7 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
                             store.save_state()
                             if bus and store.state.get("selected_game") == g.get("id"):
                                 bus.selection_changed()
-                        catalog_retry_at[catalog_slug] = time.time() + (60 * 60 if not found else 24 * 60 * 60)
+                        catalog_retry_at[catalog_slug] = time.time() + (15 * 60 if not found else 24 * 60 * 60)
                     except online_catalog.CatalogError as e:
                         log.debug("arte del catálogo para %s: %s", g.get("name"), e)
                         catalog_retry_at[catalog_slug] = time.time() + 60 * 60
