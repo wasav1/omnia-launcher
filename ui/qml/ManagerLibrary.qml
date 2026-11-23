@@ -297,6 +297,11 @@ Item {
                         }
                     }
                 }
+                Text {      // tu copia del juego (volcado .nup o carpeta exefs+romfs que Omnia unió con este port)
+                    visible: !!page.g && !!page.g.romCopy
+                    width: parent.width; wrapMode: Text.WrapAnywhere; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 13
+                    text: page.g && page.g.romCopy ? qsTr("Tu copia del juego: %1").arg(page.g.romCopy.path) + (page.g.romCopy.buildId ? "  ·  build " + page.g.romCopy.buildId.substring(0, 12) : "") : ""
+                }
             }
             // Partidas
             Column {

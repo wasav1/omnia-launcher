@@ -95,6 +95,63 @@ def switch_title_id(path: str) -> tuple[str, str]:
     return (found.group(1).upper(), "name") if found else ("", "")
 
 
+_MAX_NPDM = 64 * 1024
+
+
+def _npdm_program_id(path: str) -> str:
+    """Program ID (16 hex) del `main.npdm` de un exefs: sección ACI0 (+0x10). «» si el archivo no es un NPDM válido."""
+    try:
+        with open(path, "rb") as stream:
+            data = stream.read(_MAX_NPDM)
+    except OSError:
+        return ""
+    if len(data) < 0x80 or data[:4] != b"META":
+        return ""
+    offset = int.from_bytes(data[0x70:0x74], "little")
+    if offset + 0x18 > len(data) or data[offset:offset + 4] != b"ACI0":
+        return ""
+    return f"{int.from_bytes(data[offset + 0x10:offset + 0x18], 'little'):016X}"
+
+
+def _nso_build_id(path: str) -> str:
+    """Build ID (40 hex) del `exefs/main` (NSO0, module id en +0x40); identifica la versión exacta del ejecutable del juego."""
+    try:
+        with open(path, "rb") as stream:
+            head = stream.read(0x60)
+    except OSError:
+        return ""
+    if len(head) < 0x60 or head[:4] != b"NSO0":
+        return ""
+    return head[0x40:0x54].hex()
+
+
+def inspect_dump_folder(path: str, roots=None) -> dict | None:
+    """Carpeta de volcado de Switch/Switch 2 (`exefs/main` + `romfs/`): Title ID de su NPDM y build ID de su NSO.
+
+    No sigue enlaces ni recorre el contenido: solo lee la cabecera de dos archivos pequeños. Las actualizaciones y el contenido
+    descargable (Title ID que no termina en 000) no se importan como juego."""
+    safe_roots = [os.path.realpath(os.path.expanduser(str(r))) for r in (roots or [str(Path.home())]) if isinstance(r, (str, os.PathLike))]
+    real = os.path.realpath(os.path.expanduser(str(path or "")))
+    if not _inside(real, safe_roots) or not os.path.isdir(real):
+        return None
+    exefs, romfs = os.path.join(real, "exefs"), os.path.join(real, "romfs")
+    main = os.path.join(exefs, "main")
+    try:
+        if (os.path.islink(exefs) or os.path.islink(romfs) or os.path.islink(main) or not os.path.isdir(romfs)
+                or not os.path.isfile(main)):
+            return None
+        size = os.stat(main).st_size
+    except OSError:
+        return None
+    title_id = _npdm_program_id(os.path.join(exefs, "main.npdm"))
+    build_id = _nso_build_id(main)
+    if not title_id or not build_id or not is_base_switch_title(title_id):
+        return None
+    return {"path": real, "fileName": os.path.basename(real), "name": os.path.basename(real), "internalTitle": "", "format": "folder",
+            "system": "switch", "internalId": title_id, "internalIdType": switch_kind(title_id), "buildId": build_id, "region": "",
+            "systemName": SYSTEMS["switch"]["name"], "size": size, "confidence": "header", "emulators": [], "systemChoices": ["switch"]}
+
+
 def platform_for(system: str, internal_id_type: str = "") -> str:
     """Plataforma de la biblioteca de Omnia para una ROM (Switch/Switch 2 se distinguen por su Title ID)."""
     if system == "switch":
@@ -445,6 +502,12 @@ def scan(folder: str, roots=None) -> dict:
         if seen_dirs > MAX_DIRECTORIES:
             truncated = True
             break
+        dump = inspect_dump_folder(current, safe_roots)
+        if dump:                                        # carpeta de volcado (exefs + romfs): es un juego, no se recorre por dentro
+            dump["emulators"] = emulators["switch"]
+            dump["systemOptions"] = [{"id": "switch", "name": SYSTEMS["switch"]["name"], "emulators": emulators["switch"]}]
+            items.append(dump)
+            continue
         try:
             with os.scandir(current) as entries:
                 dirs, files = [], []

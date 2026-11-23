@@ -671,7 +671,7 @@ class Api:
                 "count": len(packages)}
 
     def _rom_copies(self, games, config) -> dict:
-        """Une un volcado `.nup` (que ningún emulador puede ejecutar) con el port del mismo juego: no aparecen dos entradas.
+        """Une un volcado `.nup` o una carpeta exefs+romfs (que ningún emulador puede ejecutar) con el port del mismo juego: no aparecen dos entradas.
 
         Si la ficha del catálogo es la misma y el port se ve en la biblioteca, el volcado deja de listarse y el juego principal
         lleva `romCopy` («tu copia»). Si no hay port, el volcado sigue visible (más adelante ofrecerá instalar uno)."""
@@ -692,10 +692,12 @@ class Api:
             if g.get("auto") != "roms" or not slug_of(g) or slug_of(g) not in primaries:
                 continue
             roms_ports = [p["rom"] for p in g.get("ports", []) if isinstance(p.get("rom"), dict)]
-            if not roms_ports or any(os.path.splitext(r.get("path", ""))[1].lower() != ".nup" for r in roms_ports):
+            if not roms_ports or any(os.path.splitext(r.get("path", ""))[1].lower() != ".nup" and not os.path.isdir(r.get("path", ""))
+                                     for r in roms_ports):
                 continue                                           # una ROM con emulador posible se mantiene como entrada propia
             hidden.add(g["id"])
-            by_primary.setdefault(primaries[slug_of(g)]["id"], {"name": g["name"], "path": roms_ports[0].get("path", ""), "id": g["id"]})
+            by_primary.setdefault(primaries[slug_of(g)]["id"], {"name": g["name"], "path": roms_ports[0].get("path", ""), "id": g["id"],
+                                                                       "buildId": roms_ports[0].get("buildId", "")})
         return {"hidden": hidden, "by_primary": by_primary}
 
     @staticmethod

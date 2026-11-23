@@ -100,3 +100,14 @@ class UpdateAvailableTests(NupCopyMergeTests):
         self.api.settings_update_check({"_body": {"enabled": False}})
         self.assertFalse(self.api.settings({})["update_check"])
         self.assertIsNone(self.api.library({})["games"][0]["updateAvailable"])
+
+
+class DumpFolderMergeTests(NupCopyMergeTests):
+    def test_a_dump_folder_is_merged_like_a_nup_and_reports_its_build_id(self):
+        folder = self.tmp / "volcado"
+        folder.mkdir()
+        game = self.rom_game(folder, "rom-dir")
+        game["ports"][0]["rom"]["buildId"] = "ab" * 20
+        listed = self.games(game)
+        self.assertEqual([g["id"] for g in listed], ["recomp-longshot"])
+        self.assertEqual((listed[0]["romCopy"]["id"], listed[0]["romCopy"]["buildId"]), ("rom-dir", "ab" * 20))

@@ -13,6 +13,9 @@ from .. import fsbrowse, paths, roms
 from ..store import load_json
 from .base import Detector
 
+GENERIC_FOLDERS = {"juego", "game", "base", "dump", "volcado", "base game", "juego base", "rom", "roms"}
+
+
 def clean_title(file_name: str, fallback: str = "") -> str:
     """«A Bug_s Life (U) [!].z64» → «A Bug's Life»: sin extensión, etiquetas de región/volcado ni guiones bajos."""
     stem = Path(file_name).stem
@@ -102,6 +105,8 @@ class RomFolderDetector(Detector):
         return [g for g in games if g]
 
     def _game(self, item: dict):
+        if item.get("format") == "folder" and item.get("internalIdType") != "switch2":
+            return None          # un volcado exefs+romfs de Switch 1 no lo ejecuta ningún emulador de Omnia: no se lista como juego
         choices = item.get("systemChoices") or []
         # una extensión compartida (iso/bin/chd...) sin sistema detectado queda para revisarla a mano
         if len(choices) > 1 and not item.get("internalIdType"):
@@ -109,15 +114,20 @@ class RomFolderDetector(Detector):
         system = item["system"]
         system_name = "Nintendo Switch 2" if item.get("internalIdType") == "switch2" else item["systemName"]
         gid = "rom-" + hashlib.sha1(item["path"].encode("utf-8")).hexdigest()[:12]
-        name = clean_title(item["fileName"], item.get("internalTitle") or item.get("name", ""))
+        label = item["fileName"]
+        if item.get("format") == "folder" and label.casefold() in GENERIC_FOLDERS:         # «Zelda OoT/Juego» → «Zelda OoT»
+            label = os.path.basename(os.path.dirname(item["path"])) or label
+        name = clean_title(label, item.get("internalTitle") or item.get("name", ""))
         port = {"id": gid + "-main", "name": "Emulador por elegir", "chips": ["ROM", system_name],
-                "launch": [], "check": item["path"], "proc": item["path"], "cwd": os.path.dirname(item["path"]),
+                "launch": [], "check": item["path"], "proc": item["path"],
+                "cwd": item["path"] if item.get("format") == "folder" else os.path.dirname(item["path"]),
                 "rom": {"path": item["path"], "system": system, "emulator": "",
-                        "internalId": item.get("internalId", ""), "internalIdType": item.get("internalIdType", "")}}
+                        "internalId": item.get("internalId", ""), "internalIdType": item.get("internalIdType", ""),
+                        "buildId": item.get("buildId", "")}}
         return {"id": gid, "name": name, "variant": "ROM", "sub": "ROM · " + system_name,
                 "platform": roms.platform_for(system, item.get("internalIdType", "")), "src": self.label, "auto": self.name,
                 "art": {"slug": gid, "sgdb": name}, "ports": [port]}
 
     def is_installed(self, game: dict, port: dict) -> bool:
         rom = port.get("rom") or {}
-        return bool(rom.get("path")) and os.path.isfile(rom["path"])
+        return bool(rom.get("path")) and os.path.exists(rom["path"])           # un archivo, o la carpeta de un volcado exefs+romfs

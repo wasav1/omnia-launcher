@@ -9,7 +9,7 @@ _LOCK = threading.Lock()      # el refresco periódico y el de la API no deben p
 def port_installed(p: dict) -> bool:
     rom = p.get("rom")
     if isinstance(rom, dict) and rom.get("path"):      # el emulador se resuelve al jugar; basta con que exista la ROM
-        return os.path.isfile(os.path.expanduser(str(rom["path"])))
+        return os.path.exists(os.path.expanduser(str(rom["path"])))       # archivo o carpeta de volcado
     chk = p.get("check") or (p.get("launch") or [""])[0]
     return bool(p.get("launch")) and bool(chk) and os.path.exists(os.path.expanduser(chk))
 
