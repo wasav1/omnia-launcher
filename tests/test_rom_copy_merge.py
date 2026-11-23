@@ -64,6 +64,16 @@ class NupCopyMergeTests(unittest.TestCase):
         listed = {g["id"]: g for g in self.api.library({})["games"]}
         self.assertIsNone(listed["rom-1"]["portAvailable"])                                   # ya instalado: no se vuelve a ofrecer
 
+    def test_launch_is_refused_while_the_port_is_missing(self):
+        from omnia.api import ApiError
+        self.store.set_games([self.rom_game(self.nup, "rom-1", slug="mario-kart-world")])
+        self.store.state["catalog_platforms"] = {"mario-kart-world": ["switch2"]}
+        self.store.state["catalog_packages"] = {"mario-kart-world": [{"id": "0" * 36, "title": "mkw", "version": "v1"}]}
+        with self.assertRaises(ApiError) as caught:
+            self.api.launch({"id": "rom-1", "port": "rom-1-main"})
+        self.assertEqual(caught.exception.code, 409)
+        self.assertIn("Instalar port", str(caught.exception))
+
     def test_other_fichas_are_not_merged(self):
         listed = self.games(self.rom_game(self.nup, "rom-3", slug="otra-ficha"))
         self.assertEqual({g["id"] for g in listed}, {"recomp-longshot", "rom-3"})

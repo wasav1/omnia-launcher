@@ -724,6 +724,9 @@ class Api:
         g, p = self.store.find_port(q.get("id", ""), q.get("port", ""))
         if not g or not p:
             raise ApiError(404, "juego o port desconocido")
+        installed = {x.get("catalogSlug") for x in self.store.games() if x.get("installPackageId") and x.get("catalogSlug")}
+        if self._port_available(g, installed):
+            raise ApiError(409, "Este juego necesita instalar su port. Pulsa «Instalar port» en Big Mode o en la app de escritorio.")
         if not library_paths.port_visible(g, p, load_json(self.store.dir / "config.json", {})):
             raise ApiError(409, "La carpeta de este juego se retiró de las rutas de Omnia.")
         if not games_refresh.port_installed(p):

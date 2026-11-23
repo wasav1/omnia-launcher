@@ -706,8 +706,9 @@ Item {
             color: lib.ink2
             font.family: lib.uiFont
             font.pixelSize: lib.s * 16
-            leftPadding: lib.s * 28
+            leftPadding: (summaryIcon.visible ? summaryIcon.width : 0) + lib.s * 10      // el logo de consola puede ser ancho (p. ej. Switch 2)
             PlatIcon {
+                id: summaryIcon
                 visible: lib.current !== null
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                 key: lib.current ? lib.norm(lib.current.platform) : ""
@@ -955,7 +956,7 @@ Item {
                 color: lib.ink2
             }
             // Con mando se dibujan los iconos reales de su familia (Xbox, PlayStation, Switch, Deck); sin mando, teclas.
-            Hint { padKeys: lib.padOn ? ["A"] : []; glyph: "Enter"; label: lib.page === "home" ? home.acceptLabel : qsTr("Jugar") }
+            Hint { padKeys: lib.padOn ? ["A"] : []; glyph: "Enter"; label: lib.page === "home" ? home.acceptLabel : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")) }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["X"] : []; glyph: "M"; label: qsTr("Menú") }
             Hint { padKeys: lib.padOn ? (lib.page === "home" ? ["DPAD"] : ["l"]) : []; glyph: lib.page === "home" ? "← ↑ ↓ →" : "← / →"
                 label: lib.page === "home" ? qsTr("Navegar") : qsTr("Cambiar juego") }

@@ -143,6 +143,7 @@ Singleton {
 
     function play(id) {
         const g = games.find(x => x.id === id);
+        if (g && g.portAvailable) { openBigMode(id, false, true); return true; }       // sin port instalado no se puede jugar: se ofrece instalarlo
         const port = g && g.ports ? g.ports.find(p => p.canLaunch && !p.running) : null;
         if (!g || !port) { root.actionError = "El juego ya está en ejecución o no tiene un lanzador disponible."; return false; }
         root.actionError = "";

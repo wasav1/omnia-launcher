@@ -287,8 +287,8 @@ Item {
                 width: parent.width; height: 42; radius: 21
                 color: playArea.containsMouse ? Qt.lighter(card.accent, 1.08) : card.accent
                 Row { anchors.centerIn: parent; spacing: 9
-                    LucideIcon { name: "play"; width: 16; height: 16; color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: qsTr("Jugar"); color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; font.family: "Hanken Grotesk"; font.pixelSize: 17; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                    LucideIcon { name: card.game && card.game.portAvailable ? "download" : "play"; width: 16; height: 16; color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: card.game && card.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"); color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; font.family: "Hanken Grotesk"; font.pixelSize: 17; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Rectangle { visible: card.launchFocused; anchors.fill: parent; anchors.margins: -4; radius: 25; color: "transparent"; border.width: 3; border.color: card.accent }
                 MouseArea { id: playArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.launchRequested() }

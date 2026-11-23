@@ -258,8 +258,8 @@ Item {
                 Row {
                     anchors.centerIn: parent
                     spacing: det.s * 14
-                    LucideIcon { width: det.s * 26; height: det.s * 26; name: "play"; color: det.ink; visible: !playB.running; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: playB.running ? qsTr("En ejecución") : qsTr("Jugar"); color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 28; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                    LucideIcon { width: det.s * 26; height: det.s * 26; name: det.game && det.game.portAvailable ? "download" : "play"; color: det.ink; visible: !playB.running; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: playB.running ? qsTr("En ejecución") : (det.game && det.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 28; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                 }
                 MouseArea { id: playMa; anchors.fill: parent; enabled: !!det.game && !det.game.running; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { det.zone = "play"; det.host.play(det.game) } }
             }

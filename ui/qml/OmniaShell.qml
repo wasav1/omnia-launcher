@@ -348,7 +348,10 @@ Rectangle {
             }, pid)
         })
     }
-    function launchCurrent() { if (current && selectedPort) api.launch(current, selectedPort.id) }
+    function launchCurrent() {
+        if (current && current.portAvailable) { api.notify(qsTr("Este juego necesita instalar su port: ábrelo en Big Mode o en la app de escritorio.")); return }
+        if (current && selectedPort) api.launch(current, selectedPort.id)
+    }
     function backupCurrent() {
         if (!current || !selectedPort) return
         api.savesBackup(current, function(st,b) {

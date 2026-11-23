@@ -154,7 +154,7 @@ Item {
         return recentGames().filter(g => g.fondo || g.portada).slice(0, 5).map(g => ({ kind: "local", game: g }))
     }
     readonly property var currentSlide: slides.length ? slides[Math.max(0, Math.min(shown, slides.length - 1))] : null
-    readonly property var heroActions: heroLocal ? [{ id: "play", label: qsTr("Jugar") }, { id: "library", label: qsTr("Detalles") }]
+    readonly property var heroActions: heroLocal ? [{ id: "play", label: heroLocal.portAvailable ? qsTr("Instalar port") : qsTr("Jugar") }, { id: "library", label: qsTr("Detalles") }]
                                                  : [{ id: "library", label: qsTr("Abrir biblioteca") }]
     readonly property int favoriteCount: (localGames || []).filter(g => g.fav && !g.hidden).length
     readonly property int gameCount: (localGames || []).filter(g => !g.hidden).length
@@ -165,7 +165,7 @@ Item {
         { id: "settings", icon: "settings", title: qsTr("Ajustes"), sub: qsTr("Mando, idioma y biblioteca") }
     ]
     readonly property string acceptLabel: {
-        if (zone === 0) return currentSlide && currentSlide.kind === "catalog" ? qsTr("Ver ficha") : qsTr("Jugar")
+        if (zone === 0) return currentSlide && currentSlide.kind === "catalog" ? qsTr("Ver ficha") : (currentSlide && currentSlide.game && currentSlide.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"))
         if (gridCol < 2) return heroActions[Math.min(gridCol, heroActions.length - 1)].label
         return qsTr("Abrir")
     }
@@ -438,7 +438,7 @@ Item {
                         border.width: focused ? home.u * 3 : 0
                         border.color: "#FFFFFF"
                         Behavior on scale { NumberAnimation { duration: 120 } }
-                        Text { anchors.centerIn: parent; text: slideView.s && slideView.s.kind === "catalog" ? qsTr("Ver ficha") : qsTr("Jugar"); color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.DemiBold }
+                        Text { anchors.centerIn: parent; text: slideView.s && slideView.s.kind === "catalog" ? qsTr("Ver ficha") : (slideView.s && slideView.s.game && slideView.s.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.DemiBold }
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { home.zone = 0; home.accept() } }
                 }

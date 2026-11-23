@@ -358,9 +358,9 @@ Item {
             Rectangle {
                 visible: sel && width > all.s * 60
                 x: parent.coverW + all.s * 18; y: parent.height - height - all.s * 18
-                width: Math.min(all.s * 150, parent.width - x - all.s * 16); height: all.s * 42; radius: height / 2
+                width: Math.min(all.s * 190, parent.width - x - all.s * 16); height: all.s * 42; radius: height / 2
                 color: all.accent
-                Text { anchors.centerIn: parent; text: qsTr("Jugar"); color: all.ink; font.family: all.uiFont; font.pixelSize: all.s * 18; font.weight: Font.DemiBold }
+                Text { anchors.centerIn: parent; text: game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"); color: all.ink; font.family: all.uiFont; font.pixelSize: all.s * 18; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: all.playRequested(game) }
             }
         }

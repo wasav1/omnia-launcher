@@ -141,6 +141,10 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — «Instalar port» en todas partes donde antes decía «Jugar»:** un juego con `portAvailable` (volcado sin port instalado) muestra «Instalar port» (y el icono de descarga) en BigMode (botón del héroe, pie de
+  ayuda, ficha del juego, tarjeta «Seguir jugando» del Inicio, tarjeta expandida de «Ver todos», menú), app de escritorio (página del juego, lista de «Juegos en este equipo»), panel de acceso rápido y `GameCard`; `manager.launch`,
+  `OmniaApi.play` (panel) y `lib.play` ofrecen instalar en vez de lanzar, y `/launch` responde 409 con un mensaje claro si se intenta lanzar un juego así. Corregido el texto que se montaba sobre el logo ancho de consola
+  (p. ej. Switch 2) en el héroe de BigMode: `leftPadding` sigue el ancho del icono.
 - **2026-11-23 — Flujo «Instalar port» validado en las tres superficies (datos reales):** app de escritorio (⬇ en la lista, botón «Instalar port» y aviso en la página, ficha del catálogo sin el botón «Sin paquete
   publicado» cuando hay paquete), BigMode (insignia, botón, menú de X y diálogo con mando) y **panel de acceso rápido** (botón «Instalar port» y entrada «Instalar port en Big Mode» en el menú ⋯; abre BigMode
   con `--game <id> --install-port`, que selecciona el juego y abre el diálogo). `OmniaApi.openBigMode(id, details, installPort)`; icono `download.svg` añadido al panel.

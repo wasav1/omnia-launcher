@@ -134,6 +134,7 @@ Item {
         return api.games.find(g => !g.portAvailable && (g.catalogSlug === remote.slug || g.id === slug || String(g.id).endsWith("-" + slug))) || null
     }
     function launch(game) {
+        if (game && game.portAvailable) { installPortFor(game); return }          // sin port instalado no se puede jugar: se ofrece instalarlo
         if (!game || !game.ports || !game.ports.length) return
         const port = game.ports.find(p => p.canLaunch && !p.running) || game.ports[0]
         api.launch(game, port.id)
@@ -585,7 +586,7 @@ Item {
                     width: ListView.view.width; height: manager.s * 74; radius: manager.s * 14; color: manager.surface
                     FadedImage { x: manager.s * 10; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 54; height: manager.s * 54; source: modelData.portada || ""; cornerRadius: manager.s * 10 }
                     Column { anchors { left: parent.left; leftMargin: manager.s * 78; verticalCenter: parent.verticalCenter } width: parent.width * 0.68; spacing: manager.s * 2; Text { width: parent.width; text: modelData.name; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15; font.weight: Font.DemiBold; elide: Text.ElideRight } Text { width: parent.width; text: modelData.folder || (modelData.ports.length ? modelData.ports[0].name : qsTr("Ubicación no disponible")); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideMiddle } }
-                    Rectangle { anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 12 } width: manager.s * 94; height: manager.s * 36; radius: height / 2; color: manager.accent; Text { anchors.centerIn: parent; text: qsTr("Jugar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; enabled: !modelData.running; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.launch(modelData) } }
+                    Rectangle { anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 12 } width: manager.s * 94; height: manager.s * 36; radius: height / 2; color: manager.accent; Text { anchors.centerIn: parent; text: modelData.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; enabled: !modelData.running; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.launch(modelData) } }
                 }
                 Text { visible: api.games.length === 0; anchors.centerIn: parent; text: qsTr("Aún no hay juegos instalados o importados."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
             }
