@@ -323,13 +323,35 @@ Item {
     Component {
         id: descComp
         Item {
-            implicitHeight: Math.max(dText.implicitHeight, stats.implicitHeight + det.s * 40)
-            Text {
-                id: dText
+            implicitHeight: Math.max(leftCol.implicitHeight, stats.implicitHeight + det.s * 40)
+            Column {
+                id: leftCol
                 width: parent.width * 0.55
-                text: det.game && det.game.description ? det.game.description : "Este juego no tiene descripción."
-                color: det.game && det.game.description ? det.ink : det.ink2
-                font.family: det.host.uiFont; font.pixelSize: det.s * 25; lineHeight: 1.3; wrapMode: Text.WordWrap
+                spacing: det.s * 16
+                Text {
+                    id: dText
+                    width: parent.width
+                    text: det.game && det.game.description ? det.game.description : "Este juego no tiene descripción."
+                    color: det.game && det.game.description ? det.ink : det.ink2
+                    font.family: det.host.uiFont; font.pixelSize: det.s * 25; lineHeight: 1.3; wrapMode: Text.WordWrap
+                }
+                Text {      // el port cerró con un código que él mismo explica (exit_codes de su descriptor)
+                    visible: !!det.game && !!det.game.lastExit
+                    width: parent.width; wrapMode: Text.WordWrap; color: "#E8A24B"; font.family: det.host.uiFont; font.pixelSize: det.s * 21
+                    text: det.game && det.game.lastExit ? qsTr("La última vez, el juego se cerró con este aviso: %1").arg(det.game.lastExit.message) : ""
+                }
+                Text {      // requisitos que declara el port que este PC no cumple
+                    readonly property var bad: det.game && det.game.requirements ? det.game.requirements.filter(function(r) { return r.ok === false }) : []
+                    visible: bad.length > 0
+                    width: parent.width; wrapMode: Text.WordWrap; color: "#E8A24B"; font.family: det.host.uiFont; font.pixelSize: det.s * 21
+                    text: qsTr("Este PC no cumple: %1. El juego puede no arrancar.").arg(bad.map(function(r) { return r.label + " " + r.need + " (" + r.have + ")" }).join(", "))
+                }
+                Text {      // la copia del jugador no es la versión que acepta el port
+                    readonly property string st: det.game && det.game.romCopy && det.game.romCopy.compat ? det.game.romCopy.compat.state : ""
+                    visible: st === "mismatch"
+                    width: parent.width; wrapMode: Text.WordWrap; color: "#E8A24B"; font.family: det.host.uiFont; font.pixelSize: det.s * 21
+                    text: qsTr("Tu copia del juego es de otra versión que la que acepta este port.")
+                }
             }
             Rectangle {
                 x: parent.width * 0.60
