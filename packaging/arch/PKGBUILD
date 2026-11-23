@@ -2,7 +2,7 @@
 # Paquetes: núcleo compartido, aplicación independiente y complementos opcionales de Plasma.
 pkgbase=omnia-launcher
 pkgname=(omnia-core omnia-app omnia-hyprland omnia-kde)
-pkgver=0.2.1
+pkgver=0.3.0
 pkgrel=${OMNIA_PKGREL:-1}
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=('x86_64' 'aarch64')
