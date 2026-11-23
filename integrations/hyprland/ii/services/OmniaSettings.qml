@@ -30,6 +30,7 @@ Singleton {
     readonly property int closeGraceMs: Math.max(100, adapter.closeGraceMs)
     readonly property real rotateMinutes: Math.max(0.1, adapter.rotateMinutes)
     readonly property var libraryCommand: adapter.libraryCommand
+    readonly property var desktopCommand: adapter.desktopCommand         // la app de escritorio (Omnia Desktop Suite)
 
     // Guarda un ajuste en hyprland.json (los demás conservan su valor).
     function set(name, value) {
@@ -59,6 +60,7 @@ Singleton {
             property int zoneWidthPx: 2
             property int closeGraceMs: 600
             property list<string> libraryCommand: ["omnia-ui", "--window"]
+            property list<string> desktopCommand: ["omnia-ui", "--manager"]
         }
     }
 }

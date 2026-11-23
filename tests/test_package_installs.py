@@ -278,3 +278,56 @@ class UpdateFlowTests(InstallFlowTests):
         state = self.run_update(game_id, data, manifest)
         self.assertEqual(state["status"], "failed")
         self.assertEqual(list(outside.iterdir()), [])
+
+
+class JobHousekeepingTests(UpdateFlowTests):
+    def failed_job(self):
+        data = b"\x7fELF" * 50
+        bad = self.manifest(data, "appimage", "x.AppImage")
+        bad["sha256"] = "0" * 64
+        state = self.run_install(data, bad)
+        self.assertEqual(state["status"], "failed")
+        return state
+
+    def test_a_completed_job_disappears_after_a_few_seconds_but_the_game_stays(self):
+        data = b"\x7fELF" * 50
+        state = self.run_install(data, self.manifest(data, "appimage", "x.AppImage"))
+        self.assertEqual(state["status"], "completed")
+        self.assertIn(state["id"], [j["id"] for j in self.manager.snapshot()["jobs"]])           # se ve unos segundos
+        with mock.patch.object(package_installs.time, "time", return_value=time.time() + 60):
+            snap = self.manager.snapshot()
+        self.assertNotIn(state["id"], [j["id"] for j in snap["jobs"]])
+        self.assertEqual(len(snap["installed"]), 1)
+
+    def test_completed_jobs_are_not_restored_after_a_restart(self):
+        data = b"\x7fELF" * 50
+        self.run_install(data, self.manifest(data, "appimage", "x.AppImage"))
+        self.manager.shutdown()
+        again = PackageInstallManager(self.store, lambda: [str(self.tmp)])
+        self.addCleanup(again.shutdown)
+        self.assertEqual([j for j in again.snapshot()["jobs"] if j["status"] == "completed"], [])
+
+    def test_dismiss_removes_failed_jobs_only(self):
+        job = self.failed_job()
+        self.assertEqual(self.manager.dismiss("no-existe"), 0)
+        self.assertEqual(self.manager.dismiss(job["id"]), 1)
+        self.assertEqual(self.manager.snapshot()["jobs"], [])
+        self.failed_job()
+        self.failed_job()
+        self.assertEqual(self.manager.dismiss(only_failed=True), 2)
+
+    def test_retry_replaces_the_failed_job_with_a_new_one(self):
+        job = self.failed_job()
+        manifest = self.manifest(b"\x7fELF" * 50, "appimage", "x.AppImage")
+        with mock.patch.object(online_catalog, "install_package", return_value=manifest), \
+                mock.patch.object(package_installs, "_safe_package_opener", return_value=FakeOpener(b"\x7fELF" * 50)), \
+                mock.patch.object(online_catalog, "game_detail", return_value={"data": {}}):
+            new = self.manager.retry(job["id"])
+            deadline = time.time() + 10
+            while time.time() < deadline and next(j for j in self.manager.snapshot()["jobs"] if j["id"] == new["id"])["status"] not in {"completed", "failed"}:
+                time.sleep(0.05)
+        ids = [j["id"] for j in self.manager.snapshot()["jobs"]]
+        self.assertNotIn(job["id"], ids)
+        self.assertIn(new["id"], ids)
+        with self.assertRaises(package_installs.PackageInstallError):
+            self.manager.retry("no-existe")

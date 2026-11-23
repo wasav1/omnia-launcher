@@ -145,6 +145,8 @@ class Api:
             "/installations/resume": ("POST", True, self.installation_resume),
             "/installations/remove": ("POST", True, self.installation_remove),
             "/installations/update": ("POST", True, self.installation_update),
+            "/installations/dismiss": ("POST", True, self.installation_dismiss),
+            "/installations/retry": ("POST", True, self.installation_retry),
             "/audio": ("GET", True, self.audio_status),
             "/system": ("GET", True, self.system_status),
             "/audio/outputs": ("GET", True, self.audio_outputs),
@@ -546,6 +548,26 @@ class Api:
         running = {game.get("id") for game in self.running_list()}
         try:
             return {"ok": True, "job": self.package_installs.start_update(game_id, lambda gid: gid in running)}
+        except package_installs.PackageInstallError as exc:
+            raise ApiError(409 if "Cierra el juego" in str(exc) else 400, str(exc))
+
+    def installation_dismiss(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        if body.get("all") is True:
+            return {"ok": True, "dismissed": self.package_installs.dismiss(only_failed=True)}
+        job_id = body.get("jobId")
+        if not isinstance(job_id, str) or not self.package_installs.dismiss(job_id):
+            raise ApiError(404, "ese trabajo no existe o sigue en curso")
+        return {"ok": True, "dismissed": 1}
+
+    def installation_retry(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        job_id = body.get("jobId")
+        if not isinstance(job_id, str):
+            raise ApiError(400, "trabajo no válido")
+        running = {game.get("id") for game in self.running_list()}
+        try:
+            return {"ok": True, "job": self.package_installs.retry(job_id, lambda gid: gid in running)}
         except package_installs.PackageInstallError as exc:
             raise ApiError(409 if "Cierra el juego" in str(exc) else 400, str(exc))
 

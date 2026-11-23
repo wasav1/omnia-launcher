@@ -152,7 +152,7 @@ Singleton {
 
     function play(id) {
         const g = games.find(x => x.id === id);
-        if (g && g.portAvailable) { openBigMode(id, false, true); return true; }       // sin port instalado no se puede jugar: se ofrece instalarlo
+        if (g && g.portAvailable) { openDesktop(id, "install"); return true; }          // sin port instalado no se puede jugar: se ofrece instalarlo en la app de escritorio
         const port = g && g.ports ? g.ports.find(p => p.canLaunch && !p.running) : null;
         if (!g || !port) { root.actionError = "El juego ya está en ejecución o no tiene un lanzador disponible."; return false; }
         root.actionError = "";
@@ -170,6 +170,19 @@ Singleton {
         if (id && installPort) cmd.push("--install-port");      // abre el diálogo «Instalar port» del juego
         if (id && updatePort) cmd.push("--update-port");        // abre el diálogo «Actualizar» del juego
         console.log("[Omnia] abrir BigMode:", JSON.stringify(cmd));
+        Quickshell.execDetached(cmd);
+    }
+    // App de escritorio (Omnia Desktop Suite). Instalar, actualizar y ver descargas se hacen siempre aquí, nunca en Big Mode:
+    // action = "install" | "update" | "downloads" | "" (solo abrirla en la ficha del juego, si se da id).
+    function openDesktop(id, action) {
+        const cmd = Array.from(OmniaSettings.desktopCommand);
+        if (action === "downloads") cmd.push("--downloads");
+        else if (id) {
+            cmd.push("--game", id);
+            if (action === "install") cmd.push("--install-port");
+            else if (action === "update") cmd.push("--update-port");
+        }
+        console.log("[Omnia] abrir app de escritorio:", JSON.stringify(cmd));
         Quickshell.execDetached(cmd);
     }
     function openLibrary() { openBigMode("", false); }

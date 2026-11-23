@@ -40,12 +40,37 @@ Item {
     property bool searchOpen: false
     property bool searchFocus: false          // con mando: el foco está en la lupa de la barra superior
     function lastPlayedOf(g) { return Number(g && (g.lastPlayed || (g.played || {}).last) || 0) }
-    property string page: "home"               // home | library | all | details | settings
+    property string page: "home"               // home | library | all | details | settings | downloads
     readonly property bool detailsOpen: page === "details"
     readonly property bool padOn: api.padOn
     property bool detailsFromAll: false
     function openDetails() { if (current) { detailsFromAll = page === "all"; page = "details"; details.forceActiveFocus() } }
     function closeDetails() { page = detailsFromAll ? "all" : "library"; detailsFromAll = false; lib.forceActiveFocus() }
+    // ---- descargas e instalaciones (pastilla en la barra + pantalla propia; START las abre desde el mando)
+    property var dlJobs: []
+    property var dlSeen: ({})
+    readonly property int dlBusy: dlJobs.filter(function(j) { return ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(j.status) >= 0 }).length
+    readonly property int dlFailed: dlJobs.filter(function(j) { return ["failed", "cancelled", "interrupted"].indexOf(j.status) >= 0 }).length
+    readonly property int dlProgress: {
+        const busy = dlJobs.filter(function(j) { return ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(j.status) >= 0 })
+        return busy.length ? Math.round(busy.reduce(function(a, j) { return a + Number(j.progress || 0) }, 0) / busy.length) : 0
+    }
+    function pollDownloads() {
+        api.installationSnapshot(function(st, body) {
+            if (st !== 200) return
+            const jobs = body.jobs || []
+            for (const job of jobs) {                     // aviso único al terminar bien
+                if (job.status === "completed" && dlSeen[job.id] && dlSeen[job.id] !== "completed")
+                    api.notify(job.updateOf ? qsTr("Actualizado: %1").arg(job.name) : qsTr("Instalado: %1").arg(job.name))
+                dlSeen[job.id] = job.status
+            }
+            dlJobs = jobs
+            if (jobs.some(function(j) { return j.status === "completed" })) api.refresh()
+        })
+    }
+    function openDownloads() { page = "downloads"; downloads.forceActiveFocus() }
+    function closeDownloads() { page = "library"; lib.forceActiveFocus(); pollDownloads() }
+    Timer { interval: 2000; repeat: true; running: api.ok && lib.visible && lib.page !== "downloads"; triggeredOnStart: true; onTriggered: lib.pollDownloads() }
     function openSettings() { page = "settings"; settings.forceActiveFocus() }
     function closeSettings() { page = "library"; lib.forceActiveFocus() }
     function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
@@ -249,7 +274,8 @@ Item {
         if (port) api.launch(g, port)
     }
     function back() {
-        if (page === "settings") closeSettings()
+        if (page === "downloads") closeDownloads()
+        else if (page === "settings") closeSettings()
         else if (page === "all") openLibrary()
         else if (detailsOpen) closeDetails()
         else if (page === "home" && home.detail) home.closeCatalogDetails()
@@ -313,6 +339,8 @@ Item {
                 else if (k === "d" || k === "B") lib.searchFocus = false
                 return
             }
+            if (lib.page === "downloads") { downloads.pad(k); return }
+            if (k === "START" && lib.dlBusy + lib.dlFailed > 0) { lib.openDownloads(); return }
             if (lib.page === "settings") { if (k === "B") lib.closeSettings(); return }
             if (lib.page === "all") { allGames.pad(k); return }
             if (lib.page === "home") {
@@ -346,7 +374,7 @@ Item {
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { if (e.key === Qt.Key_Escape) vkb.close(); e.accepted = true; return }
         if (searchOpen) return                              // el campo de texto maneja el teclado
-        if (detailsOpen || page === "settings") return           // la ficha y los ajustes manejan su propio teclado
+        if (detailsOpen || page === "settings" || page === "downloads") return           // la ficha, los ajustes y las descargas manejan su propio teclado
         if (page === "all") { e.accepted = allGames.key(e); return }
         if (page === "home") {
             if (e.key === Qt.Key_Left) home.nav("left")
@@ -605,6 +633,23 @@ Item {
             api: lib.api; uiScale: lib.s; uiFont: lib.uiFont; ink: lib.ink; muted: lib.ink2
             compact: lib.page === "library"
             anchors { right: sysPill.left; rightMargin: lib.s * 10; verticalCenter: parent.verticalCenter }
+        }
+        Rectangle {          // descargas e instalaciones en curso o fallidas (START en el mando)
+            id: dlPill
+            visible: lib.dlBusy + lib.dlFailed > 0
+            anchors { right: padBatteryChip.left; rightMargin: lib.s * 10; verticalCenter: parent.verticalCenter }
+            width: dlLabel.implicitWidth + lib.s * 60; height: lib.s * 42; radius: height / 2
+            color: dlMouse.containsMouse ? lib.surface : "#b30b0f14"
+            border.color: lib.dlFailed > 0 ? "#80E8B86D" : "#30ffffff"
+            Row {
+                anchors.centerIn: parent; spacing: lib.s * 9
+                LucideIcon { width: lib.s * 19; height: width; name: lib.dlBusy > 0 ? "download" : "info"; color: lib.dlFailed > 0 ? "#E8B86D" : lib.ink2 }
+                Text {
+                    id: dlLabel; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 17
+                    text: lib.dlBusy > 0 ? qsTr("Descargas %1%").arg(lib.dlProgress) + (lib.dlFailed > 0 ? "  ⚠ " + lib.dlFailed : "") : qsTr("%1 fallida(s)").arg(lib.dlFailed)
+                }
+            }
+            MouseArea { id: dlMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openDownloads() }
         }
         Rectangle {
             id: sysPill
@@ -1049,7 +1094,7 @@ Item {
         z: 58
         api: lib.api
         uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
-        onStarted: function(name) { lib.api.notify(qsTr("Instalación iniciada: %1").arg(name)) }
+        onStarted: function(name) { lib.api.notify(qsTr("Instalación iniciada: %1").arg(name)); lib.pollDownloads() }
     }
     OmniaVirtualKeyboard {
         id: vkb
@@ -1114,6 +1159,15 @@ Item {
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: api.refresh() }
             }
         }
+    }
+
+    // ================= descargas e instalaciones =================
+    OmniaDownloads {
+        id: downloads
+        anchors.fill: parent
+        host: lib
+        visible: lib.page === "downloads"
+        onBack: lib.closeDownloads()
     }
 
     // ================= ajustes de BigMode =================

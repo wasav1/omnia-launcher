@@ -385,9 +385,11 @@ class PackageInstallManager:
             saved_status = item.get("status")
             if not isinstance(saved_status, str):
                 saved_status = ""
+            if item.get("status") == "completed":
+                continue                      # un éxito no se conserva: el resultado ya está en «instalados»
             job = {key: item.get(key) for key in (
                 "id", "slug", "packageId", "name", "status", "progress", "destination",
-                "error", "gameId",
+                "error", "gameId", "updateOf",
             ) if key in item}
             if saved_status not in terminal:
                 job.update(status="interrupted", error=(
@@ -444,10 +446,54 @@ class PackageInstallManager:
         data = load_json(self._file, [])
         return data if isinstance(data, list) else []
 
+    COMPLETED_KEEP_SECS = 10          # un éxito se ve unos segundos (para avisar «Instalado») y se retira solo
+
     def snapshot(self):
         with self._lock:
+            now = int(time.time())
+            stale = [jid for jid, job in self._jobs.items()
+                     if job.get("status") == "completed" and now - int(job.get("completedAt") or 0) >= self.COMPLETED_KEEP_SECS]
+            for jid in stale:
+                self._jobs.pop(jid, None)
+            if stale:
+                self._persist_jobs_locked()
             jobs = [dict(job) for job in self._jobs.values()]
         return {"jobs": jobs, "installed": self.installed()}
+
+    TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
+
+    def dismiss(self, job_id: str | None = None, only_failed: bool = False) -> int:
+        """Quita del historial un trabajo terminado, o todos los que no salieron bien (fallidos, cancelados, interrumpidos).
+        Nunca toca uno en curso ni archivos instalados. Devuelve cuántos quitó."""
+        with self._lock:
+            if job_id is not None:
+                job = self._jobs.get(job_id)
+                ids = [job_id] if job and job.get("status") in self.TERMINAL else []
+            else:
+                bad = {"failed", "cancelled", "interrupted"} if only_failed else self.TERMINAL
+                ids = [jid for jid, job in self._jobs.items() if job.get("status") in bad]
+            for jid in ids:
+                self._jobs.pop(jid, None)
+            if ids:
+                self._persist_jobs_locked()
+        return len(ids)
+
+    def retry(self, job_id: str, is_running=lambda gid: False) -> dict:
+        """Repite un trabajo que no salió bien: una instalación vuelve a descargarse en la misma carpeta de destino y una actualización
+        vuelve a pedirse. El trabajo viejo se quita del historial."""
+        with self._lock:
+            job = dict(self._jobs.get(job_id) or {})
+        if job.get("status") not in {"failed", "cancelled", "interrupted"}:
+            raise PackageInstallError("Solo se puede reintentar un trabajo que no terminó bien.")
+        if job.get("updateOf"):
+            new = self.start_update(str(job["updateOf"]), is_running)
+        else:
+            destination = str(job.get("destination") or "")
+            if not job.get("slug") or not job.get("packageId") or not destination:
+                raise PackageInstallError("Faltan datos para reintentar esta instalación.")
+            new = self.start(str(job["slug"]), str(job["packageId"]), str(Path(destination).parent))
+        self.dismiss(job_id)
+        return new
 
     def start(self, slug: str, package_id: str, destination: str) -> dict:
         manifest = online_catalog.install_package(slug, package_id)
@@ -764,7 +810,7 @@ class PackageInstallManager:
                 _overlay_tree(extract_root, final, retire=[record.get("entrypoint", "")] if record.get("entrypoint") else [])
                 self._finish_update(update["gameId"], package, record, new_entry)
                 shutil.rmtree(stage, ignore_errors=True)
-                self._phase(job_id, "completed", cancel, pause, progress=100, gameId=update["gameId"], destination=str(final))
+                self._phase(job_id, "completed", cancel, pause, progress=100, gameId=update["gameId"], destination=str(final), completedAt=int(time.time()))
                 self.on_change()
                 return
             os.replace(extract_root, final)
@@ -805,7 +851,7 @@ class PackageInstallManager:
                               "archiveFormat": package["archiveFormat"], "publishedAt": str(package.get("createdAt") or ""),
                               "sourceName": str(package["sourceName"])})
             write_json_atomic(self._file, installed, mode=0o600)
-            self._phase(job_id, "completed", cancel, pause, progress=100, gameId=game["id"], destination=str(final))
+            self._phase(job_id, "completed", cancel, pause, progress=100, gameId=game["id"], destination=str(final), completedAt=int(time.time()))
             self.on_change()
         except Exception as exc:
             if registered_game_id:

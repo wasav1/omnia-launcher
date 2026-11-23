@@ -314,6 +314,8 @@ QtObject {
     function startInstallation(slug, packageId, destination, done) {
         call("POST", "/installations/start", done, {slug: slug, packageId: packageId, destination: destination})
     }
+    function dismissInstallations(target, done) { call("POST", "/installations/dismiss", done, target === true ? {all: true} : {jobId: target}) }
+    function retryInstallation(jobId, done) { call("POST", "/installations/retry", done, {jobId: jobId}) }
     function updateInstallation(gameId, done) { call("POST", "/installations/update", done, {gameId: gameId}) }
     function cancelInstallation(jobId, done) { call("POST", "/installations/cancel", done, {jobId: jobId}) }
     function pauseInstallation(jobId, done) { call("POST", "/installations/pause", done, {jobId: jobId}) }

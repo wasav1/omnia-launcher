@@ -16,6 +16,8 @@ Item {
     property var packageOptions: []
     property var selectedPackage: null
     property var installJobs: []
+    property var installedPackages: []                   // paquetes que Omnia instaló (package-installs.json)
+    property var seenJobStatus: ({})                     // id -> último estado visto, para avisar una sola vez cuando un trabajo termina bien
     property string packageMessage: ""
     property bool packagesBusy: false
     property bool acceptLicense: false
@@ -54,7 +56,7 @@ Item {
     Api { id: api; controlsEnabled: false; systemEnabled: true }
     Component.onCompleted: loadOnline(1)
     Timer { interval: 6000; repeat: true; running: manager.visible; onTriggered: api.refresh() }
-    Timer { interval: 1200; repeat: true; running: manager.visible && manager.page === "installs"; triggeredOnStart: true; onTriggered: manager.loadInstallations() }
+    Timer { interval: 1200; repeat: true; running: manager.visible && (manager.page === "installs" || manager.activeInstalls.length > 0); triggeredOnStart: true; onTriggered: manager.loadInstallations() }
 
     function loadOnline(page) {
         if (page !== undefined) onlinePage = Math.max(1, Number(page) || 1)
@@ -105,7 +107,25 @@ Item {
             } else manager.onlineWarning = (body && body.error) || qsTr("No se pudo vincular la ficha.")
         }, {id: id, slug: remote.slug})
     }
-    readonly property var activeInstalls: installJobs.filter(job => ["queued", "downloading", "verifying", "extracting", "paused"].includes(job.status))
+    readonly property var activeInstalls: installJobs.filter(job => ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].includes(job.status))
+    // Argumentos de arranque (los usa el panel rápido: instalar o actualizar abre esta app, no Big Mode):
+    //   --game ID [--install-port | --update-port]   abre la ficha del juego y su diálogo      --downloads   abre Descargas
+    property bool argsApplied: false
+    function applyLaunchArgs() {
+        argsApplied = true
+        const args = Qt.application.arguments
+        if (args.indexOf("--downloads") >= 0) { selectPage("installs"); return }
+        const id = api.arg("--game", "")
+        const game = id ? (api.games || []).find(function(g) { return g.id === id }) : null
+        if (!game) return
+        openGameInLibrary(game)
+        if (args.indexOf("--install-port") >= 0) Qt.callLater(function() { installPortFor(game) })
+        else if (args.indexOf("--update-port") >= 0) Qt.callLater(function() { updateFor(game) })
+    }
+    Connections {
+        target: api
+        function onGamesChanged() { if (!manager.argsApplied && api.games.length > 0) manager.applyLaunchArgs() }
+    }
     function openGameInLibrary(game) { page = "library"; if (game) managerLibrary.selId = game.id }
     function libraryAction(act) {
         if (act === "add") addWizardOpen = true
@@ -185,11 +205,16 @@ Item {
     }
     function loadInstallations() {
         api.installationSnapshot(function(status, body) {
-            if (status === 200) {
-                const active = (body.jobs || []).filter(job => job.status !== "completed")
-                const installed = (body.installed || []).map(game => ({id: game.gameId, name: game.name, status: qsTr("Instalado"), progress: 100, destination: game.path, gameId: game.gameId, installed: true}))
-                manager.installJobs = active.concat(installed)
+            if (status !== 200) return
+            const jobs = body.jobs || []
+            for (const job of jobs) {                     // aviso único al terminar bien (la tarjeta se quita sola a los pocos segundos)
+                if (job.status === "completed" && seenJobStatus[job.id] && seenJobStatus[job.id] !== "completed")
+                    api.notify(job.updateOf ? qsTr("Actualizado: %1").arg(job.name) : qsTr("Instalado: %1").arg(job.name))
+                seenJobStatus[job.id] = job.status
             }
+            manager.installJobs = jobs
+            manager.installedPackages = body.installed || []
+            api.refresh()
         })
     }
     function installationStatusLabel(status) {
@@ -302,7 +327,7 @@ Item {
             anchors { left: parent.left; leftMargin: manager.cs * 18; verticalCenter: parent.verticalCenter }
             spacing: manager.cs * 8
             Image { width: manager.cs * 24; height: manager.cs * 24; anchors.verticalCenter: parent.verticalCenter; source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg"); fillMode: Image.PreserveAspectFit; sourceSize.height: 96 }
-            Text { anchors.verticalCenter: parent.verticalCenter; text: "Omnia"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 18; font.weight: Font.DemiBold }
+            Text { anchors.verticalCenter: parent.verticalCenter; text: "Omnia Desktop Suite"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 18; font.weight: Font.DemiBold }
         }
         Row {
             anchors { left: brandRow.right; leftMargin: manager.cs * 26; verticalCenter: parent.verticalCenter }
@@ -312,7 +337,7 @@ Item {
                     {key:"home",label:qsTr("Inicio")},
                     {key:"library",label:qsTr("Biblioteca")},
                     {key:"catalog",label:qsTr("Explorar")},
-                    {key:"installs",label:qsTr("Instalaciones")}
+                    {key:"installs",label:qsTr("Descargas")}
                 ]
                 delegate: Item {
                     id: menuItem
@@ -539,57 +564,12 @@ Item {
             }
         }
 
-        // Cola local de descargas y verificaciones
-        Item {
-            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom }
+        // Descargas e instalaciones (pantalla propia)
+        ManagerDownloads {
+            anchors.fill: parent
             visible: manager.page === "installs"
-            ListView {
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: content.pad; topMargin: content.top0 }
-                height: manager.s * 134
-                clip: true; spacing: manager.s * 10; model: manager.installJobs
-                delegate: Rectangle {
-                    required property var modelData
-                    width: ListView.view.width; height: manager.s * 92; radius: manager.s * 15; color: manager.surface
-                    Column { anchors { left: parent.left; right: installActions.left; verticalCenter: parent.verticalCenter; leftMargin: manager.s * 18; rightMargin: manager.s * 12 } spacing: manager.s * 7
-                        Row { width: parent.width; Text { width: parent.width; text: modelData.name + " · " + manager.installationStatusLabel(modelData.status); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15; elide: Text.ElideRight } }
-                        Rectangle { width: parent.width; height: manager.s * 6; radius: height/2; color: manager.surface2; Rectangle { width: parent.width * Math.max(0, Math.min(1, Number(modelData.progress || 0) / 100)); height: parent.height; radius: height/2; color: manager.accent } }
-                        Text { width: parent.width; text: modelData.error ? manager.installationErrorText(modelData.error) : (modelData.destination || ""); color: modelData.error ? "#E8B86D" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideMiddle }
-                    }
-                    Row { id: installActions; anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 14 } spacing: manager.s * 6
-                        Rectangle {
-                            visible: ["queued", "downloading", "extracting", "paused"].includes(modelData.status)
-                            width: manager.s * 72; height: manager.s * 34; radius: height/2; color: manager.surface2
-                            Text { anchors.centerIn: parent; text: modelData.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10 }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: {
-                                const done = function() { manager.loadInstallations() }
-                                if (modelData.status === "paused") api.resumeInstallation(modelData.id, done)
-                                else api.pauseInstallation(modelData.id, done)
-                            } }
-                        }
-                        Rectangle {
-                            visible: ["queued", "downloading", "verifying", "extracting", "paused"].includes(modelData.status)
-                            width: manager.s * 72; height: manager.s * 34; radius: height/2; color: "#50343A"
-                            Text { anchors.centerIn: parent; text: qsTr("Cancelar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10 }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: api.cancelInstallation(modelData.id, function() { manager.loadInstallations() }) }
-                        }
-                    }
-                    Rectangle { visible: modelData.installed === true; anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 14 } width: manager.s * 72; height: manager.s * 34; radius: height/2; color: "#50343A"; Text { anchors.centerIn: parent; text: qsTr("Quitar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.removeGameId = modelData.gameId; uninstallDialog.open() } } }
-                }
-                Text { visible: manager.installJobs.length === 0; anchors.centerIn: parent; text: qsTr("Aún no hay instalaciones."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16 }
-            }
-            Text { x: content.pad; y: manager.s * 178; text: qsTr("Juegos en este equipo"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 20; font.weight: Font.DemiBold }
-            ListView {
-                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; leftMargin: content.pad; rightMargin: content.pad; topMargin: manager.s * 218; bottomMargin: manager.s * 24 }
-                clip: true; spacing: manager.s * 8; model: api.games.filter(g => !g.hidden)
-                delegate: Rectangle {
-                    required property var modelData
-                    width: ListView.view.width; height: manager.s * 74; radius: manager.s * 14; color: manager.surface
-                    FadedImage { x: manager.s * 10; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 54; height: manager.s * 54; source: modelData.portada || ""; cornerRadius: manager.s * 10 }
-                    Column { anchors { left: parent.left; leftMargin: manager.s * 78; verticalCenter: parent.verticalCenter } width: parent.width * 0.68; spacing: manager.s * 2; Text { width: parent.width; text: modelData.name; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15; font.weight: Font.DemiBold; elide: Text.ElideRight } Text { width: parent.width; text: modelData.folder || (modelData.ports.length ? modelData.ports[0].name : qsTr("Ubicación no disponible")); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideMiddle } }
-                    Rectangle { anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 12 } width: manager.s * 94; height: manager.s * 36; radius: height / 2; color: manager.accent; Text { anchors.centerIn: parent; text: modelData.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; enabled: !modelData.running; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.launch(modelData) } }
-                }
-                Text { visible: api.games.length === 0; anchors.centerIn: parent; text: qsTr("Aún no hay juegos instalados o importados."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
-            }
+            manager: manager
+            api: api
         }
 
         // Preferencias
@@ -620,7 +600,7 @@ Item {
                         Image { width: manager.s * 72; height: width; anchors.verticalCenter: parent.verticalCenter; source: Qt.resolvedUrl("../../assets/branding/omnia-icon.svg"); sourceSize.height: 192; fillMode: Image.PreserveAspectFit }
                         Column { anchors.verticalCenter: parent.verticalCenter; spacing: manager.s * 5
                             Text { text: "Omnia Desktop Suite"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 22; font.weight: Font.DemiBold }
-                            Text { text: qsTr("Biblioteca de juegos y Big Mode para Linux. En la interfaz se llama simplemente Omnia."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14 }
+                            Text { text: qsTr("Biblioteca de juegos y Big Mode para Linux. "); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14 }
                             Text { text: qsTr("Los juegos y sus archivos viven en este equipo; Omnia no incluye ni descarga ROMs."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 } }
                     }
                 }
@@ -793,6 +773,7 @@ Item {
         })
     }
     property string removeGameId: ""
+    function askUninstall() { uninstallDialog.open() }
     Dialog {
         id: uninstallDialog
         modal: true
