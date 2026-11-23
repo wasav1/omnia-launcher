@@ -13,7 +13,7 @@ Fecha: 2026-11-23. Estado: **listo para preparar; faltan pasos que solo puedes h
    Antes de publicar: revisar que no haya secretos ni rutas personales en el historial (`git log -p | grep -iE "token|secret|password"`), y los `docs/` que quieras mantener.
 2. **Etiquetar una versión nueva.** Las etiquetas existentes (`v0.2.0`, `v0.2.1`) son anteriores a todo el trabajo reciente (instalación de ports, aviso del mando…).
    Propuesta: subir `pkgver` a `0.3.0` en `PKGBUILD` y `pyproject.toml`, `git tag v0.3.0` y `git push --tags`.
-3. **Fijar el checksum.** En el directorio del PKGBUILD: `updpkgsums` (sustituye `sha256sums=('SKIP')`) y probar `makepkg -sf` en limpio
+3. **Preparar la carpeta del AUR:** `packaging/arch/prepare-aur.sh ../aur-omnia-launcher` hace los pasos 3 a 5 de una vez (comprueba la etiqueta, `updpkgsums`, `.SRCINFO`, `namcap`) y copia los archivos. Manualmente: **fijar el checksum.** En el directorio del PKGBUILD: `updpkgsums` (sustituye `sha256sums=('SKIP')`) y probar `makepkg -sf` en limpio
    (idealmente en un chroot: `extra-x86_64-build` de `devtools`).
 4. **Revisar con `namcap`** (`sudo pacman -S namcap`; `namcap PKGBUILD *.pkg.tar.zst`) y corregir avisos de dependencias.
 5. **Generar `.SRCINFO`:** `makepkg --printsrcinfo > .SRCINFO`.
