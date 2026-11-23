@@ -1,7 +1,7 @@
 """Instalación de paquetes publicados por Omnia Backend.
 
 El manifiesto nunca contiene comandos. Los archivos se descargan a un staging local,
-se comprueban por tamaño/SHA-256 y se extraen sin enlaces ni rutas fuera del destino.
+se comprueban por tamaño/SHA-256 y se extraen sin rutas fuera del destino (solo se admiten enlaces simples a un archivo hermano).
 """
 from __future__ import annotations
 
@@ -191,7 +191,29 @@ def _extract_zip(archive: Path, stage: Path, progress, reserve_space=None, consu
             progress(75 + int(20 * extracted / max(1, total)))
 
 
+def _safe_link_name(link) -> bool:
+    """Un enlace simbólico admitido apunta a un archivo hermano: un nombre simple, sin rutas, `.` ni `..`."""
+    return (isinstance(link, str) and bool(link) and "/" not in link and "\\" not in link and "\0" not in link
+            and link not in (".", ".."))
+
+
+def _make_links(links: list, stage: Path):
+    """Crea al final los enlaces (así ningún archivo se escribe a través de uno) y comprueba que cada uno acabe en un archivo
+    normal dentro de la carpeta; un enlace colgante, circular o que sale se rechaza."""
+    for target, link in links:
+        if os.path.lexists(target):
+            raise PackageInstallError("El paquete repite una ruta como enlace.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(link, target)
+    root = str(stage.resolve())
+    for target, _ in links:
+        real = target.resolve(strict=False)
+        if os.path.commonpath((root, str(real))) != root or not real.is_file():
+            raise PackageInstallError("El paquete incluye un enlace que no apunta a un archivo suyo.")
+
+
 def _extract_tar(archive: Path, stage: Path, mode: str, progress, reserve_space=None, consume_space=None):
+    links = []
     with tarfile.open(archive, mode) as package:
         members = package.getmembers()
         if len(members) > MAX_ARCHIVE_ITEMS:
@@ -228,9 +250,12 @@ def _extract_tar(archive: Path, stage: Path, mode: str, progress, reserve_space=
                     raise PackageInstallError("Un archivo del paquete TAR quedó incompleto.")
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
                 extracted += actual
+            elif member.issym() and _safe_link_name(member.linkname):
+                links.append((target, member.linkname))
             else:
                 raise PackageInstallError("El paquete TAR incluye enlaces o archivos especiales.")
             progress(75 + int(20 * extracted / max(1, total)))
+    _make_links(links, stage)
 
 
 _INNER_TAR_MODES = {".tar.gz": "r:gz", ".tgz": "r:gz", ".tar.xz": "r:xz", ".txz": "r:xz"}
@@ -324,7 +349,8 @@ def _overlay_tree(src: Path, dest: Path, retire=()):
     files = []
     for dirpath, dirnames, filenames in os.walk(src):
         base = Path(dirpath)
-        if any((base / name).is_symlink() for name in dirnames + filenames):
+        if any((base / name).is_symlink() for name in dirnames) or any(
+                (base / name).is_symlink() and not _safe_link_name(os.readlink(base / name)) for name in filenames):
             raise PackageInstallError("El paquete incluye enlaces simbólicos; no se puede actualizar de forma segura.")
         files.extend((base / name).relative_to(src) for name in filenames)
     for rel in files:
@@ -334,14 +360,14 @@ def _overlay_tree(src: Path, dest: Path, retire=()):
             if current.is_symlink() or (current.exists() and not current.is_dir()):
                 raise PackageInstallError("La carpeta instalada tiene un enlace o archivo que impide actualizar.")
         target = dest / rel
-        if target.is_symlink() or target.is_dir() or PREVIOUS_DIR in rel.parts:
+        if (target.is_symlink() and not (src / rel).is_symlink()) or target.is_dir() or PREVIOUS_DIR in rel.parts:
             raise PackageInstallError("La carpeta instalada tiene un enlace o carpeta que impide actualizar.")
     backup = dest / PREVIOUS_DIR
     placed, backed, retired = [], [], []
     try:
         for rel in files:
             target = dest / rel
-            if target.exists():
+            if os.path.lexists(target):
                 saved = backup / rel
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(target, saved)

@@ -49,9 +49,14 @@ def make_zip(files: dict) -> bytes:
     return buf.getvalue()
 
 
-def make_targz(files: dict) -> bytes:
+def make_targz(files: dict, links: dict | None = None) -> bytes:
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as t:
+        for name, dest in (links or {}).items():
+            link = tarfile.TarInfo(name)
+            link.type = tarfile.SYMTYPE
+            link.linkname = dest
+            t.addfile(link)
         for name, data in files.items():
             info = tarfile.TarInfo(name)
             info.size = len(data)
@@ -150,6 +155,34 @@ class InstallFlowTests(unittest.TestCase):
         (nested / "x" / "x" / "f").write_text("1")
         self.assertTrue(package_installs._strip_single_root(nested))
         self.assertTrue((nested / "x" / "f").is_file())
+
+    def test_tar_with_sibling_symlinks_installs_them(self):
+        data = make_targz({"app/juego": b"bin", "app/lib/libx.so.1.0": b"lib"},
+                          {"app/lib/libx.so": "libx.so.1", "app/lib/libx.so.1": "libx.so.1.0"})     # enlace que apunta a otro enlace
+        state = self.run_install(data, self.manifest(data, "tar.gz", "juego", setup={"start": {"program": ["juego"]}, "stripRoot": True}), ficha={"data": {}})
+        self.assertEqual(state["status"], "completed", state.get("error"))
+        root = Path(self.store.find_game(state["gameId"])["installPath"])
+        self.assertTrue((root / "lib/libx.so").is_symlink())
+        self.assertEqual((root / "lib/libx.so").read_bytes(), b"lib")
+
+    def test_tar_rejects_unsafe_symlinks(self):
+        for name, link, files in (("a", "../../etc/passwd", {}), ("a", "/etc/passwd", {}), ("a", "sub/x", {"sub/x": b"1"}),
+                                  ("a", "no-existe", {}), ("a", "b", {}), ("a", ".", {})):
+            with self.subTest(link=link):
+                links = {"a": "b", "b": "a"} if link == "b" else {name: link}
+                data = make_targz({"juego": b"bin", **files}, links)
+                state = self.run_install(data, self.manifest(data, "tar.gz", "juego"), ficha={"data": {}})
+                self.assertEqual(state["status"], "failed")
+                self.assertEqual(self.store.games(), [])
+
+    def test_tar_still_rejects_hardlinks_and_devices(self):
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as t:
+            info = tarfile.TarInfo("juego"); info.size = 3; t.addfile(info, io.BytesIO(b"bin"))
+            hard = tarfile.TarInfo("h"); hard.type = tarfile.LNKTYPE; hard.linkname = "juego"; t.addfile(hard)
+        data = buf.getvalue()
+        state = self.run_install(data, self.manifest(data, "tar.gz", "juego"), ficha={"data": {}})
+        self.assertEqual(state["status"], "failed")
 
     def test_plain_zip_still_works(self):
         data = make_zip({"juego": b"bin", "datos/x.dat": b"1"})
@@ -299,6 +332,25 @@ class UpdateFlowTests(InstallFlowTests):
         state = self.run_update(game_id, data, manifest)
         self.assertEqual(state["status"], "failed")
         self.assertEqual(list(outside.iterdir()), [])
+
+
+class OverlaySymlinkTests(unittest.TestCase):
+    def tree(self, version: bytes, link: str):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "lib").mkdir()
+        (root / "lib" / "libx.so.1.0").write_bytes(version)
+        os.symlink(link, root / "lib" / "libx.so")
+        return root
+
+    def test_overlay_replaces_a_safe_symlink_and_rejects_an_unsafe_one(self):
+        dest = self.tree(b"v1", "libx.so.1.0")
+        package_installs._overlay_tree(self.tree(b"v2", "libx.so.1.0"), dest)
+        self.assertTrue((dest / "lib/libx.so").is_symlink())
+        self.assertEqual((dest / "lib/libx.so").read_bytes(), b"v2")
+        self.assertFalse((dest / package_installs.PREVIOUS_DIR).exists())
+        with self.assertRaises(package_installs.PackageInstallError):
+            package_installs._overlay_tree(self.tree(b"v3", "../fuera"), dest)
 
 
 class JobHousekeepingTests(UpdateFlowTests):
