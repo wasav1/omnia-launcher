@@ -153,10 +153,11 @@ Singleton {
     }
 
     // BigMode (biblioteca completa). Con id y details=true abre directamente la ficha de ese juego.
-    function openBigMode(id, details) {
+    function openBigMode(id, details, installPort) {
         const cmd = Array.from(OmniaSettings.libraryCommand);
         if (id) cmd.push("--game", id);
         if (id && details) cmd.push("--details");
+        if (id && installPort) cmd.push("--install-port");      // abre el diálogo «Instalar port» del juego
         console.log("[Omnia] abrir BigMode:", JSON.stringify(cmd));
         Quickshell.execDetached(cmd);
     }

@@ -59,6 +59,7 @@ Item {
     readonly property var menuItems: {
         const g = root.game, out = [];
         if (!g) return out;
+        if (g.portAvailable) out.push({ id: "port", label: "Instalar port en Big Mode", icon: "download" });
         out.push({ id: "details", label: "Ver detalles en Big Mode", icon: "layout-grid" });
         out.push({ id: "fav", label: g.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "star" });
         if (OmniaWallpaper.canPin(g)) out.push({ id: "pin", label: "Usar su fondo en el escritorio", icon: "image" });
@@ -78,6 +79,7 @@ Item {
     function runMenu(i) {
         const it = menuItems[i];
         if (!it || !game) return;
+        if (it.id === "port") { OmniaApi.openBigMode(game.id, false, true); menuOpen = false; root.closeRequested(); return; }
         if (it.id === "details") { OmniaApi.openBigMode(game.id, true); menuOpen = false; root.closeRequested(); return; }
         if (it.id === "fav") OmniaApi.toggleFav(game.id);
         else if (it.id === "pin") OmniaWallpaper.pin(game);
@@ -97,7 +99,11 @@ Item {
         OmniaApi.select(games[i].id);
         list.positionViewAtIndex(i, ListView.Contain);    // la selección siempre queda visible
     }
-    function playGame() { if (game && OmniaApi.play(game.id)) closeRequested(); }
+    function playGame() {
+        if (!game) return;
+        if (game.portAvailable) { OmniaApi.openBigMode(game.id, false, true); closeRequested(); return; }     // un volcado con port disponible: «Jugar» ofrece instalarlo
+        if (OmniaApi.play(game.id)) closeRequested();
+    }
 
     function nav(k) {
         if (view === "settings") { if (k === "back") view = "main"; return; }
@@ -487,8 +493,8 @@ Item {
                             spacing: 10
                             OmniaPill {
                                 id: playBtn
-                                label: root.game && root.game.running ? "En ejecución" : "Jugar"
-                                icon: "play"
+                                label: root.game && root.game.running ? "En ejecución" : (root.game && root.game.portAvailable ? "Instalar port" : "Jugar")
+                                icon: root.game && root.game.portAvailable ? "download" : "play"
                                 primary: true
                                 implicitHeight: 44
                                 implicitWidth: 170

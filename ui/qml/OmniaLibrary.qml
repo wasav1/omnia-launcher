@@ -239,7 +239,11 @@ Item {
             const id = api.arg("--game", "")
             if (!id) return
             const at = lib.visibleGames.findIndex(function(g) { return g.id === id })
-            if (at >= 0) { lib.select(at); if (Qt.application.arguments.indexOf("--details") >= 0) Qt.callLater(function() { lib.openDetails(); tabTimer.start() }) }
+            if (at >= 0) {
+                lib.select(at)
+                if (Qt.application.arguments.indexOf("--details") >= 0) Qt.callLater(function() { lib.openDetails(); tabTimer.start() })
+                else if (Qt.application.arguments.indexOf("--install-port") >= 0) Qt.callLater(function() { lib.openLibrary(); lib.openPortInstall() })
+            }
         }
     }
     // Si el juego seleccionado deja de existir en la vista, se vuelve a ordenar la selección.
