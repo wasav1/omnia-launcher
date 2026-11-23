@@ -132,3 +132,11 @@ Decisiones del usuario: solo ports con build de Linux, sin `prepare`, empezar po
 - Paquetes generados: **Zelda64Recomp** (majoras-mask) y **Starship** (star-fox-64). Pendientes por licencia: Shipwright y sm64coopdx.
 - Pruebas: esquema, semillas y API (`tests/install-packages.test.ts`); 340 pruebas del backend en verde.
 - **Falta desplegar:** aplicar la migración 0007 en D1 remoto y `npm run deploy`, y enviar los paquetes.
+
+### Mario Kart World (Switch 2) — añadido 2026-11-23
+La ficha `mario-kart-world` (Switch 2) ya existía en el catálogo con tres módulos. Revisados en GitHub:
+- **`adriadam10/mkw-recomp`** (MIT, ~1.700 estrellas, activo): release v0.1.17 con **AppImage x86_64 (225 MB)** y aarch64; su pantalla de inicio prepara el juego desde tu volcado
+  (versiones 1.0.0 y 1.8.0). **Incluido**: paquete `mkw-recomp` (SHA-256 del digest de GitHub), borrador en `seeds/release-packages/mkw-recomp.json`.
+- **`MIXIDtheSilly/kart-recomp`** (GPL-3.0): release con tar.gz de Linux, pero su launcher **compila el juego en tu equipo** (~30 min, necesita compilador, Python y SDL3). Queda fuera por ahora
+  (equivale a un paso de preparación); posible fase 4.
+- **`STS78721/MKW-THWOMP`** (MIT): solo Windows → fuera (decisión «solo Linux»).
