@@ -141,6 +141,11 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Asistente «Añadir juego» de escritorio en tres pasos:** nuevo `ManagerAddGame.qml` (Origen · Detección · Confirmación) para la app de
+  escritorio: carpeta de juegos (se añade como carpeta de la biblioteca y se cuentan los juegos nuevos), ROM de consola (abre el escaneo de ROMs),
+  ejecutable/AppImage, port o emulador compatible (lista de plantillas) e importar biblioteca anterior. Pide el nombre y confirma con
+  `api.addGame`. BigMode conserva `AddGame.qml` (pensado para el mando). `manager` y `api` se asignan desde el `Loader` (`onLoaded`): en el binding el nombre de la
+  propiedad ocultaba al id del anfitrión.
 - **2026-11-23 — Arte de Steam para juegos de Steam sin ficha:** `online_catalog.steam_art_urls` arma las URLs públicas del CDN de Steam
   (`cdn.cloudflare.steamstatic.com/steam/apps/<appid>/library_600x900.jpg`, `library_hero.jpg`, `logo.png`; sin claves ni cuentas) para los juegos
   detectados en Steam (id `steam-<appid>`). `download_artwork` las acepta solo con ese host y esa ruta exactos (sin redirecciones a otros

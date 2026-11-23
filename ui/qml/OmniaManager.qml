@@ -820,13 +820,14 @@ Item {
         anchors.fill: parent; z: 20
         active: manager.addWizardOpen || manager.importPanelOpen
         sourceComponent: manager.importPanelOpen ? importComponent : addGameComponent
+        onLoaded: { if (item && item.hasOwnProperty("templateList")) { item.manager = manager; item.api = api } }
     }
     Component {
         id: addGameComponent
-        AddGame {
-            api: api
+        ManagerAddGame {
+            // `manager` y `api` se asignan desde el Loader (onLoaded): aquí el nombre de la propiedad ocultaría al id del anfitrión
             onFinished: manager.addWizardOpen = false
-            onAdded: function(id) { manager.addWizardOpen = false; api.refresh(); api.notify(qsTr("Juego añadido a la biblioteca.")) }
+            onAdded: function(id) { manager.addWizardOpen = false; api.refresh(); manager.openGameInLibrary({id: id}); api.notify(qsTr("Juego añadido a la biblioteca.")) }
             onImportRequested: function(path) { manager.importPath = path; manager.addWizardOpen = false; manager.importPanelOpen = true }
         }
     }
