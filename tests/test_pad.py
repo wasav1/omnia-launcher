@@ -35,6 +35,7 @@ H: Handlers=sysrq kbd event3 leds
 
 I: Bus=0005 Vendor=045e Product=0b13 Version=0001
 N: Name="Xbox Wireless Controller"
+U: Uniq=AA:BB:CC:DD:EE:FF
 H: Handlers=kbd event27 js0
 B: KEY=7fff000000000000 0 8000000000 0 0
 
@@ -58,11 +59,121 @@ class Descubrir(unittest.TestCase):
         self.assertEqual(len(d), 3)                                         # el receptor Logitech no es un mando
         self.assertEqual(d["Xbox Wireless Controller"].path, "/dev/input/event27")
         self.assertEqual(d["Xbox Wireless Controller"].layout, "xbox")
+        self.assertEqual(d["Xbox Wireless Controller"].uniq, "aa:bb:cc:dd:ee:ff")
         self.assertEqual(d["Sony Interactive Entertainment DualSense Wireless Controller"].layout, "ps")
         self.assertEqual(d["Nintendo Switch Pro Controller"].layout, "switch")
 
+    def test_familia_de_iconos_por_fabricante(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        f = tmp / "devices"
+        f.write_text(DEVICES + '''
+I: Bus=0003 Vendor=28de Product=1205 Version=0111
+N: Name="Valve Software Steam Deck Controller"
+H: Handlers=event20 js3
+
+I: Bus=0003 Vendor=054c Product=05c4 Version=0111
+N: Name="Controller"
+H: Handlers=event21 js4
+
+I: Bus=0003 Vendor=2dc8 Product=3106 Version=0111
+N: Name="8BitDo Pro 2"
+H: Handlers=event22 js5
+''')
+        d = {x.name: x for x in pad.discover(str(f))}
+        self.assertEqual(d["Xbox Wireless Controller"].family, "xbox")
+        self.assertEqual(d["Sony Interactive Entertainment DualSense Wireless Controller"].family, "ps")
+        self.assertEqual(d["Nintendo Switch Pro Controller"].family, "switch")
+        self.assertEqual((d["Valve Software Steam Deck Controller"].family, d["Valve Software Steam Deck Controller"].layout), ("deck", "xbox"))
+        self.assertEqual((d["Controller"].family, d["Controller"].layout), ("ps", "ps"))     # nombre genérico, Sony por fabricante
+        self.assertEqual(d["8BitDo Pro 2"].family, "xbox")                                 # desconocido: estilo Xbox
+        self.assertEqual(d["Controller"].vendor, "054c")
+
+    def test_el_bus_publica_la_familia_de_iconos(self):
+        bus = EventBus()
+        bus.set_pad(True, "Valve Software Steam Deck Controller", "xbox", "deck")
+        snap = bus.snapshot(-1)
+        self.assertEqual((snap["padOn"], snap["padLayout"], snap["padFamily"]), (True, "xbox", "deck"))
+        bus.set_pad(True, "Xbox Wireless Controller", "xbox")                 # sin familia explícita: la del layout
+        self.assertEqual(bus.snapshot(-1)["padFamily"], "xbox")
+
     def test_sin_archivo(self):
         self.assertEqual(pad.discover("/no/existe"), [])
+
+
+class Bateria(unittest.TestCase):
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.base, True)
+
+    def supply(self, name, kind="Battery", scope="Device", capacity="82", status="Discharging"):
+        d = self.base / name
+        d.mkdir()
+        for key, value in (("type", kind), ("scope", scope), ("capacity", capacity), ("status", status)):
+            if value is not None:
+                (d / key).write_text(value + "\n")
+
+    def test_lee_nivel_y_carga_por_direccion(self):
+        self.supply("ps-controller-battery-aa:bb:cc:dd:ee:01", capacity="55")
+        self.supply("ps-controller-battery-aa:bb:cc:dd:ee:02", capacity="90", status="Charging")
+        self.assertEqual(pad.read_battery("AA:BB:CC:DD:EE:02", str(self.base)), {"level": 90, "charging": True})
+        self.assertEqual(pad.read_battery("aa:bb:cc:dd:ee:01", str(self.base)), {"level": 55, "charging": False})
+
+    def test_ignora_la_bateria_del_portatil(self):
+        self.supply("BAT1", scope=None, capacity="100")                      # sin ámbito: es del sistema
+        self.supply("ucsi-source", kind="USB", scope="System", capacity="0")
+        self.assertIsNone(pad.read_battery("aa:bb", str(self.base)))
+
+    def test_una_sola_bateria_de_periferico_se_usa_sin_direccion(self):
+        self.supply("hid-xx-battery", capacity="30")
+        self.assertEqual(pad.read_battery("", str(self.base)), {"level": 30, "charging": False})
+
+    def test_varias_sin_coincidencia_no_se_adivina(self):
+        self.supply("hid-uno-battery")
+        self.supply("hid-dos-battery")
+        self.assertIsNone(pad.read_battery("zz:zz", str(self.base)))
+
+    def test_valores_invalidos_y_carpeta_inexistente(self):
+        self.supply("hid-uno-battery", capacity="n/a")
+        self.assertIsNone(pad.read_battery("", str(self.base)))
+        self.assertIsNone(pad.read_battery("", "/no/existe"))
+
+    def test_bateria_por_upower_y_bluez(self):
+        class Out:
+            def __init__(self, text, code=0):
+                self.stdout, self.returncode = text, code
+
+        calls = []
+
+        def fake(replies):
+            def run(cmd, **kw):
+                calls.append(cmd)
+                return replies.get((cmd[3], cmd[6]), Out("", 1))
+            return run
+
+        up = {("org.freedesktop.UPower", "Percentage"): Out("d 87\n"), ("org.freedesktop.UPower", "State"): Out("u 1\n")}
+        self.assertEqual(pad.read_battery_dbus("0c:35:26:2a:14:67", fake(up)), {"level": 87, "charging": True})
+        self.assertIn("gaming_input_dev_0C_35_26_2A_14_67", calls[0][4])
+        bz = {("org.bluez", "Percentage"): Out("y 55\n")}
+        self.assertEqual(pad.read_battery_dbus("0c:35:26:2a:14:67", fake(bz)), {"level": 55, "charging": False})
+        self.assertIsNone(pad.read_battery_dbus("0c:35:26:2a:14:67", fake({})))
+        self.assertIsNone(pad.read_battery_dbus("../../etc;rm", fake(up)))             # solo MAC bien formadas llegan al bus
+
+    def test_el_lector_consulta_el_bus_solo_si_sysfs_no_la_tiene(self):
+        asked = []
+        bus = EventBus()
+        reader = pad.PadReader(bus, power_dir=str(self.base), dbus_battery=lambda u: asked.append(u) or {"level": 70, "charging": False})
+        self.assertEqual(reader._battery_from_bus("aa:bb"), {"level": 70, "charging": False})
+        reader._battery_from_bus("aa:bb")
+        self.assertEqual(asked, ["aa:bb"])                                              # segunda lectura: de la caché
+
+    def test_el_bus_publica_la_bateria(self):
+        bus = EventBus()
+        bus.set_pad(True, "DualSense", "ps", "ps", {"level": 40, "charging": False})
+        self.assertEqual(bus.snapshot(-1)["padBattery"], {"level": 40, "charging": False})
+        revision = bus.pad_revision
+        bus.set_pad(True, "DualSense", "ps", "ps", {"level": 39, "charging": False})
+        self.assertEqual(bus.pad_revision, revision + 1)                     # un cambio de nivel avisa a la interfaz
 
 
 class Logica(unittest.TestCase):
@@ -132,6 +243,22 @@ class Bus(unittest.TestCase):
         r = bus.wait(0, 5)
         self.assertEqual([e["key"] for e in r["events"]], ["A"])
         self.assertLess(time.time() - t0, 2)
+
+    def test_conexion_y_desconexion_despiertan_la_espera_sin_boton(self):
+        bus = EventBus()
+        for connected in (True, False):
+            since = bus.snapshot(0)["padRevision"]
+            timer = threading.Timer(0.02, bus.set_pad, args=(connected,))
+            timer.start()
+            try:
+                started = time.monotonic()
+                snapshot = bus.wait(0, 2, pad_since=since)
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertEqual(snapshot["padOn"], connected)
+                self.assertEqual(snapshot["padRevision"], since + 1)
+                self.assertEqual(snapshot["events"], [])
+            finally:
+                timer.join()
 
     def test_since_negativo_no_repite_eventos_viejos(self):
         bus = EventBus()

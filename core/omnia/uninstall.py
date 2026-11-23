@@ -107,6 +107,9 @@ for(var i=0;i<ds.length;i++){
 }print("Omnia retirado de los escritorios");'''
 
 
+SYSTEM_UNIT=Path('/usr/lib/systemd/user/omnia.service')
+
+
 def plan():
     package=False
     if shutil.which('pacman'):
@@ -116,7 +119,7 @@ def plan():
 
 def uninstall(remove_package=False):
     if os.geteuid()==0: raise ValueError('Abre el desinstalador como usuario normal, sin sudo.')
-    if Path('/usr/lib/systemd/user/omnia.service').exists():
+    if SYSTEM_UNIT.exists():
         raise RuntimeError('Esta instalación incluye paquetes de Omnia del sistema (omnia-core/omnia-ui/omnia-kde). Retíralos desde el gestor de paquetes antes de borrar los datos de usuario.')
     items=owned_paths();validate_paths(items,paths.config_dir())
     # Deshace atajos antes de borrar el respaldo; si falla, no retira los archivos.

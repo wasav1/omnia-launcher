@@ -12,6 +12,7 @@ QtObject {
     property string providedToken: ""
     property bool controlsEnabled: true
     property bool systemEnabled: false
+    property bool autoStart: true
     property bool ok: false
     property string error: ""
     property var games: []
@@ -19,6 +20,9 @@ QtObject {
     property string notificationPosition: "bottom-right"
     property string theme: "blue"
     property color themeAccent: "#336599"
+    property string language: "es"
+    property string installRoot: ""
+    property string catalogBaseUrl: ""
     property real toastLevel: 0           // opacidad del aviso: 1 al mostrarlo, 3 s después se desvanece en 2 s
     function notify(text) { toast = ""; toast = text }
     onToastChanged: {
@@ -42,7 +46,11 @@ QtObject {
     property bool padOn: false
     property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
+    property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
+    property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
+    property string padFamily: ""          // tipo de mando para los iconos: xbox | ps | switch | deck
     property int padSeq: -1
+    property int padRevision: -1
     property int gameRevision: -1
     property int revision: -1
     property bool audioActive: false
@@ -75,6 +83,8 @@ QtObject {
             if (x.readyState !== 4) return
             let body = {}
             try { body = JSON.parse(x.responseText) } catch (e) { }
+            if (api.language === "en" && x.status >= 400 && body && typeof body.error === "string")
+                body.error = api.localizeError(body.error, x.status)
             if (x.status === 401) api.token = ""                  // el servicio se reinició: token nuevo
             done(x.status, body)
         }
@@ -84,12 +94,162 @@ QtObject {
         x.send(method === "POST" ? (body ? JSON.stringify(body) : "{}") : null)
     }
 
+    function localizeError(message, status) {
+        const text = String(message || "")
+        const known = {
+            "No se pudo conectar con el catálogo de Omnia.": "Could not connect to the Omnia catalog.",
+            "El catálogo devolvió una respuesta inválida.": "The catalog returned an invalid response.",
+            "El catálogo no pudo atender la solicitud.": "The catalog could not process the request.",
+            "omnia-core no responde (¿está en marcha el servicio?)": "omnia-core is not responding (is the service running?)",
+            "token no válido: reiniciando conexión": "Invalid token: reconnecting.",
+            "host no permitido": "Host not allowed.",
+            "ruta desconocida": "Unknown route.",
+            "método no permitido": "Method not allowed.",
+            "token inválido": "Invalid token.",
+            "Content-Length no válido": "Invalid Content-Length.",
+            "cuerpo demasiado grande": "The request body is too large.",
+            "se requiere application/json": "The request must use application/json.",
+            "revisión o espera no válida": "Invalid revision or wait interval.",
+            "juego desconocido": "Unknown game.",
+            "juego no válido": "Invalid game.",
+            "acción de energía no válida": "Invalid power action.",
+            "no se pudo ejecutar la acción": "Could not complete the action.",
+            "Actualiza Omnia para instalar los ajustes generales.": "Update Omnia to install the system integration.",
+            "Falta systemd-run para abrir los ajustes fuera del núcleo de Omnia.": "systemd-run is required to open settings outside the Omnia service.",
+            "No se pudo iniciar la unidad de ajustes de Omnia.": "Could not start the Omnia settings service.",
+            "KDE no pudo iniciar los ajustes. Consulta el registro de usuario de systemd.": "KDE could not open settings. Check the user systemd log.",
+            "El idioma debe ser es o en.": "The language must be es or en.",
+            "Elige una carpeta existente para instalar los juegos.": "Choose an existing folder for game installations.",
+            "La carpeta de instalación debe estar dentro de una ubicación permitida.": "The installation folder must be inside an allowed location.",
+            "Parámetros de catálogo no válidos": "Invalid catalog parameters.",
+            "faltan datos del paquete o carpeta de destino": "Package details or destination folder are missing.",
+            "la instalación no está activa": "The installation is not active.",
+            "la instalación no se puede pausar en este momento": "The installation cannot be paused right now.",
+            "la instalación no está pausada": "The installation is not paused.",
+            "Cierra el juego antes de desinstalarlo.": "Close the game before uninstalling it.",
+            "la instalación de Omnia no existe": "The Omnia installation record does not exist.",
+            "MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.": "MangoHud is not installed. Install it with your package manager and try again.",
+            "juego o port desconocido": "Unknown game or port.",
+            "La carpeta de este juego se retiró de las rutas de Omnia.": "This game's folder was removed from Omnia's allowed locations.",
+            "no está instalado": "The game is not installed.",
+            "ya está en ejecución": "The game is already running.",
+            "aplicación desconocida": "Unknown application.",
+            "acción o ruta de biblioteca no válida": "Invalid library action or location.",
+            "elige una carpeta existente": "Choose an existing folder.",
+            "la carpeta debe estar dentro de tu carpeta personal o una unidad montada": "The folder must be inside your home directory or a mounted drive.",
+            "ruta fuera de las carpetas permitidas": "The path is outside the allowed folders.",
+            "«ids» debe ser una lista": "“ids” must be a list.",
+            "ruta, nombre, plataforma o emulador no válidos": "Invalid path, name, platform, or emulator.",
+            "identificador de catálogo no válido": "Invalid catalog identifier.",
+            "la ROM ya no es válida o no se reconoce su formato": "The ROM is no longer valid or its format is not recognized.",
+            "la plataforma de la ROM cambió; vuelve a analizar la carpeta": "The ROM platform changed. Scan the folder again.",
+            "ruta no permitida en el respaldo": "The save backup contains a path that is not allowed.",
+            "archivo no válido": "Invalid file.",
+            "ese respaldo no existe": "That backup does not exist.",
+            "no hay carpeta de partidas": "No save folder is configured.",
+            "tipo de arte no válido": "Invalid artwork type.",
+            "Este juego no tiene artwork publicado en el catálogo Omnia.": "This game has no artwork published in the Omnia catalog.",
+            "opción de arte fuera de rango": "The artwork option is out of range.",
+            "edición, página u opción de arte no válida": "Invalid artwork edition, page, or option.",
+            "dirección no válida": "Invalid direction.",
+            "Este juego no tiene otras opciones de arte descargadas": "No other artwork options have been downloaded for this game.",
+            "página o edición no válida": "Invalid page or edition.",
+            "parámetros no válidos": "Invalid parameters.",
+            "tecla no válida": "Invalid key.",
+            "Pon un nombre al juego (hasta 80 letras).": "Enter a game name (up to 80 characters).",
+            "Tipo de juego no válido.": "Invalid game type.",
+            "Ese archivo está fuera de las carpetas permitidas.": "That file is outside the allowed folders.",
+            "El lanzador asociado está fuera de las carpetas permitidas.": "The associated launcher is outside the allowed folders.",
+            "Elige el ejecutable del juego.": "Choose the game's executable.",
+            "Falta umu-launcher para ejecutar juegos de Windows.": "umu-launcher is required to run Windows games.",
+            "El archivo elegido no es ejecutable.": "The selected file is not executable.",
+            "Plataforma no válida.": "Invalid platform.",
+            "Nombre, ROM, plataforma o emulador no válidos.": "Invalid name, ROM, platform, or emulator.",
+            "La ROM ya no es válida o cambió de plataforma.": "The ROM is no longer valid or its platform changed.",
+            "La URL del paquete no es válida.": "Invalid package URL.",
+            "El paquete debe usar una URL HTTPS pública.": "The package must use a public HTTPS URL.",
+            "La fuente del paquete no es pública.": "The package source is not public.",
+            "No se pudo resolver la fuente del paquete.": "Could not resolve the package source.",
+            "La fuente del paquete debe resolver a direcciones públicas.": "The package source must resolve to public IP addresses.",
+            "La fuente del paquete resolvió una dirección no válida.": "The package source resolved to an invalid address.",
+            "No se permiten proxies ni túneles para instalar paquetes.": "Proxies and tunnels are not allowed when installing packages.",
+            "No se pudo conectar con la fuente del paquete.": "Could not connect to the package source.",
+            "El paquete contiene una ruta insegura.": "The package contains an unsafe path.",
+            "El paquete contiene una ruta fuera de su carpeta.": "The package contains a path outside its folder.",
+            "El paquete intenta salir de su carpeta de instalación.": "The package attempts to write outside its installation folder.",
+            "El paquete contiene demasiados archivos.": "The package contains too many files.",
+            "El tamaño expandido supera el límite de Omnia.": "The expanded package exceeds Omnia's size limit.",
+            "El paquete ZIP incluye enlaces o archivos especiales.": "The ZIP package contains links or special files.",
+            "El tamaño expandido no coincide con el ZIP o supera el límite.": "The expanded size does not match the ZIP or exceeds the limit.",
+            "Un archivo del paquete ZIP quedó incompleto.": "A file in the ZIP package is incomplete.",
+            "No se pudo leer un archivo del paquete.": "Could not read a file in the package.",
+            "El tamaño expandido no coincide con TAR o supera el límite.": "The expanded size does not match the TAR archive or exceeds the limit.",
+            "Un archivo del paquete TAR quedó incompleto.": "A file in the TAR package is incomplete.",
+            "El paquete TAR incluye enlaces o archivos especiales.": "The TAR package contains links or special files.",
+            "Ya existe una carpeta con ese nombre; elige otro destino.": "A folder with that name already exists. Choose another destination.",
+            "La carpeta de instalación no supera la validación de seguridad.": "The installation folder did not pass the security checks.",
+            "La carpeta de instalación ya no existe o no es segura.": "The installation folder no longer exists or is not safe.",
+            "Omnia no pudo retirar el juego de la biblioteca.": "Omnia could not remove the game from the library.",
+            "El manifiesto contiene información de identificación no válida.": "The manifest contains invalid identification data.",
+            "El tamaño declarado del paquete no es válido.": "The declared package size is invalid.",
+            "El tamaño o SHA-256 declarado no es válido.": "The declared size or SHA-256 is invalid.",
+            "El paquete debe declarar su fuente y licencia.": "The package must specify its source and license.",
+            "El paquete no declara el ejecutable de inicio.": "The package does not specify a launch executable.",
+            "Instalación cancelada.": "Installation cancelled.",
+            "La descarga redirigió a una conexión no segura.": "The download redirected to an insecure connection.",
+            "El tamaño recibido no coincide con el manifiesto.": "The received size does not match the manifest.",
+            "La descarga superó el tamaño publicado.": "The download exceeded its published size.",
+            "El manifiesto publicado está incompleto o usa un formato no admitido.": "The published manifest is incomplete or uses an unsupported format.",
+            "El paquete no aparece publicado en el catálogo.": "This package is not published in the catalog.",
+            "El punto de entrada declarado no está dentro del paquete.": "The declared entry point is not present in the package.",
+            "La descarga quedó incompleta.": "The download is incomplete.",
+            "El SHA-256 descargado no coincide; se descartó el paquete.": "The downloaded SHA-256 did not match; the package was discarded.",
+            "No se pudo comprobar el espacio libre en la carpeta elegida.": "Could not check available space in the selected folder.",
+            "No hay suficiente espacio libre para descargar y extraer este paquete.": "There is not enough free space to download and extract this package.",
+            "La instalación cambió de volumen durante la descarga.": "The installation volume changed during the download.",
+            "Por ahora la instalación directa solo admite paquetes de PC.": "Direct installation currently supports PC packages only.",
+            "El emulador elegido ya no está disponible o no corresponde a esta ROM.": "The selected emulator is unavailable or does not support this ROM.",
+            "No se encontró el núcleo de RetroArch para esta plataforma.": "No RetroArch core was found for this platform.",
+            "Elige una carpeta permitida que exista.": "Choose an existing folder within an allowed location.",
+            "No se encontraron ROMs compatibles en esta carpeta.": "No compatible ROMs were found in this folder.",
+            "No se pudo analizar la carpeta.": "Could not scan the folder.",
+            "No se pudo añadir la ROM.": "Could not add the ROM."
+        }
+        if (known[text]) return known[text]
+        const duplicateRom = text.match(/^Esta ROM ya está en la biblioteca como (.+)\.$/)
+        if (duplicateRom) return "This ROM is already in your library as " + duplicateRom[1] + "."
+        const outsideRoot = text.match(/^carpeta fuera de las permitidas: (.+)$/)
+        if (outsideRoot) return "Folder is outside the allowed locations: " + outsideRoot[1]
+        const alreadyEnglish = /^(Could not|The |This |Invalid |Unknown |Request failed|Installation |Download )/i.test(text)
+        if (alreadyEnglish) return text
+        if (/\b(la|el|los|las|no se|falta|elige|debe|paquete|carpeta|juego|instalación|ROM)\b/i.test(text) || /[áéíóúñ¿¡]/i.test(text))
+            return "Request failed (HTTP %1).".replace("%1", status)
+        return text || "Request failed (HTTP %1).".replace("%1", status)
+    }
+
+    function localizeNotice(message) {
+        const text = String(message || "")
+        const known = {
+            "Este backend todavía no publica manifiestos de instalación.": "This backend has not published install packages yet.",
+            "Juego no válido.": "Invalid game.",
+            "No se pudo conectar con el catálogo de Omnia.": "Could not connect to the Omnia catalog."
+        }
+        if (known[text]) return known[text]
+        if (/\b(backend|catálogo|conexión|conectar|no se pudo|respuesta|juego no válido)\b/i.test(text) || /[áéíóúñ¿¡]/i.test(text))
+            return "The Omnia catalog is offline or returned incomplete data."
+        return text
+    }
+
     function loadPreferences() {
         call("GET", "/settings", function(status, body) {
             if (status === 200) {
                 api.notificationPosition = body.notification_position || "bottom-right"
                 api.theme = body.theme || "blue"
                 api.themeAccent = body.theme_accent || "#336599"
+                api.installRoot = body.install_root || ""
+                api.animatedBackground = body.animated_background !== false
+                Qt.uiLanguage = body.language === "en" ? "en_US" : "es"
+                api.language = body.language === "en" ? "en" : "es"
             }
         })
     }
@@ -104,11 +264,58 @@ QtObject {
             }
             else {
                 api.ok = false
-                api.error = status === 0 ? "omnia-core no responde (¿está en marcha el servicio?)"
-                      : status === 401 ? "token no válido: reiniciando conexión" : "error " + status
+                const message = status === 0 ? "omnia-core no responde (¿está en marcha el servicio?)"
+                    : status === 401 ? "token no válido: reiniciando conexión" : "error " + status
+                api.error = api.language === "en" ? api.localizeError(message, status) : message
             }
         })
     }
+
+    // Catálogo público Omnia Backend. El servicio loopback gestiona caché/offline y evita CORS en QML.
+    function catalogGames(options, done) {
+        options = options || {}
+        let params = []
+        for (let key of ["page", "pageSize", "q", "platform", "compatibility", "sort", "order"]) {
+            if (options[key] !== undefined && options[key] !== null && String(options[key]) !== "")
+                params.push(encodeURIComponent(key) + "=" + encodeURIComponent(String(options[key])))
+        }
+        call("GET", "/catalog/games" + (params.length ? "?" + params.join("&") : ""), function (status, body) {
+            if (body && body.baseUrl) api.catalogBaseUrl = body.baseUrl
+            if (done) done(status, body)
+        })
+    }
+    function catalogGame(slug, done) {
+        call("GET", "/catalog/game?slug=" + encodeURIComponent(slug || ""), function (status, body) {
+            if (body && body.baseUrl) api.catalogBaseUrl = body.baseUrl
+            if (done) done(status, body)
+        })
+    }
+    function catalogPlatforms(done) {
+        call("GET", "/catalog/platforms", function (status, body) {
+            if (body && body.baseUrl) api.catalogBaseUrl = body.baseUrl
+            if (done) done(status, body)
+        })
+    }
+    function catalogRomIdentifiers(platform, done) {
+        call("GET", "/catalog/rom-identifiers?platform=" + encodeURIComponent(platform || ""), function (status, body) {
+            if (body && body.baseUrl) api.catalogBaseUrl = body.baseUrl
+            if (done) done(status, body)
+        })
+    }
+    function catalogInstallPackages(slug, done) {
+        call("GET", "/catalog/install-packages?slug=" + encodeURIComponent(slug || ""), function (status, body) {
+            if (body && body.baseUrl) api.catalogBaseUrl = body.baseUrl
+            if (done) done(status, body)
+        })
+    }
+    function installationSnapshot(done) { call("GET", "/installations", done) }
+    function startInstallation(slug, packageId, destination, done) {
+        call("POST", "/installations/start", done, {slug: slug, packageId: packageId, destination: destination})
+    }
+    function cancelInstallation(jobId, done) { call("POST", "/installations/cancel", done, {jobId: jobId}) }
+    function pauseInstallation(jobId, done) { call("POST", "/installations/pause", done, {jobId: jobId}) }
+    function resumeInstallation(jobId, done) { call("POST", "/installations/resume", done, {jobId: jobId}) }
+    function removeInstallation(gameId, done) { call("POST", "/installations/remove", done, {gameId: gameId, removeFiles: true}) }
 
     function selectGame(id, done, filterKey) {
         call("POST", "/selection/set", function (status, body) {
@@ -144,9 +351,9 @@ QtObject {
 
     function launch(g, portId) {
         if (!g || !g.ports.length) return
-        api.toast = "Lanzando " + g.name + "…"
+        api.toast = qsTr("Lanzando %1…").arg(g.name)
         call("POST", "/launch?id=" + encodeURIComponent(g.id) + "&port=" + encodeURIComponent(portId || g.ports[0].id), function (status, body) {
-            api.toast = status === 200 ? "" : (body.error || "error " + status)
+            api.toast = status === 200 ? "" : (body.error || qsTr("Error %1").arg(status))
             api.refresh()
         })
     }
@@ -170,7 +377,7 @@ QtObject {
     }
     function launchApp(a, done) {
         call("POST", "/app/launch?id=" + encodeURIComponent(a.id), function (status, body) {
-            if (status !== 200) api.toast = body.error || "error " + status
+            if (status !== 200) api.toast = body.error || qsTr("Error %1").arg(status)
             if (done) done(status === 200)
         })
     }
@@ -200,12 +407,50 @@ QtObject {
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
     function suggestGame(path, done) { call("GET", "/game/suggest?path=" + encodeURIComponent(path), done) }
+    function libraryRoots(done) { call("GET", "/library/roots", done) }
+    function setLibraryRoot(action, path, done) {
+        call("POST", "/library/roots/set", function(status, body) {
+            if (status === 200) api.refresh()
+            if (done) done(status, body)
+        }, {action: action, path: path})
+    }
+    function setInstallRoot(path, done) {
+        call("POST", "/settings/install-root", function(status, body) {
+            if (status === 200) api.installRoot = body.install_root || ""
+            if (done) done(status, body)
+        }, {path: path})
+    }
+    function setAnimatedBackground(enabled, done) {
+        call("POST", "/settings/animated-background", function(status, body) {
+            if (status === 200) api.animatedBackground = body.animated_background !== false
+            if (done) done(status, body)
+        }, {enabled: enabled})
+    }
+    function setLanguage(language, done) {
+        const changed = api.language !== language
+        call("POST", "/settings/language", function(status, body) {
+            if (status === 200) {
+                Qt.uiLanguage = language === "en" ? "en_US" : "es"
+                api.language = language
+                api.loadPreferences()
+            }
+            if (done) done(status, body)
+            if (status === 200 && changed) Qt.callLater(function() { Qt.exit(42) })
+        }, {language: language})
+    }
+    function scanRoms(path, done) { call("GET", "/rom/scan?path=" + encodeURIComponent(path || ""), done) }
+    function addRom(path, name, system, emulator, catalogSlug, done) {
+        call("POST", "/rom/add", function(status, body) {
+            if (status === 200) api.refresh()
+            if (done) done(status, body)
+        }, {path: path, name: name, system: system, emulator: emulator, catalogSlug: catalogSlug || ""})
+    }
     function removeGame(g, done) { call("POST", "/game/remove?id=" + encodeURIComponent(g.id), function (st, b) { if (st === 200) api.refresh(); done(st, b) }) }
 
     function reportMenu(open) { api.menuOpen = open; call("POST", "/menu/state?open=" + (open ? "1" : "0"), function () { }) }
     function power(action) {
         call("POST", "/power?a=" + encodeURIComponent(action), function (status, body) {
-            if (status !== 200) api.toast = (body && body.error) || "No se pudo ejecutar la acción"
+            if (status !== 200) api.toast = (body && body.error) || qsTr("No se pudo ejecutar la acción")
         })
     }
     function toggleAppFav(a) {
@@ -219,14 +464,17 @@ QtObject {
 
     // Mando: petición larga a /events (el servidor responde en cuanto hay un botón nuevo o a los 20 s)
     function pollPad() {
-        call("GET", "/events?since=" + padSeq + "&gameSince=" + gameRevision + "&wait=20", function (status, body) {
+        call("GET", "/events?since=" + padSeq + "&gameSince=" + gameRevision + "&padSince=" + padRevision + "&wait=20", function (status, body) {
             if (status === 200) {
                 const first = api.padSeq < 0
                 api.padSeq = body.seq
                 if (!first && api.gameRevision >= 0 && body.gameRevision !== api.gameRevision) api.refresh()
                 api.gameRevision = body.gameRevision === undefined ? api.gameRevision : body.gameRevision
+                api.padRevision = body.padRevision ?? -1
                 api.padOn = body.padOn
                 api.padName = body.padName
+                api.padFamily = body.padFamily || body.padLayout || ""
+                api.padBattery = body.padBattery || null
                 api.covered = body.covered === true
                 api.gameMode = body.gameMode ? body.gameMode.active === true : false
                 api.shelfActive = body.shelfActive !== false
@@ -244,6 +492,7 @@ QtObject {
     property Timer preferencesPoll: Timer { interval: 5000; repeat: true; running: api.controlsEnabled && api.ok; triggeredOnStart: true; onTriggered: api.loadPreferences() }
 
     Component.onCompleted: {
+        if (!autoStart) return
         port = parseInt(arg("--port", "47831"))
         tokenPath = arg("--token", "")
         loadPreferences()

@@ -4,7 +4,7 @@
     "Authors": [{ "Name": "Omnia contributors" }],
     "Category": "Utilities",
     "Description": "Filtros y controles de Omnia",
-    "Icon": "org.omnia.menu",
+    "Icon": "org.omnia",
     "Id": "org.omnia.header",
     "License": "GPL-3.0-or-later",
     "Name": "Omnia · Barra superior"

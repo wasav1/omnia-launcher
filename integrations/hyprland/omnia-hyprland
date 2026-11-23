@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""Instalador reversible del módulo Omnia para illogical-impulse (Quickshell).
+
+  omnia-hyprland install   [--target DIR] [--keybind FILE] [--rules FILE] [--dry-run]
+  omnia-hyprland uninstall [--target DIR] [--keybind FILE] [--dry-run]
+  omnia-hyprland status    [--target DIR]
+
+Por defecto actúa sobre ~/.config/quickshell/ii. No toca config.json de illogical-impulse ni arranca servicios.
+Los parches llevan marcas «omnia-hyprland:begin/end» para poder retirarse, y se guarda copia *.omnia.bak.
+El artwork público de Omnia llega desde omnia-backend; el cliente no pide ni guarda claves de proveedores.
+El manifiesto queda en <estado>/omnia/hyprland-install.json.
+"""
+import argparse, json, os, re, shutil
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SRC = HERE / "ii"
+BEGIN, END = "omnia-hyprland:begin", "omnia-hyprland:end"
+BLOCK_RX = r"^[ \t]*(?://|--) omnia-hyprland:begin[^\n]*\n.*?^[ \t]*(?://|--) omnia-hyprland:end[^\n]*\n"
+BLUR_RULE = 'hl.layer_rule({ match = { namespace = "quickshell:omniaPanel" }, blur = true, ignore_alpha = 0.88 })'
+BIND = 'hl.bind("SUPER + SHIFT + O", hl.dsp.global("quickshell:omniaToggle"), { description = "Panel de Omnia" })'
+
+
+def state_dir():
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
+    return Path(base) / "omnia"
+
+
+def patches(target: Path):
+    """(archivo relativo, ancla, texto a insertar, 'after'|'before', comentario)"""
+    return [
+        ("modules/ii/bar/UtilButtons.qml",
+         re.compile(r"(            sourceComponent: AsusControlButton \{\n.*?\n            \}\n        \}\n)", re.S), "after",
+         f"        // {BEGIN} button\n        Loader {{\n            active: true\n            visible: true\n"
+         f"            sourceComponent: OmniaButton {{ Layout.alignment: Qt.AlignVCenter }}\n        }}\n        // {END}\n"),
+        ("panelFamilies/IllogicalImpulseFamily.qml",
+         re.compile(r"(    PanelLoader \{ component: Overview \{\} \}\n)"), "after",
+         f"    // {BEGIN} edge\n    PanelLoader {{ component: OmniaEdge {{}} }}\n    // {END}\n"),
+        ("panelFamilies/IllogicalImpulseFamily.qml",
+         re.compile(r"(import qs\.modules\.ii\.onScreenKeyboard\n)"), "after",
+         f"// {BEGIN} import\nimport qs.modules.ii.omnia\n// {END}\n"),
+    ]
+
+
+OBSOLETE = ["services/OmniaWallpaperLogic.js", "modules/ii/omnia/images/omnia-menu.svg"]       # archivos de versiones anteriores que ya no existen
+
+
+def copied_files():
+    return [p.relative_to(SRC) for p in sorted(SRC.rglob("*")) if p.is_file() and (p.suffix in (".qml", ".js", ".svg") or p.name in ("LICENSE", "NOTICE"))]
+
+
+def apply_patch(text, rx, where, snippet):
+    marker = [l for l in snippet.split("\n") if BEGIN in l][0].strip()
+    if marker in text:
+        return text, False
+    m = rx.search(text)
+    if not m:
+        raise SystemExit(f"No se encontró el ancla del parche ({rx.pattern[:40]}…): la versión de ii cambió; no se modifica nada.")
+    pos = m.end() if where == "after" else m.start()
+    return text[:pos] + snippet + text[pos:], True
+
+
+def strip_patch(text):
+    return re.sub(BLOCK_RX, "", text, flags=re.S | re.M)
+
+
+def config_dir():
+    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(base) / "omnia"
+
+
+def ensure_library_command():
+    """«Abrir biblioteca completa» ejecuta libraryCommand. Si omnia-ui no está en el PATH (instalación desde el
+    repositorio), se guarda la ruta del script del repositorio en ~/.config/omnia/hyprland.json (sin pisar un valor propio)."""
+    ui = HERE.parents[1] / "ui" / "omnia-ui"
+    if shutil.which("omnia-ui") or not ui.is_file():
+        return None
+    cfg = config_dir() / "hyprland.json"
+    try:
+        data = json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
+    except (OSError, ValueError):
+        raise SystemExit(f"{cfg} no es un JSON válido: corrígelo o bórralo y vuelve a ejecutar.")
+    if not isinstance(data, dict) or "libraryCommand" in data:
+        return None
+    data["libraryCommand"] = [str(ui), "--window"]
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cfg.with_name(cfg.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, cfg)
+    print(f"«Abrir biblioteca completa» usará {ui} (omnia-ui no está en el PATH).")
+    return cfg
+
+
+def install(a):
+    t = Path(a.target).expanduser()
+    if not (t / "shell.qml").is_file():
+        raise SystemExit(f"{t} no parece una configuración de illogical-impulse (falta shell.qml).")
+    manifest = {"target": str(t), "files": [], "patched": [], "keybind": None}
+    # 1) calcular todos los parches antes de escribir nada (si falla un ancla, no se toca ningún archivo)
+    new_texts = {}
+    for rel, rx, where, snip in patches(t):
+        f = t / rel
+        text = new_texts.get(f, f.read_text())
+        new_texts[f], _ = apply_patch(text, rx, where, snip)
+    if not a.dry_run:
+        ensure_library_command()        # antes de escribir nada: Ctrl+C aquí no deja una instalación a medias
+    # 2) copiar archivos nuevos
+    for rel in copied_files():
+        manifest["files"].append(str(rel))
+        print(("[dry-run] " if a.dry_run else "") + f"copiar {rel}")
+        if not a.dry_run:
+            (t / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(SRC / rel, t / rel)
+    for rel in OBSOLETE:
+        old = t / rel
+        if old.exists():
+            print(("[dry-run] " if a.dry_run else "") + f"borrar obsoleto {rel}")
+            if not a.dry_run:
+                old.unlink()
+    # 3) aplicar parches con copia de seguridad
+    for f, text in new_texts.items():
+        if text != f.read_text():
+            print(("[dry-run] " if a.dry_run else "") + f"parchear {f.relative_to(t)}")
+            manifest["patched"].append(str(f.relative_to(t)))
+            if not a.dry_run:
+                bak = f.with_name(f.name + ".omnia.bak")
+                if not bak.exists():
+                    shutil.copy2(f, bak)
+                f.write_text(text)
+    if a.keybind:
+        kb = Path(a.keybind).expanduser()
+        txt = kb.read_text() if kb.exists() else ""
+        if BEGIN not in txt:
+            print(("[dry-run] " if a.dry_run else "") + f"añadir atajo SUPER+SHIFT+O a {kb}")
+            manifest["keybind"] = str(kb)
+            if not a.dry_run:
+                if kb.exists():
+                    shutil.copy2(kb, kb.with_name(kb.name + ".omnia.bak"))
+                kb.write_text(txt + f"-- {BEGIN} keybind\n{BIND}\n-- {END}\n")
+    if a.rules:
+        rf = Path(a.rules).expanduser()
+        txt = rf.read_text() if rf.exists() else ""
+        if BEGIN in txt and BLUR_RULE not in txt:        # regla de una versión anterior: se sustituye
+            txt = strip_patch(txt)
+            rf.write_text(txt)
+        if BEGIN not in txt:
+            print(("[dry-run] " if a.dry_run else "") + f"añadir regla de desenfoque (quickshell:omniaPanel) a {rf}")
+            manifest["rules"] = str(rf)
+            if not a.dry_run:
+                if rf.exists():
+                    shutil.copy2(rf, rf.with_name(rf.name + ".omnia.bak"))
+                rf.write_text(txt + ("" if txt.endswith("\n") or not txt else "\n") + f"-- {BEGIN} blur\n{BLUR_RULE}\n-- {END}\n")
+    if not a.dry_run:
+        sd = state_dir(); sd.mkdir(parents=True, exist_ok=True)
+        old = json.loads((sd / "hyprland-install.json").read_text()) if (sd / "hyprland-install.json").exists() else {}
+        manifest["patched"] = sorted(set(manifest["patched"]) | set(old.get("patched", [])))
+        manifest["keybind"] = manifest["keybind"] or old.get("keybind")
+        manifest["rules"] = manifest.get("rules") or old.get("rules")
+        (sd / "hyprland-install.json").write_text(json.dumps(manifest, indent=1))
+        print("Listo. Si el panel sale con colores incorrectos o no abre, reinicia ii (CTRL+SUPER+R): Quickshell no registra archivos singleton nuevos en una recarga en caliente. Revertir: omnia-hyprland uninstall")
+
+
+def uninstall(a):
+    t = Path(a.target).expanduser()
+    mf = state_dir() / "hyprland-install.json"
+    manifest = json.loads(mf.read_text()) if mf.exists() else {"files": [str(p) for p in copied_files()], "patched": [p[0] for p in patches(t)], "keybind": a.keybind}
+    for rel in sorted(set(manifest["patched"]) | {p[0] for p in patches(t)}):   # idempotente: siempre revisa los archivos parcheables
+        f = t / rel
+        if f.exists():
+            new = strip_patch(f.read_text())
+            if new != f.read_text():
+                print(("[dry-run] " if a.dry_run else "") + f"quitar parche de {rel}")
+            if not a.dry_run:
+                if new != f.read_text():
+                    f.write_text(new)
+                bak = f.with_name(f.name + ".omnia.bak")
+                if bak.exists() and bak.read_text() == new:
+                    bak.unlink()
+    for rel in list(manifest["files"]) + OBSOLETE:
+        f = t / rel
+        if f.exists():
+            print(("[dry-run] " if a.dry_run else "") + f"borrar {rel}")
+            if not a.dry_run:
+                f.unlink()
+                if not any(f.parent.iterdir()) and f.parent.name == "omnia":
+                    f.parent.rmdir()
+    kb = manifest.get("keybind") or a.keybind
+    if kb and Path(kb).expanduser().exists():
+        k = Path(kb).expanduser()
+        new = strip_patch(k.read_text())
+        print(("[dry-run] " if a.dry_run else "") + f"quitar atajo de {k}")
+        if not a.dry_run:
+            k.write_text(new)
+    rules = manifest.get("rules") or a.rules
+    if rules and Path(rules).expanduser().exists():
+        r = Path(rules).expanduser()
+        print(("[dry-run] " if a.dry_run else "") + f"quitar regla de desenfoque de {r}")
+        if not a.dry_run:
+            r.write_text(strip_patch(r.read_text()))
+    # Restaurar el fondo original guardado.
+    bk = state_dir() / "wallpaper-backup.json"
+    cfg = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "illogical-impulse/config.json"
+    if bk.exists() and cfg.exists():
+        orig = json.loads(bk.read_text())
+        print(("[dry-run] " if a.dry_run else "") + f"restaurar wallpaperPath = {orig.get('wallpaperPath')}")
+        if not a.dry_run:
+            d = json.loads(cfg.read_text())
+            d.setdefault("background", {})["wallpaperPath"] = orig.get("wallpaperPath", "")
+            tmp = cfg.with_suffix(".json.omnia.tmp")
+            tmp.write_text(json.dumps(d, indent=2, ensure_ascii=False)); tmp.replace(cfg)
+            bk.unlink()
+    if not a.dry_run and mf.exists():
+        mf.unlink()
+
+
+def status(a):
+    t = Path(a.target).expanduser()
+    print("instalado:", all((t / r).exists() for r in copied_files()))
+    print("manifiesto:", (state_dir() / "hyprland-install.json").exists())
+    print("copia de fondo:", (state_dir() / "wallpaper-backup.json").exists())
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("cmd", choices=["install", "uninstall", "status"])
+    ap.add_argument("--target", default=str(Path.home() / ".config/quickshell/ii"))
+    ap.add_argument("--keybind", help="archivo de atajos de Hyprland donde añadir SUPER+SHIFT+O (opcional)")
+    ap.add_argument("--rules", help="archivo de reglas de Hyprland donde añadir el desenfoque del panel (opcional)")
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args()
+    {"install": install, "uninstall": uninstall, "status": status}[a.cmd](a)

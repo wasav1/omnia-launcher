@@ -4,24 +4,24 @@
 > retomar el proyecto sin haber visto las conversaciones anteriores. Detalles por tema: ver `docs/`.
 
 ## 1. Qué es
-Omnia es un lanzador de juegos para **KDE Plasma 6** (rehacer y mejorar el prototipo «Estantería», que vivía en
-Bazzite). Biblioteca unificada (Steam, Heroic, Lutris, juegos manuales: ports y emuladores), el **wallpaper nativo** anima
-el fondo del juego seleccionado y un **widget Plasma de pantalla completa** aloja el escritorio interactivo y el Big Menu.
-Comparten el estado mediante `omnia-core`; también incluye control con **mando**, **modo juego**, **historial**,
-**respaldo/restauración de partidas**, e instalación por paquetes Arch con configuración de KDE **automática y reversible**.
+Omnia es una aplicación instalable e independiente de biblioteca y gestión de juegos para Linux. Incluye un gestor de
+escritorio, biblioteca unificada (Steam, Heroic, Lutris, ports, ejecutables y ROMs locales), un **panel rápido** y **Big
+Mode**. Big Mode incorpora Inicio para catálogo, novedades y juegos recientes. Todas las superficies comparten el estado
+mediante `omnia-core`; la integración con KDE Plasma 6 o Hyprland/illogical-impulse es opcional. También incluye control
+con **mando**, **modo juego**, **historial**, **respaldo/restauración de partidas** y selector de español/inglés.
 
 Repo: https://github.com/wasav1/omnia-launcher (privado por ahora). Se planea publicarlo para el AUR.
-Principios: todo automático al instalar (no pasos manuales), cambios en KDE siempre reversibles, nada de piratería
-(no hay ROMs ni detección de carpetas de Hydra), el disco de Bazzite se monta solo lectura y no se modifica.
+Principios: cambios en KDE siempre reversibles, Omnia no incluye ni descarga ROMs y solo analiza archivos locales que
+el usuario elige; no detecta carpetas de Hydra. El disco de Bazzite se monta solo lectura y no se modifica.
 
 ## 2. Estructura del repo
 | Ruta | Contenido |
 |---|---|
 | `core/omnia/` | Servicio `omnia-core` (Python, solo biblioteca estándar) |
-| `ui/qml/` | Componentes QML compartidos por el wallpaper y el widget nativos de Plasma; la interfaz layer-shell queda como legado |
+| `ui/qml/` | Componentes QML compartidos por la app de escritorio, panel, Big Mode y los módulos opcionales de Plasma |
 | `plasma/` | Wallpaper pasivo, widget interactivo y proveedor QML del token de sesión |
 | `kwin/` | Scripts de KWin: `omnia-showdesktop`, `omnia-watch` |
-| `packaging/arch/` | PKGBUILD (pkgbase `omnia-launcher`: `omnia-core`, `omnia-kde`), `build-local.sh` |
+| `packaging/arch/` | PKGBUILD (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh` |
 | `tests/` | Pruebas `unittest` (342). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
 | `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
 | `legacy/`, `plasmoid/`, `tools/`, `install-arch.sh` | Material del prototipo y utilidades |
@@ -32,17 +32,18 @@ Principios: todo automático al instalar (no pasos manuales), cambios en KDE sie
 - **Servicio** `omnia.service` (systemd de usuario): API HTTP en `127.0.0.1:47831`. Token de sesión en
   `$XDG_RUNTIME_DIR/omnia/token` (0600), cabecera `Authorization: Bearer`, comprobación de `Host`, rutas que modifican solo
   por POST, sin CORS.
-- **Interfaz nativa actual**: wallpaper `org.omnia.launcher` consulta la selección persistida en el núcleo; widget
-  `org.omnia.desktop` monta `OmniaShell` en modo transparente. El servicio `omnia-ui.service` queda como alternativa
-  layer-shell anterior y el instalador nuevo lo desactiva para evitar interfaces duplicadas. Autostart de primera vez:
-  `omnia-first-run.desktop` (activa solo `omnia.service`).
+- **Aplicación principal**: `omnia-ui --manager` abre el gestor de biblioteca, catálogo, instalaciones y ajustes. Desde él
+  se abre Big Mode, que comparte el mismo servicio local. El panel rápido es una integración opcional de Hyprland/ii o
+  Plasma; ninguna integración de escritorio es necesaria para usar la aplicación.
 - **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
-- **Rutas API** (resumen): `/health /library /library/refresh /game/{fav,hide,add,remove} /launch /apps /app/{launch,fav}
-  /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates /saves /saves/{config,backup,restore,open,suggest}
-  /art/{browse,pick,cycle} /audio /audio/{outputs,set} /system /power /import/{find,preview,apply}`.
+- **Rutas API** (resumen): `/health /library /library/refresh /library/roots /rom/{scan,add} /game/{fav,hide,add,remove}
+  /launch /apps /app/{launch,fav} /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates
+  /saves/{config,backup,restore,open,suggest} /art/{browse,pick,cycle} /catalog/{games,game,platforms,install-packages}
+  /installations{,/start,/cancel,/pause,/resume,/remove} /audio /system /power /import/{find,preview,apply}`.
 - **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
-  pad (evdev sin dependencias), audio (parec → 32 bandas mel con Goertzel, sin guardar audio), system (CPU, disco de juegos, batería), audio_out (salida de audio), power (bloquear/suspender/cerrar sesión/reiniciar/apagar), dbus, service, setup (omnia-setup), firstrun, apps, art (SteamGridDB), gamemode, sessions,
-  saves, fsbrowse, templates, manual, importer, games/{base,vdf,steam,heroic,lutris,gfn,refresh,registry}`.
+  pad (evdev sin dependencias), audio, system, audio_out, power, dbus, service, apps, art (caché local compatible),
+  online_catalog (Omnia Backend público), package_installs (instalación verificada), roms, gamemode, sessions,
+  saves, fsbrowse, templates, manual, importer, roms (escaneo N64 local), online_catalog, games/{base,vdf,steam,heroic,lutris,gfn,refresh,registry}`.
 - **Datos del usuario** (fuera del repo): `~/.config/omnia/{library.json,state.json,first-run.json,setup-backup.json,
   steamgriddb.key}`, `~/.local/share/omnia/art`.
 
@@ -140,6 +141,291 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Arte de Steam para juegos de Steam sin ficha:** `online_catalog.steam_art_urls` arma las URLs públicas del CDN de Steam
+  (`cdn.cloudflare.steamstatic.com/steam/apps/<appid>/library_600x900.jpg`, `library_hero.jpg`, `logo.png`; sin claves ni cuentas) para los juegos
+  detectados en Steam (id `steam-<appid>`). `download_artwork` las acepta solo con ese host y esa ruta exactos (sin redirecciones a otros
+  orígenes), `service.sync_steam_art` las baja a la caché desde el `art_worker` (los fallos, p. ej. 404, se reintentan a las 24 h) y `Api._art` las
+  usa solo cuando el juego no tiene arte del catálogo ni local. Privacidad: el CDN de Steam ve qué appids tienes, igual que el cliente de Steam.
+  Pruebas: `tests/test_steam_art.py`. Minecraft Bedrock y demás juegos que no son de Steam ni del catálogo siguen sin arte.
+- **2026-11-23 — Arte de juegos locales (enlace con el catálogo):** `art_worker` solo bajaba 150 fichas del catálogo (5 páginas de 30) para enlazar
+  los juegos locales, así que con más de 1.600 fichas muchos nunca se enlazaban. Nuevo `service.search_candidates`: por cada juego sin ficha válida
+  se busca por nombre (`q`) y se suman los resultados a los candidatos. Además, un juego enlazado cuya ficha aún no tenía arte (p. ej. Banjo-Kazooie,
+  Donkey Kong 64 y Paper Mario, revisados cuando el catálogo no tenía imágenes) se reintenta cada hora en vez de cada 24 h.
+  Pruebas: `tests/test_catalog_search_link.py`. Pendiente: los juegos que no están en el catálogo (Steam/PC como BioShock Infinite o Green Hell,
+  Minecraft Bedrock) no tienen arte por diseño desde que se retiró la clave de SteamGridDB del cliente.
+- **2026-11-22 — App de escritorio: esquinas, menús más pequeños y nombre:** todas las tarjetas con imagen (seguir jugando, catálogo, miniaturas
+  de instalaciones, ficha del catálogo) usan `FadedImage` con `cornerRadius` y sus degradados con `radius`, así que las cuatro esquinas
+  quedan redondeadas. Las barras usan `manager.cs = min(s, 1)` (no crecen con la ventana): barra superior de 46, menú de 14, Big Mode de 30
+  y barra inferior de 26 sin «Añadir juego» (se hace desde la Biblioteca; solo muestra descargas y el estado). Ajustes gana «Acerca de»
+  con el nombre completo «Omnia Desktop Suite»; en la interfaz el nombre sigue siendo «Omnia».
+- **2026-11-22 — Paginador de «Explorar» corregido:** el botón siguiente salía vacío porque faltaba `images/lucide/chevron-right.svg`; se
+  añaden `chevron-right`, `chevrons-left` y `chevrons-right` (Lucide). El paginador ahora tiene primera/anterior, números de página con
+  puntos suspensivos (1 … n), siguiente/última y el total de juegos, con efectos de hover (relleno, borde, ligera ampliación y pulsación).
+- **2026-11-22 — Rediseño de la app de escritorio (prototipo A, estilo Steam) e icono nuevo:** `OmniaManager.qml` sustituye la barra lateral por
+  un menú superior (Inicio, Biblioteca, Explorar, Instalaciones; Big Mode y Ajustes a la derecha) y una barra inferior (Añadir juego,
+  descarga en curso, estado). Inicio: banner con la novedad del catálogo (se carga al abrir) + estadísticas + «Seguir jugando».
+  Biblioteca: nuevo `ManagerLibrary.qml` (colecciones Todos/Favoritos/Recientes, juegos agrupados por consola con logo, acciones
+  Añadir/Escanear ROMs/Actualizar/Ocultos, y página del juego con banner, barra de acción Jugar/última sesión/tiempo, favorito y
+  pestañas Resumen/Partidas/Administrar). Ajustes con secciones (General, Biblioteca, Big Mode con fondo animado). Explorar,
+  Instalaciones y los asistentes (Añadir juego, ROMs, ficha del catálogo) conservan su funcionamiento con la nueva posición.
+  Icono (prototipo 2: anillo sobre degradado oscuro con brillo): `assets/branding/omnia-icon.svg` (org.omnia) y
+  `omnia-bigmode-icon.svg` (org.omnia.bigmode, con insignia de mando). La barra de tareas no mostraba icono porque Qt publica el app_id
+  `org.qt-project.qml6`: las ventanas fijan `Qt.application.domain` (`app.omnia.org` / `bigmode.omnia.org`) para obtener
+  `org.omnia.app.qml6` / `org.omnia.bigmode.qml6`, y los .desktop llevan `StartupWMClass` con ese valor.
+- **2026-11-22 — Selector de plataforma sin estilo de botón y más compacto:** la pill de `PlatformPicker` pierde el relleno azul (solo un
+  velo al pasar el ratón en modo ratón), su ancho se ajusta al contenido (sin mínimo de 190), iconos LB/RB de 30 y separación de 4.
+- **2026-11-22 — Selector de plataforma (prototipo A) y sin búsqueda en el Inicio:** las pills de plataformas de la barra de la Biblioteca
+  se sustituyen por `PlatformPicker.qml`. Con mando: una sola pill con la plataforma activa entre los iconos LB y RB (el contenido se
+  desliza y se funde al cambiar; puntos de posición debajo; LB/RB siguen cambiando de filtro con `stepFilter`). Con teclado/ratón: la
+  misma pill con una flecha que abre un desplegable (logo, nombre y cantidad de juegos; Tab sigue cambiando). El botón/caja de búsqueda
+  ya no se muestra en el Inicio.
+- **2026-11-22 — Menú contextual, teclado virtual, orden por favoritos/recurrentes:** `OmniaContextMenu.qml` (X en el mando, clic
+  derecho, tecla M/Menú): Jugar, Detalles, Añadir/Quitar favoritos, Abrir carpeta de partidas, Ocultar de la biblioteca (`/game/hide`);
+  Detalles pasa a ser una de sus opciones (I y Espacio siguen abriéndolos directo). Con mando, ↑ desde la estantería (o desde la primera
+  fila de «Ver todos») enfoca la lupa y A abre `OmniaVirtualKeyboard.qml` (D-pad, A escribir, X borrar, Y espacio, START/Buscar, B
+  cerrar; filtra en vivo). Orden de la estantería: favoritos > recurrentes (última sesión más reciente) > resto; «Ver todos» lo ofrece
+  como orden por defecto («Favoritos y recientes») además de Nombre A–Z/Z–A/Consola. La tarjeta «Seguir jugando» del Inicio es
+  translúcida y su portada tiene esquinas redondeadas (`FadedImage`).
+- **2026-11-22 — Tarjetas sin arte translúcidas y cuadrícula pequeña por defecto:** las tarjetas sin portada (estantería, cuadrícula de
+  «Ver todos», reflejo y mosaico del Inicio) usan un velo blanco translúcido (`#16ffffff`) en lugar del degradado/color sólido, como las
+  filas de la lista. «Ver todos» en cuadrícula arranca en tamaño S.
+- **2026-11-22 — «Ver todos», modo lista con arte (prototipo A):** cada fila (84 de alto) lleva el hero del juego (`fondo`, o la
+  portada si no hay) en el 70 % derecho, fundido hacia la izquierda con `FadedImage`, y el logo del juego a la izquierda
+  (`logo`; sin logo se muestra el nombre) junto al icono de consola. En modo lista se oculta el fondo de la selección
+  (`gameBackdrop`) para que no compita con los heros de las filas.
+- **2026-11-22 — Estantería más pequeña, rebote sin recorte, «Ver todos» sin panel:** las tarjetas de la estantería pasan a 210×310
+  (seleccionada) / 298 (resto), hueco 18 y reflejo 68; la lista reserva 30 de margen superior (`headroom`) para que el rebote no se
+  recorte. Se elimina el panel lateral de «Ver todos»: pulsar la tarjeta seleccionada abre Detalles (`detailsRequested`), y al cerrar
+  Detalles (`detailsFromAll`) se vuelve a «Ver todos» en el mismo juego.
+- **2026-11-22 — Estantería plana con reflejo y rebote; «Ver todos» con panel lateral:** a petición, se descarta el escalonado
+  (`StackShelf.qml` eliminado): la Biblioteca vuelve a la fila plana (`ListView` con el desvanecido de los extremos y la seleccionada
+  fuera de la franja, la anterior asoma desvanecida; la segunda tarjeta no queda comida por el desvanecido) y conserva el reflejo
+  (`ReflectionImage.qml`, Canvas) y un rebote `OutBack` al cambiar de selección. En «Ver todos» se quita el card «Resumen»; al pulsar la
+  tarjeta seleccionada se abre un panel lateral (~58 % del ancho, grid atenuado detrás) con portada, título, consola con logo,
+  Jugar/Detalles, descripción y tiempo/última sesión/fuente. Dentro del panel: Esc/B cierra, Enter/A juega, I/X abre la ficha completa.
+- **2026-11-22 — Estantería «escalera» con reflejo y «Ver todos»:** la Biblioteca usa ahora `StackShelf.qml` (tarjetas alineadas por abajo,
+  la seleccionada delante y más grande, el resto escalonado detrás: más pequeño y oscuro cuanto más lejos; reflejo corto de espejo
+  con `ReflectionImage.qml`, Canvas sin shaders). La selección empieza a la izquierda, avanza hasta la mitad, se queda en el centro
+  mientras la lista se desplaza y cerca del final vuelve a avanzar hacia la derecha hasta la última (sin saltar al inicio).
+  Nueva página `all` («Ver todos», tecla V / botón Y del mando): `OmniaAllGames.qml` con carril de consolas solo con logos,
+  barra (Cuadrícula/Lista, tamaño S/M/L, orden, agrupar por consola), cuadrícula con cabeceras por consola donde la seleccionada se
+  expande en su fila, y panel «Resumen». Teclas: flechas, Enter, I, Esc, Tab (consola), +/- (tamaño), O (orden), G (agrupar), L (vista);
+  mando: LB/RB consola, LT/RT tamaño, SELECT orden, START agrupar, Y vista. Los logos de consola (`PlatIcon`) se usan también en el
+  subtítulo del héroe de la Biblioteca, cabeceras y filas de «Ver todos». Probado con el arnés offscreen; los SVG no se pintan allí.
+- **2026-11-22 — Estantería: la seleccionada fuera del desvanecido:** la tarjeta seleccionada de la Biblioteca se colocaba pegada al
+  borde izquierdo y el desvanecido le comía su parte izquierda (al volver atrás desde tarjetas lejanas). Ahora
+  `preferredHighlightBegin = fadeWidth + 6u` (la seleccionada queda después de la franja y la anterior asoma desvanecida) y el
+  desvanecido izquierdo (`leftAmount`, animado 220 ms) se aplica siempre que la seleccionada no sea la primera, incluso con la
+  lista en su inicio; al volver a la primera se apaga y se ve normal. Máscara de GPU: no verificable con capturas fuera de pantalla.
+- **2026-11-22 — Halo B, carrusel de 400 y mando en el panel de acceso rápido:** (1) La carátula del carrusel lleva una sombra negra suave
+  y continua (`SoftShadow.qml`, Canvas con `shadowBlur`, borrando el propio rectángulo) en lugar de las 5 capas apiladas que dejaban
+  escalones; el carrusel pasa a 400 de alto (la fila de abajo a 310) y se quita la pastilla del mando del carrusel (`PadBattery` solo
+  queda en las cabeceras de BigMode). (2) Hallazgo: un `Canvas` con ancho/alto fraccionario se dibuja en blanco; `FadedImage` fija
+  `canvasSize` redondeado y `SoftShadow` usa tamaños enteros. (3) Panel de acceso rápido (Quickshell/ii): `OmniaApi.qml` guarda
+  `padOn/padName/padFamily/padBattery` de `/events` y el nuevo `OmniaPadChip.qml` (nombre, pila y %, ámbar ≤30 %, rojo ≤10 %,
+  «Sin mando» apagado) va en la cabecera de `OmniaPanelContent.qml`. Hay que volver a ejecutar `omnia-hyprland install` (copia los
+  QML al ii del usuario) y reiniciar ii (CTRL+SUPER+R). Comprobado con módulos de ii simulados; no con el Quickshell real.
+- **2026-11-22 — Ondas más naturales, desvanecido de la estantería, Inicio sin imagen del juego:** `WaveField.qml` ahora tiene
+  seis olas independientes (altura, amplitud, tres componentes con frecuencias no múltiplos, velocidades y sentidos distintos,
+  respiración lenta de la amplitud y vaivén de la base). La estantería de la Biblioteca desvanece las tarjetas cortadas en cada
+  extremo solo del lado donde hay más contenido (`OpacityMask` sobre el `ListView`; se omite con el renderizador por software,
+  `GraphicsInfo.api`, donde no hay shaders: no verificable con capturas fuera de pantalla). La imagen de fondo del juego
+  seleccionado (`gameBackdrop`) se funde y desaparece en el Inicio para no chocar con el banner. El panel de novedades muestra
+  «Sin mando» cuando no hay mando (`PadBattery.showWhenAbsent`) además del nombre, pila y % cuando lo hay. Suite: 406 OK.
+- **2026-11-22 — Carrusel con fundido total, ondas en la Biblioteca y transición entre fondos:** (1) El panel de novedades
+  de `OmniaHome.qml` ya no tiene marco: el banner se desvanece por los cuatro lados con el nuevo `FadedImage.qml` (Canvas +
+  composición `destination-in`, sin shaders; también redondea esquinas), la carátula lleva esquinas redondeadas y un halo del color
+  de la consola, el foco se ve en el botón principal con flechas ‹ › discretas, y dentro del panel va la pastilla del mando
+  (`PadBattery`). (2) Nuevo `WaveField.qml` (5 capas de olas, tinte con fundido de 1,2 s) solo en la Biblioteca; Inicio y ficha
+  conservan la constelación; Ajustes sigue opaco. (3) `OmniaLibrary` mantiene los dos fondos y los funde en 0,7 s al cambiar de
+  sección (`wavesPage`); cada uno se detiene del todo cuando es invisible o hay un juego abierto. Un solo interruptor «Fondo
+  animado» lo apaga todo. Verificado con capturas fuera de pantalla (OpacityMask/ShaderEffect no se renderizan sin GPU, por eso
+  el desvanecido usa Canvas). Suite: 406 OK.
+- **2026-11-22 — Fondo animado «Constelación» en BigMode:** nuevo `ui/qml/Constellation.qml` (Canvas a media resolución,
+  30 fps, 64 puntos que flotan y se enlazan, brillo arriba a la derecha) detrás de todo el contenido de `OmniaLibrary`
+  (Inicio, Biblioteca y ficha; Ajustes tiene fondo opaco). Se tiñe con el color de la consola de la novedad que muestra el
+  carrusel (`OmniaHome.platformTints`, azul de Omnia por defecto) o con el acento del juego en la biblioteca, con fundido de
+  1,2 s; intensidad 0,5 cuando el juego tiene imagen de fondo. Se detiene con un juego abierto (`gameRunning`), con BigMode
+  cubierto o con la ventana oculta. Ajuste «Fondo animado» en Ajustes de BigMode (`animated_background` en
+  `/settings`, `POST /settings/animated-background`, activado por defecto). Tests: `test_settings_background.py`. Suite: 406 OK.
+- **2026-11-22 — Inicio de BigMode con carrusel automático y batería del mando en todas las pantallas:** (1) `OmniaHome.qml`
+  rehecho (prototipo 2 elegido): carrusel de novedades del catálogo (avanza solo cada 8 s, se detiene con el foco encima o
+  con una ficha abierta; sin catálogo usa los recientes con arte), tarjeta «seguir jugando» (Jugar/Detalles) y mosaico 2×2
+  de accesos (Biblioteca, Favoritos, Sistema, Ajustes; la señal `openSection` la atiende `OmniaLibrary`). Navegación en
+  2D con mando y teclado. Se retiran las filas «Seguir jugando» y «Novedades» anteriores y la tarjeta de «Instalaciones»
+  del prototipo (BigMode no tiene pantalla de instalaciones). (2) Batería: `pad.read_battery()` lee
+  `/sys/class/power_supply` (baterías `Device`, por MAC del mando o la única de periférico; nunca la del portátil);
+  `PadReader` la publica con el mando y `/events` la envía como `padBattery`. Nuevo `PadBattery.qml` (nombre corto, pila y %,
+  ámbar ≤30 %, rojo ≤10 %, verde al cargar; sin dato solo el nombre) en la cabecera de Inicio/Biblioteca, ficha del juego y
+  Ajustes; en Biblioteca va compacto y los filtros se recortan al espacio libre. Sin mando real conectado: probado con
+  ficheros de ejemplo y capturas fuera de pantalla. Suite: 402 OK.
+  Comprobado con un Xbox Wireless real por BLE: no aparece en sysfs, pero sí en UPower
+  (`gaming_input_dev_<MAC>`) y BlueZ (`org.bluez.Battery1`); `pad.read_battery_dbus()` los consulta con `busctl` (cada 20 s) cuando
+  sysfs no tiene la batería. UPower no informa de carga en ese mando (State 0), así que no se muestra «Cargando».
+- **2026-11-22 — Inicio de BigMode rediseñado, iconos reales de mando y sin rueda:** (1) `core/omnia/pad.py`: la familia
+  de iconos (`xbox|ps|switch|deck`) se decide por fabricante USB/BT (`VENDOR_FAMILY`: 054c, 057e, 28de, 045e) con el
+  nombre como respaldo; `EventBus` la publica como `padFamily` en `/events`. (2) Nuevo `ui/qml/PadGlyph.qml`: iconos de
+  Kenney «Input Prompts» (CC0, ya en `ui/qml/images/pad/`) por familia y tecla lógica (A = cruz en PlayStation, botón A en
+  Switch); `OmniaControlHint` acepta `padKeys`; pies de BigMode y de la ficha muestran los botones reales del mando
+  conectado y su nombre (teclas si no hay mando). (3) `OmniaHome.qml`: navegación en 2D (destacado → seguir jugando →
+  novedades) con foco visible, «Jugar» lanza el juego (`playLocalGame`), el destacado ya no se repite en la fila, marcador
+  con iniciales/plataforma cuando falta portada, aviso de catálogo sin conexión con «Reintentar». (4) Sin rueda del ratón
+  para cambiar de tarjeta (biblioteca y novedades: `interactive: false`); el Inicio solo se desplaza (Flickable) si no
+  cabe; las filas avanzan solo con la navegación. Probado con capturas fuera de pantalla (`QT_QPA_PLATFORM=offscreen`)
+  para cada familia de mando; sin mando real conectado. Suite: 396 OK.
+- **2026-11-22 — Bedrock desde Omnia sale en negro (resuelto):** MangoHud descartado (con `MANGOHUD=1` el juego se ve
+  lanzado desde consola). `APPIMAGE_EXTRACT_AND_RUN=1` y el scope de `systemd-run` también descartados. Reproducido el
+  cuelgue lanzando el AppImage con el sandbox de `omnia.service` (PrivateTmp, NoNewPrivileges, ProtectSystem=full,
+  ProtectKernel*, RestrictSUIDSGID, LockPersonality, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`) y corregido
+  añadiendo `AF_NETLINK` (necesario para Wine/Proton): con él funciona. Cambio en `packaging/systemd/omnia.service`;
+  hay que reiniciar el servicio tras instalar para que lo aplique.
+
+- **2026-11-22 — Detección automática de Minecraft Bedrock (BedrockOnLinux):** nuevo `core/omnia/games/bedrock.py`
+  (`BedrockDetector`, `auto: "bedrock"`, registrado en `games/registry.py`). Busca `BedrockOnLinux-<versión>-<arq>.AppImage`
+  ejecutable a 2 niveles en: `external_roots`, las bibliotecas de Steam (carpetas con `steamapps`, p. ej. `/mnt/JUEGOS/PC`)
+  y carpetas habituales (`~/Juegos/PC`, `~/Descargas`, `~/.local/bin`…). Elige la versión más nueva, lanza
+  `<AppImage> play`, `proc = Minecraft.Windows.exe`, plataforma `pc`; no duplica una entrada manual con el mismo AppImage.
+  Probado con `/mnt/JUEGOS/PC/BedrockOnLinux-2.3.1-x86_64.AppImage`. `tests/test_bedrock_detector.py` (7). Suite: 393 OK.
+  Hace falta reinstalar los paquetes (`packaging/arch/build-local.sh`) para verlo en la app.
+- **2026-11-22 — Caída por cuota de D1 y caché de lecturas públicas (backend, sin desplegar):** D1 (plan gratuito) superó
+  su límite diario de filas leídas (error 7500) tras los jobs de artwork y las importaciones masivas: la API dio 500
+  hasta medianoche UTC (19:00 locales). Tanda 3 (658 fichas de las demás consolas) sin aplicar. Nuevo
+  `src/middleware/public-cache.middleware.ts`: caché de borde (Cache API) para GET públicos de `/games`, `/platforms`,
+  `/artwork` con `PUBLIC_CACHE_TTL_SECONDS` (600 en wrangler.toml, 0 en pruebas). Test `tests/public-cache.test.ts`.
+  Hay que desplegar con `npm run deploy` cuando D1 vuelva. Consejo: repartir jobs de artwork en varios días o pasar a
+  Workers de pago.
+- **2026-11-22 — Tanda 2 publicada (ps1, ps2, wii, gba, nds):** 322 fichas publicadas (total 990). Job de artwork
+  `completed`: 394 resueltas, 119 en revisión (mayoría arrastradas de la tanda 1). 23 overrides nuevos en
+  `seeds/recomp-launcher/artwork-overrides.json` (69 en total). Nuevo duplicado `spider-man-2000` → `spider-man`
+  (`DUPLICATES`; `merge-duplicates.sql` con 14 pares). Pendiente: aplicar SQL + manifiesto y repetir el job.
+- **2026-11-22 — Revisión de duplicados del catálogo:** comparados nombres de las fichas publicadas y de las `draft`.
+  Ocho duplicados reales más (`DUPLICATES`/`ROM_DUPLICATES` en `build_manifest.py`: 1080° Snowboarding, The World Is Not
+  Enough, Laser Lords, Ridge Racer Type 4, Castlevania SOTN, Chrono Trigger, Gundam Wing Endless Duel).
+  `seeds/recomp-launcher/merge-duplicates.sql` (13 pares) mueve módulos y códigos de ROM a la canónica. `NAME_FIXES`
+  corrige dos nombres que un manifiesto anterior estropeó (Pokémon Pokopia, Serious Sam: The Next Encounter).
+  Pendiente: aplicar SQL + manifiestos. Detectado: fichas «combinadas» (un port que cubre varios juegos) que habría que
+  repartir en una ficha por juego.
+- **2026-11-22 — Tanda 1 publicada (switch, switch2, n64, pc, gamecube):** 675 fichas publicadas; artwork: 593 con alguna
+  imagen, 82 sin ninguna (59 + 14 de N64 sin entrada fiable en SteamGridDB, resto por revisar). Overrides de arte en
+  `seeds/recomp-launcher/artwork-overrides.json` (46) y `seeds/n64/artwork-overrides.json` (32). Detectadas 6 fichas
+  duplicadas (recomp vs ROM): `build_manifest.py` las fusiona con `DUPLICATES` (módulos a la canónica, duplicada a
+  `draft`). Pendiente aplicar ese manifiesto (dryRun/--apply) y repetir el job de artwork.
+- **2026-11-22 — Publicación por consolas (backend):** aplicados en producción los manifiestos con plataforma (18
+  plataformas nuevas → 32; 1424 fichas de recomps siguen `draft`) y el artwork de las 287 fichas de N64 (278 con imagen;
+  14 sin ninguna, listadas en la conversación). `tools/recomp-launcher-import/publish_platforms.py <consolas…>` publica
+  las `draft` de esas consolas (`--send` dryRun, `--apply` real); primera tanda: switch, switch2, n64, pc, gamecube = 383.
+- **2026-11-22 — Alcance del catálogo y plataformas de los recomps:** decidido: el catálogo son los juegos con port/recomp
+  (como RecompLauncher), de todas las consolas; las 287 fichas de N64 salidas de ROMs se mantienen (sirven para enlazar
+  ROMs por cabecera). `omnia-backend/seeds/recomp-launcher/origins.json` guarda solo la consola de origen de cada
+  recomp (dato tomado de la caché local de la app RecompLauncher, no de su web pública). `build_manifest.py` lo usa
+  para dar `platforms` a las fichas nuevas y declara 18 plataformas nuevas (x360, ps3–ps5, psp, genesis, 3ds, wiiu…).
+  Sin desplegar. El job de artwork solo procesa fichas publicadas: hay que publicar antes de pedir artwork.
+- **2026-11-22 — Fichas de N64 desde ROMs (backend, sin desplegar):** `omnia-backend/tools/n64-catalog/build_n64.py`
+  lee las cabeceras de `/mnt/JUEGOS/Nintendo/N64` y genera `seeds/n64/batch-01.json` (287 juegos `published`, plataforma
+  `n64`, sin la ficha de Ocarina que ya existe) + `rom-identifiers.json` (código por ficha; versiones/regiones agrupadas,
+  alias y `BY_CODE` para nombres distintos con el mismo código). `sync_n64.py` hace dryRun o `--apply` (importa y guarda
+  códigos). Test `tests/n64-manifests.test.ts`. Falta: aplicar y curar artwork (ver mensaje de la conversación).
+- **2026-11-22 — Ocarina de los manifiestos de recomps:** `build_manifest.py` asigna a mano los 8 ports ambiguos
+  (`shipwright` → ficha N64; `heylisten`, `greenkid-mv`, `nx2navi`, `nx2navi-zelda-oot-port`, `oot2026-pc-recomp`,
+  `toot-r`, `ocarina-recomp` → Switch 2) y añade `longshot` (no está en RecompLauncher; repo
+  `git.magicbean.dev/MagicBeanDev/Longshot`) a la ficha de Switch 2. Ya no quedan ambiguos. Sin desplegar.
+- **2026-11-22 — Catálogo de recomps (backend, sin desplegar):** `omnia-backend/tools/recomp-launcher-import/
+  build_manifest.py` genera `seeds/recomp-launcher/manifests/batch-01…08.json` desde `https://recomplauncher.com/all`
+  (el dominio del importador anterior tenía un typo: «recompauncher»). 1952 recomps → 1512 fichas de juego original
+  (1509 nuevas en `draft`, 3 existentes) y 1944 módulos `planned`; 8 ports de Ocarina (N64 vs Switch 2) quedan fuera por
+  ambigüedad (ver `summary.json`). Prueba `tests/recomp-manifests.test.ts` (ensayo sin escritura, importación e
+  idempotencia). Sustituye al `import.sql`/`import_install_packages.sql` de Codex, que no se aplican.
+- **2026-11-22 — Title ID de Switch y emparejamiento por nombre:** `roms.switch_title_id` lee el ticket (.tik) del
+  contenedor PFS0 de un NSP (solo el índice) o el ID entre corchetes del nombre (XCI y NSP sin ticket). Los Title ID
+  que empiezan por `04` son Switch 2 (criterio tomado de RecompLauncher; `platform_for` → `sw2`); las actualizaciones
+  (`…800`) y el DLC (`…001`+) no se importan como juegos. Sin ID, `online_catalog.match_local_game(fuzzy=True)` empareja las
+  ROMs con la ficha por palabras (sin etiquetas ni palabras vacías, tolerancia de prefijo, todas las palabras de la
+  ficha y al menos la mitad de las del archivo), con plataforma compatible y sin adivinar si hay varias candidatas.
+  Solo se aplica a ROMs; el resto de juegos sigue exigiendo nombre idéntico.
+- **2026-11-22 — ROMs: detección por carpeta y sin emulador:** nuevo detector `games/rom_folders.py`
+  (`auto: "roms"`): recorre las carpetas de la biblioteca (`external_roots`, las mismas de Ajustes → «Carpetas de la
+  biblioteca») y publica cada ROM reconocida por cabecera, sin pedir emulador; se vuelve a leer solo si cambia el
+  árbol (mtime de carpetas). Al pulsar Jugar, `manual.resolve_rom_launch` elige/rehace el emulador (409 con aviso
+  «Instala X» si no hay ninguno) y guarda el resultado. El port lleva `rom: {path, system, emulator, internalId,
+  internalIdType}`; `port_installed` basta con que exista la ROM. `/rom/add` acepta emulador vacío. El servicio enlaza las
+  ROMs con su ficha por ID de cabecera (`service.link_roms_by_id`). Nombres limpios: «Legend of Zelda, The - X
+  (U) [!]» → «The Legend of Zelda - X». Idea tomada de RecompLauncher (`roms.rs`: solo cabeceras, carpetas fijas).
+- **2026-11-22 — ROMs de N64 no se detectaban + Inicio de BigMode:** `roms.scan`/`inspect_file` descartaban las
+  carpetas permitidas porque `fsbrowse.allowed_roots()` devuelve `Path` y solo aceptaban `str`; ahora aceptan
+  `os.PathLike` (prueba `test_roms_roots.py`). Verificado contra `/mnt/JUEGOS/Nintendo/N64`: 296 ROMs. Inicio
+  rediseñado: destacado a todo el ancho con portada entera a la derecha (sin repetir el fondo), «Seguir jugando» en
+  tres tarjetas del ancho de la fila y «Novedades» con portadas verticales y nombre/plataforma debajo.
+- **2026-11-22 — Caché local del artwork y reloj de BigMode:** las imágenes del catálogo (el hero BotW pesa 6,5 MB)
+  se descargaban en cada apertura. Ahora `online_catalog.store_artwork`/`prefetch_artwork` las guardan en
+  `~/.cache/omnia/catalog-art` (se acepta la redirección del backend solo hacia `*.steamgriddb.com` por https) y la
+  biblioteca y `/catalog/*` devuelven `file://` (`localUrl`) cuando ya están. Inicio decodifica a `sourceSize` reducido.
+  El óvalo vacío junto a «Sistema» era el reloj: leía `lib.backend.language` (nulo en la ventana independiente);
+  ahora usa `api`. Igual en `OmniaBigSettings` y `OmniaGameDetails` (`host.backend` → `host.api`).
+- **2026-11-22 — Enlace automático con el catálogo:** `art_worker` descarga el catálogo cada hora (y cuando conoce la
+  plataforma de una ficha) y enlaza (`service.auto_link_catalog`, `online_catalog.match_local_game`) los juegos sin
+  ficha, o con una de otra plataforma, con la ficha de nombre idéntico y plataforma compatible; si hay varias
+  candidatas no elige. Nunca pisa una ficha válida (posible elección manual). Backend: fichas de Switch/Switch 2
+  publicadas con portada y fondo (Ocarina Switch 2, BotW, TotK, Mario Kart 8 Deluxe).
+- **2026-11-22 — Fichas de Switch en el backend (preparadas):** migración 0005, plataformas `switch`/`switch2` y
+  Title IDs ya aplicados en producción. Se añadió `omnia-backend/seeds/switch-fichas.manifest.json` (Ocarina de
+  Switch 2, BotW, TotK, Mario Kart 8 Deluxe) con prueba que lo valida contra el esquema real (backend: 329 pruebas en
+  verde). Falta importarlo con `ADMIN_API_KEY` y elegir portadas. Clave de administración: ya existe en producción pero
+  no la conserva nadie; hay que renovarla con `wrangler secret put ADMIN_API_KEY`.
+- **2026-11-22 — Inicio de BigMode destaca la biblioteca:** el destacado es el último juego jugado; el catálogo solo
+  lo ocupa si no hay actividad local, y «Novedades» muestra todo el catálogo restante. Corrección: en delegados
+  (`ListView`/`Repeater`) los arreglos anidados llegan como listas QML y `Array.isArray` falla; `artwork()`,
+  `platforms()` y `OmniaManager.imageFor` usan `Array.from`.
+- **2026-11-22 — Fichas del catálogo por plataforma:** una ficha solo se asocia a un juego local de su misma
+  plataforma y solo entonces aporta su arte (`online_catalog.platform_compatible`, `fetch_entry`; el servicio guarda
+  `catalog_platforms`; `game_catalog_link` responde 409 si no coinciden; `OmniaHome.localMatch` aplica lo mismo).
+  Motivo: Longshot es el remake de Ocarina para Switch 2 y estaba enlazado a la ficha N64. Backend: migración 0005
+  (identificadores `switch`/`switch2` por Title ID de 16 hex) y plataformas Switch/Switch 2 en el seed; sin desplegar.
+  El servicio vuelve a consultar fichas ya revisadas que aún no tienen `catalog_platforms`.
+  Pendiente: leer el Title ID de NSP/XCI en `roms.py` y publicar las fichas de Switch/Switch 2 con su arte.
+- **2026-11-22 — Inicio de BigMode: catálogo e imágenes:** (1) `OmniaHome` nunca pedía el catálogo si nacía visible
+  (solo reaccionaba a `onVisibleChanged`): ahora también arranca en `Component.onCompleted`. (2) En `OmniaLibrary`,
+  `api: api` se resolvía a la propiedad nula del propio `OmniaHome`; ahora usa `lib.api` y `lib.api.games` (arreglaba
+  también «Seguir jugando» vacío). (3) Barra superior: los chips de filtro seguían pintándose en Inicio y se solapaban
+  con la búsqueda (`visible` solo en Biblioteca). (4) Estado vacío del destacado sin solaparse; la portada vertical se
+  muestra entera a la derecha cuando no hay «hero»; «Novedades» se oculta si no hay más juegos. Verificado: el backend
+  responde bien y Qt sigue el 302 hacia el CDN. Los 4 juegos sin `catalogSlug` no tienen imagen porque el catálogo
+  desplegado solo publica Ocarina of Time.
+- **2026-11-22 — Suite de pruebas alineada con la arquitectura independiente:** se eliminaron las pruebas del cliente
+  SteamGridDB y de la clave (`test_art_key_api.py`, `test_installer_retry.py`, partes de `test_art.py` y
+  `test_installer.py`) porque la clave vive solo en omnia-backend. Se corrigió `omnia-hyprland` (`ensure_library_command`
+  llamaba a `_backend()`, ya inexistente; ahora usa `config_dir()`). `uninstall.SYSTEM_UNIT` permite aislar las pruebas
+  del paquete instalado en el sistema. Suite: 357 pruebas en verde. Pendiente (diagnóstico 2026-11-22): `/library` solo entrega arte para juegos con `catalogSlug`; el catálogo
+  desplegado tiene 1 juego (Ocarina of Time, 1 portada) y 4 de los 5 juegos locales no tienen `catalogSlug`, así que
+  no muestran imagen. El backend responde 302 a `cdn2.steamgriddb.com` para `/artwork/<id>/image`; QML carga esa URL
+  directamente (`download_artwork`, que rechaza redirecciones, no se usa en ningún sitio).
+- **2026-11-21 — Continuación de la aplicación independiente:** el análisis local de ROMs cubre ahora N64, NES, SNES,
+  Game Boy/Color/Advance, Nintendo DS, GameCube/Wii, 3DS, Switch, PlayStation, PlayStation 2 y PSP. Los formatos
+  compartidos de disco (ISO, CHD, PBP, CSO y BIN/CUE) ofrecen selector de consola para evitar clasificaciones falsas;
+  el usuario elige entre emuladores compatibles instalados. Se valida de nuevo la consola al importar y al lanzar, sin
+  subir archivos ni hashes. La interfaz del gestor y Biblioteca/Big Mode muestran las nuevas plataformas; el catálogo
+  inglés actualizado a 435 cadenas QML añade cobertura para biblioteca, partidas, arte y errores de red.
+  Validación estática: `py_compile`, `bash -n`, `git diff --check`, `lrelease6` (435/435); el paquete `.deb` de revisión
+  contiene el lanzador del gestor, Manager, Home y el catálogo compilado. No se ejecutaron pruebas automatizadas.
+  No hay `qmllint` instalado.
+- 2026-11-21 — El gestor de escritorio permite añadir y retirar carpetas externas con selector nativo; retirar solo oculta
+  los juegos de esa ubicación y conserva los archivos. Biblioteca añade escaneo N64 de solo lectura en carpeta elegida,
+  verificación de cabecera z64/n64/v64, título propuesto y confirmación individual para importación a Gopher64. La ruta y
+  firma se revalidan al añadir, se evita duplicar ROMs y no se envía el contenido ni su hash. El gestor también expone el
+  asistente de juegos locales y muestra las entradas instaladas/importadas para lanzarlas desde Instalaciones.
+- 2026-11-21 — Clics del panel (reinstalado y comprobado EN VIVO con clic real por ydotool, núcleo real): causas encontradas con pruebas de dispositivo en copia aislada (con `hyprctl` el cursor «teletransportado» daba falsos positivos): (1) `HyprlandFocusGrab` — con el grab activo Hyprland trataba CUALQUIER clic dentro del panel como «fuera» y lo cerraba (panel de la barra); eliminado; (2) `mask: Region { item: body }` no se actualizaba y el panel dejaba de recibir clics (paneles de borde y también de la barra en ciertas posiciones: «no captura el puntero»); ahora `Region { x; y; width; height }` con números. Política de cierre: solo con «Jugar» o cuando el cursor no está sobre el panel (≥ 600 ms; posición real por `hyprctl cursorpos`, ya vale para barra, borde y atajo); si el cursor nunca entró, 8 s de margen renovados por la actividad de teclado; no se cierra con el menú ⋯ o los ajustes abiertos. Se mantienen Esc y ✕ como cierres explícitos. El atajo abre con teclado exclusivo (sin clic previo). La barra de scroll de la lista solo aparece si no cabe. Verificado: barra y 4 bordes × (hover → clic ×2 → cursor fuera) y «Jugar» cierra; en vivo: clic en juego mantiene el panel abierto y sale al quitar el cursor.
+- 2026-11-21 — Correcciones del panel (reinstaladas): (1) silueta ÚNICA en un solo trazo SVG (cuerpo + esquinas cóncavas + esquinas redondeadas) en vez de piezas superpuestas: desaparece la separación entre las esquinas cóncavas y el panel, tanto desde la barra como desde el borde. (2) Cierre en modo lateral: manda la posición REAL del cursor (`hyprctl cursorpos` cada 250 ms mientras el panel está abierto por hover) y no los eventos de hover, que no llegan si el puntero está quieto al aparecer el panel; solo se cierra con el puntero fuera ≥ 600 ms; no se cierra con el menú ⋯ o los ajustes abiertos; aunque se fije con un clic sigue cerrándose al salir el puntero (si se abrió por hover). Probado moviendo el puntero real: se mantiene abierto dentro, también tras fijar, y se cierra fuera. (3) Se muestra el nombre del JUEGO (p. ej. «The Legend of Zelda: Ocarina of Time») y el port como subtítulo («Switch 2 · Longshot»): campo `variant` en `/library`, detector de RecompLauncher y BigMode. (4) La tarjeta del juego en el panel muestra su logo (o el nombre si no hay). Pendiente: el cierre al hacer clic entre juegos solo se probó indirectamente (causa probable: la misma de hover); IPC `omnia pin` y `status` ahora informan autoClose/pointerInside.
+- 2026-11-21 — Pulido del panel y de BigMode (instalado en la sesión activa): el panel ya no sale cortado (columna de recientes flexible, 840 px), colores de la paleta de ii vía `OmniaTheme` (Appearance) con casi sin transparencia (alfa .95/.90), esquinas cóncavas en los cuatro bordes y desde la barra (componente `OmniaConcaveCorner`, verificado en una prueba offscreen de 4 bordes × 2 extremos), rebote al abrir (OutBack, superficie con margen para el rebote y `mask` para no tapar clics) y esquinas redondeadas limpias (sin borde en el cuerpo; regla de desenfoque `ignore_alpha = 0.88` para que el halo del antialiasing no se desenfoque). BigMode: botón «Volver» en la ficha, fondo de la ficha idéntico y animado como el de la biblioteca (zona arriba a la derecha, deslizándose), botón de ajustes (⚙) con página de ajustes (clave de SteamGridDB, actualizar biblioteca, estado del mando). Núcleo: Longshot (id de RecompLauncher) usa el catálogo de Omnia: Zelda: Ocarina of Time, Switch 2, descripción, búsqueda de arte por ese título y carpeta de partidas; la fusión de `refresh` actualiza plataforma/descripción/búsqueda de arte de los juegos del detector. 2 pruebas nuevas.
+- 2026-11-21 — Instalado en la sesión activa el rediseño (módulo + atajo + regla de desenfoque en `custom/rules.lua`, con copias `.omnia.bak`). Hallazgo: tras instalar archivos singleton nuevos hay que reiniciar Quickshell; la recarga en caliente dejaba `OmniaTheme` sin registrar (panel blanco). Reiniciado ii con `qs kill -c ii; qs -c ii`; panel verificado con la paleta correcta y cerrado por IPC. El mensaje del instalador lo advierte.
+- 2026-11-21 — Rediseño del panel rápido en dos columnas (lista con scroll, juego seleccionado, «Jugar», menú ⋯, hasta 3 recientes) y de la ficha de BigMode (`OmniaGameDetails.qml`, pestañas Descripción/Partidas/Actividad), según las dos referencias. Superficie única `quickshell:omniaPanel` (capa Top) por monitor: se despliega desde el botón (esquinas cóncavas) o entra por el borde (4 bordes × 3 posiciones, ajustes de activación Barra/Borde/Ambos), con desenfoque por regla de Hyprland (`--rules`). Paleta fija `OmniaTheme`. Menú ⋯: detalles, favoritos, fijar/quitar fondo del escritorio (solo a petición; sin rotación automática), abrir carpeta. Núcleo: `folder` en `/library`, `GET /game/activity`, historial de RecompLauncher como jugado/reciente; 18 pruebas nuevas (410 en total). Herramientas: `test-core.sh` (núcleo aislado con N juegos) y `test-shell.sh`; IPC `omnia key/bar/menu/settings/setting/status`. No instalado en la sesión activa. Incidente: una prueba pulsó «Jugar» y lanzó Longshot unos segundos (sesión de 19 s en el historial); se cerró y el modo juego se desactivó.
+- 2026-11-21 — BigMode (antes «biblioteca completa»): oscurecido fuerte a la izquierda y abajo como en el diseño; la guía de botones solo aparece con mando conectado (`api.padOn`; sin mando hay botón ✕ para cerrar y la estantería baja); fondo en la zona superior derecha (88 % × 80 %), imagen de mayor resolución, nítida, deslizándose despacio de derecha a izquierda (recorrido 0,15–0,60, ida y vuelta de 18 s por tramo) y fundida con el color base por la izquierda y abajo; la ficha entra con fundido y desplazamiento. **Omnia ya no cambia el fondo del escritorio**: se eliminó la rotación/selección de `wallpaperPath` (y sus ajustes y pruebas); `OmniaWallpaper` solo restaura una vez el fondo original si una versión anterior lo había cambiado (restaurado en esta sesión: `wallhaven-og7xg7.png`). Núcleo: `art.upgrade_fondo` añade desde SteamGridDB (con clave) un fondo de mayor resolución cuando el mejor local es pequeño (una consulta por juego), 4 pruebas nuevas. El panel dice «Abrir BigMode». Instalador: elimina archivos obsoletos.
+- 2026-11-21 — Nueva biblioteca completa (`ui/qml/OmniaLibrary.qml`, usada por `omnia-ui --window` / `main-window.qml`) con el diseño pedido: barra superior (logo, filtros Todos/PC/Switch/… por plataforma, búsqueda, estado del sistema CPU/GPU/RAM), ficha con logo, descripción, «Jugar» y «Detalles», estantería de portadas con anillo de selección y guía de botones; panel de detalles (versiones, tiempo de juego, favorito). Fondo `OmniaBackdrop.qml`: 100 % del alto (100vh) con la proporción original, sin desenfoque ni desaturado ni ampliación, a resolución nativa; si es más ancho que la pantalla se desplaza despacio (animado), si es más estrecho se pega a la derecha; fundido cruzado. Teclado y mando (←/→, Enter/A, Espacio/X, Tab/LB/RB, /, F, Esc/B) y selección sincronizada con el panel y el fondo del escritorio. Núcleo: `/system` añade `live` (CPU % por delta de /proc/stat, RAM, GPU % por sysfs AMD o nvidia-smi con caché 2 s); 5 pruebas nuevas. `OmniaShell` (Plasma/layer-shell) no se tocó. Verificado con capturas reales (selección por API: Savage Wind, BioShock). No probados: mando físico, búsqueda y Detalles con clic.
+- 2026-11-21 — Ajustes dentro del panel de Omnia (icono de engranaje; Esc o flecha vuelven): estructura tomada de los ajustes de RecompLauncher (grupos con título y tarjeta, filas etiqueta + descripción + control, interruptores, selectores segmentados, campo con «Guardar»). Incluye la clave de SteamGridDB (campo oculto con ojo, estado «Guardada/Sin clave», «Obtener clave», «Quitar», «Guardar igualmente» si no hay red), fondo dinámico (activar, intervalo 5 min–1 h, pausa con batería) y acceso por el borde (activar, retraso). Núcleo: nuevas rutas `GET /art/key` (solo dice si existe), `POST /art/key/save` (formato, validación contra SteamGridDB, 0600 atómico; 422 si la rechaza; `force` si no hay red) y `POST /art/key/clear`; 9 pruebas nuevas (383 en total, OK). QML: `OmniaSettingsView/Switch/Segmented`, `OmniaSettings.set()` escribe `~/.config/omnia/hyprland.json`; IPC `qs -c ii ipc call omnia settings|setting <nombre> <json>`. Verificado en vivo: la vista abre y la clave falsa se rechaza (422) sin guardarse. No verificado: escribir/pegar la clave con el teclado real en el campo del panel.
+- 2026-11-21 — Panel de Omnia rediseñado (tarjeta principal con el fondo del juego o del escritorio y «Siguiente fondo»; estantería de portadas con selección/▶; estados de error y vacío; botón de biblioteca) y clics migrados de `TapHandler` a `MouseArea`. Los componentes viven en archivos propios (`OmniaPill`, `OmniaIconAction`, `OmniaRoundedImage`): los componentes en línea con ciertos nombres hacían fallar la carga de ii (`is not a type`). Nuevo IPC `qs -c ii ipc call omnia …` (toggle/open/close/status/library). Comprobado: el atajo global y el IPC abren y cierran el panel; `omnia-ui --window` se abre por IPC. El clic real sobre «Abrir biblioteca completa» pendiente de confirmar por el usuario. Aviso: `SUPER+SHIFT+0` es de ii (mover a espacio 10); el atajo de Omnia es la letra O.
+- 2026-11-21 — Corregido «Abrir biblioteca completa» en Hyprland: `omnia-ui` no estaba en el PATH (instalación desde el repositorio). `omnia-hyprland install` ahora guarda `libraryCommand` con la ruta de `ui/omnia-ui` en `~/.config/omnia/hyprland.json` (sin pisar un valor propio); aplicado también a la instalación actual. Verificado que `omnia-ui --window` abre la ventana (1920×1080, sin errores). El clic en el botón no se probó en la sesión real.
+- 2026-11-21 — El instalador de Hyprland (`integrations/hyprland/omnia-hyprland install`) solicita la clave API de SteamGridDB: entrada oculta (`getpass`) o `--key-file`/`OMNIA_STEAMGRIDDB_KEY_FILE`, nunca por argumento; valida con `installer_backend.validate_key`, guarda en `~/.config/omnia/steamgriddb.key` (0600), conserva una clave existente con Enter, ofrece guardar si no hay red y se rinde tras 3 intentos; `--skip-key` la omite y sin terminal no espera. Se pregunta antes de escribir nada. 8 pruebas nuevas (`tests/test_hyprland_installer.py`). El instalador gráfico general ya tenía su `KeyPanel`.
+- 2026-11-21 — Detector de RecompLauncher (`core/omnia/games/recomp.py`, registrado en `registry.py`): lee su `library.json` (solo lectura, nativo o Flatpak), toma metadatos del catálogo en caché, lanza con `recomplauncher --play <id>` y detecta «en ejecución» por la carpeta de instalación. `fetch_art` + `recomp_art_worker` descargan portada/fondo/logo desde recompstore.com (solo ese host, HTTPS, límites; desactivable con `"recomp_art": false` en config.json), así el fondo del escritorio funciona sin SteamGridDB. 9 pruebas nuevas (356 en total, OK). Verificado con omnia-core aislado y la copia de ii: detecta 4 ports, descarga 3 fondos, rotación sin repetir, selección fija, juego sin fondo usa el original, quitar selección reanuda; `appearance` y colores intactos. Corregida la ruta de la copia del fondo (`$XDG_STATE_HOME/omnia`). Pendiente: instalar en la sesión real y probar el lanzamiento real con `--play`.
+- 2026-11-21 — Elegido el diseño híbrido para Hyprland. Nuevo `integrations/hyprland/`: módulo QML para illogical-impulse (estado único del panel con asomado/fijado, botón en la barra, zona del borde derecho, cliente de la API, fondo dinámico por `wallpaperPath` sin `switchwall.sh`), instalador reversible `omnia-hyprland` (verificado en una copia de ii: instalar/desinstalar deja el árbol idéntico) y `test-shell.sh` para pruebas aisladas. Lógica de fondos probada con `qmltestrunner` (15 casos). Nada instalado en `~/.config`; el QML aún no se ejecutó en Quickshell. Hallazgo: ii deriva la transparencia automática del fondo.
+- 2026-11-21 — Diseño previo de la integración con Hyprland + illogical-impulse (CachyOS): `prototypes/hyprland/` con `index.html` (3 prototipos interactivos y simulador de fondos) y `README.md` (diagnóstico, recomendación, archivos, estrategia reversible, criterios). Hallazgo: ii dibuja el wallpaper con `Background.qml` (`wallpaperPath`); `switchwall.sh` regenera colores de terminal/Qt, así que no se usa para rotar. Solo prototipos: no se instaló ni se modificó la configuración activa. Pendiente: elección del usuario.
 - 2026-11-18 — Validada la instalación de la revisión 38: binario del asistente y backend actualizados a las 11:03, core (38 fuentes), QML (337 archivos), wallpaper, applet, scripts KWin y fuentes (8 archivos) coinciden con el repositorio. `omnia.service` está activo y habilitado, Plasma activo, `/health` y `/library` responden 200; biblioteca con 36 elementos. No quedó un diario de transacción residual, consistente con la ruta de commit exitoso. No se provocó un fallo para probar rollback en el sistema real.
 - 2026-11-18 — Q-05 de la auditoría: el instalador universal crea un diario privado de respaldo antes de modificar rutas propias de Omnia, archivos de configuración de instalación, enlaces systemd y preferencias de Plasma que toca el flujo. Si falla una operación, restaura archivos/directorios/enlaces, elimina destinos creados por esa ejecución, recarga systemd y recupera el estado previo de servicios. Solo descarta el diario al completar instalación o actualización; si falla la restauración, conserva el respaldo para recuperación manual. Las cinco pruebas unitarias enfocadas pasan en directorios temporales. Se construyó `Omnia-Installer-0.1.0-38-x86_64.AppImage`, se verificó su extracción y la inclusión del instalador y helper. SHA-256: `6d6cab2e127292d88d7b80554501d068061d499942d8f5492d8e751681f171f2`. Alcance limitado a errores capturados por el proceso: no cubre corte eléctrico, SIGKILL ni revierte paquetes añadidos a rpm-ostree.
 - 2026-11-18 — Validada en Bazzite la actualización a revisión 37: `OmniaShell.qml` coincide con el fuente, Hanken Grotesk y los cuatro pesos de Rajdhani están instalados con hashes coincidentes; `omnia.service` y Plasma están activos, `/health` 200 y biblioteca con 36 juegos. El wallpaper cargó y no aparecen errores QML de Omnia en el journal posterior al reinicio. Pendiente revisión visual comparativa de métricas tipográficas.
@@ -184,6 +470,13 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 
 - 2026-11-16 — Se duplica la velocidad del paneo del fondo animado en `Backdrop.qml`: cada recorrido pasa de 150 a 75 segundos (ciclo completo de 5 a 2,5 minutos), manteniendo la curva suave `InOutSine`.
 Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secciones 4–5 si procede).
+
+- 2026-11-21 — Omnia avanza hacia una aplicación independiente: primera ventana de gestión con Inicio, Biblioteca,
+  Explorar, Instalaciones y Ajustes; Big Mode se abre desde el gestor y añade Inicio conectado al catálogo público.
+  Ajustes ya permite registrar y retirar carpetas de biblioteca con un selector nativo, sin borrar archivos. La entrada
+  de escritorio usa `omnia-ui --manager`; el paquete Arch ahora separa `omnia-app` del complemento `omnia-kde`.
+  Pendiente: catálogo de instalaciones manifiestas, escaneo de ROM con vista previa, idiomas español/inglés y validación
+  del instalador fuera de Plasma.
 
 - 2026-11-16 — Revisión 11: instalador AppImage x86-64 para este CachyOS, con Qt Widgets y plugins Wayland/XCB
   incluidos para abrir el asistente sin compilarlo antes. Builder reproducible mediante herramientas externas
@@ -741,3 +1034,10 @@ Más reciente primero. Cada cambio añade una línea aquí (y actualiza las secc
 - 2026-11-17 — El instalador AppImage rev16 detecta Omnia instalado y abre un flujo corto de actualización. Valida SteamGridDB y conserva biblioteca/ajustes; reemplaza los archivos de Omnia sin repetir dependencias, primera configuración, selección de discos ni importación. Si no hay instalación, mantiene el asistente completo.
 - 2026-11-17 — Se integra MangoHud como superposición de métricas: el instalador agrega la dependencia, crea una configuración privada de Omnia a partir de `docs/MangoHud.conf` sin reemplazar los ajustes globales, y el núcleo lo antepone a juegos lanzados directamente desde la biblioteca. Ajustes permite desactivarlo; Steam/Lutris/Heroic requieren el prefijo en su propio cliente porque ya abierto no hereda el entorno de Omnia.
 - 2026-11-17 — MangoHud ahora genera `cpu_text` y la lista `gpu_text` con los modelos detectados en `/proc/cpuinfo` y `lspci`; las instalaciones previas reciben estos nombres si aún no tenían etiquetas personalizadas. Se añade `pciutils` para disponer de `lspci`.
+- 2026-11-21 — Inicio de la conversión de Omnia en aplicación independiente. Se creó `docs/ARQUITECTURA-INDEPENDIENTE.md` y una rama de trabajo que conserva los cambios locales previos. El servicio local incorpora lecturas autenticadas del catálogo público de Omnia Backend (juegos, detalle y plataformas), con timeout, límite de respuesta y caché offline; Big Mode añade Inicio con destacado, novedades, actividad local reciente, búsqueda y ficha del catálogo. Se añadió un centro de control de escritorio con Inicio, Biblioteca, Explorar, Instalaciones y Ajustes; Big Mode puede abrirse desde ahí compartiendo el servicio local. El paquete Arch `omnia-app` y una entrada XDG ya lo exponen como aplicación. Los ports instalados en RecompLauncher se migrarán una sola vez a la biblioteca local, usando su `AppRun` directamente; se retiró el detector recurrente y el worker de arte de esa aplicación. No se movieron archivos ni se publicó/desplegó el backend. Pendiente: completar gestión de carpetas/instalaciones, escaneo/reconocimiento de ROMs, manifiestos verificables, quitar la clave personal de SteamGridDB, localización completa y empaquetado independiente de Plasma.
+- 2026-11-21 — Avance de la app independiente: gestor con Biblioteca/Explorar/Instalaciones/Ajustes, importación con detección de ROMs para 13 familias de consola, selección de emulador compatible y confirmación manual de formatos ambiguos; contratos de instalación verificada conectados al backend y al gestor local. Inicio de Big Mode muestra catálogo, destacados y hasta tres juegos locales recientes. Traducciones QML al inglés: 439/439 compiladas. La integración del panel illogical-impulse ya no solicita ni guarda claves personales de SteamGridDB; consume artwork publicado por omnia-backend. Chequeos estáticos de Python, Bash, traducciones QML y `git diff --check` correctos. Aún no se probaron suites automatizadas ni se desplegaron rutas/migración del backend; tampoco se publicó ningún paquete.
+- 2026-11-21 — La pantalla Inicio de Big Mode distingue carga, catálogo vacío y estado sin conexión. El gestor y Big Mode comparten ahora el mismo objeto `Api`; la instancia local de Big Mode no inicia sondeos si el cliente fue inyectado, y el gestor activa/desactiva los controles de mando al abrir/cerrar Big Mode. El gestor ya no lanza varias cargas al iniciar ni sondea el sistema por una segunda vía. La app Arch se reconstruyó en `/tmp/omnia-pkg-single-startup/`; se verificó dentro del paquete la configuración de sondeos y el cliente compartido. Se amplió la localización inglesa de errores del servicio y se localizó la entrada XDG de Omnia. No se instalaron paquetes ni se validó el comportamiento en una sesión gráfica.
+- 2026-11-21 — La caché offline del catálogo conserva los datos aunque superen 12 horas, pero incluye el tiempo de caché y un indicador de antigüedad; Inicio de Big Mode avisa cuando el catálogo guardado está desactualizado. Traducciones QML al inglés: 439/439 fuentes compiladas en catálogo.
+- 2026-11-22 — Se aplicaron en producción de Omnia Backend las migraciones D1 0002/0003/0004 y se desplegaron las rutas de paquetes instalables e identificadores ROM (Worker `486f344b-a835-4895-b82e-bfe79e4e0652`). Health, catálogo y plataformas respondieron correctamente. Con aprobación explícita se vinculó The Legend of Zelda: Ocarina of Time con N64 y se publicó el ID de cabecera `CZLE`; el endpoint ROM ya entrega esa ficha y su región. No se publicaron los otros IDs de la seed ni manifiestos de descarga. Se actualizó la documentación de ambos repositorios; los cambios locales siguen sin commit ni push. El catálogo productivo sigue pequeño, así que el reconocimiento automático solo cubrirá juegos para los que se publiquen IDs curados.
+- 2026-11-22 — Omnia ahora ofrece una entrada XDG **Omnia Big Mode** además del gestor, para abrir Big Mode directamente como ventana completa sin necesitar el panel. Se reconstruyeron los paquetes Arch del árbol actual en `~/Descargas/Omnia/0.2.1-arch-r5`; se inspeccionó el paquete y contiene ambos lanzadores, QML del gestor/Big Mode y traducción inglesa. SHA256SUMS verifica los seis artefactos. No se instalaron ni se abrió la interfaz en la sesión real.
+- 2026-11-22 — La cola de instalaciones guarda el historial local con permisos de usuario. Si `omnia-core` se reinicia durante una instalación, la tarea aparece como interrumpida con una explicación localizada; Omnia no intenta reanudar archivos parciales. Arch `0.2.1-3` en `~/Descargas/Omnia/0.2.1-arch-r7`; se corrigió la dependencia inválida `qt6-quickcontrols2` (el módulo viene con `qt6-declarative`). Hashes verificados. No se instaló por falta de privilegios en el entorno.

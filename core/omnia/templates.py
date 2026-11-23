@@ -20,7 +20,7 @@ class TemplateError(Exception):
 
 TEMPLATES = {
     "gopher64": {"name": "Emulador N64 (Gopher64)", "kind": "emulator", "needs": "rom", "ext": [".z64", ".n64", ".v64"]},
-    "bedrock-on-linux": {"name": "Minecraft Bedrock (BedrockOnLinux)", "kind": "port", "needs": "exe", "ext": [".exe"]},
+    "bedrock-on-linux": {"name": "Minecraft Bedrock (BedrockOnLinux)", "kind": "port", "needs": "exe", "ext": [".exe", ".appimage"]},
     "longshot": {"name": "Longshot (port de Zelda: Ocarina of Time)", "kind": "port", "needs": "exe", "ext": []},
     "hookshot": {"name": "Hookshot (port de Zelda: Ocarina of Time)", "kind": "port", "needs": "exe", "ext": []},
     "nx2navi": {"name": "NX2navi (port de Zelda: Ocarina of Time)", "kind": "port", "needs": "exe", "ext": []},
@@ -36,6 +36,8 @@ def catalog() -> list:
 def bedrock_on_linux_appimage(exe: str):
     """Devuelve el AppImage de BedrockOnLinux asociado al ejecutable instalado, si es una instalación reconocida."""
     path = Path(exe)
+    if path.name.startswith("BedrockOnLinux-") and path.suffix.casefold() == ".appimage":
+        return path if path.is_file() and os.access(path, os.X_OK) else None
     if path.name.casefold() != "minecraft.windows.exe" or not path.is_file():
         return None
     game_root = next((p for p in path.parents if p.name == "Minecraft"), None)
@@ -94,10 +96,13 @@ def build(template_id: str, exe: str = "", rom: str = "", gopher64=None) -> dict
                 "saves": {"files": ["{}/*-{}.*".format(g["saves"], h) for h in sorted(rom_hashes(rom))], "name": "Partida"},
                 "suggest": []}
     if template_id == "bedrock-on-linux":
-        if not exe or os.path.basename(exe).casefold() != "minecraft.windows.exe" or not os.path.isfile(exe):
-            raise TemplateError("Elige Minecraft.Windows.exe de la instalación BedrockOnLinux.")
-        game_root = next((p for p in Path(exe).parents if p.name == "Minecraft"), None)
         appimage = bedrock_on_linux_appimage(exe)
+        if appimage is not None and appimage == Path(exe):
+            return {"launch": [str(appimage), "play"], "cwd": str(appimage.parent), "check": exe,
+                    "proc": "Minecraft.Windows.exe", "saves": None, "suggest": []}
+        if not exe or os.path.basename(exe).casefold() != "minecraft.windows.exe" or not os.path.isfile(exe):
+            raise TemplateError("Elige un AppImage ejecutable de BedrockOnLinux o el Minecraft.Windows.exe de su instalación.")
+        game_root = next((p for p in Path(exe).parents if p.name == "Minecraft"), None)
         if game_root is None or not any((p / ".bedrock-on-linux-install.json").is_file() for p in Path(exe).parents):
             raise TemplateError("No parece una instalación de Minecraft creada por BedrockOnLinux.")
         if appimage is None:

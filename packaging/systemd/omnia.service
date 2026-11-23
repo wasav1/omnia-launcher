@@ -16,7 +16,9 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK: los juegos lanzados por Omnia heredan este filtro y Wine/Proton lo necesita (p. ej. Minecraft Bedrock
+# con BedrockOnLinux se queda colgado al arrancar sin él).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=default.target

@@ -140,3 +140,27 @@ class ApiPartidas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ApiActividadCarpeta(ApiPartidas):
+    """Reutiliza el montaje de ApiPartidas (juegos «mio» y «otro» con puertos en self.tmp)."""
+
+    def test_activity_lists_newest_first_and_only_that_game(self):
+        self.store.state["history"] = [
+            {"id": "mio", "name": "Mi Port", "start": 100, "end": 200, "secs": 100},
+            {"id": "otro", "name": "Otro", "start": 150, "end": 250, "secs": 100},
+            {"id": "mio", "name": "Mi Port", "start": 300, "end": 460, "secs": 160}]
+        self.store.state["sessions"] = {"mio": {"total_secs": 260, "count": 2, "last_secs": 160}}
+        code, d = self.call("/game/activity?id=mio")
+        self.assertEqual(code, 200)
+        self.assertEqual([s["secs"] for s in d["sessions"]], [160, 100])
+        self.assertEqual((d["plays"], d["lastSecs"]), (2, 160))
+        self.assertEqual(self.call("/game/activity?id=nope")[0], 404)
+        self.assertEqual(self.call("/game/activity?id=mio", token=False)[0], 401)
+
+    def test_library_reports_existing_folder_only(self):
+        rows = {g["id"]: g for g in self.call("/library")[1]["games"]}
+        self.assertEqual(rows["mio"]["folder"], str(self.tmp.resolve()))      # el check del puerto es una carpeta real
+        self.store.set_games([{"id": "x", "name": "X", "ports": [{"id": "p", "name": "P", "launch": ["x"], "check": str(self.tmp / "no-existe/exe")}]}])
+        self.api.store.revision += 1
+        self.assertEqual(self.call("/library")[1]["games"], [])             # sin instalar no aparece

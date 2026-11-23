@@ -37,7 +37,7 @@ def main():
     args=parser.parse_args();out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
     tool=args.appimagetool.resolve();runtime=args.runtime.resolve()
     if os.uname().machine!='x86_64': parser.error('Este constructor es para x86-64.')
-    icon=REPO/'assets/branding/omnia-icon-bluegray.png'
+    icon=REPO/'assets/branding/omnia-logo.svg'
     if not icon.is_file(): parser.error('Falta el icono circular azul grisáceo.')
     with tempfile.TemporaryDirectory(prefix='omnia-appimage-') as tmp:
         work=Path(tmp);app=work/'Omnia.AppDir';app.mkdir();stage(app)
@@ -71,7 +71,7 @@ def main():
                 target_notice.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(notice, target_notice)
         (app/'usr/share/omnia-bundled-libraries.txt').write_text('\n'.join(sorted(bundled))+'\n')
-        shutil.copy2(icon,app/'omnia.png');(app/'.DirIcon').symlink_to('omnia.png')
+        shutil.copy2(icon,app/'omnia.svg');(app/'.DirIcon').symlink_to('omnia.svg')
         (app/'omnia.desktop').write_text('[Desktop Entry]\nType=Application\nName=Omnia — Instalador\nExec=omnia-installer\nIcon=omnia\nTerminal=false\nCategories=Game;\n')
         (app/'AppRun').write_text('''#!/usr/bin/env bash
 set -euo pipefail

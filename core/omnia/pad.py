@@ -11,6 +11,7 @@ import os
 import re
 import select
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -40,7 +41,15 @@ BUTTONS = {   # posición física -> etiqueta del mando
 class Device:
     name: str
     path: str
-    layout: str
+    layout: str            # cómo llegan los botones (xbox | ps | switch): decide la etiqueta lógica A/B/X/Y
+    family: str = ""       # qué iconos mostrar (xbox | ps | switch | deck)
+    vendor: str = ""
+    product: str = ""
+    uniq: str = ""         # identificador único (en Bluetooth, la dirección MAC): sirve para encontrar su batería
+
+
+# Fabricante USB/Bluetooth -> familia de iconos. Es más fiable que el nombre (mandos genéricos, nombres traducidos).
+VENDOR_FAMILY = {"054c": "ps", "057e": "switch", "28de": "deck", "045e": "xbox"}
 
 
 def layout_for(name: str) -> str:
@@ -50,6 +59,93 @@ def layout_for(name: str) -> str:
     if any(s in n for s in ("playstation", "dualsense", "dualshock", "sony", "wireless controller")) and "xbox" not in n:
         return "ps"
     return "xbox"
+
+
+def family_for(name: str, vendor: str = "") -> str:
+    """Familia de iconos: primero por fabricante; si no es conocido, por el nombre; en último caso, estilo Xbox."""
+    known = VENDOR_FAMILY.get(vendor.lower())
+    if known:
+        return known
+    n = name.lower()
+    if "steam" in n or "valve" in n or "deck" in n:
+        return "deck"
+    return layout_for(name)
+
+
+def _read(path: Path) -> str:
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return ""
+
+
+def read_battery(uniq: str = "", base: str = "/sys/class/power_supply"):
+    """Batería de un mando: {"level": 0-100, "charging": bool} o None si el sistema no la expone.
+
+    Los mandos aparecen en /sys/class/power_supply como baterías de ámbito «Device» (DualSense, DualShock 4,
+    Switch Pro por el kernel; muchos Xbox por BlueZ). Se elige la que lleva la dirección del mando en su nombre;
+    si no hay coincidencia pero hay una sola batería de periférico, se usa esa. Nunca se confunde con la del portátil.
+    """
+    try:
+        entries = sorted(Path(base).iterdir())
+    except OSError:
+        return None
+    found = []
+    for entry in entries:
+        if _read(entry / "type") != "Battery" or _read(entry / "scope") != "Device":
+            continue
+        try:
+            level = int(_read(entry / "capacity"))
+        except ValueError:
+            continue
+        found.append((entry.name.lower(), {"level": max(0, min(100, level)),
+                                           "charging": _read(entry / "status").lower() == "charging"}))
+    if not found:
+        return None
+    if uniq:
+        for name, value in found:
+            if uniq.lower() in name:
+                return value
+    return found[0][1] if len(found) == 1 else None
+
+
+_MAC_PATH = re.compile(r"^[0-9A-F]{2}(_[0-9A-F]{2}){5}$")
+
+
+def read_battery_dbus(uniq: str, run=subprocess.run):
+    """Batería de un mando Bluetooth que el kernel no expone en sysfs (p. ej. Xbox por BLE), vía UPower o BlueZ.
+
+    Usa `busctl` (viene con systemd), sin dependencias nuevas. UPower da el porcentaje y, si lo sabe, si carga; BlueZ solo
+    el porcentaje. Solo se aceptan direcciones MAC bien formadas, que es lo único que acaba en la ruta del bus.
+    """
+    mac = uniq.upper().replace(":", "_")
+    if not _MAC_PATH.match(mac):
+        return None
+
+    def get(service, path, interface, prop):
+        try:
+            out = run(["busctl", "--system", "get-property", service, path, interface, prop],
+                      capture_output=True, text=True, timeout=2)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if out.returncode != 0:
+            return None
+        parts = out.stdout.split()
+        return parts[1] if len(parts) == 2 else None
+
+    base = f"/org/freedesktop/UPower/devices/gaming_input_dev_{mac}"
+    percent = get("org.freedesktop.UPower", base, "org.freedesktop.UPower.Device", "Percentage")
+    if percent is not None:
+        state = get("org.freedesktop.UPower", base, "org.freedesktop.UPower.Device", "State")
+        try:
+            return {"level": max(0, min(100, int(float(percent)))), "charging": state == "1"}
+        except ValueError:
+            pass
+    percent = get("org.bluez", f"/org/bluez/hci0/dev_{mac}", "org.bluez.Battery1", "Percentage")
+    try:
+        return {"level": max(0, min(100, int(percent))), "charging": False} if percent is not None else None
+    except ValueError:
+        return None
 
 
 def discover(devices_file: str = "/proc/bus/input/devices", dev_dir: str = "/dev/input") -> list:
@@ -64,9 +160,16 @@ def discover(devices_file: str = "/proc/bus/input/devices", dev_dir: str = "/dev
         h = re.search(r"H: Handlers=(.*)", block)
         if not (name and h):
             continue
+        uniq = re.search(r'U: Uniq=(\S*)', block)
+        ids = re.search(r"I: Bus=\w+ Vendor=(\w+) Product=(\w+)", block)
+        vendor, product = (ids.group(1).lower(), ids.group(2).lower()) if ids else ("", "")
         ev, js = re.search(r"\bevent(\d+)\b", h.group(1)), re.search(r"\bjs\d+\b", h.group(1))
         if ev and js:
-            out.append(Device(name.group(1), f"{dev_dir}/event{ev.group(1)}", layout_for(name.group(1))))
+            family = family_for(name.group(1), vendor)
+            # el Steam Deck envía los botones como un Xbox; Sony y Nintendo conservan su disposición
+            layout = family if family in ("ps", "switch") else layout_for(name.group(1))
+            out.append(Device(name.group(1), f"{dev_dir}/event{ev.group(1)}", layout, family, vendor, product,
+                              uniq.group(1).lower() if uniq else ""))
     return out
 
 
@@ -146,11 +249,15 @@ def normalize(code: int, raw: int, info: tuple) -> float:
 class PadReader(threading.Thread):
     """Lee todos los mandos conectados y empuja las teclas al bus. `gate()` decide si se entregan (p. ej. no con un juego abierto)."""
 
-    def __init__(self, bus, gate=lambda: True, devices_file="/proc/bus/input/devices", log=lambda *a: None, dev_dir="/dev/input"):
+    def __init__(self, bus, gate=lambda: True, devices_file="/proc/bus/input/devices", log=lambda *a: None, dev_dir="/dev/input",
+                 power_dir="/sys/class/power_supply", dbus_battery=read_battery_dbus):
         super().__init__(daemon=True, name="omnia-pad")
         self.bus, self.gate, self.devices_file, self.log, self.dev_dir = bus, gate, devices_file, log, dev_dir
+        self.power_dir, self.dbus_battery = power_dir, dbus_battery
+        self._dbus_cache = {}       # dirección -> (instante, valor): el bus se consulta cada 20 s como máximo
         self.stop_event = threading.Event()
         self.open = {}          # fd -> (Device, PadLogic, {código: absinfo})
+        self.uniq_by_path = {}
 
     def _open(self, dev: Device):
         fd = os.open(dev.path, os.O_RDONLY | os.O_NONBLOCK)
@@ -165,6 +272,7 @@ class PadReader(threading.Thread):
             info.pop(ABS_Z, None)
             info.pop(ABS_RZ, None)
         self.open[fd] = (dev, PadLogic(dev.layout), info)
+        self.uniq_by_path[dev.path] = dev.uniq
 
     def _rescan(self):
         have = {d.path for d, _, _ in self.open.values()}
@@ -180,7 +288,19 @@ class PadReader(threading.Thread):
             if dev.path not in now_paths:
                 self._close(fd)
         first = next(iter(self.open.values()), None)
-        self.bus.set_pad(bool(first), first[0].name if first else "", first[0].layout if first else "")
+        battery = read_battery(first[0].uniq, self.power_dir) if first else None
+        if first and battery is None and first[0].uniq:
+            battery = self._battery_from_bus(first[0].uniq)
+        self.bus.set_pad(bool(first), first[0].name if first else "", first[0].layout if first else "",
+                         first[0].family if first else "", battery)
+
+    def _battery_from_bus(self, uniq: str):
+        now = time.monotonic()
+        cached = self._dbus_cache.get(uniq)
+        if cached is None or now - cached[0] > 20.0:
+            cached = (now, self.dbus_battery(uniq))
+            self._dbus_cache[uniq] = cached
+        return cached[1]
 
     def _close(self, fd):
         dev = self.open.pop(fd)[0]

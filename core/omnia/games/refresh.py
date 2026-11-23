@@ -7,6 +7,9 @@ _LOCK = threading.Lock()      # el refresco periódico y el de la API no deben p
 
 
 def port_installed(p: dict) -> bool:
+    rom = p.get("rom")
+    if isinstance(rom, dict) and rom.get("path"):      # el emulador se resuelve al jugar; basta con que exista la ROM
+        return os.path.isfile(os.path.expanduser(str(rom["path"])))
     chk = p.get("check") or (p.get("launch") or [""])[0]
     return bool(p.get("launch")) and bool(chk) and os.path.exists(os.path.expanduser(chk))
 
@@ -40,7 +43,11 @@ def _refresh(store, detectors) -> dict:
                     keep.append(g)
                 elif g["id"] in found:
                     new = found.pop(g["id"])
-                    keep.append({**g, "ports": new["ports"]})     # conserva arte y ajustes del usuario
+                    merged = {**g, "ports": new["ports"],            # conserva arte y ajustes del usuario
+                              **{k: new[k] for k in ("name", "variant", "played", "platform", "s", "chips", "sub") if k in new}}
+                    if (new.get("art") or {}).get("sgdb"):           # el nombre de búsqueda del arte lo decide el detector
+                        merged["art"] = {**(g.get("art") or {}), "sgdb": new["art"]["sgdb"]}
+                    keep.append(merged)
                 else:
                     removed += 1
             games = keep + list(found.values())

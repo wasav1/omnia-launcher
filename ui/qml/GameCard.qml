@@ -26,7 +26,7 @@ Item {
     property string playtimeText: ""
     property int savesCount: 0
     property string latestSaveText: ""
-    property string backupText: "Sin respaldo"
+    property string backupText: qsTr("Sin respaldo")
     property var saveSlots: []
     property bool savesOpen: false
     property bool launchFocused: false
@@ -37,13 +37,13 @@ Item {
     signal launchRequested()
 
     function relativeSaveTime(ts) {
-        if (!ts) return "sin fecha"
+        if (!ts) return qsTr("sin fecha")
         const d = new Date(ts * 1000), now = new Date()
         const hm = (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        if (d.getTime() >= start) return "Hoy, " + hm
-        if (d.getTime() >= start - 86400000) return "Ayer, " + hm
-        return d.getDate() + " " + ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][d.getMonth()] + " · " + hm
+        if (d.getTime() >= start) return qsTr("Hoy, %1").arg(hm)
+        if (d.getTime() >= start - 86400000) return qsTr("Ayer, %1").arg(hm)
+        return d.getDate() + " " + [qsTr("ene"),qsTr("feb"),qsTr("mar"),qsTr("abr"),qsTr("may"),qsTr("jun"),qsTr("jul"),qsTr("ago"),qsTr("sep"),qsTr("oct"),qsTr("nov"),qsTr("dic")][d.getMonth()] + " · " + hm
     }
     onCurrentChanged: if (!current) savesOpen = false
 
@@ -109,7 +109,7 @@ Item {
         anchors { right: parent.right; top: parent.top; topMargin: current ? 12 : 16; rightMargin: (game && game.fav ? 40 : 12) + (current ? 0 : 4) }
         height: current ? 26 : 14; radius: height/2; width: current ? newText.implicitWidth + 18 : 14
         color: "#6fd08c"; border.width: current ? 0 : 2; border.color: "#cc0c1a10"
-        Text { id: newText; visible: card.current; anchors.centerIn: parent; text: "NUEVO"; color: "#0c1a10"; font.family: "Rajdhani"; font.pixelSize: 14; font.weight: Font.Bold; font.letterSpacing: 1.2 }
+        Text { id: newText; visible: card.current; anchors.centerIn: parent; text: qsTr("NUEVO"); color: "#0c1a10"; font.family: "Rajdhani"; font.pixelSize: 14; font.weight: Font.Bold; font.letterSpacing: 1.2 }
     }
     Rectangle {
         visible: !!(game && game.ports && game.ports.length > 1) && !card.expanded
@@ -220,7 +220,7 @@ Item {
                 id: metricsRow
                 width: parent.width; height: 48; spacing: 8
                 Repeater {
-                    model: [{label:"TIEMPO JUGADO",value:card.playtimeText},{label:"ÚLTIMA SESIÓN",value:card.lastSessionText}]
+                    model: [{label:qsTr("TIEMPO JUGADO"),value:card.playtimeText},{label:qsTr("ÚLTIMA SESIÓN"),value:card.lastSessionText}]
                     delegate: Item {
                         id: metric
                         required property var modelData
@@ -254,13 +254,13 @@ Item {
                 }
                 Column { id:savesColumn; anchors { left:parent.left; right:parent.right; top:parent.top; margins:8 } spacing:3
                     Row { width:parent.width; height:20; spacing:6
-                        Text { width:parent.width-backupLabel.width-6; text:"Partidas: " + (card.savesCount ? card.savesCount + (card.savesCount === 1 ? " ranura" : " ranuras") : "ninguna"); color:card.titleColor; font.family:"Hanken Grotesk"; font.pixelSize:14; font.weight:Font.DemiBold; anchors.verticalCenter:parent.verticalCenter; elide:Text.ElideRight }
+                        Text { width:parent.width-backupLabel.width-6; text:qsTr("Partidas: %1").arg(card.savesCount ? card.savesCount + (card.savesCount === 1 ? " " + qsTr("ranura") : " " + qsTr("ranuras")) : qsTr("ninguna")); color:card.titleColor; font.family:"Hanken Grotesk"; font.pixelSize:14; font.weight:Font.DemiBold; anchors.verticalCenter:parent.verticalCenter; elide:Text.ElideRight }
                         Text { id:backupLabel; width:Math.min(135,parent.width*0.42); text:card.backupText; color:card.mutedColor; font.family:"Hanken Grotesk"; font.pixelSize:12; anchors.verticalCenter:parent.verticalCenter; elide:Text.ElideRight }
                     }
                     Text { width:parent.width; text:card.latestSaveText; color:card.secondaryColor; font.family:"Hanken Grotesk"; font.pixelSize:13; elide:Text.ElideRight }
                     Text {
                         visible:card.savesCount > 0
-                        text:card.savesOpen ? "Ocultar ranuras" : "Ver ranuras (" + card.savesCount + ")"
+                        text:card.savesOpen ? qsTr("Ocultar ranuras") : qsTr("Ver ranuras (%1)").arg(card.savesCount)
                         color:card.accent; font.family:"Hanken Grotesk"; font.pixelSize:12; font.weight:Font.DemiBold
                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:card.savesOpen=!card.savesOpen }
                     }
@@ -277,8 +277,8 @@ Item {
                             width: ListView.view.width - 8
                             height: 19
                             spacing: 6
-                            Text { text:modelData.name||"Partida"; color:card.secondaryColor; font.family:"Hanken Grotesk"; font.pixelSize:12; width:parent.width-100; elide:Text.ElideRight }
-                            Text { text:modelData.used?card.relativeSaveTime(modelData.mtime):"vacía"; color:card.mutedColor; font.family:"Hanken Grotesk"; font.pixelSize:12; width:94; horizontalAlignment:Text.AlignRight; elide:Text.ElideRight }
+                            Text { text:modelData.name||qsTr("Partida"); color:card.secondaryColor; font.family:"Hanken Grotesk"; font.pixelSize:12; width:parent.width-100; elide:Text.ElideRight }
+                            Text { text:modelData.used?card.relativeSaveTime(modelData.mtime):qsTr("vacía"); color:card.mutedColor; font.family:"Hanken Grotesk"; font.pixelSize:12; width:94; horizontalAlignment:Text.AlignRight; elide:Text.ElideRight }
                         }
                     }
                 }
@@ -288,7 +288,7 @@ Item {
                 color: playArea.containsMouse ? Qt.lighter(card.accent, 1.08) : card.accent
                 Row { anchors.centerIn: parent; spacing: 9
                     LucideIcon { name: "play"; width: 16; height: 16; color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: "Jugar"; color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; font.family: "Hanken Grotesk"; font.pixelSize: 17; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: qsTr("Jugar"); color: card.accent.hslLightness > 0.55 ? "#101820" : "#f3f6fa"; font.family: "Hanken Grotesk"; font.pixelSize: 17; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Rectangle { visible: card.launchFocused; anchors.fill: parent; anchors.margins: -4; radius: 25; color: "transparent"; border.width: 3; border.color: card.accent }
                 MouseArea { id: playArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.launchRequested() }

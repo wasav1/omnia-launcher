@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (
@@ -25,9 +26,12 @@ from . import (
     launcher,
     library_paths,
     manual,
+    online_catalog,
+    package_installs,
     port_catalog,
     power,
     procs,
+    roms,
     saves,
     security,
     system,
@@ -41,6 +45,20 @@ from .themes import accent_for, normalize_theme
 
 DEFAULT_BACKUP_ROOT = "~/Juegos/_Partidas"        # donde van los respaldos de un juego que no tiene carpeta propia
 PAD_KEYS = {"l", "r", "u", "d", "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "START", "SELECT", "MODE"}
+_LIBRARY_LABELS = {
+    "Port recompilado": {"es": "Port nativo", "en": "Native port"},
+    "Port nativo": {"es": "Port nativo", "en": "Native port"},
+    "Port instalado": {"es": "Port instalado", "en": "Installed port"},
+    "PC · Port recompilado": {"es": "PC · Port nativo", "en": "PC · Native port"},
+    "PC · Port nativo": {"es": "PC · Port nativo", "en": "PC · Native port"},
+    "Emulador": {"es": "Emulador", "en": "Emulator"},
+    "Juego de Windows": {"es": "Juego de Windows", "en": "Windows game"},
+    "Juego nativo": {"es": "Juego nativo", "en": "Native game"},
+}
+
+
+def _library_label(value, language):
+    return _LIBRARY_LABELS.get(str(value), {}).get(language, value)
 
 
 class ApiError(Exception):
@@ -59,6 +77,7 @@ class Api:
         self.bus = bus or EventBus()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
+        self.package_installs = package_installs.PackageInstallManager(self.store, self._roots, on_change=self.bus.games_changed)
         self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
                                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
@@ -70,8 +89,13 @@ class Api:
         self.routes = {
             "/health": ("GET", False, self.health),
             "/library": ("GET", True, self.library),
+            "/library/roots": ("GET", True, self.library_roots),
+            "/library/roots/set": ("POST", True, self.library_roots_set),
             "/settings/open": ("POST", True, self.settings_open),
             "/settings": ("GET", True, self.settings),
+            "/settings/language": ("POST", True, self.settings_language),
+            "/settings/animated-background": ("POST", True, self.settings_animated_background),
+            "/settings/install-root": ("POST", True, self.settings_install_root),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
             "/view/set": ("POST", True, self.view_set),
@@ -88,7 +112,10 @@ class Api:
             "/fs/list": ("GET", True, self.fs_list),
             "/templates": ("GET", True, lambda q: {"templates": templates.catalog()}),
             "/game/add": ("POST", True, self.game_add),
+            "/game/catalog-link": ("POST", True, self.game_catalog_link),
             "/game/suggest": ("GET", True, self.game_suggest),
+            "/rom/scan": ("GET", True, self.rom_scan),
+            "/rom/add": ("POST", True, self.rom_add),
             "/game/remove": ("POST", True, self.game_remove),
             "/saves/suggest": ("GET", True, self.saves_suggest),
             "/import/find": ("GET", True, lambda q: {"candidates": importer.find_legacy()}),
@@ -99,9 +126,21 @@ class Api:
             "/saves/backup": ("POST", True, self.saves_backup),
             "/saves/restore": ("POST", True, self.saves_restore),
             "/saves/open": ("POST", True, self.saves_open),
+            "/game/activity": ("GET", True, self.game_activity),
             "/art/browse": ("GET", True, self.art_browse),
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
+            "/catalog/games": ("GET", True, self.catalog_games),
+            "/catalog/game": ("GET", True, self.catalog_game),
+            "/catalog/platforms": ("GET", True, self.catalog_platforms),
+            "/catalog/rom-identifiers": ("GET", True, self.catalog_rom_identifiers),
+            "/catalog/install-packages": ("GET", True, self.catalog_install_packages),
+            "/installations": ("GET", True, lambda q: self.package_installs.snapshot()),
+            "/installations/start": ("POST", True, self.installation_start),
+            "/installations/cancel": ("POST", True, self.installation_cancel),
+            "/installations/pause": ("POST", True, self.installation_pause),
+            "/installations/resume": ("POST", True, self.installation_resume),
+            "/installations/remove": ("POST", True, self.installation_remove),
             "/audio": ("GET", True, self.audio_status),
             "/system": ("GET", True, self.system_status),
             "/audio/outputs": ("GET", True, self.audio_outputs),
@@ -349,7 +388,135 @@ class Api:
         if position not in {"bottom-right", "bottom-left", "top-right", "top-left"}:
             position = "bottom-right"
         theme = normalize_theme(cfg.get("theme"))
-        return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme)}
+        language = cfg.get("language", "es")
+        if language not in {"es", "en"}:
+            language = "es"
+        install_root = cfg.get("install_root", "")
+        if not isinstance(install_root, str):
+            install_root = ""
+        return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme),
+                "language": language, "install_root": install_root,
+                "animated_background": cfg.get("animated_background", True) is not False}
+
+    def settings_language(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        language = body.get("language")
+        if language not in {"es", "en"}:
+            raise ApiError(400, "El idioma debe ser es o en.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg["language"] = language
+            write_json_atomic(config_path, cfg)
+        return {"ok": True, "language": language}
+
+    def settings_animated_background(self, q):
+        """Activa o desactiva el fondo animado de BigMode (constelación)."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        enabled = body.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ApiError(400, "enabled debe ser verdadero o falso.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg["animated_background"] = enabled
+            write_json_atomic(config_path, cfg)
+        return {"ok": True, "animated_background": enabled}
+
+    def settings_install_root(self, q):
+        """Guarda una carpeta predeterminada para instalaciones; debe existir y estar bajo una raíz permitida."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        raw = body.get("path")
+        if not isinstance(raw, str) or not raw.strip() or len(raw) > 4096:
+            raise ApiError(400, "Elige una carpeta existente para instalar los juegos.")
+        path = os.path.realpath(os.path.expanduser(raw.strip()))
+        if not os.path.isdir(path):
+            raise ApiError(400, "Elige una carpeta existente para instalar los juegos.")
+        if not self._allowed(path):
+            raise ApiError(403, "La carpeta de instalación debe estar dentro de una ubicación permitida.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            cfg["install_root"] = path
+            write_json_atomic(config_path, cfg)
+        return {"ok": True, "install_root": path}
+
+    def catalog_games(self, q):
+        """Catálogo público de Omnia, mediado por el servicio local y con caché offline."""
+        try:
+            result = online_catalog.list_games(q)
+            online_catalog.add_local_art(result.get("items"))
+            return {**result, "baseUrl": online_catalog.PUBLIC_ORIGIN}
+        except (TypeError, ValueError):
+            raise ApiError(400, "Parámetros de catálogo no válidos")
+
+    def catalog_game(self, q):
+        result = online_catalog.game_detail(q.get("slug", ""))
+        if not result.get("ok") and not result.get("offline"):
+            raise ApiError(400, result.get("warning", "Juego no válido"))
+        online_catalog.add_local_art([result.get("data")])
+        return {**result, "baseUrl": online_catalog.PUBLIC_ORIGIN}
+
+    def catalog_platforms(self, q):
+        return {**online_catalog.list_platforms(), "baseUrl": online_catalog.PUBLIC_ORIGIN}
+
+    def catalog_rom_identifiers(self, q):
+        return {**online_catalog.list_rom_identifiers(q.get("platform", "")), "baseUrl": online_catalog.PUBLIC_ORIGIN}
+
+    def catalog_install_packages(self, q):
+        return {**online_catalog.list_install_packages(q.get("slug", "")), "baseUrl": online_catalog.PUBLIC_ORIGIN}
+
+    def installation_start(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        slug, package_id, destination = body.get("slug"), body.get("packageId"), body.get("destination")
+        if not all(isinstance(value, str) for value in (slug, package_id, destination)):
+            raise ApiError(400, "faltan datos del paquete o carpeta de destino")
+        try:
+            return {"ok": True, "job": self.package_installs.start(slug, package_id, destination)}
+        except package_installs.PackageInstallError as exc:
+            raise ApiError(400, str(exc))
+
+    def installation_cancel(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        job_id = body.get("jobId")
+        if not isinstance(job_id, str) or not self.package_installs.cancel(job_id):
+            raise ApiError(404, "la instalación no está activa")
+        return {"ok": True}
+
+    def installation_pause(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        job_id = body.get("jobId")
+        if not isinstance(job_id, str) or not self.package_installs.pause(job_id):
+            raise ApiError(409, "la instalación no se puede pausar en este momento")
+        return {"ok": True}
+
+    def installation_resume(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        job_id = body.get("jobId")
+        if not isinstance(job_id, str) or not self.package_installs.resume(job_id):
+            raise ApiError(409, "la instalación no está pausada")
+        return {"ok": True}
+
+    def installation_remove(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        game_id = body.get("gameId")
+        if not isinstance(game_id, str):
+            raise ApiError(400, "juego no válido")
+        if any(game.get("id") == game_id for game in self.running_list()):
+            raise ApiError(409, "Cierra el juego antes de desinstalarlo.")
+        try:
+            if not self.package_installs.uninstall(game_id, body.get("removeFiles") is not False):
+                raise ApiError(404, "la instalación de Omnia no existe")
+        except package_installs.PackageInstallError as exc:
+            raise ApiError(400, str(exc))
+        return {"ok": True, "removed": True}
 
     def system_status(self, q):
         now = time.monotonic()
@@ -361,7 +528,7 @@ class Api:
                 monitor = config.get("monitor_disk")
             cache = (now, system.snapshot(monitor=monitor))
             self._system_cache = cache
-        return cache[1]
+        return {**cache[1], "live": system.live()}       # la carga en vivo no se cachea (CPU se mide entre llamadas)
 
     def audio_status(self, q):
         source = getattr(self, "audio", None)
@@ -391,29 +558,39 @@ class Api:
         cmds = self._processes()
         out = []
         config = load_json(self.store.dir / "config.json", {})
+        language = config.get("language", "es")
+        if language not in {"es", "en"}:
+            language = "es"
         for g in self.store.games():
             ports = [(p, games_refresh.port_installed(p)) for p in g.get("ports", [])]
             ports = [(p, installed) for p, installed in ports if installed and library_paths.port_visible(g, p, config)]
             if ports:
-                snap = self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0}
+                snap = dict(self.sessions.snapshot(g["id"]) if self.sessions else {"lastPlayed": 0, "totalSecs": 0, "plays": 0, "playingSince": 0})
+                ext = g.get("played") or {}                       # historial local importado o registrado en Omnia
+                snap["lastPlayed"] = max(snap["lastPlayed"], int(ext.get("last", 0) or 0))
+                snap["totalSecs"] = max(snap["totalSecs"], int(ext.get("secs", 0) or 0))
                 platform = g.get("platform", "")
                 platform_accents = {"n64": "#d9a441", "sw1": "#e8604f", "sw2": "#58a6f0", "pc": "#6fc3c9"}
                 port_rows = []
                 for p, installed in ports:
                     running = self._is_running(g, p, cmds)
                     port_rows.append({"id": p["id"], "name": p["name"], "running": running,
-                                      "chips": list(p.get("chips") or []), "description": p.get("s", ""),
+                                      "chips": [_library_label(label, language) for label in (p.get("chips") or [])],
+                                      "description": _library_label(p.get("s", ""), language),
                                       "canLaunch": installed, "canBackup": bool(p.get("saves"))})
                 session = (self.store.state.get("sessions") or {}).get(g["id"]) or {}
                 btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
-                            "sub": g.get("sub", ""), "description": g.get("s", ""), "chips": list(g.get("chips") or []),
+                            "catalogSlug": g.get("catalogSlug", ""), "installPackageId": g.get("installPackageId", ""),
+                            "installPath": g.get("installPath", ""), "installVersion": g.get("installVersion", ""),
+                            "sub": _library_label(g.get("sub", ""), language), "variant": g.get("variant", ""), "description": g.get("s", ""),
+                            "chips": [_library_label(label, language) for label in (g.get("chips") or [])],
                             "pal": g.get("pal") or ["#10150f", "#1f3328", "#18271f", "#0d1510", platform_accents.get(platform, "#e6d9a0")],
                             "acc": g.get("acc") or platform_accents.get(platform, "#e6d9a0"), "font": g.get("font", "Hanken Grotesk"),
                             "added": int(g.get("added", 0) or 0), "lastSessionSecs": int(session.get("last_secs", 0) or 0),
                             "lastBackup": int(btime or 0), "lastPlayed": snap["lastPlayed"], "totalSecs": snap["totalSecs"],
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
-                            "ports": port_rows,
+                            "ports": port_rows, "folder": self._folder(ports),
                             "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
@@ -421,17 +598,58 @@ class Api:
         return {"games": out, "revision": revision, "unchanged": False}
 
     @staticmethod
+    def _folder(ports) -> str:
+        """Carpeta local del juego si Omnia la conoce y existe (para «Abrir carpeta»); si no, cadena vacía."""
+        for p, _installed in ports:
+            chk = os.path.expanduser(p.get("check") or "")
+            for cand in (p.get("folder"), p.get("cwd"), chk if os.path.isdir(chk) else os.path.dirname(chk)):
+                if cand and os.path.isabs(os.path.expanduser(cand)) and os.path.isdir(os.path.expanduser(cand)):
+                    return os.path.realpath(os.path.expanduser(cand))
+        return ""
+
+    def game_activity(self, q):
+        """Historial reciente de un juego (últimas sesiones, más nuevas primero) y sus totales."""
+        gid = str(q.get("id", ""))
+        game = self.store.find_game(gid)
+        if not game:
+            raise ApiError(404, "juego desconocido")
+        s = (self.store.state.get("sessions") or {}).get(gid) or {}
+        snap = self.sessions.snapshot(gid) if self.sessions else {
+            "lastPlayed": int((self.store.state.get("last_played") or {}).get(gid, 0)),
+            "totalSecs": int(s.get("total_secs", 0)), "plays": int(s.get("count", 0)), "playingSince": 0}
+        ext = game.get("played") or {}
+        snap = {**snap, "lastPlayed": max(snap["lastPlayed"], int(ext.get("last", 0) or 0)),
+                "totalSecs": max(snap["totalSecs"], int(ext.get("secs", 0) or 0))}
+        hist = [h for h in (self.store.state.get("history") or []) if isinstance(h, dict) and h.get("id") == gid]
+        sessions = [{"start": int(h.get("start", 0)), "end": int(h.get("end", 0)), "secs": int(h.get("secs", 0))} for h in reversed(hist)][:30]
+        return {"sessions": sessions, "totalSecs": snap["totalSecs"], "plays": snap["plays"], "lastPlayed": snap["lastPlayed"],
+                "lastSecs": int(s.get("last_secs", 0) or 0), "added": int(game.get("added", 0) or 0), "playingSince": snap["playingSince"]}
+
+    @staticmethod
     def _art(g, state=None):
         slug = (g.get("art") or {}).get("slug") or g["id"]
         out = {}
         selected = ((state or {}).get("art") or {}).get(g["id"], {})
         for kind in art.KINDS:
+            if g.get("catalogSlug") and online_catalog.platform_compatible(
+                    g.get("platform"), ((state or {}).get("catalog_platforms") or {}).get(g.get("catalogSlug"))):
+                remote = (((state or {}).get("catalog_art") or {}).get(g.get("catalogSlug")) or {})
+                aliases = {"portada": "grid", "fondo": "hero", "logo": "logo"}
+                url = remote.get(aliases.get(kind, ""), "")
+                if isinstance(url, str) and url.startswith(online_catalog.PUBLIC_ORIGIN + "/api/v1/artwork/"):
+                    out[kind] = online_catalog.local_or_remote(url)
+                    continue
             if kind == "fondo" and kind not in selected:
                 f = art.highest_resolution(slug, kind)
             else:
                 f = art.cached(slug, kind, index=max(0, int(selected.get(kind, 0) or 0)))
             if f:
                 out[kind] = "file://" + f
+                continue
+            steam_url = online_catalog.steam_art_urls(g).get(kind)        # juegos de Steam sin arte propio: arte público de Steam
+            cached_steam = online_catalog.cached_artwork_path(steam_url) if steam_url else None
+            if cached_steam:
+                out[kind] = "file://" + str(cached_steam)
         return out
 
     def refresh(self, q):
@@ -462,6 +680,18 @@ class Api:
             raise ApiError(409, "no está instalado")
         if self._is_running(g, p, self._processes()):
             raise ApiError(409, "ya está en ejecución")
+        if isinstance(p.get("rom"), dict):          # ROM importada: el emulador se elige o se rehace en este momento
+            try:
+                p = manual.resolve_rom_launch(p, self._roots())
+            except manual.ManualError as e:
+                raise ApiError(409, str(e))
+            with self.store.lock:
+                games = [dict(x) for x in self.store.games()]
+                for game in games:
+                    if game.get("id") == g["id"]:
+                        game["ports"] = [p if q.get("id") == p["id"] else q for q in game.get("ports", [])]
+                        game["variant"] = p.get("name", game.get("variant", ""))
+                self.store.set_games(games)
         # Steam/Lutris/Heroic suelen delegar el juego a un cliente ya abierto; el entorno de
         # este proceso no llega al juego. Los ejecutables directos sí se envuelven con MangoHud.
         if g.get("auto") not in {"steam", "lutris", "heroic"} and g.get("src") not in {"Steam", "Lutris", "Heroic"}:
@@ -538,6 +768,55 @@ class Api:
     def _roots(self):
         return self.fs_roots if self.fs_roots is not None else fsbrowse.allowed_roots()
 
+    def library_roots(self, q):
+        """Carpetas externas configuradas explícitamente por el usuario."""
+        cfg = load_json(self.store.dir / "config.json", {})
+        roots = cfg.get("external_roots", []) if isinstance(cfg, dict) else []
+        roots = [os.path.realpath(os.path.expanduser(p)) for p in roots
+                 if isinstance(p, str) and os.path.isdir(os.path.expanduser(p))]
+        return {"roots": sorted(set(roots), key=str.casefold)}
+
+    def library_roots_set(self, q):
+        """Añade o retira una carpeta de biblioteca sin tocar archivos ni instalaciones."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        action, raw = body.get("action"), body.get("path")
+        if action not in {"add", "remove"} or not isinstance(raw, str) or len(raw) > 4096:
+            raise ApiError(400, "acción o ruta de biblioteca no válida")
+        path = os.path.realpath(os.path.expanduser(raw.strip()))
+        if not os.path.isdir(path):
+            raise ApiError(400, "elige una carpeta existente")
+        # No permitir registrar como biblioteca un punto de montaje genérico: el usuario debe
+        # elegir una carpeta concreta dentro de su home o de una unidad montada.
+        allowed = [os.path.realpath(Path.home()), os.path.realpath("/mnt"),
+                   os.path.realpath("/media"), os.path.realpath("/run/media")]
+        if not any(path.startswith(root.rstrip(os.sep) + os.sep) for root in allowed):
+            raise ApiError(403, "la carpeta debe estar dentro de tu carpeta personal o una unidad montada")
+        config_path = self.store.dir / "config.json"
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            roots = [os.path.realpath(os.path.expanduser(p)) for p in cfg.get("external_roots", [])
+                     if isinstance(p, str) and os.path.isdir(os.path.expanduser(p))]
+            if action == "add":
+                roots.append(path)
+            else:
+                roots = [p for p in roots if p != path]
+            roots = sorted(set(roots), key=str.casefold)
+            cfg["excluded_external_roots"] = library_paths.update_excluded(cfg, roots)
+            cfg["external_roots"] = roots
+            from .store import write_json_atomic
+            write_json_atomic(config_path, cfg)
+
+        def rescan():                       # las ROMs de la carpeta aparecen sin esperar al siguiente refresco periódico
+            try:
+                games_refresh.refresh(self.store, self.detectors)
+                self.bus.games_changed()
+            except Exception:
+                pass
+        threading.Thread(target=rescan, name="omnia-roms-rescan", daemon=True).start()
+        return {"ok": True, "roots": roots}
+
     def _allowed(self, path: str) -> bool:
         real = os.path.realpath(os.path.expanduser(path))
         return any(real == r or real.startswith(r.rstrip("/") + "/") for r in fsbrowse._real_roots(self._roots()))
@@ -599,6 +878,37 @@ class Api:
             raise ApiError(400, str(e))
         return {"ok": True, "id": g["id"], "suggest": templates.suggest_dirs(g["ports"][0].get("cwd", ""))}
 
+    def game_catalog_link(self, q):
+        """Asocia o desasocia un juego local con una ficha del catálogo, solo por petición del usuario."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        game_id, slug = body.get("id"), body.get("slug", "")
+        if not isinstance(game_id, str) or not game_id or not isinstance(slug, str):
+            raise ApiError(400, "juego o ficha de catálogo no válidos")
+        slug = slug.strip().lower()
+        if slug and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", slug):
+            raise ApiError(400, "identificador de catálogo no válido")
+        if slug:
+            result = online_catalog.game_detail(slug)
+            remote = result.get("data") if isinstance(result.get("data"), dict) else {}
+            if remote.get("slug") != slug:
+                raise ApiError(404, "la ficha no existe en el catálogo disponible")
+        with self.store.lock:
+            games = [dict(game) for game in self.store.games()]
+            game = next((row for row in games if row.get("id") == game_id), None)
+            if not game:
+                raise ApiError(404, "juego desconocido")
+            if slug:
+                names = [str(p.get("name") or p.get("slug")) for p in (remote.get("platforms") or []) if isinstance(p, dict)]
+                if not online_catalog.platform_compatible(game.get("platform"), [p.get("slug") for p in (remote.get("platforms") or []) if isinstance(p, dict)]):
+                    raise ApiError(409, "La ficha es de otra plataforma (" + ", ".join(names) + "); no corresponde a este juego.")
+            if slug:
+                game["catalogSlug"] = slug
+            else:
+                game.pop("catalogSlug", None)
+            self.store.set_games(games)
+        self.bus.games_changed()
+        return {"ok": True, "id": game_id, "catalogSlug": slug}
+
     def game_suggest(self, q):
         path = str(q.get("path", ""))
         if templates.bedrock_on_linux_appimage(path):
@@ -611,6 +921,44 @@ class Api:
         suffix = os.path.splitext(path)[1].lower()
         return {"name": os.path.basename(path).rsplit(".", 1)[0] if "." in os.path.basename(path) else os.path.basename(path),
                 "kind": "windows" if suffix == ".exe" else "native", "platform": "pc", "recognized": ""}
+
+    def rom_scan(self, q):
+        try:
+            return roms.scan(q.get("path", ""), self._roots())
+        except roms.RomScanError as e:
+            raise ApiError(400, str(e))
+
+    def rom_add(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        path, name = body.get("path"), body.get("name")
+        system, emulator = body.get("system"), body.get("emulator")
+        catalog_slug = body.get("catalogSlug", "")
+        emulator = emulator or ""                    # sin emulador: se elige al jugar
+        if not all(isinstance(value, str) for value in (path, name, system, emulator)):
+            raise ApiError(400, "ruta, nombre, plataforma o emulador no válidos")
+        if catalog_slug and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", catalog_slug):
+            raise ApiError(400, "identificador de catálogo no válido")
+        candidate = roms.inspect_file(path, self._roots(), include_emulators=False, system=system)
+        if not candidate:
+            raise ApiError(400, "la ROM ya no es válida o no se reconoce su formato")
+        if candidate["system"] != system:
+            raise ApiError(400, "la plataforma de la ROM cambió; vuelve a analizar la carpeta")
+        for existing in self.store.games():
+            for existing_port in existing.get("ports", []):
+                if not isinstance(existing_port, dict):
+                    continue
+                check_path = existing_port.get("check", "")
+                check = os.path.realpath(os.path.expanduser(check_path)) if isinstance(check_path, str) and check_path else ""
+                argv = existing_port.get("launch") or []
+                if check == candidate["path"] or (isinstance(argv, list) and candidate["path"] in argv):
+                    raise ApiError(409, f"Esta ROM ya está en la biblioteca como {existing.get('name', 'juego desconocido')}.")
+        try:
+            game = manual.add_rom_game(self.store, {"name": name.strip(), "path": candidate["path"],
+                                                     "system": system, "emulator": emulator,
+                                                     "catalogSlug": catalog_slug}, self._roots())
+        except manual.ManualError as e:
+            raise ApiError(400, str(e))
+        return {"ok": True, "id": game["id"], "name": game["name"]}
 
     def game_remove(self, q):
         if not games_refresh.unlink(self.store, q.get("id", "")):
@@ -701,15 +1049,7 @@ class Api:
         self.open_fn(path)
         return {"ok": True}
 
-    # --- arte manual de SteamGridDB (la clave nunca sale del core)
-    def _art_client(self):
-        key = art.load_key()
-        if not key:
-            raise ApiError(409, "Configura tu clave de SteamGridDB para buscar arte")
-        if not art.key_permissions_ok():
-            raise ApiError(403, "La clave de SteamGridDB debe tener permisos 0600")
-        return art.Client(key)
-
+    # --- artwork del catálogo público de Omnia (el núcleo no recibe ni guarda claves de proveedores)
     def art_browse(self, q):
         g = self.store.find_game(q.get("id", ""))
         if not g:
@@ -721,14 +1061,25 @@ class Api:
             page, sgid = int(q.get("page", "0")), int(q.get("sgid", "0"))
             if page < 0 or sgid < 0:
                 raise ValueError
-            result = self._art_client().browse(g, kind, page, sgid)
+            if not g.get("catalogSlug"):
+                raise ApiError(409, "Este juego no tiene artwork publicado en el catálogo Omnia.")
+            remote = online_catalog.fetch_artwork(g["catalogSlug"])
+            alias = {"portada": "grid", "fondo": "hero", "logo": "logo"}.get(kind)
+            items = [{"url": row["url"], "thumb": row["url"], "w": 0, "h": 0, "by": "Omnia"}
+                     for row in remote if row.get("kind") == alias]
+            result = {"sgid": 1 if items else 0, "games": [{"id": 1, "name": g["name"]}] if items else [],
+                      "items": items, "page": 0, "more": False}
             current = (((self.store.state.get("art_sources") or {}).get(g["id"]) or {}).get(kind) or "")
+            if g.get("catalogSlug"):
+                current = (((self.store.state.get("catalog_art") or {}).get(g["catalogSlug"]) or {}).get(alias) or current)
             for item in result["items"]:
                 item["cur"] = item["url"] == current
             return result
         except ValueError:
             raise ApiError(400, "página o edición no válida")
         except art.ArtError as e:
+            raise ApiError(502, str(e))
+        except online_catalog.CatalogError as e:
             raise ApiError(502, str(e))
 
     def art_pick(self, q):
@@ -742,22 +1093,25 @@ class Api:
             page, sgid, index = int(q.get("page", "0")), int(q.get("sgid", "0")), int(q.get("index", "-1"))
             if page < 0 or sgid <= 0 or index < 0 or index >= 50:
                 raise ValueError
-            client = self._art_client()
-            result = client.browse(g, kind, page, sgid)
+            if not g.get("catalogSlug"):
+                raise ApiError(409, "Este juego no tiene artwork publicado en el catálogo Omnia.")
+            remote = online_catalog.fetch_artwork(g["catalogSlug"])
+            alias = {"portada": "grid", "fondo": "hero", "logo": "logo"}.get(kind)
+            items = [{"url": row["url"], "thumb": row["url"]} for row in remote if row.get("kind") == alias]
+            result = {"items": items}
             if index >= len(result["items"]):
                 raise ApiError(400, "opción de arte fuera de rango")
-            slug = (g.get("art") or {}).get("slug") or g["id"]
-            client.download(result["items"][index]["url"], art.art_dir(slug, kind))
-            files = art.cached_files(slug, kind)
             with self.store.lock:
-                self.store.state.setdefault("art", {}).setdefault(g["id"], {})[kind] = max(0, len(files) - 1)
-                self.store.state.setdefault("art_sources", {}).setdefault(g["id"], {})[kind] = result["items"][index]["url"]
+                aliases = {"portada": "grid", "fondo": "hero", "logo": "logo"}
+                self.store.state.setdefault("catalog_art", {}).setdefault(g["catalogSlug"], {})[aliases[kind]] = result["items"][index]["url"]
                 self.store.save_state()
             self._notify_selected_art(g["id"], kind)
             return {"ok": True, "kind": kind}
         except ValueError:
             raise ApiError(400, "edición, página u opción de arte no válida")
         except art.ArtError as e:
+            raise ApiError(502, str(e))
+        except online_catalog.CatalogError as e:
             raise ApiError(502, str(e))
 
     def art_cycle(self, q):
@@ -812,9 +1166,11 @@ class Api:
         try:
             since, wait = int(q.get("since", -1)), min(25.0, max(0.0, float(q.get("wait", 20))))
             game_since = int(q.get("gameSince", -1))
+            pad_since = int(q.get("padSince", -1))
         except ValueError:
             raise ApiError(400, "parámetros no válidos")
-        r = self.bus.wait(since, wait, game_since if game_since >= 0 else None)
+        r = self.bus.wait(since, wait, game_since if game_since >= 0 else None,
+                          pad_since if pad_since >= 0 else None)
         self._last_poll = time.time()
         return r
 
@@ -848,5 +1204,6 @@ class Api:
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def stop(self):
+        self.package_installs.shutdown()
         self.httpd.shutdown()
         self.httpd.server_close()

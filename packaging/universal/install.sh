@@ -210,17 +210,20 @@ TXN_TARGETS=(
   "$DATA/omnia/ui" "$DATA/omnia/kwin" "$DATA/omnia/installer"
   "$DATA/omnia/omnia-layout.js" "$DATA/omnia/omnia-maintain.js"
   "$DATA/omnia/empty-desktop"
-  "$DATA/omnia/assets/branding/omnia-logo.png" "$DATA/omnia/assets/branding/omnia-menu.svg"
+  "$DATA/omnia/assets/branding/omnia-logo.svg" "$DATA/omnia/assets/branding/omnia-logo.png" "$DATA/omnia/assets/branding/omnia-menu.svg"
   "$DATA/plasma/wallpapers/org.omnia.launcher" "$DATA/plasma/plasmoids/org.omnia.desktop"
   "$DATA/kwin/scripts/omnia-showdesktop" "$DATA/kwin/scripts/omnia-watch"
-  "$PREFIX/lib/omnia" "$PREFIX/bin/omnia-core" "$PREFIX/bin/omnia-setup"
+  "$PREFIX/lib/omnia" "$PREFIX/bin/omnia-core" "$PREFIX/bin/omnia-ui" "$PREFIX/bin/omnia-setup"
   "$PREFIX/bin/omnia-layout" "$PREFIX/bin/omnia-maintain" "$PREFIX/bin/omnia-settings" "$PREFIX/bin/omnia-uninstall"
   "$HOME/.config/systemd/user/omnia.service"
   "$HOME/.config/systemd/user/default.target.wants/omnia.service"
   "$HOME/.config/systemd/user/default.target.wants/omnia-ui.service"
+  "$DATA/applications/org.omnia.app.desktop"
   "$HOME/.config/systemd/user/default.target.wants/estanteria-helper.service"
   "$DATA/applications/org.omnia.settings.desktop" "$DATA/applications/org.omnia.uninstall.desktop"
-  "$DATA/icons/hicolor/512x512/apps/org.omnia.uninstall.png"
+  "$DATA/icons/hicolor/scalable/apps/org.omnia.uninstall.svg"
+  "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.svg"
+  "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.menu.svg"
   "$DATA/icons/hicolor/scalable/apps/org.omnia.menu.svg"
   "$CONFIG_OMNIA/config.json" "$CONFIG_OMNIA/library.json" "$CONFIG_OMNIA/state.json"
   "$CONFIG_OMNIA/steamgriddb.key" "$CONFIG_OMNIA/first-run.json" "$CONFIG_OMNIA/setup-backup.json"
@@ -261,6 +264,7 @@ if [[ -d "$DATA/omnia/ui/qml" ]]; then
   mv "$DATA/omnia/ui/qml" "$QML_BACKUP"
 fi
 mv "$QML_STAGE" "$DATA/omnia/ui/qml"
+install -m755 "$ROOT/ui/omnia-ui" "$DATA/omnia/ui/omnia-ui"
 cp -a "$ROOT/core/omnia" "$PREFIX/lib/omnia/"
 cp -a "$ROOT/kwin/omnia-showdesktop" "$ROOT/kwin/omnia-watch" "$DATA/omnia/kwin/"
 for script in omnia-showdesktop omnia-watch; do
@@ -325,10 +329,23 @@ if [[ -f "$ROOT/packaging/universal/release.json" ]]; then
 else
   rm -f "$DATA/omnia/installer/release.json"
 fi
-install -m644 "$ROOT/assets/branding/omnia-icon-bluegray.png" "$DATA/omnia/assets/branding/omnia-logo.png"
-install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$DATA/omnia/assets/branding/omnia-menu.svg"
+install -m644 "$ROOT/assets/branding/omnia-logo.svg" "$DATA/omnia/assets/branding/omnia-logo.svg"
+rm -f "$DATA/omnia/assets/branding/omnia-logo.png" "$DATA/omnia/assets/branding/omnia-menu.svg"
 install -d "$HOME/.local/share/icons/hicolor/scalable/apps"
-install -m644 "$ROOT/assets/branding/omnia-menu.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.menu.svg"
+rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.menu.svg" "$DATA/icons/hicolor/scalable/apps/org.omnia.menu.svg"
+install -m644 "$ROOT/assets/branding/omnia-logo.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/org.omnia.svg"
+cat > "$PREFIX/bin/omnia-ui" <<EOF
+#!/usr/bin/env bash
+exec "$DATA/omnia/ui/omnia-ui" "\$@"
+EOF
+chmod 755 "$PREFIX/bin/omnia-ui"
+python3 - "$ROOT/packaging/xdg/org.omnia.app.desktop" "$PREFIX/bin/omnia-ui" "$DATA/applications/org.omnia.app.desktop" <<'PYAPP'
+import sys
+from pathlib import Path
+source, executable, destination = sys.argv[1:]
+quoted = '"' + executable.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
+Path(destination).write_text(Path(source).read_text().replace('Exec=omnia-ui --manager', 'Exec=' + quoted + ' --manager'))
+PYAPP
 # El HUD de MangoHud es propio de Omnia para no sobrescribir la configuración global del usuario.
 MANGOHUD_CONFIG="$HOME/.config/omnia/MangoHud.conf"
 if [[ -f "$ROOT/docs/MangoHud.conf" ]]; then
@@ -340,16 +357,16 @@ export PYTHONPATH="$PREFIX/lib/omnia\${PYTHONPATH:+:\$PYTHONPATH}"
 exec "$DATA/omnia/installer/omnia-installer" "$DATA/omnia/installer/packaging/universal/installer_backend.py" --settings
 EOF
 chmod 755 "$PREFIX/bin/omnia-settings"
-python3 - "$PREFIX/bin/omnia-settings" "$DATA/omnia/assets/branding/omnia-logo.png" "$DATA/applications/org.omnia.settings.desktop" <<'PYDESKTOP'
+python3 - "$PREFIX/bin/omnia-settings" "$DATA/omnia/assets/branding/omnia-logo.svg" "$DATA/applications/org.omnia.settings.desktop" <<'PYDESKTOP'
 import sys
 from pathlib import Path
 executable, icon, desktop = sys.argv[1:]
 # Escape para Exec de desktop, independiente del shell.
 quoted = '"' + executable.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
-Path(desktop).write_text('[Desktop Entry]\nType=Application\nName=Omnia — Ajustes generales\nComment=Bibliotecas, monitor y SteamGridDB\nExec=' + quoted + '\nIcon=' + icon + '\nTerminal=false\nCategories=Settings;Game;\n')
+Path(desktop).write_text('[Desktop Entry]\nType=Application\nName=Omnia — Ajustes generales\nComment=Bibliotecas, monitor, idioma y apariencia\nExec=' + quoted + '\nIcon=' + icon + '\nTerminal=false\nCategories=Settings;Game;\n')
 PYDESKTOP
 install -m755 "$ROOT/packaging/universal/omnia-uninstall" "$PREFIX/bin/omnia-uninstall"
-install -Dm644 "$ROOT/assets/branding/omnia-uninstall-icon.png" "$DATA/icons/hicolor/512x512/apps/org.omnia.uninstall.png"
+install -Dm644 "$ROOT/assets/branding/omnia-uninstall-icon.svg" "$DATA/icons/hicolor/scalable/apps/org.omnia.uninstall.svg"
 python3 - "$ROOT/packaging/xdg/org.omnia.uninstall.desktop" "$PREFIX/bin/omnia-uninstall" "$DATA/applications/org.omnia.uninstall.desktop" <<'PYUNINSTALL'
 import sys
 from pathlib import Path

@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omnia en Hyprland: prototipos</title>
+<style>
+:root{
+  --bg:#0B0F14; --surface:#151D27; --surface2:#1c2733; --text:#F0F3F7; --muted:#8c9aab; --accent:#336599;
+  --accent2:#4a82bd; --err:#e0707a; --ok:#6fc3a0; --line:#243244;
+  --page:#080b0f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text);font:15px/1.5 "Hanken Grotesk",system-ui,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+h1{font-size:26px;margin:0 0 4px} h2{font-size:20px;margin:36px 0 8px} h3{font-size:15px;margin:18px 0 6px;color:var(--accent2);letter-spacing:.04em;text-transform:uppercase}
+p{margin:6px 0;color:#c4ceda} .muted{color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 14px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.tab{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;cursor:pointer;font:inherit}
+.tab[aria-selected=true]{background:var(--accent);border-color:var(--accent)}
+.ctrl{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:10px 0 14px;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{background:var(--surface);color:var(--text);border:0;padding:6px 11px;cursor:pointer;font:inherit;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--accent)}
+input[type=range]{accent-color:var(--accent);vertical-align:middle}
+.panelnote{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card ol,.card ul{margin:6px 0 0;padding-left:18px;color:#c4ceda} .card li{margin:3px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top} th{background:var(--surface)}
+code,kbd{font:12.5px ui-monospace,monospace;background:#0f1620;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+/* ---------- escritorio simulado ---------- */
+.stage{display:flex;gap:14px;flex-wrap:wrap}
+.desk{position:relative;aspect-ratio:16/9;flex:1 1 560px;min-width:320px;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+  background:var(--wp,linear-gradient(135deg,#17202b,#0d131a));transition:background .5s;container-type:inline-size}
+.desk.small{flex:1 1 300px}
+.desk .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,15,20,.45),rgba(11,15,20,.1) 30%,rgba(11,15,20,.1) 70%,rgba(11,15,20,.35))}
+.wpchip{position:absolute;left:10px;bottom:10px;background:rgba(11,15,20,.78);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:11.5px;color:var(--muted)}
+.win{position:absolute;left:12%;top:20%;width:42%;height:44%;background:rgba(21,29,39,.9);border:1px solid var(--line);border-radius:10px}
+.win::before{content:"";position:absolute;left:10px;top:8px;width:40px;height:6px;border-radius:3px;background:var(--line)}
+.bar{position:absolute;left:0;right:0;top:0;height:6.2cqw;min-height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 1.4cqw;background:rgba(11,15,20,.82);border-bottom:1px solid var(--line);font-size:max(10px,1.3cqw)}
+.bar .grp{display:flex;align-items:center;gap:.9cqw}
+.ws{display:flex;gap:.5cqw} .ws i{width:1.4cqw;height:1.4cqw;border-radius:50%;background:var(--line);display:block} .ws i.on{background:var(--accent);width:3cqw;border-radius:1cqw}
+.bbtn{width:3.6cqw;height:3.6cqw;min-width:20px;min-height:20px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);color:var(--text);cursor:pointer;font-size:max(10px,1.6cqw);padding:0;position:relative}
+.bbtn.active{background:var(--accent);border-color:var(--accent2)}
+.bbtn.obtn svg{width:62%;height:62%}
+.hint{position:absolute;font-size:10.5px;color:var(--muted);background:rgba(11,15,20,.85);border:1px dashed var(--line);border-radius:6px;padding:2px 7px;pointer-events:none;white-space:nowrap}
+/* ---------- panel de Omnia ---------- */
+.omnia{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);
+  width:min(300px,52cqw);font-size:max(10.5px,1.55cqw);color:var(--text);overflow:auto;display:none;z-index:5;max-height:calc(100% - 8cqw)}
+.omnia.show{display:block;animation:pop .16s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+.omnia.side.show{animation:slide .2s ease-out} @keyframes slide{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.omnia header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.omnia header b{font-size:1.1em;letter-spacing:.04em}
+.pill{margin-left:auto;font-size:.82em;padding:1px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.pill.err{color:var(--err);border-color:var(--err)} .pill.ok{color:var(--ok)}
+.sel{display:flex;gap:10px;padding:12px;background:linear-gradient(180deg,rgba(51,101,153,.18),transparent)}
+.cover{width:5.6em;aspect-ratio:2/3;border-radius:9px;flex:none;border:1px solid var(--line);background:var(--c,#223)}
+.sel h4{margin:0;font-size:1.15em} .sel small{color:var(--muted);display:block;margin-top:1px}
+.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:9px;padding:.42em .8em;cursor:pointer;font:inherit}
+.btn.primary{background:var(--accent);border-color:var(--accent2)} .btn.primary:hover{background:var(--accent2)} .btn:hover{border-color:var(--accent2)}
+.list{padding:4px 8px 6px}
+.list .t{font-size:.8em;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:6px 6px 2px}
+.row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:9px;cursor:pointer;border:1px solid transparent}
+.row:hover{background:var(--surface2)} .row.on{background:rgba(51,101,153,.28);border-color:var(--accent)}
+.row .th{width:2.1em;height:2.1em;border-radius:7px;background:var(--c,#223);flex:none;border:1px solid var(--line)}
+.row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .pl{visibility:hidden;width:2em;height:2em;border-radius:50%;border:0;background:var(--accent);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.row:hover .pl,.row.on .pl{visibility:visible}
+.row .tag{font-size:.78em;color:var(--muted)}
+.foot{padding:8px 12px 12px;border-top:1px solid var(--line)}
+.foot .btn{width:100%;text-align:center}
+.state{padding:22px 16px;text-align:center}
+.state .ic{width:3.4em;height:3.4em;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line);font-size:1.3em}
+.state.err .ic{color:var(--err);border-color:var(--err)} .state p{margin:4px 0;color:var(--muted)} .state .acts{justify-content:center}
+.state code{font-size:.85em}
+/* proto 2: zona de activación */
+.zone{position:absolute;right:0;width:1.1cqw;min-width:6px;background:repeating-linear-gradient(45deg,rgba(51,101,153,.55) 0 5px,rgba(51,101,153,.2) 5px 10px);border:1px dashed var(--accent2);border-right:0;cursor:e-resize;z-index:4}
+.zone:hover{background:rgba(51,101,153,.55)}
+.handle{position:absolute;right:0;width:3px;border-radius:3px 0 0 3px;background:var(--accent);opacity:.9;z-index:3}
+.ring{position:absolute;right:0;width:2.4cqw;height:2.4cqw;border-radius:50%;border:2px solid var(--accent2);border-right-color:transparent;transform:translate(50%,-50%);display:none;z-index:6}
+.ring.go{display:block;animation:rg var(--d,300ms) linear forwards} @keyframes rg{from{transform:translate(50%,-50%) rotate(0)}to{transform:translate(50%,-50%) rotate(360deg)}}
+.omnia.side{right:0;border-radius:16px 0 0 16px;border-right:0;width:min(280px,46cqw)}
+.deskmark{position:absolute;top:8px;right:10px;font-size:11px;color:var(--muted);z-index:2}
+.flow{counter-reset:s;list-style:none;padding:0;margin:6px 0 0}
+.flow li{counter-increment:s;position:relative;padding:4px 0 4px 30px}
+.flow li::before{content:counter(s);position:absolute;left:0;top:4px;width:21px;height:21px;border-radius:50%;background:var(--accent);display:grid;place-items:center;font-size:12px}
+.sm{font-size:12.5px}
+.verdict{border-left:3px solid var(--accent);padding:8px 14px;background:var(--surface);border-radius:0 10px 10px 0;margin:12px 0}
+.gr{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.mono{font:12.5px ui-monospace,monospace;white-space:pre;overflow:auto;background:#0b121a;border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:#bcd0e6}
+.wpstrip{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.wpstrip div{width:96px;height:54px;border-radius:7px;border:1px solid var(--line);background:var(--c);font-size:10px;display:flex;align-items:flex-end;padding:3px 5px;color:#fff;text-shadow:0 1px 3px #000;position:relative}
+.wpstrip div.cur{outline:2px solid var(--accent2)} .wpstrip div.no{opacity:.35}
+.log{height:150px;overflow:auto;background:#0b121a;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:12px ui-monospace,monospace;color:#9fb4cc}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Omnia × Hyprland × illogical-impulse</h1>
+<p class="muted">Prototipos aislados (HTML). No instalan nada ni tocan <code>~/.config</code>. Los colores son Omnia oscuro: fondo #0B0F14, superficies #151D27, texto #F0F3F7, acento #336599. Todo es interactivo: cambia el estado, abre y cierra, y pasa el puntero por el borde en el prototipo 2.</p>
+
+<div class="tabs" role="tablist" id="tabs">
+  <button class="tab" role="tab" data-t="p1" aria-selected="true">1 · Botón en la barra</button>
+  <button class="tab" role="tab" data-t="p2" aria-selected="false">2 · Borde derecho</button>
+  <button class="tab" role="tab" data-t="p3" aria-selected="false">3 · Híbrido</button>
+  <button class="tab" role="tab" data-t="pw" aria-selected="false">Fondo dinámico</button>
+  <button class="tab" role="tab" data-t="pc" aria-selected="false">Comparativa</button>
+</div>
+
+<!-- ================= PROTOTIPO 1 ================= -->
+<section id="p1">
+  <div class="ctrl">
+    <span>Biblioteca: <span class="seg" data-bind="p1-lib"><button data-v="sel" aria-pressed="true">Juego seleccionado</button><button data-v="empty" aria-pressed="false">Vacía</button><button data-v="error" aria-pressed="false">Error al cargar</button></span></span>
+    <span>Panel: <span class="seg" data-bind="p1-open"><button data-v="1" aria-pressed="true">Abierto</button><button data-v="0" aria-pressed="false">Cerrado</button></span></span>
+  </div>
+  <div class="stage"><div class="desk" id="d1"></div></div>
+  <div class="panelnote">
+    <div class="card"><h3>Flujo de interacción</h3><ol class="flow">
+      <li><b>Abrir:</b> clic en el icono de Omnia (o atajo global <code>quickshell:omniaToggle</code>). El panel cuelga bajo el icono, igual que el panel ASUS.</li>
+      <li><b>Seleccionar:</b> clic en una fila. Resalta la fila y cambia el fondo del escritorio. No lanza nada.</li>
+      <li><b>Jugar:</b> botón ▶ de la fila, o «Jugar» en la tarjeta. Lanza y cierra el panel.</li>
+      <li><b>Biblioteca:</b> «Abrir biblioteca completa» abre la interfaz completa de Omnia y cierra el panel.</li>
+    </ol></div>
+    <div class="card"><h3>Cierre</h3><ul>
+      <li><kbd>Esc</kbd>: <code>Keys.onEscapePressed</code> en el contenido enfocado, como en ASUS.</li>
+      <li>Clic fuera: <code>HyprlandFocusGrab.onCleared</code>.</li>
+      <li>Segundo clic en el icono: el grab suele <i>consumir</i> ese clic (cierra y reabre). Se resuelve con una guarda de 150 ms: si <code>onCleared</code> ocurrió hace menos de 150 ms, el clic del botón no reabre.</li>
+      <li>Tras jugar o abrir la biblioteca: se cierra solo.</li>
+    </ul></div>
+    <div class="card"><h3>Qué siente como shell</h3><ul>
+      <li>Mismo icono redondo (<code>CircleUtilButton</code>) y misma posición, junto al botón ASUS.</li>
+      <li>Mismo <code>PopupWindow</code> con ancla bajo el botón, mismo radio y borde.</li>
+      <li>Mientras el panel ASUS esté abierto, el grab es exclusivo: abrir uno cierra el otro.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ================= PROTOTIPO 2 ================= -->
+<section id="p2" class="hidden">
+  <div class="ctrl">
+    <span>Biblioteca: <span class="seg" data-bind="p2-lib"><button data-v="sel" aria-pressed="true">Juego seleccionado</button><button data-v="empty" aria-pressed="false">Vacía</button><button data-v="error" aria-pressed="false">Error al cargar</button></span></span>
+    <span>Monitores: <span class="seg" data-bind="p2-mon"><button data-v="1" aria-pressed="true">1</button><button data-v="2" aria-pressed="false">2</button></span></span>
+    <label>Retraso: <input type="range" id="p2-delay" min="100" max="800" step="50" value="300"> <b id="p2-delay-v">300</b> ms</label>
+    <label>Altura de la zona: <input type="range" id="p2-zone" min="15" max="80" step="5" value="35"> <b id="p2-zone-v">35</b> % del alto</label>
+    <span><button class="btn" id="p2-close">Cerrar panel</button></span>
+  </div>
+  <p class="sm muted" id="p2-help">Pasa el puntero por la franja punteada del borde derecho y mantenlo ahí. El anillo muestra el retraso. Si sales antes, no se abre. El panel se cierra solo 600 ms después de salir de él.</p>
+  <div class="stage" id="p2-stage"></div>
+  <div class="panelnote">
+    <div class="card"><h3>Flujo de interacción</h3><ol class="flow">
+      <li><b>Cerrado:</b> solo una marca de 3 px en el centro del borde, discreta.</li>
+      <li><b>Revelar:</b> el puntero entra a la zona y se queda <i>retraso</i> ms. Un movimiento rápido que cruza el borde (p. ej. un clic en una ventana pegada al borde) no cuenta.</li>
+      <li><b>Abierto:</b> el panel se desliza pegado al borde. Seleccionar, jugar y abrir biblioteca son las mismas tres acciones.</li>
+      <li><b>Cerrar:</b> el puntero sale del panel y de la zona (gracia de 600 ms), <kbd>Esc</kbd>, o clic fuera. Si el teclado/clic lo tomó, se queda abierto hasta que lo cierres.</li>
+    </ol></div>
+    <div class="card"><h3>Valores propuestos</h3><ul>
+      <li><code>revealDelayMs</code> = 300 (rango 100–800)</li>
+      <li><code>zoneHeightPct</code> = 35, centrada (rango 15–80)</li>
+      <li><code>zoneWidthPx</code> = 2 (como <code>bar.autoHide.hoverRegionWidth</code>)</li>
+      <li><code>closeGraceMs</code> = 600</li>
+      <li>Se ignora el reveal con botón del ratón pulsado (arrastrar ventanas) o con una ventana a pantalla completa.</li>
+    </ul></div>
+    <div class="card"><h3>Varios monitores</h3><ul>
+      <li>Por defecto, solo el borde derecho del monitor <b>más a la derecha</b>. La unión entre pantallas queda libre, así que no hay aperturas al cruzar el cursor de una a otra.</li>
+      <li>Opción «en cada monitor»: el panel aparece en el monitor del puntero, con una sola instancia visible a la vez.</li>
+      <li>Implementación: <code>Variants { model: Quickshell.screens }</code> y una <code>PanelWindow</code> de 2 px por monitor (como el hot-corner del dock).</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ================= PROTOTIPO 3 ================= -->
+<section id="p3" class="hidden">
+  <div class="ctrl">
+    <span>Biblioteca: <span class="seg" data-bind="p3-lib"><button data-v="sel" aria-pressed="true">Juego seleccionado</button><button data-v="empty" aria-pressed="false">Vacía</button><button data-v="error" aria-pressed="false">Error al cargar</button></span></span>
+    <span>Escenario: <span class="seg" data-bind="p3-sc"><button data-v="closed" aria-pressed="true">Cerrado</button><button data-v="peek" aria-pressed="false">Asomado (borde)</button><button data-v="pinned" aria-pressed="false">Fijado (botón)</button><button data-v="asus" aria-pressed="false">Panel ASUS abierto</button></span></span>
+  </div>
+  <div class="stage"><div class="desk" id="d3"></div></div>
+  <p class="sm muted" id="p3-help">Prueba: «Asomado» muestra el panel por proximidad (se cierra al salir). «Fijado» lo abre con el botón (se queda hasta Esc, clic fuera o segundo clic). «Panel ASUS abierto»: el borde queda desactivado.</p>
+  <div class="panelnote">
+    <div class="card"><h3>Una sola instancia, tres estados</h3>
+      <table><tr><th>Estado</th><th>Cómo se llega</th><th>Cómo se sale</th></tr>
+      <tr><td>Cerrado</td><td>—</td><td>—</td></tr>
+      <tr><td>Asomado</td><td>Puntero en el borde + retraso</td><td>El puntero sale (gracia 600 ms)</td></tr>
+      <tr><td>Fijado</td><td>Clic en el botón de la barra, o clic dentro del panel asomado</td><td>Esc · clic fuera · 2.º clic en el botón</td></tr></table>
+    </div>
+    <div class="card"><h3>Cómo evitar interferencias con ii</h3><ul>
+      <li>Un único <code>Item</code> de estado (<code>OmniaState</code>) decide qué está abierto: <code>none | omnia | asus | sidebarRight</code>.</li>
+      <li>Si ASUS (o la sidebar derecha de ii) está abierta, el borde no revela nada.</li>
+      <li>Si el panel Omnia está fijado y se abre ASUS, el de Omnia se cierra: un único <code>HyprlandFocusGrab</code> activo.</li>
+      <li>La sidebar derecha de ii usa la misma zona; por eso hay que decidir un solo propietario (ver comparativa).</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ================= FONDO DINÁMICO ================= -->
+<section id="pw" class="hidden">
+  <h2 style="margin-top:6px">Simulador de la regla de fondos</h2>
+  <p class="sm muted">Reloj acelerado: el «intervalo» real es de minutos; aquí se compacta a segundos. Fondos de ejemplo (la biblioteca real todavía no tiene arte en este equipo).</p>
+  <div class="ctrl">
+    <label>Intervalo: <input type="range" id="pw-int" min="2" max="20" step="1" value="6"> <b id="pw-int-v">6</b> s (simula 10 min)</label>
+    <span>Modo: <span class="seg" data-bind="pw-pw"><button data-v="ac" aria-pressed="true">Corriente</button><button data-v="bat" aria-pressed="false">Batería</button></span></span>
+    <span>Pantalla completa: <span class="seg" data-bind="pw-fs"><button data-v="0" aria-pressed="true">No</button><button data-v="1" aria-pressed="false">Sí</button></span></span>
+  </div>
+  <div class="gr">
+    <div>
+      <div class="stage"><div class="desk" id="dw"><div class="scrim"></div><div class="win"></div><div class="wpchip" id="wpchip"></div></div></div>
+      <h3>Selección</h3>
+      <div class="ctrl" style="margin-top:4px">
+        <span class="seg" id="pw-sel"></span>
+      </div>
+      <h3>Fondos locales</h3><div class="wpstrip" id="pw-strip"></div>
+    </div>
+    <div>
+      <h3>Registro de decisiones</h3><div class="log" id="pw-log"></div>
+      <h3>Reglas</h3>
+      <table class="sm">
+        <tr><th>Situación</th><th>Resultado</th></tr>
+        <tr><td>Sin selección</td><td>Rota al azar entre fondos locales, nunca el mismo dos veces seguidas (si hay ≥2).</td></tr>
+        <tr><td>Con selección y fondo</td><td>Rotación detenida; solo ese fondo. Cambiar de selección carga el nuevo.</td></tr>
+        <tr><td>Con selección sin fondo</td><td>Se queda el fondo anterior o el de respaldo, nunca otro juego, hasta quitar la selección.</td></tr>
+        <tr><td>Quitar selección</td><td>Reanuda la rotación.</td></tr>
+        <tr><td>Pantalla completa / batería</td><td>Rotación en pausa; fondo estático; sin vídeo.</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COMPARATIVA ================= -->
+<section id="pc" class="hidden">
+  <h2 style="margin-top:6px">Comparativa</h2>
+  <table>
+    <tr><th></th><th>1 · Botón</th><th>2 · Borde</th><th>3 · Híbrido</th></tr>
+    <tr><td>Descubrible</td><td>Alta: se ve siempre</td><td>Baja: hay que saber que existe</td><td>Alta</td></tr>
+    <tr><td>Aperturas accidentales</td><td>Ninguna</td><td>Posibles (zona + retraso las mitigan)</td><td>Solo desde el borde</td></tr>
+    <tr><td>Parecido a ii</td><td>Idéntico al panel ASUS</td><td>Compite con la sidebar derecha de ii</td><td>Mezcla ambos</td></tr>
+    <tr><td>Multimonitor</td><td>Un botón por barra</td><td>Hay que decidir qué borde</td><td>Ambos problemas</td></tr>
+    <tr><td>Con el cursor en un juego (pantalla completa)</td><td>La barra se oculta, no hay acceso</td><td>Funciona si se permite</td><td>Borde funciona</td></tr>
+    <tr><td>Complejidad</td><td>Baja (~1 archivo)</td><td>Media (zonas, temporizadores, estados)</td><td>Alta (máquina de estados + exclusión)</td></tr>
+    <tr><td>Riesgo sobre la config de ii</td><td>Una línea en <code>UtilButtons.qml</code></td><td>Una línea en <code>shell.qml</code> o en la familia de paneles</td><td>Ambas</td></tr>
+  </table>
+  <div class="verdict"><b>Recomendación v1:</b> el prototipo 1 (botón en la barra) más un atajo global (<code>SUPER + O</code>, sugerido; ver si choca). Es el más cercano a lo que ya funciona (panel ASUS), el más fácil de revertir y no compite con la sidebar derecha. El borde (2) queda como interruptor opcional en la v2, con el mismo componente de panel, después de medir si hace falta. El híbrido (3) solo compensa si se usa el borde de forma habitual; mantener ambos accesos desde el principio duplica los estados que probar.</div>
+</section>
+</main>
+
+<script>
+const GAMES=[
+ {id:'hk',n:'Hollow Knight',p:'Steam',c:'linear-gradient(160deg,#27324a,#0b1220)',w:'linear-gradient(135deg,#1e2c46 0%,#0b1220 60%,#294a6f 100%)'},
+ {id:'ce',n:'Celeste',p:'Steam',c:'linear-gradient(160deg,#6a3f6f,#1c1230)',w:'linear-gradient(135deg,#3b2150 0%,#14102a 55%,#7b4a85 100%)'},
+ {id:'oc',n:'Ocarina of Time',p:'N64 · Gopher64',c:'linear-gradient(160deg,#355d3a,#0f1d12)',w:'linear-gradient(135deg,#1c3b25 0%,#0b150e 55%,#3f7a4a 100%)'},
+ {id:'ha',n:'Hades',p:'Heroic',c:'linear-gradient(160deg,#7a2e2a,#220c0b)',w:'linear-gradient(135deg,#4a1614 0%,#150808 55%,#8f3b2e 100%)'},
+ {id:'ti',n:'TOTK Recomp',p:'PC · port',c:'linear-gradient(160deg,#2d6068,#0b1b1e)',w:null}
+];
+const $=(s,r=document)=>r.querySelector(s);
+const FALLBACK='linear-gradient(135deg,#17202b,#0d131a)';
+const state={lib:{p1:'sel',p2:'sel',p3:'sel'},selId:'hk'};
+const OM_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>';
+function sel(){return GAMES.find(g=>g.id===state.selId)}
+function wallFor(lib){
+  if(lib!=='sel')return FALLBACK;
+  const g=sel(); return g.w||FALLBACK;
+}
+function panelHTML(lib,cls=''){
+  let head=`<header><span style="color:var(--accent2)">${OM_ICON.replace('<svg','<svg width="16" height="16"')}</span><b>OMNIA</b><span class="pill ${lib==='error'?'err':'ok'}">${lib==='error'?'sin conexión':lib==='empty'?'0 juegos':'conectado'}</span></header>`;
+  if(lib==='empty')return head+`<div class="state"><div class="ic">▦</div><b>Tu biblioteca está vacía</b><p>Aún no hay juegos detectados.</p><div class="acts"><button class="btn primary" data-a="lib">Abrir Omnia para importar</button></div></div>`;
+  if(lib==='error')return head+`<div class="state err"><div class="ic">!</div><b>No se pudo cargar la biblioteca</b><p><code>omnia-core</code> no responde en 127.0.0.1:47831</p><p>El fondo actual se conserva.</p><div class="acts"><button class="btn primary" data-a="retry">Reintentar</button><button class="btn" data-a="log">Ver registro</button></div></div>`+`<div class="foot"><button class="btn" data-a="lib">Abrir biblioteca completa</button></div>`;
+  const g=sel();
+  const card=g?`<div class="sel"><div class="cover" style="--c:${g.c}"></div><div><h4>${g.n}</h4><small>${g.p}</small><small>Seleccionado · fondo activo</small><div class="acts"><button class="btn primary" data-a="play">▶ Jugar</button><button class="btn" data-a="desel">Quitar selección</button></div></div></div>`
+    :`<div class="sel"><div><h4>Sin selección</h4><small>Elige un juego de la lista. Mientras tanto, los fondos rotan.</small></div></div>`;
+  const rows=GAMES.map(x=>`<div class="row ${x.id===state.selId?'on':''}" data-id="${x.id}"><div class="th" style="--c:${x.c}"></div><span class="nm">${x.n}</span><span class="tag">${x.w?'':'sin fondo'}</span><button class="pl" data-a="playrow" data-id="${x.id}" title="Jugar">▶</button></div>`).join('');
+  return head+card+`<div class="list"><div class="t">Recientes</div>${rows}</div><div class="foot"><button class="btn" data-a="lib">Abrir biblioteca completa →</button></div>`;
+}
+function toast(desk,msg){
+  let t=desk.querySelector('.toast');
+  if(!t){t=document.createElement('div');t.className='hint toast';t.style.cssText='left:50%;bottom:34px;transform:translateX(-50%);z-index:9;color:var(--text);border-color:var(--accent)';desk.appendChild(t)}
+  t.textContent=msg;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2000);
+}
+function bindPanel(el,desk,onClose){
+  el.onclick=e=>{
+    const b=e.target.closest('[data-a]');const r=e.target.closest('.row');
+    if(b){e.stopPropagation();const a=b.dataset.a;
+      if(a==='play'){toast(desk,'JUGAR · lanza «'+sel().n+'» y cierra');onClose&&onClose()}
+      else if(a==='playrow'){const g=GAMES.find(x=>x.id===b.dataset.id);toast(desk,'JUGAR · lanza «'+g.n+'»');onClose&&onClose()}
+      else if(a==='lib'){toast(desk,'ABRIR BIBLIOTECA · interfaz completa');onClose&&onClose()}
+      else if(a==='retry')toast(desk,'Reintentando…');
+      else if(a==='log')toast(desk,'Ver registro: journalctl --user -u omnia');
+      else if(a==='desel'){state.selId='';refreshAll()}
+      return}
+    if(r){state.selId=r.dataset.id;refreshAll()}
+  };
+}
+function barHTML(extra){
+  return `<div class="bar"><div class="grp"><span class="ws"><i class="on"></i><i></i><i></i></span><span class="muted">Terminal</span></div><div class="grp"><b>14:32</b></div><div class="grp">${extra}<span class="muted">◔ 24%</span></div></div>`;
+}
+const asusIcon='<button class="bbtn" data-b="asus" title="Panel ASUS TUF">⚡</button>';
+function omniaBtn(on){return `<button class="bbtn obtn ${on?'active':''}" data-b="omnia" title="Omnia">${OM_ICON}</button>`}
+function deskBase(lib,extraBar,withWin=true){
+  return `<div class="scrim"></div>${withWin?'<div class="win"></div>':''}${barHTML(extraBar)}<div class="wpchip">fondo: ${lib==='sel'&&sel()?(sel().w?sel().n:'sin fondo → se conserva el actual'):lib==='error'?'se conserva el actual':lib==='empty'?'respaldo fijo':'rotación aleatoria'}</div>`;
+}
+
+/* ---------- P1 ---------- */
+let p1open=true;
+function renderP1(){
+  const lib=state.lib.p1,d=$('#d1');
+  d.style.setProperty('--wp',wallFor(lib));
+  d.innerHTML=deskBase(lib,asusIcon+omniaBtn(p1open))+`<div class="omnia ${p1open?'show':''}" id="o1" style="right:3.6cqw;top:7.4cqw">${panelHTML(lib)}</div>
+  <div class="hint" style="left:10px;top:8cqw">Esc / clic fuera / 2.º clic en el icono cierran</div>`;
+  bindPanel($('#o1'),d,()=>{p1open=false;syncSeg('p1-open','0');renderP1()});
+  d.onclick=e=>{
+    const b=e.target.closest('[data-b]');
+    if(b&&b.dataset.b==='omnia'){p1open=!p1open;syncSeg('p1-open',p1open?'1':'0');renderP1();return}
+    if(b&&b.dataset.b==='asus'){toast(d,'Panel ASUS (cierra el de Omnia: un solo grab)');p1open=false;syncSeg('p1-open','0');renderP1();return}
+    if(!e.target.closest('.omnia')&&p1open){p1open=false;syncSeg('p1-open','0');renderP1()}
+  };
+}
+/* ---------- P2 ---------- */
+let p2open=-1,p2timer=null,p2grace=null;
+function p2cfg(){return {delay:+$('#p2-delay').value,zone:+$('#p2-zone').value}}
+function renderP2(){
+  const lib=state.lib.p2,n=+segVal('p2-mon'),st=$('#p2-stage');
+  const {delay,zone}=p2cfg();
+  st.innerHTML='';
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');d.className='desk'+(n>1?' small':'');d.dataset.i=i;
+    d.style.setProperty('--wp',wallFor(lib));
+    const last=i===n-1;
+    d.innerHTML=deskBase(lib,i===0?asusIcon+omniaBtn(false):'',i===0)+`<div class="deskmark">${n>1?'Monitor '+(i+1)+(last?' (derecha)':''):'DP-1'}</div>`+
+      (last?`<div class="zone" style="top:${50-zone/2}%;height:${zone}%"></div><div class="ring" style="top:50%;--d:${delay}ms"></div>`:'')+
+      (last&&p2open!==i?`<div class="handle" style="top:${50-4}%;height:8%"></div>`:'')+
+      `<div class="omnia side ${p2open===i?'show':''}" style="top:${Math.max(7,50-30)}%;height:auto">${panelHTML(lib)}</div>`+
+      (n>1&&!last?`<div class="hint" style="right:8px;bottom:34px">borde interno: sin zona</div>`:'');
+    st.appendChild(d);
+    const pan=d.querySelector('.omnia');
+    if(pan){bindPanel(pan,d,()=>{p2open=-1;renderP2()});
+      pan.addEventListener('mouseenter',()=>{clearTimeout(p2grace)});
+      pan.addEventListener('mouseleave',()=>{clearTimeout(p2grace);p2grace=setTimeout(()=>{p2open=-1;renderP2()},600)});}
+    const z=d.querySelector('.zone');
+    if(z){
+      z.addEventListener('mouseenter',()=>{if(p2open===i)return;const ring=d.querySelector('.ring');ring.classList.remove('go');void ring.offsetWidth;ring.classList.add('go');clearTimeout(p2timer);p2timer=setTimeout(()=>{p2open=i;renderP2()},delay)});
+      z.addEventListener('mouseleave',()=>{clearTimeout(p2timer);const ring=d.querySelector('.ring');ring&&ring.classList.remove('go')});
+    }
+    d.addEventListener('click',e=>{if(p2open===i&&!e.target.closest('.omnia')){p2open=-1;renderP2()}});
+  }
+}
+/* ---------- P3 ---------- */
+function renderP3(){
+  const lib=state.lib.p3,sc=segVal('p3-sc'),d=$('#d3');
+  d.style.setProperty('--wp',wallFor(lib));
+  const open=sc==='peek'||sc==='pinned';
+  const zone=35;
+  d.innerHTML=deskBase(lib,asusIcon.replace('class="bbtn"','class="bbtn '+(sc==='asus'?'active':'')+'"')+omniaBtn(sc==='pinned'))+
+   `<div class="zone" style="top:${50-zone/2}%;height:${zone}%;${sc==='asus'?'opacity:.25;cursor:not-allowed':''}"></div>`+
+   (!open?`<div class="handle" style="top:46%;height:8%"></div>`:'')+
+   (sc==='pinned'?`<div class="omnia show" style="right:3.6cqw;top:7.4cqw">${panelHTML(lib)}</div>`:'')+
+   (sc==='peek'?`<div class="omnia side show" style="top:20%">${panelHTML(lib)}</div>`:'')+
+   (sc==='asus'?`<div class="omnia show" style="right:7.6cqw;top:7.4cqw;width:min(250px,44cqw)"><header><b>ASUS TUF</b><span class="pill">Equilibrado</span></header><div class="state"><p>Perfil · Límite de carga · Teclado</p><p class="sm">Panel de ii abierto: el borde derecho de Omnia queda <b>desactivado</b> y no revela nada.</p></div></div>`:'')+
+   `<div class="hint" style="left:10px;top:8cqw">${{closed:'Cerrado',peek:'Asomado por proximidad',pinned:'Fijado desde el botón',asus:'Exclusión con el panel ASUS'}[sc]}</div>`;
+  d.querySelectorAll('.omnia').forEach(p=>bindPanel(p,d,()=>{setSeg('p3-sc','closed')}));
+  d.onclick=e=>{
+    const b=e.target.closest('[data-b]');
+    if(b&&b.dataset.b==='omnia'){setSeg('p3-sc',sc==='pinned'?'closed':'pinned');return}
+    if(b&&b.dataset.b==='asus'){setSeg('p3-sc',sc==='asus'?'closed':'asus');return}
+    if(e.target.closest('.zone')&&sc==='closed'){setSeg('p3-sc','peek');return}
+    if(sc==='peek'&&e.target.closest('.omnia')){setSeg('p3-sc','pinned');return}
+    if(!e.target.closest('.omnia')&&sc!=='closed'){setSeg('p3-sc','closed')}
+  };
+}
+/* ---------- fondo dinámico ---------- */
+const WP=[...GAMES.filter(g=>g.w).map(g=>({id:g.id,n:g.n,w:g.w})),{id:'_',n:'Respaldo fijo',w:FALLBACK,fixed:true}];
+let wp={cur:null,last:null,timer:null,sel:'',tick:0};
+function wlog(m){const l=$('#pw-log');const t=new Date().toLocaleTimeString();l.innerHTML=`<div>[${t}] ${m}</div>`+l.innerHTML}
+function wpSetCur(x,why){wp.last=wp.cur;wp.cur=x;$('#dw').style.setProperty('--wp',x.w);$('#wpchip').textContent='fondo: '+x.n;renderStrip();wlog(why+' → '+x.n)}
+function pickRandom(){
+  const pool=WP.filter(x=>!x.fixed);
+  const cands=pool.filter(x=>!wp.cur||x.id!==wp.cur.id);
+  return (cands.length?cands:pool)[Math.floor(Math.random()*(cands.length||pool.length))];
+}
+function wpFrozen(){return segVal('pw-fs')==='1'}
+function wpInterval(){const s=+$('#pw-int').value;return segVal('pw-pw')==='bat'?s*3:s}
+function wpApply(){
+  clearInterval(wp.timer);wp.timer=null;
+  const s=wp.sel&&GAMES.find(g=>g.id===wp.sel);
+  if(wpFrozen()){wlog('pantalla completa: rotación en pausa, fondo estático');renderStrip();return}
+  if(s){
+    if(s.w){wpSetCur({id:s.id,n:s.n,w:s.w},'selección')}
+    else{wlog('«'+s.n+'» no tiene fondo: se conserva «'+(wp.cur?wp.cur.n:'respaldo')+'» y no rota')}
+    renderStrip();return}
+  if(!wp.cur)wpSetCur(pickRandom(),'inicio');
+  wp.timer=setInterval(()=>{if(!wpFrozen())wpSetCur(pickRandom(),'rotación')},wpInterval()*1000);
+  wlog('rotación activa cada '+wpInterval()+' s'+(segVal('pw-pw')==='bat'?' (batería ×3)':''));
+  renderStrip();
+}
+function renderStrip(){
+  $('#pw-strip').innerHTML=WP.map(x=>`<div class="${wp.cur&&wp.cur.id===x.id?'cur':''}" style="--c:${x.w}">${x.n}</div>`).join('')+
+    GAMES.filter(g=>!g.w).map(g=>`<div class="no" style="--c:#222">${g.n}<br>(sin fondo)</div>`).join('');
+}
+function renderWSel(){
+  const el=$('#pw-sel');
+  el.innerHTML=`<button data-v="" aria-pressed="${wp.sel===''}">Ninguna</button>`+GAMES.map(g=>`<button data-v="${g.id}" aria-pressed="${wp.sel===g.id}">${g.n}${g.w?'':' (sin fondo)'}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{wp.sel=b.dataset.v;wlog('selección → '+(wp.sel||'ninguna'));renderWSel();wpApply()});
+}
+/* ---------- utilidades ---------- */
+function segVal(k){const b=document.querySelector(`.seg[data-bind="${k}"] [aria-pressed=true]`);return b?b.dataset.v:''}
+function syncSeg(k,v){document.querySelectorAll(`.seg[data-bind="${k}"] button`).forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v))}
+function setSeg(k,v){syncSeg(k,v);segChange(k)}
+function segChange(k){
+  if(k==='p1-lib'){state.lib.p1=segVal(k);renderP1()}
+  else if(k==='p1-open'){p1open=segVal(k)==='1';renderP1()}
+  else if(k==='p2-lib'){state.lib.p2=segVal(k);renderP2()}
+  else if(k==='p2-mon'){p2open=-1;renderP2()}
+  else if(k==='p3-lib'){state.lib.p3=segVal(k);renderP3()}
+  else if(k==='p3-sc'){renderP3()}
+  else if(k==='pw-pw'||k==='pw-fs'){wpApply()}
+}
+function refreshAll(){renderP1();renderP2();renderP3()}
+document.querySelectorAll('.seg[data-bind] button').forEach(b=>b.addEventListener('click',()=>{const s=b.closest('.seg');syncSeg(s.dataset.bind,b.dataset.v);segChange(s.dataset.bind)}));
+$('#p2-delay').oninput=e=>{$('#p2-delay-v').textContent=e.target.value;renderP2()};
+$('#p2-zone').oninput=e=>{$('#p2-zone-v').textContent=e.target.value;renderP2()};
+$('#p2-close').onclick=()=>{p2open=-1;renderP2()};
+$('#pw-int').oninput=e=>{$('#pw-int-v').textContent=e.target.value;wpApply()};
+$('#tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+  ['p1','p2','p3','pw','pc'].forEach(id=>$('#'+id).classList.toggle('hidden',id!==t.dataset.t));
+  if(t.dataset.t==='pw'&&!wp.cur){renderWSel();wpApply()}
+});
+refreshAll();renderWSel();renderStrip();
+</script>
+</body>
+</html>

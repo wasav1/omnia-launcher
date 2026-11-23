@@ -6,10 +6,11 @@ import signal
 import threading
 import time
 
-from . import __version__, art, audio, gamemode, importer, pad, paths, security
+from . import __version__, audio, gamemode, importer, online_catalog, pad, paths, security
 from .api import Api
 from .dbus import DesktopService
 from .games import refresh as games_refresh
+from .games.legacy_recomp import migrate_installed_ports
 from .games.registry import default_detectors
 from .sessions import Sessions
 from .store import Store, load_json
@@ -22,41 +23,177 @@ def load_config() -> dict:
     return cfg if isinstance(cfg, dict) else {}
 
 
+def auto_link_catalog(store, items) -> int:
+    """Enlaza juegos sin ficha (o con una de otra plataforma) con la ficha de igual nombre y plataforma."""
+    changed = 0
+    with store.lock:
+        games = [dict(g) for g in store.games()]
+        platforms = store.state.get("catalog_platforms") or {}
+        for game in games:
+            current = game.get("catalogSlug", "")
+            if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
+                continue            # ya tiene una ficha válida (puede ser una elección manual del usuario)
+            is_rom = any(isinstance(q, dict) and isinstance(q.get("rom"), dict) for q in game.get("ports", []))
+            slug = online_catalog.match_local_game(game, items, fuzzy=is_rom)
+            if slug and slug != current:
+                game["catalogSlug"] = slug
+                changed += 1
+        if changed:
+            store.set_games(games)
+    return changed
+
+
+def search_candidates(store, items) -> list:
+    """Suma a las primeras páginas del catálogo las fichas que coinciden por nombre con cada juego aún sin ficha válida.
+
+    El catálogo tiene más de mil fichas y solo se descargan las primeras páginas, así que un juego local que no esté entre ellas
+    (p. ej. una ROM de N64) nunca se enlazaba. La búsqueda por nombre lo resuelve con una petición pequeña por juego (con caché)."""
+    seen = {str(i.get("slug")) for i in items if isinstance(i, dict)}
+    out = list(items)
+    platforms = store.state.get("catalog_platforms") or {}
+    for game in list(store.games()):
+        current = game.get("catalogSlug", "")
+        if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
+            continue
+        name = str(game.get("name") or "").strip()
+        if not name:
+            continue
+        try:
+            body = online_catalog.list_games({"q": name, "pageSize": 10})
+        except online_catalog.CatalogError:
+            continue
+        for item in body.get("items") or []:
+            if isinstance(item, dict) and item.get("slug") and str(item["slug"]) not in seen:
+                seen.add(str(item["slug"]))
+                out.append(item)
+    return out
+
+
+def link_roms_by_id(store, index: dict) -> int:
+    """Enlaza ROMs detectadas con su ficha por el ID de cabecera ({(tipo, ID): slug}); no pisa una ficha válida."""
+    changed = 0
+    with store.lock:
+        games = [dict(g) for g in store.games()]
+        platforms = store.state.get("catalog_platforms") or {}
+        for game in games:
+            current = game.get("catalogSlug", "")
+            if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
+                continue
+            for port in game.get("ports", []):
+                rom = port.get("rom") if isinstance(port, dict) else None
+                key = (str((rom or {}).get("internalIdType", "")), str((rom or {}).get("internalId", "")).upper())
+                slug = index.get(key)
+                if slug and slug != current:
+                    game["catalogSlug"] = slug
+                    changed += 1
+                    break
+        if changed:
+            store.set_games(games)
+    return changed
+
+
+def rom_identifier_index(store) -> dict:
+    """Descarga (con caché) los índices de IDs de las plataformas de las ROMs que hay en la biblioteca."""
+    types = {str((p.get("rom") or {}).get("internalIdType", "")) for g in store.games() for p in g.get("ports", [])
+             if isinstance(p, dict) and isinstance(p.get("rom"), dict)}
+    index = {}
+    for kind in sorted(t for t in types if t):
+        for item in online_catalog.list_rom_identifiers(kind).get("items", []):
+            slug = ((item.get("game") or {}).get("slug") or "") if isinstance(item, dict) else ""
+            if slug:
+                index[(str(item.get("type", "")), str(item.get("identifier", "")).upper())] = slug
+    return index
+
+
+def sync_steam_art(game, retry_at: dict) -> bool:
+    """Descarga a la caché el arte público de Steam (portada, banner, logo) de un juego de Steam; True si bajó alguna imagen.
+
+    Las que fallan (p. ej. 404 porque el juego no tiene esa imagen) se reintentan a las 24 h."""
+    urls = online_catalog.steam_art_urls(game)
+    downloaded = False
+    for url in urls.values():
+        if online_catalog.cached_artwork_path(url) or time.time() < retry_at.get(url, 0):
+            continue
+        try:
+            online_catalog.store_artwork(url)
+            downloaded = True
+        except (online_catalog.CatalogError, OSError, KeyError) as e:
+            log.debug("arte de Steam %s: %s", url, e)
+            retry_at[url] = time.time() + 24 * 60 * 60
+    return downloaded
+
+
 def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
-    """Descarga en segundo plano el arte que falte, con pausa entre juegos. Solo si hay clave de SteamGridDB."""
-    warned = False
+    """Sincroniza periódicamente el artwork aprobado del catálogo público de Omnia."""
     pending = []
     scan_at = 0.0
     seen_revision = -1
+    catalog_retry_at = {}
+    steam_retry_at = {}
+    link_at = 0.0
     while not stop.is_set():
-        key = art.load_key()
-        if key:
-            if not art.key_permissions_ok() and not warned:
-                log.warning("la clave de SteamGridDB es legible por otros usuarios: chmod 600 %s", art.key_path())
-                warned = True
-            now = time.monotonic()
-            if now >= scan_at or seen_revision != store.revision:
-                pending = list(store.games())
-                scan_at, seen_revision = now + 60, store.revision
-            if pending and not stop.is_set():
-                g = pending.pop(0)
-                slug = (g.get("art") or {}).get("slug") or g.get("id", "")
-                if not all(art.cached(slug, k) or (art.art_dir(slug, k) / art.NONE_MARK).exists() for k in art.KINDS):
+        now = time.monotonic()
+        if now >= link_at:
+            link_at = now + 60 * 60
+            try:
+                items = []
+                for page in range(1, 6):
+                    body = online_catalog.list_games({"page": page, "pageSize": 30})
+                    items += body.get("items") or []
+                    if page >= int((body.get("meta") or {}).get("totalPages") or 1):
+                        break
+                items = search_candidates(store, items)
+                ids = rom_identifier_index(store)
+                changed = link_roms_by_id(store, ids) if ids else 0
+                changed += auto_link_catalog(store, items) if items else 0
+                if changed:
+                    scan_at = 0.0
+                    if bus:
+                        bus.games_changed()
+            except Exception as e:      # el enlace automático nunca debe tumbar el servicio
+                log.debug("enlace automático con el catálogo: %s", e)
+                link_at = now + 5 * 60
+        if seen_revision != store.revision:
+            link_at = min(link_at, now + 10)        # juegos nuevos (p. ej. ROMs recién detectadas): enlazarlos pronto
+        if now >= scan_at or seen_revision != store.revision:
+            pending = list(store.games())
+            scan_at, seen_revision = now + 60, store.revision
+        if pending and not stop.is_set():
+            g = pending.pop(0)
+            if sync_steam_art(g, steam_retry_at):
+                if bus:
+                    bus.games_changed()
+            catalog_slug = g.get("catalogSlug", "")
+            if catalog_slug:
+                last_checked = int((store.state.get("catalog_art_checked") or {}).get(catalog_slug, 0) or 0)
+                # Sin las plataformas de la ficha (juegos revisados antes de guardarlas) se vuelve a consultar ya,
+                # para poder descartar el arte de una ficha de otra consola.
+                platforms_known = catalog_slug in (store.state.get("catalog_platforms") or {})
+                no_art_yet = not (store.state.get("catalog_art") or {}).get(catalog_slug)      # sin arte aún: se reintenta cada hora
+                if (not last_checked or not platforms_known or time.time() - last_checked >= (60 * 60 if no_art_yet else 24 * 60 * 60)) \
+                        and time.time() >= catalog_retry_at.get(catalog_slug, 0):
                     try:
-                        got = art.fetch_game(art.Client(key), g)
-                        if got:
-                            with store.lock:
-                                store.revision += 1
-                            log.info("arte de %s: %s", g.get("name"), ", ".join(got))
-                            if bus and "fondo" in got and store.state.get("selected_game") == g.get("id"):
+                        entry = online_catalog.fetch_entry(catalog_slug)
+                        found = {row["kind"]: row["url"] for row in entry["artwork"]}
+                        online_catalog.prefetch_artwork(found.values())
+                        with store.lock:
+                            if entry["platforms"]:
+                                store.state.setdefault("catalog_platforms", {})[catalog_slug] = entry["platforms"]
+                                link_at = 0.0       # con la plataforma conocida puede haber un enlace mejor
+                            art_map = store.state.setdefault("catalog_art", {})
+                            if found and art_map.get(catalog_slug) != found:
+                                art_map[catalog_slug] = found
+                            store.state.setdefault("catalog_art_checked", {})[catalog_slug] = int(time.time())
+                            store.save_state()
+                            if bus and store.state.get("selected_game") == g.get("id"):
                                 bus.selection_changed()
-                    except art.ArtError as e:
-                        log.warning("arte de %s: %s", g.get("name"), e)
-                stop.wait(pause)
-            else:
-                stop.wait(60)
+                        catalog_retry_at[catalog_slug] = time.time() + (60 * 60 if not found else 24 * 60 * 60)
+                    except online_catalog.CatalogError as e:
+                        log.debug("arte del catálogo para %s: %s", g.get("name"), e)
+                        catalog_retry_at[catalog_slug] = time.time() + 60 * 60
+            stop.wait(pause)
         else:
-            stop.wait(60)
+            stop.wait(pause if pending else 30)
 
 
 def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 0.35):
@@ -98,6 +235,22 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
             signal.signal(sig, lambda *_: stop.set())
 
     store = Store()
+    # Omnia Backend now serves approved artwork, so an old user-specific provider
+    # credential is no longer used. Remove the obsolete secret during the upgrade.
+    legacy_art_key = paths.config_dir() / "steamgriddb.key"
+    try:
+        legacy_art_key.unlink()
+        log.info("se retiró una clave de artwork obsoleta; Omnia usa su backend público")
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.warning("no se pudo retirar la clave de artwork obsoleta: %s", exc)
+    try:
+        migrated_ports = migrate_installed_ports(store)
+        if migrated_ports:
+            log.info("biblioteca: importados %d ports locales desde una instalación previa", migrated_ports)
+    except Exception:
+        log.exception("no se pudieron importar los ports locales existentes")
     try:
         migrated, size = importer.migrate_legacy_art(store)
         if migrated:
@@ -105,7 +258,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     except Exception:
         log.exception("no se pudo recuperar el arte seleccionado de Estantería")
     token = security.new_token()
-    dets = detectors if detectors is not None else default_detectors()
+    dets = detectors if detectors is not None else default_detectors(store)
     try:
         backup_root = (cfg.get("saves") or {}).get("backup_root") if isinstance(cfg.get("saves"), dict) else None
         api = Api(store, token, dets, port=args.port, **({"backup_root": backup_root} if isinstance(backup_root, str) and backup_root else {}))

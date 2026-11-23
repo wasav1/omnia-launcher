@@ -15,7 +15,6 @@ public:
     }
     QJsonArray checkedVolumes()const{QJsonArray out;for(int i=0;i<count();++i)if(item(i)->checkState()==Qt::Checked)out.append(item(i)->data(Qt::UserRole).toJsonObject());return out;}
 };
-
 class RouteList : public QListWidget {
     QString backend;
     QStringList queue;
@@ -129,52 +128,4 @@ public:
         QStringList labels=found.values();constexpr int limit=40;int extra=qMax(0,labels.size()-limit);if(extra)labels=labels.mid(0,limit);
         return QString("Juegos reconocidos: %1\n\n%2%3").arg(found.size()).arg(labels.join("\n")).arg(extra?QString("\n… y %1 más").arg(extra):QString());
     }
-};
-
-class KeyPanel : public QWidget {
-    QString backend;
-    QLineEdit *input;
-    QLabel *status;
-    QCheckBox *defer;
-    QPushButton *validate;
-    bool saved, valid=false, pending=false;
-    int revision=0;
-    void check(bool savedKey) {
-        if(pending)return;
-        if(!savedKey&&input->text().trimmed().isEmpty()){status->setText("Introduce la nueva clave para validarla.");return;}
-        pending=true;valid=false;validate->setEnabled(false);const int request=revision;
-        status->setText(savedKey?"Comprobando la conexión guardada con SteamGridDB…":"Validando nueva clave…");
-        auto p=new QProcess(this);
-        auto done=[this,p,request](bool ok){
-            pending=false;validate->setEnabled(true);
-            if(request==revision){valid=ok;status->setText(QString::fromUtf8(p->readAllStandardOutput()).trimmed()+(ok?"":"\nIntroduce otra clave y valídala, o configura SteamGridDB después."));}
-            p->deleteLater();
-        };
-        connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[done](int code,QProcess::ExitStatus exit){done(code==0&&exit==QProcess::NormalExit);});
-        p->start("python3",{backend,savedKey?"--validate-saved-key":"--validate-key"});
-        if(p->waitForStarted()){if(!savedKey)p->write(input->text().trimmed().toUtf8());p->closeWriteChannel();}else done(false);
-    }
-public:
-    KeyPanel(const QString &path,bool exists,bool autoCheck=true):backend(path),saved(exists){
-        auto layout=new QVBoxLayout(this);layout->setContentsMargins(0,0,0,0);
-        auto label=new QLabel(saved?"Se encontró una clave guardada. Se comprobará sin mostrarla. Déjala vacía para conservarla.":"Introduce tu clave API de SteamGridDB (opcional).");label->setWordWrap(true);layout->addWidget(label);
-        input=new QLineEdit;input->setEchoMode(QLineEdit::Password);input->setPlaceholderText(saved?"Nueva clave, solo si necesitas reemplazarla":"Clave API");layout->addWidget(input);
-        validate=new QPushButton(lucideIcon("key-round"),saved?"Comprobar conexión / validar nueva clave":"Validar clave");layout->addWidget(validate);
-        status=new QLabel(saved?"Conexión pendiente de comprobar.":"Puedes configurar el arte más adelante.");status->setWordWrap(true);layout->addWidget(status);
-        defer=new QCheckBox("Configurar SteamGridDB después (continuar sin validar)");layout->addWidget(defer);
-        connect(validate,&QPushButton::clicked,this,[this]{check(input->text().trimmed().isEmpty()&&saved);});
-        connect(input,&QLineEdit::textChanged,this,[this]{++revision;valid=false;status->setText("Clave modificada: valida la conexión antes de continuar.");});
-        if(saved&&autoCheck)QTimer::singleShot(0,this,[this]{check(true);});
-    }
-    ~KeyPanel() override {
-        for(auto process:findChildren<QProcess*>()) {
-            process->disconnect(this);
-            if(process->state()!=QProcess::NotRunning){process->kill();process->waitForFinished(1000);}
-        }
-    }
-    QString key()const{return input->text().trimmed();}
-    bool ready()const{return defer->isChecked()||(!saved&&key().isEmpty())||(!pending&&valid);}
-    QString keyForSave()const{return defer->isChecked()?QString():key();}
-    QString summary()const{return defer->isChecked()?"Validación pospuesta":valid?"Conexión validada":saved?"Conexión guardada sin validar":"Sin clave";}
-    void clearInput(){input->clear();}
 };

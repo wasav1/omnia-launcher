@@ -436,7 +436,7 @@ Si no detecta una instalación, conserva el asistente completo de primera instal
 ### Revisión 15: AppImage para CachyOS x86-64
 
 `Omnia-Installer-0.1.0-15-x86_64.AppImage` incluye la GUI Qt y sus plugins para Wayland y XCB.
-El icono circular azul grisáceo está en `assets/branding/omnia-icon-bluegray.png`; se conserva el original.
+El icono circular azul grisáceo está en `assets/branding/omnia-logo.svg`, en formato vectorial.
 La GUI restaura el entorno de bibliotecas del host antes de iniciar Python, CMake o Polkit. No se copia
 la GUI con Qt del bundle a la instalación del usuario: se vuelve a compilar con Qt del destino.
 

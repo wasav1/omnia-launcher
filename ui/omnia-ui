@@ -1,13 +1,41 @@
 #!/usr/bin/env bash
-# omnia-ui [--window]   Interfaz de Omnia. Por defecto es el escritorio (capa de fondo); --window usa una ventana normal.
+# omnia-ui [--manager|--window]   Gestor, Big Mode en ventana o panel de escritorio.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ -d "$HERE/qml" ]; then DIR="$HERE/qml"; else DIR="${OMNIA_UI_DIR:-/usr/share/omnia/ui/qml}"; fi   # repositorio o paquete instalado
 TOKEN="${OMNIA_TOKEN_FILE:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omnia/token}"
 PORT_ARG=(); [ -n "${OMNIA_PORT:-}" ] && PORT_ARG=(--port "$OMNIA_PORT")   # solo para pruebas
+QML_FILE="main.qml"
+if [ "${1:-}" = "--manager" ]; then QML_FILE="manager-window.qml"; shift
+elif [ "${1:-}" = "--window" ]; then QML_FILE="main-window.qml"; shift; fi
+EXTRA_ARGS=("$@")
 export QML_XHR_ALLOW_FILE_READ=1                     # la UI lee el token de la sesión (archivo 0600 del usuario)
-if [ "${1:-}" = "--window" ]; then
-  exec qml6 "$DIR/main-window.qml" -- --token "$TOKEN" "${PORT_ARG[@]}"
+ensure_core() {
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    systemctl --user start omnia.service >/dev/null 2>&1 || true
+  fi
+}
+ensure_core
+if [ "$QML_FILE" = "main.qml" ]; then
+  export QT_WAYLAND_SHELL_INTEGRATION=layer-shell    # sin esto Qt crea una ventana normal en vez de una capa
 fi
-export QT_WAYLAND_SHELL_INTEGRATION=layer-shell      # sin esto Qt crea una ventana normal en vez de una capa
-exec qml6 "$DIR/main.qml" -- --token "$TOKEN" "${PORT_ARG[@]}"
+CONFIG_BASE="${XDG_CONFIG_HOME:-}"
+case "$CONFIG_BASE" in /*) ;; *) CONFIG_BASE="$HOME/.config" ;; esac
+CONFIG="$CONFIG_BASE/omnia/config.json"
+while true; do
+  LANGUAGE="es"
+  if [ -r "$CONFIG" ]; then
+    LANGUAGE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("language", "es"))' "$CONFIG" 2>/dev/null || printf es)"
+  fi
+  TRANSLATION_ARG=()
+  if [ "$LANGUAGE" = "en" ] && [ -r "$DIR/i18n/qml_en_US.qm" ]; then
+    TRANSLATION_ARG=(--translation "$DIR/i18n/qml_en_US.qm")
+  fi
+  set +e
+  qml6 "${TRANSLATION_ARG[@]}" "$DIR/$QML_FILE" -- --token "$TOKEN" "${PORT_ARG[@]}" "${EXTRA_ARGS[@]}"
+  RESULT=$?
+  set -e
+  # QML returns this reserved application code after a language switch so this
+  # launcher can reload the correct translation catalog without losing mode/args.
+  [ "$RESULT" -eq 42 ] || exit "$RESULT"
+done

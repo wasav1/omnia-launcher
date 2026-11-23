@@ -9,7 +9,8 @@ class EventBus:
         self.cv = threading.Condition()
         self.seq = 0
         self.events = deque(maxlen=maxlen)
-        self.pad = {"connected": False, "name": "", "layout": ""}
+        self.pad = {"connected": False, "name": "", "layout": "", "family": "", "battery": None}
+        self.pad_revision = 0
         self.game_revision = 0
         self.selection_revision = 0
         # lo publica el vigilante de ventanas de KWin: ¿manda la estantería (no hay una ventana normal activa) y está tapada?
@@ -54,19 +55,24 @@ class EventBus:
             self.events.append({"seq": self.seq, "key": key, "t": round(time.time(), 3)})
             self.cv.notify_all()
 
-    def set_pad(self, connected: bool, name: str = "", layout: str = "") -> None:
+    def set_pad(self, connected: bool, name: str = "", layout: str = "", family: str = "", battery: dict | None = None) -> None:
         with self.cv:
-            self.pad = {"connected": connected, "name": name, "layout": layout}
-            self.cv.notify_all()
+            pad = {"connected": connected, "name": name, "layout": layout, "family": family or layout, "battery": battery}
+            if pad != self.pad:
+                self.pad = pad
+                self.pad_revision += 1
+                self.cv.notify_all()
 
     def snapshot(self, since: int) -> dict:
         return {"seq": self.seq, "events": [e for e in self.events if e["seq"] > since],
-                "padOn": self.pad["connected"], "padName": self.pad["name"], "padLayout": self.pad["layout"],
+                "padOn": self.pad["connected"], "padName": self.pad["name"], "padLayout": self.pad["layout"], "padFamily": self.pad["family"],
+                "padBattery": self.pad["battery"],
                 "shelfActive": self.desktop["active"], "covered": self.desktop["covered"],
-                "gameRevision": self.game_revision,
+                "gameRevision": self.game_revision, "padRevision": self.pad_revision,
                 "gameMode": self.gamemode}
 
-    def wait(self, since: int, timeout: float, game_since: int | None = None) -> dict:
+    def wait(self, since: int, timeout: float, game_since: int | None = None,
+             pad_since: int | None = None) -> dict:
         """Devuelve en cuanto haya eventos nuevos o al agotar el tiempo. since < 0: solo el contador actual
         (así un cliente nuevo no repite eventos viejos)."""
         end = time.time() + timeout
@@ -75,8 +81,10 @@ class EventBus:
                 return self.snapshot(self.seq)
             since = min(since, self.seq)
             game_since = self.game_revision if game_since is None else game_since
+            pad_since = self.pad_revision if pad_since is None else pad_since
             while True:
                 snap = self.snapshot(since)
-                if snap["events"] or self.game_revision != game_since or time.time() >= end:
+                if (snap["events"] or self.game_revision != game_since
+                        or self.pad_revision != pad_since or time.time() >= end):
                     return snap
                 self.cv.wait(timeout=max(0.05, end - time.time()))

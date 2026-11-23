@@ -107,7 +107,7 @@ class UninstallFlow(unittest.TestCase):
             def run(argv,**kwargs):
                 calls.append(argv)
                 return SimpleNamespace(returncode=3 if 'is-active' in argv else 0,stdout='QML_IMPORT_PATH='+str(home/'.local/lib/qt6/qml')+':/shared/qml\n')
-            with patch.object(Path,'home',return_value=home),patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall.paths,'cache_dir',return_value=home/'.cache/omnia'),patch.object(uninstall.paths,'runtime_dir',return_value=runtime),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',return_value='done'),patch.object(uninstall.subprocess,'run',side_effect=run),patch('omnia.gamemode.Freezer.resume',return_value=0):
+            with patch.object(Path,'home',return_value=home),patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall,'SYSTEM_UNIT',Path('/nonexistent/omnia.service')),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall.paths,'cache_dir',return_value=home/'.cache/omnia'),patch.object(uninstall.paths,'runtime_dir',return_value=runtime),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',return_value='done'),patch.object(uninstall.subprocess,'run',side_effect=run),patch('omnia.gamemode.Freezer.resume',return_value=0):
                 message=uninstall.uninstall()
             self.assertIn('se conservaron',message)
             self.assertFalse(config.exists())
@@ -119,6 +119,6 @@ class UninstallFlow(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config=Path(tmp)/'omnia';config.mkdir();(config/'state.json').write_text('{}')
             backend=Mock();backend.plugin_enabled.return_value=False
-            with patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',side_effect=RuntimeError('Plasma no disponible')), self.assertRaisesRegex(RuntimeError,'Plasma'):
+            with patch.object(uninstall.os,'geteuid',return_value=1000),patch.object(uninstall,'SYSTEM_UNIT',Path('/nonexistent/omnia.service')),patch.object(uninstall.paths,'config_dir',return_value=config),patch.object(uninstall,'owned_paths',return_value=[config]),patch.object(uninstall.setup,'KdeBackend',return_value=backend),patch.object(uninstall,'qdbus',side_effect=RuntimeError('Plasma no disponible')), self.assertRaisesRegex(RuntimeError,'Plasma'):
                 uninstall.uninstall()
             self.assertTrue((config/'state.json').exists())

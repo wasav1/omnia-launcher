@@ -75,4 +75,5 @@ class SteamDetector(Detector):
         return {"id": "steam-" + appid, "name": name, "sub": "PC · Steam", "platform": "pc", "src": "Steam",
                 "auto": "steam", "art": {"slug": "steam-" + appid, "sgdb": name},
                 "ports": [{"id": f"steam-{appid}-main", "name": "Steam", "chips": ["Steam"],
-                           "launch": ["steam", "steam://rungameid/" + appid], "check": str(acf), "proc": ""}]}
+                           "launch": ["steam", "steam://rungameid/" + appid], "check": str(acf), "proc": "",
+                           "folder": str(lib / "common" / st.get("installdir", ""))}]}

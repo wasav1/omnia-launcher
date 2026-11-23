@@ -8,7 +8,7 @@ Modal {
     property string mode: "dir"
     property var exts: []
     property string startPath: ""
-    property string heading: "Elige una carpeta"
+    property string heading: qsTr("Elige una carpeta")
     signal chosen(string path)
     signal cancelled
 
@@ -17,8 +17,8 @@ Modal {
     property int shortcutIdx: 0
 
     title: heading
-    footer: mode === "dir" ? "↑↓ elegir  ·  Enter/A entrar  ·  ← / B subir  ·  Y usar esta carpeta  ·  LB/RB atajos  ·  Esc cancelar"
-                           : "↑↓ elegir  ·  Enter/A abrir o elegir  ·  ← / B subir  ·  LB/RB atajos  ·  Esc cancelar"
+    footer: mode === "dir" ? qsTr("↑↓ elegir  ·  Enter/A entrar  ·  ← / B subir  ·  Y usar esta carpeta  ·  LB/RB atajos  ·  Esc cancelar")
+                           : qsTr("↑↓ elegir  ·  Enter/A abrir o elegir  ·  ← / B subir  ·  LB/RB atajos  ·  Esc cancelar")
     onCloseRequested: br.cancelled()
 
     function go(path) {
@@ -37,8 +37,8 @@ Modal {
     }
     readonly property var rows: {
         const out = []
-        if (mode === "dir") out.push({ kind: "use", text: "✔  Usar esta carpeta", sub: listing.path, accent: true })
-        if (listing.parent) out.push({ kind: "up", text: "⬆  Subir", sub: listing.parent })
+        if (mode === "dir") out.push({ kind: "use", text: "✔  " + qsTr("Usar esta carpeta"), sub: listing.path, accent: true })
+        if (listing.parent) out.push({ kind: "up", text: "⬆  " + qsTr("Subir"), sub: listing.parent })
         for (let i = 0; i < listing.dirs.length; i++) out.push({ kind: "dir", text: "📁  " + listing.dirs[i].name, path: listing.dirs[i].path })
         for (let j = 0; j < listing.files.length; j++) out.push({ kind: "file", text: "📄  " + listing.files[j].name, path: listing.files[j].path })
         return out

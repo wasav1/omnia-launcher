@@ -118,6 +118,75 @@ def fan_speeds(sys_root: str = "/sys") -> list[dict]:
     return out
 
 
+_cpu_prev: tuple | None = None
+_gpu_cache = (0.0, None)
+
+
+def _cpu_times(proc: str):
+    first = _read(f"{proc}/stat").split("\n", 1)[0].split()
+    if len(first) < 5 or first[0] != "cpu":
+        return None
+    vals = [int(x) for x in first[1:9] if x.isdigit()]
+    idle = vals[3] + (vals[4] if len(vals) > 4 else 0)       # idle + iowait
+    return sum(vals), idle
+
+
+def cpu_percent(proc: str = "/proc"):
+    """Uso de CPU desde la lectura anterior (None en la primera llamada)."""
+    global _cpu_prev
+    now = _cpu_times(proc)
+    prev, _cpu_prev = _cpu_prev, now
+    if not now or not prev or now[0] <= prev[0]:
+        return None
+    return round(100 * (1 - (now[1] - prev[1]) / (now[0] - prev[0])), 1)
+
+
+def memory(proc: str = "/proc") -> dict:
+    info = {}
+    for line in _read(f"{proc}/meminfo").splitlines():
+        k, _, v = line.partition(":")
+        m = re.match(r"\s*(\d+)", v)
+        if m:
+            info[k] = int(m.group(1)) * 1024
+    total, avail = info.get("MemTotal", 0), info.get("MemAvailable", info.get("MemFree", 0))
+    return {"ram_total": total, "ram_used": max(0, total - avail)} if total else {}
+
+
+def gpu_percent(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=time.monotonic):
+    """Uso de la GPU: sysfs de AMD/Intel si existe; si no, nvidia-smi. Se cachea unos segundos."""
+    global _gpu_cache
+    t = now()
+    if t - _gpu_cache[0] < ttl:
+        return _gpu_cache[1]
+    value = None
+    for path in sorted(glob.glob(f"{sys_root}/class/drm/card*/device/gpu_busy_percent")):
+        raw = _read(path)
+        if raw.isdigit():
+            value = float(raw)
+            break
+    if value is None:
+        try:
+            out = run(["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                      capture_output=True, text=True, timeout=1.5)
+            first = out.stdout.strip().splitlines()[0].strip() if out.returncode == 0 and out.stdout.strip() else ""
+            value = float(first) if first.isdigit() else None
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            value = None
+    _gpu_cache = (t, value)
+    return value
+
+
+def live(proc: str = "/proc", sys_root: str = "/sys") -> dict:
+    """Carga en vivo para la barra superior de la biblioteca: CPU %, GPU % y RAM."""
+    out = dict(memory(proc))
+    c, g = cpu_percent(proc), gpu_percent(sys_root)
+    if c is not None:
+        out["cpu_pct"] = c
+    if g is not None:
+        out["gpu_pct"] = g
+    return out
+
+
 def snapshot(games: str = "", proc: str = "/proc", sys_root: str = "/sys", home: str | None = None, monitor=None) -> dict:
     out = {"cpu": cpu(proc, sys_root)}
     if isinstance(monitor, list):
