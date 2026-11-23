@@ -21,7 +21,7 @@ SYSTEMS = {
     "nds": {"name": "Nintendo DS", "extensions": {".nds", ".dsi", ".srl"}},
     "gcwii": {"name": "GameCube / Wii", "extensions": {".iso", ".gcm", ".gcz", ".rvz", ".wbfs", ".wia"}},
     "3ds": {"name": "Nintendo 3DS", "extensions": {".3ds", ".cci", ".cxi", ".cia"}},
-    "switch": {"name": "Nintendo Switch", "extensions": {".nsp", ".xci"}},
+    "switch": {"name": "Nintendo Switch", "extensions": {".nsp", ".xci", ".nup"}},
     "ps1": {"name": "PlayStation", "extensions": {".bin", ".cue", ".chd", ".pbp", ".iso"}},
     "ps2": {"name": "PlayStation 2", "extensions": {".bin", ".chd", ".cue", ".cso", ".iso"}},
     "psp": {"name": "PlayStation Portable", "extensions": {".cso", ".pbp", ".iso"}},
@@ -304,6 +304,8 @@ def inspect_file(path: str, roots=None, include_emulators: bool = True, which=sh
             if not is_base_switch_title(title_id):
                 return None                              # actualización o DLC: no es un juego
             internal_id, internal_id_type = title_id, switch_kind(title_id)
+        elif suffix == ".nup":
+            internal_id_type = "switch2"                 # un .nup sin Title ID en el nombre se toma por un volcado de Switch 2
         # confianza «header» solo si el ID salió del ticket; por nombre queda como «extension»
         switch_origin = origin
     if disc_id and disc_id[0] == system:

@@ -141,6 +141,11 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Detección de volcados `.nup` de Switch 2 (paso 1):** `roms.py` reconoce `.nup` como Nintendo Switch: si el nombre lleva un Title ID entre corchetes se usa
+  (04… = Switch 2, 01… = Switch 1; las actualizaciones y DLC no se importan) y, sin ID, se toma por Switch 2 con confianza «extension». No se lee el contenido
+  del paquete (solo los primeros 1 KB). `rom_folders` los publica como juegos de Switch 2 en las carpetas de la biblioteca. Probado con los `.nup` reales de
+  `/mnt/JUEGOS/Nintendo/Switch-2` (solo lectura) y con archivos sintéticos (`tests/test_roms_nup.py`). Pendiente: carpetas de volcado `exefs/`+`romfs/` y leer el build ID del
+  `exefs/main` (paso 2), que permitirá emparejar la versión (1.0.0/1.8.0) con su port.
 - **2026-11-23 — Asistente «Añadir juego» de escritorio en tres pasos:** nuevo `ManagerAddGame.qml` (Origen · Detección · Confirmación) para la app de
   escritorio: carpeta de juegos (se añade como carpeta de la biblioteca y se cuentan los juegos nuevos), ROM de consola (abre el escaneo de ROMs),
   ejecutable/AppImage, port o emulador compatible (lista de plantillas) e importar biblioteca anterior. Pide el nombre y confirma con
