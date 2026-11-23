@@ -561,7 +561,11 @@ class Api:
         language = config.get("language", "es")
         if language not in {"es", "en"}:
             language = "es"
-        for g in self.store.games():
+        games = list(self.store.games())
+        merged_copies = self._rom_copies(games, config)
+        for g in games:
+            if g["id"] in merged_copies["hidden"]:
+                continue                                          # volcado que solo es la copia de un juego que ya aparece (ver _rom_copies)
             ports = [(p, games_refresh.port_installed(p)) for p in g.get("ports", [])]
             ports = [(p, installed) for p, installed in ports if installed and library_paths.port_visible(g, p, config)]
             if ports:
@@ -590,12 +594,40 @@ class Api:
                             "added": int(g.get("added", 0) or 0), "lastSessionSecs": int(session.get("last_secs", 0) or 0),
                             "lastBackup": int(btime or 0), "lastPlayed": snap["lastPlayed"], "totalSecs": snap["totalSecs"],
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
-                            "ports": port_rows, "folder": self._folder(ports),
+                            "ports": port_rows, "folder": self._folder(ports), "romCopy": merged_copies["by_primary"].get(g["id"]),
                             "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
         return {"games": out, "revision": revision, "unchanged": False}
+
+    def _rom_copies(self, games, config) -> dict:
+        """Une un volcado `.nup` (que ningún emulador puede ejecutar) con el port del mismo juego: no aparecen dos entradas.
+
+        Si la ficha del catálogo es la misma y el port se ve en la biblioteca, el volcado deja de listarse y el juego principal
+        lleva `romCopy` («tu copia»). Si no hay port, el volcado sigue visible (más adelante ofrecerá instalar uno)."""
+        platforms_known = self.store.state.get("catalog_platforms") or {}
+
+        def slug_of(g):
+            slug = g.get("catalogSlug", "")
+            return slug if slug and online_catalog.platform_compatible(g.get("platform"), platforms_known.get(slug)) else ""
+        primaries = {}
+        for g in games:
+            if g.get("auto") == "roms":
+                continue
+            visible = [p for p in g.get("ports", []) if games_refresh.port_installed(p) and library_paths.port_visible(g, p, config)]
+            if visible and slug_of(g):
+                primaries.setdefault(slug_of(g), g)
+        hidden, by_primary = set(), {}
+        for g in games:
+            if g.get("auto") != "roms" or not slug_of(g) or slug_of(g) not in primaries:
+                continue
+            roms_ports = [p["rom"] for p in g.get("ports", []) if isinstance(p.get("rom"), dict)]
+            if not roms_ports or any(os.path.splitext(r.get("path", ""))[1].lower() != ".nup" for r in roms_ports):
+                continue                                           # una ROM con emulador posible se mantiene como entrada propia
+            hidden.add(g["id"])
+            by_primary.setdefault(primaries[slug_of(g)]["id"], {"name": g["name"], "path": roms_ports[0].get("path", ""), "id": g["id"]})
+        return {"hidden": hidden, "by_primary": by_primary}
 
     @staticmethod
     def _folder(ports) -> str:
