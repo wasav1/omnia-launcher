@@ -91,7 +91,7 @@ Item {
             Text { width: parent.width; wrapMode: Text.WordWrap; color: dlg.ink2; font.family: dlg.uiFont; font.pixelSize: dlg.uiScale * 15
                    text: dlg.offer ? [dlg.updating && dlg.offer.current ? dlg.offer.current + " → " + dlg.offer.version : dlg.offer.version, dlg.sizeText, dlg.offer.sourceName].filter(function(x) { return x }).join("  ·  ") : "" }
             Text { width: parent.width; wrapMode: Text.WordWrap; color: dlg.ink2; font.family: dlg.uiFont; font.pixelSize: dlg.uiScale * 14
-                   text: dlg.updating ? qsTr("Se descarga la versión nueva, se verifica su SHA-256 y se superpone sobre la carpeta actual. Tus partidas y los archivos que el port preparó se conservan. Cierra el juego antes de actualizar.")
+                   text: dlg.updating ? qsTr("Se descarga la versión nueva, se verifica su SHA-256 y se superpone sobre la carpeta actual. Tus partidas y los archivos que el port preparó se conservan; algunos ports rehacen su preparación (compilar el juego, shaders) la primera vez que se abren. Cierra el juego antes de actualizar.")
                                       : qsTr("Se descarga de la release del desarrollador y se verifica su SHA-256 antes de instalarlo. Necesitas tu propia copia del juego: el port te la pedirá al abrirlo.") }
             Text { visible: !dlg.updating; width: parent.width; elide: Text.ElideMiddle; font.family: dlg.uiFont; font.pixelSize: dlg.uiScale * 14
                    color: dlg.root ? dlg.ink2 : "#E8B86D"

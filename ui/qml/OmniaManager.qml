@@ -782,7 +782,7 @@ Item {
         Label {
             width: manager.s * 460; wrapMode: Text.WordWrap
             text: manager.updateGame && manager.updateGame.updateAvailable
-                  ? qsTr("%1: %2 → %3 (%4 MB, %5).\nSe verifica su SHA-256 y se superpone sobre la carpeta actual; tus partidas y los archivos que el port preparó se conservan. Cierra el juego antes de actualizar.")
+                  ? qsTr("%1: %2 → %3 (%4 MB, %5).\nSe verifica su SHA-256 y se superpone sobre la carpeta actual; tus partidas y los archivos que el port preparó se conservan. Algunos ports rehacen su preparación (compilar el juego, shaders) la primera vez que se abren tras actualizar. Cierra el juego antes de actualizar.")
                         .arg(manager.updateGame.name).arg(manager.updateGame.updateAvailable.current || "?").arg(manager.updateGame.updateAvailable.version)
                         .arg(Math.round((manager.updateGame.updateAvailable.sizeBytes || 0) / 1048576)).arg(manager.updateGame.updateAvailable.sourceName || "")
                   : ""
