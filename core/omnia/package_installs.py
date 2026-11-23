@@ -261,7 +261,7 @@ def _unwrap_single_archive(root: Path, scratch: Path, progress, reserve_space=No
 PREVIOUS_DIR = ".omnia-previo"
 
 
-def pick_update(items, installed_id: str, installed_format: str = "", installed_at: str = "") -> dict | None:
+def pick_update(items, installed_id: str, installed_format: str = "", installed_at: str = "", installed_source: str = "") -> dict | None:
     """Paquete más reciente publicado para la misma ficha, si es distinto y más nuevo que el instalado.
 
     Las versiones del catálogo son etiquetas libres: se compara la fecha de publicación (`createdAt`), no el texto.
@@ -270,7 +270,11 @@ def pick_update(items, installed_id: str, installed_format: str = "", installed_
     rows = [i for i in items if isinstance(i, dict) and isinstance(i.get("id"), str) and i.get("platformSlug", "pc") == "pc"]
     current = next((i for i in rows if i["id"] == installed_id), None)
     fmt = installed_format or (current or {}).get("archiveFormat", "")
-    candidates = [i for i in rows if i["id"] != installed_id and (not fmt or i.get("archiveFormat") == fmt)]
+    source = installed_source or (current or {}).get("sourceName", "")
+    # una ficha puede tener varios ports distintos (p. ej. Zelda64Recomp y 2Ship para Majora's Mask): solo cuenta como actualización
+    # una versión nueva del MISMO port, es decir, del mismo repositorio de origen
+    candidates = [i for i in rows if i["id"] != installed_id and (not fmt or i.get("archiveFormat") == fmt)
+                  and (not source or i.get("sourceName") == source)]
     if not candidates:
         return None
     newest = max(candidates, key=lambda i: str(i.get("createdAt") or ""))
@@ -498,7 +502,7 @@ class PackageInstallManager:
         if response.get("offline"):
             raise PackageInstallError("Sin conexión con el catálogo: no se puede actualizar ahora.")
         pick = pick_update(response.get("items", []), str(record["packageId"]), str(record.get("archiveFormat") or ""),
-                           str(record.get("publishedAt") or ""))
+                           str(record.get("publishedAt") or ""), str(record.get("sourceName") or ""))
         if not pick:
             raise PackageInstallError("No hay una versión más nueva publicada.")
         package = self._validate_manifest(pick)
@@ -644,7 +648,8 @@ class PackageInstallManager:
                 if isinstance(item, dict) and item.get("gameId") == game_id:
                     item.update({"packageId": package["id"], "name": package["title"], "version": package["version"],
                                  "entrypoint": str(new_entry), "archiveFormat": package["archiveFormat"],
-                                 "publishedAt": str(package.get("createdAt") or ""), "updatedAt": int(time.time())})
+                                 "publishedAt": str(package.get("createdAt") or ""), "sourceName": str(package["sourceName"]),
+                                 "updatedAt": int(time.time())})
             write_json_atomic(self._file, installed, mode=0o600)
 
     def _set(self, job_id, **fields):
@@ -797,7 +802,8 @@ class PackageInstallManager:
             installed.append({"gameId": game["id"], "packageId": package["id"], "catalogSlug": catalog_slug,
                               "name": package["title"], "version": package["version"], "path": str(final),
                               "entrypoint": str(installed_entry), "installedAt": int(time.time()),
-                              "archiveFormat": package["archiveFormat"], "publishedAt": str(package.get("createdAt") or "")})
+                              "archiveFormat": package["archiveFormat"], "publishedAt": str(package.get("createdAt") or ""),
+                              "sourceName": str(package["sourceName"])})
             write_json_atomic(self._file, installed, mode=0o600)
             self._phase(job_id, "completed", cancel, pause, progress=100, gameId=game["id"], destination=str(final))
             self.on_change()

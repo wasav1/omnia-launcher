@@ -120,6 +120,16 @@ class InstallFlowTests(unittest.TestCase):
         self.assertTrue((exe.parent / "assets/a.txt").is_file())
         self.assertFalse(list(exe.parent.glob("*.tar.gz")))
 
+    def test_archive_with_a_single_root_folder_uses_install_subdir(self):
+        data = make_targz({"BanjoTooie/BanjoTooie": b"bin", "BanjoTooie/assets/a.png": b"x"})
+        state = self.run_install(data, self.manifest(data, "tar.gz", "BanjoTooie", installSubdir="BanjoTooie"), ficha={"data": {}})
+        self.assertEqual(state["status"], "completed", state.get("error"))
+        game = self.store.find_game(state["gameId"])
+        exe = Path(game["ports"][0]["launch"][-1])
+        self.assertEqual((exe.parent.name, exe.name), ("BanjoTooie", "BanjoTooie"))
+        self.assertTrue((exe.parent / "assets/a.png").is_file())
+        self.assertTrue(os.access(exe, os.X_OK))
+
     def test_plain_zip_still_works(self):
         data = make_zip({"juego": b"bin", "datos/x.dat": b"1"})
         state = self.run_install(data, self.manifest(data, "zip", "juego"), ficha={"data": {}})
@@ -167,6 +177,21 @@ class PickUpdateTests(unittest.TestCase):
 
     def test_format_is_taken_from_the_installed_row_when_unknown(self):
         self.assertEqual(package_installs.pick_update(self.rows, "a")["id"], "b")
+
+
+class PickUpdateSourceTests(unittest.TestCase):
+    rows = [{"id": "a", "createdAt": "2026-01-01", "archiveFormat": "zip", "sourceName": "GitHub: o/port-a"},
+            {"id": "b", "createdAt": "2026-06-01", "archiveFormat": "zip", "sourceName": "GitHub: o/port-b"},
+            {"id": "c", "createdAt": "2026-03-01", "archiveFormat": "zip", "sourceName": "GitHub: o/port-a"}]
+
+    def test_another_port_of_the_same_game_is_not_an_update(self):
+        self.assertEqual(package_installs.pick_update(self.rows, "a")["id"], "c")          # solo el mismo repositorio
+        self.assertIsNone(package_installs.pick_update(self.rows[:2], "a"))                # el otro port es más nuevo, pero no es una actualización
+
+    def test_source_comes_from_the_record_when_the_installed_package_was_retired(self):
+        rows = self.rows[1:]
+        self.assertEqual(package_installs.pick_update(rows, "gone", "zip", "2026-02-01", "GitHub: o/port-a")["id"], "c")
+        self.assertIsNone(package_installs.pick_update(rows, "gone", "zip", "2026-02-01", "GitHub: o/otro"))
 
 
 class UpdateFlowTests(InstallFlowTests):

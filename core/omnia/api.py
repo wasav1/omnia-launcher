@@ -665,7 +665,7 @@ class Api:
         record = records.get(g.get("id"), {})
         packages = (self.store.state.get("catalog_packages") or {}).get(slug) or []
         pick = package_installs.pick_update(packages, package_id, str(record.get("archiveFormat") or ""),
-                                            str(record.get("publishedAt") or ""))
+                                            str(record.get("publishedAt") or ""), str(record.get("sourceName") or ""))
         if not pick:
             return None
         return {"slug": slug, "packageId": pick["id"], "title": pick.get("title", ""), "version": pick.get("version", ""),
