@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 
 from . import manual, online_catalog, paths
+from .games import legacy_recomp
 from .store import load_json, write_json_atomic
 
 MAX_PACKAGE_BYTES = 20 * 1024 * 1024 * 1024
@@ -115,8 +116,8 @@ class _PublicHTTPSConnection(http.client.HTTPSConnection):
 
 class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
     def https_open(self, request):
-        return self.do_open(_PublicHTTPSConnection, request, context=self._context,
-                            check_hostname=self._check_hostname)
+        # Python 3.12+ ya no guarda `_check_hostname`: el contexto por defecto verifica certificado y hostname.
+        return self.do_open(_PublicHTTPSConnection, request, context=self._context)
 
 
 class _SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -596,6 +597,10 @@ class PackageInstallManager:
                 log.debug("ficha de %s: %s", detail_slug, exc)
             game = manual.add_game(self.store, {"name": display_name, "kind": kind, "exe": str(installed_entry), "platform": platform}, self.allowed_roots())
             registered_game_id = game["id"]
+            try:
+                legacy_recomp.repair_launch_args(self.store)     # AppRun de un port con descriptor: añade start.args
+            except Exception:
+                log.exception("no se pudo completar el comando de lanzamiento")
             with self.store.lock:
                 games = self.store.games()
                 record = next((g for g in games if g.get("id") == game["id"]), None)

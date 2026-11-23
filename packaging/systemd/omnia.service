@@ -10,6 +10,8 @@ RestartSec=3
 # Los juegos van en scopes propios (systemd-run), no dependen de este servicio.
 NoNewPrivileges=true
 PrivateTmp=true
+# PrivateTmp oculta /tmp/.X11-unix: los juegos que usan X11/XWayland (p. ej. mkw-recomp) abrían sin ventana. Se expone solo ese socket.
+BindReadOnlyPaths=-/tmp/.X11-unix
 ProtectSystem=full
 ProtectKernelTunables=true
 ProtectKernelModules=true

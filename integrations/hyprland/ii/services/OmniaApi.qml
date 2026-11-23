@@ -46,7 +46,8 @@ Singleton {
     signal padConnected(string name, var battery, string family)
 
     function pollPad() {
-        if (!root.padActive || root.token === "") return;
+        if (!root.padActive) return;
+        if (root.token === "") { padRetry.restart(); return; }        // el token aún no cargó (o el núcleo no está): reintenta, no se queda sin escuchar
         const gen = ++root.padGen;
         request("GET", `/events?since=${root.padSeq}&gameSince=${root.padGameRev}&wait=20`, null, (st, d) => {
             if (gen !== root.padGen || !root.padActive) return;
@@ -69,6 +70,7 @@ Singleton {
         });
     }
     property int padGen: 0
+    onTokenChanged: if (padActive && token !== "") { padSeq = -1; pollPad(); }    // token nuevo (p. ej. tras reiniciar omnia-core)
     onPadActiveChanged: { if (padActive) { padSeq = -1; padBaseline = false; pollPad(); } else padGen++; }
     Timer { id: padRetry; interval: 2000; onTriggered: { root.padSeq = -1; root.pollPad(); } }
 

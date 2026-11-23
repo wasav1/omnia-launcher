@@ -10,7 +10,7 @@ from . import __version__, audio, gamemode, importer, online_catalog, pad, paths
 from .api import Api
 from .dbus import DesktopService
 from .games import refresh as games_refresh
-from .games.legacy_recomp import migrate_installed_ports
+from .games.legacy_recomp import migrate_installed_ports, repair_launch_args
 from .games.registry import default_detectors
 from .sessions import Sessions
 from .store import Store, load_json
@@ -308,6 +308,12 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
             log.info("biblioteca: importados %d ports locales desde una instalación previa", migrated_ports)
     except Exception:
         log.exception("no se pudieron importar los ports locales existentes")
+    try:
+        repaired = repair_launch_args(store)
+        if repaired:
+            log.info("biblioteca: corregido el comando de lanzamiento de %d ports (argumentos de su descriptor)", repaired)
+    except Exception:
+        log.exception("no se pudo corregir el comando de lanzamiento de los ports")
     try:
         migrated, size = importer.migrate_legacy_art(store)
         if migrated:

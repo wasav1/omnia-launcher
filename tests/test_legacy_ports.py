@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from omnia.games.legacy_recomp import migrate_installed_ports
+from omnia.games.legacy_recomp import migrate_installed_ports, repair_launch_args, start_args
 from omnia.store import Store
 
 
@@ -59,3 +59,29 @@ class LegacyPortMigration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DescriptorStartArgs(LegacyPortMigration):
+    def descriptor(self, args):
+        (self.port / "recomplauncher.json").write_text(json.dumps({"start": {"program": ["x.AppImage"], "args": args}}))
+
+    def test_start_args_expand_install_and_reject_other_placeholders(self):
+        self.descriptor(["--play", "{install}/Longshot"])
+        self.assertEqual(start_args(self.port), ["--play", f"{self.port}/Longshot"])
+        self.descriptor(["--prepare", "{game}"])
+        self.assertEqual(start_args(self.port), [])
+
+    def test_migration_and_repair_add_args_once(self):
+        self.descriptor(["--play", "{install}/Longshot"])
+        self.write_manifest({"longshot": {"id": "longshot", "name": "Longshot", "path": str(self.port)}})
+        migrate_installed_ports(self.store, [self.source])
+        expected = [str(self.apprun.resolve()), "--play", f"{self.port.resolve()}/Longshot"]
+        self.assertEqual(self.store.games()[0]["ports"][0]["launch"], expected)
+        self.assertEqual(repair_launch_args(self.store), 0)
+
+    def test_repair_fixes_bare_apprun(self):
+        self.descriptor(["--game"])
+        self.store.set_games([{"id": "g", "name": "G", "ports": [{"id": "g-main", "launch": [str(self.apprun)]}]}])
+        self.assertEqual(repair_launch_args(self.store), 1)
+        self.assertEqual(self.store.games()[0]["ports"][0]["launch"], [str(self.apprun), "--game"])
+        self.assertEqual(repair_launch_args(self.store), 0)

@@ -137,3 +137,14 @@ class InstallFlowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublicHTTPSHandlerCompat(unittest.TestCase):
+    def test_https_open_does_not_need_private_handler_attributes(self):
+        from unittest import mock
+        from omnia import package_installs as pi
+        handler = pi._PublicHTTPSHandler()
+        with mock.patch.object(handler, "do_open", return_value="ok") as do_open:
+            self.assertEqual(handler.https_open(object()), "ok")
+        self.assertIs(do_open.call_args.kwargs["context"], handler._context)
+        self.assertTrue(handler._context.check_hostname)

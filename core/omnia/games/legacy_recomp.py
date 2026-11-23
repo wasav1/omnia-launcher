@@ -48,6 +48,49 @@ def _load(path: Path) -> dict:
         return {}
 
 
+def start_args(root) -> list:
+    """Argumentos con los que el descriptor `recomplauncher.json` arranca el juego (`start.args`).
+
+    Sin ellos el `AppRun` de algunos ports abre su constructor o instalador en vez del juego (p. ej. Longshot
+    necesita `--play <carpeta>/Longshot`). Solo se aceptan textos que usen `{install}`; con otros marcadores
+    (`{game}`, `{local}`…) el comando no se puede completar de forma segura y se ignora.
+    """
+    root = Path(root)
+    start = _load(root / "recomplauncher.json").get("start")
+    args = start.get("args") if isinstance(start, dict) else None
+    if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+        return []
+    out = []
+    for arg in args:
+        arg = arg.replace("{install}", str(root))
+        if "{" in arg or "\0" in arg:
+            return []
+        out.append(arg)
+    return out
+
+
+def repair_launch_args(store) -> int:
+    """Añade `start.args` a los ports cuyo `launch` es solo el `AppRun` de una carpeta con descriptor."""
+    fixed = 0
+    with store.lock:
+        games = store.games()
+        for game in games:
+            for port in game.get("ports") or []:
+                launch = port.get("launch")
+                if not isinstance(launch, list) or len(launch) != 1 or not isinstance(launch[0], str):
+                    continue
+                exe = Path(os.path.expanduser(launch[0]))
+                if exe.name != "AppRun":
+                    continue
+                extra = start_args(exe.parent)
+                if extra:
+                    port["launch"] = [launch[0], *extra]
+                    fixed += 1
+        if fixed:
+            store.set_games(games)
+    return fixed
+
+
 def migrate_installed_ports(store, dirs=None) -> int:
     """Importa una vez ports ya instalados y guarda rutas locales directas a AppRun.
 
@@ -114,7 +157,7 @@ def migrate_installed_ports(store, dirs=None) -> int:
             "id": f"recomp-{legacy_id}-main",
             "name": port_name,
             "chips": ["Port nativo"],
-            "launch": [str(executable)],
+            "launch": [str(executable), *(start_args(root) if executable.name == "AppRun" else [])],
             "cwd": str(root),
             "check": str(executable),
             "proc": str(root) + os.sep,
