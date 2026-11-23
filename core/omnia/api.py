@@ -39,6 +39,7 @@ from . import (
 )
 from .events import EventBus
 from .games import refresh as games_refresh
+from . import descriptor
 from .games.base import Detector
 from .store import load_json
 from .themes import accent_for, normalize_theme
@@ -97,6 +98,7 @@ class Api:
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
+            "/folders/open": ("POST", True, self.folder_open),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
             "/view/set": ("POST", True, self.view_set),
@@ -430,6 +432,19 @@ class Api:
             write_json_atomic(config_path, cfg)
         return {"ok": True, "animated_background": enabled}
 
+    def folder_open(self, q):
+        """Abre en el gestor de archivos una carpeta con nombre del descriptor del port (partidas, logs, carpeta del juego…)."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        game, name = self.store.find_game(str(body.get("gameId") or "")), str(body.get("folder") or "")
+        if not game:
+            raise ApiError(404, "juego desconocido")
+        for port in game.get("ports", []):
+            path = self._descriptor_info(game, port).get("folders", {}).get(name)
+            if path and os.path.isdir(path) and self._allowed(path):
+                self.open_fn(path)
+                return {"ok": True}
+        raise ApiError(404, "esa carpeta no existe")
+
     def settings_update_check(self, q):
         """Activa o desactiva el aviso de «Actualización disponible» de los ports instalados."""
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -613,7 +628,8 @@ class Api:
                     port_rows.append({"id": p["id"], "name": p["name"], "running": running,
                                       "chips": [_library_label(label, language) for label in (p.get("chips") or [])],
                                       "description": _library_label(p.get("s", ""), language),
-                                      "canLaunch": installed, "canBackup": bool(p.get("saves"))})
+                                      "canLaunch": installed, "canBackup": bool(p.get("saves")) or bool(self._descriptor_info(g, p).get("spec"))})
+                desc = next((i for i in (self._descriptor_info(g, p) for p, _ in ports) if i), {})
                 session = (self.store.state.get("sessions") or {}).get(g["id"]) or {}
                 btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
@@ -629,6 +645,8 @@ class Api:
                             "ports": port_rows, "folder": self._folder(ports), "romCopy": merged_copies["by_primary"].get(g["id"]),
                             "portAvailable": self._port_available(g, installed_slugs),
                             "updateAvailable": self._update_available(g, install_records),
+                            "folderActions": desc.get("actions", []), "requirements": desc.get("requirements", []),
+                            "lastExit": (self.store.state.get("last_exit") or {}).get(g["id"]),
                             "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
@@ -696,8 +714,12 @@ class Api:
                                      for r in roms_ports):
                 continue                                           # una ROM con emulador posible se mantiene como entrada propia
             hidden.add(g["id"])
-            by_primary.setdefault(primaries[slug_of(g)]["id"], {"name": g["name"], "path": roms_ports[0].get("path", ""), "id": g["id"],
-                                                                       "buildId": roms_ports[0].get("buildId", "")})
+            primary = primaries[slug_of(g)]
+            copy = {"name": g["name"], "path": roms_ports[0].get("path", ""), "id": g["id"], "buildId": roms_ports[0].get("buildId", "")}
+            info = next((i for i in (self._descriptor_info(primary, port) for port in primary.get("ports", [])) if i), {})
+            if descriptor.build_id_prefixes(info.get("data") or {}):
+                copy["compat"] = descriptor.compatibility(info["data"], copy["buildId"])       # ok | mismatch | unknown (un .nup no se lee)
+            by_primary.setdefault(primary["id"], copy)
         return {"hidden": hidden, "by_primary": by_primary}
 
     @staticmethod
@@ -800,13 +822,37 @@ class Api:
                 self.store.set_games(games)
         # Steam/Lutris/Heroic suelen delegar el juego a un cliente ya abierto; el entorno de
         # este proceso no llega al juego. Los ejecutables directos sí se envuelven con MangoHud.
+        with self.store.lock:
+            self.store.state.get("last_exit", {}).pop(g["id"], None)             # un aviso de cierre del intento anterior ya no vale
         if g.get("auto") not in {"steam", "lutris", "heroic"} and g.get("src") not in {"Steam", "Lutris", "Heroic"}:
             env = self._mangohud_env()
-            if env: self.launch_fn(p, g["id"], env=env)
-            else: self.launch_fn(p, g["id"])
+            proc = self.launch_fn(p, g["id"], env=env) if env else self.launch_fn(p, g["id"])
         else:
-            self.launch_fn(p, g["id"])
+            proc = self.launch_fn(p, g["id"])
+        self._watch_exit(g, p, proc)
         return {"ok": True}
+
+    def _watch_exit(self, g, p, proc):
+        """Si el port declara `exit_codes` en su descriptor, guarda el mensaje que corresponde al código con que cerró el juego
+        (p. ej. «no encontró tu copia») para mostrarlo en su ficha. Un código «ok» o 0 no es un aviso."""
+        if not hasattr(proc, "wait") or not callable(proc.wait):
+            return
+        data = self._descriptor_info(g, p).get("data") or {}
+        if not isinstance(data.get("exit_codes"), dict):
+            return
+
+        def run():
+            try:
+                code = proc.wait()
+            except Exception:
+                return
+            message = descriptor.exit_message(data, code)
+            if code and message and message != "ok":
+                with self.store.lock:
+                    self.store.state.setdefault("last_exit", {})[g["id"]] = {"code": int(code), "message": message, "t": int(time.time())}
+                    self.store.save_state()
+                self.bus.games_changed()
+        threading.Thread(target=run, name="omnia-exit-watch", daemon=True).start()
 
     # --- aplicaciones (Big Menu)
     def _fav_ids(self) -> list:
@@ -941,11 +987,38 @@ class Api:
             raise ApiError(404, "juego desconocido")
         return g, p or {}
 
+    def _descriptor_info(self, g, p) -> dict:
+        """Datos del `recomplauncher.json` de un port instalado (partidas, carpetas, copia aceptada y requisitos), ya filtrados a
+        las carpetas permitidas. {} si el juego no tiene descriptor. Se guarda en caché según la fecha del archivo."""
+        root = descriptor.find_root(g, p)
+        if not root:
+            return {}
+        try:
+            stamp = (root / descriptor.NAME).stat().st_mtime_ns
+        except OSError:
+            return {}
+        cache = self.__dict__.setdefault("_descriptor_cache", {})
+        hit = cache.get(str(root))
+        if hit and hit[0] == stamp and time.monotonic() - hit[2] < 20:
+            return hit[1]
+        data = descriptor.load(root)
+        ok = lambda path: bool(path) and self._allowed(path)
+        spec = descriptor.saves_spec(root, data)
+        spec = {k: ([x for x in v if ok(x)] if isinstance(v, list) else v) for k, v in spec.items()}
+        if not spec.get("files") and not spec.get("dirs"):
+            spec = {}
+        named = {name: path for name, path in descriptor.folders(root, data).items() if ok(path)}
+        info = {"root": str(root), "data": data, "spec": spec, "folders": named,
+                "actions": [a for a in descriptor.actions(root, data) if a["folder"] in named],
+                "requirements": descriptor.requirements(data)}
+        cache[str(root)] = (stamp, info, time.monotonic())
+        return info
+
     def _saves_cfg(self, g, p):
         """Dónde están las partidas y a dónde van los respaldos. Lo que el usuario eligió manda sobre lo de la biblioteca;
         va aparte (state) para que sobreviva a que la biblioteca se regenere (Steam, Heroic, Lutris)."""
         ov = (self.store.state.get("saves") or {}).get(g["id"]) or {}
-        spec = ov.get("spec") or p.get("saves") or {}
+        spec = ov.get("spec") or p.get("saves") or self._descriptor_info(g, p).get("spec") or {}
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", g.get("name", g["id"])).strip("-") or g["id"]
         dest = ov.get("backup_dir") or p.get("backup_dir") or os.path.join(os.path.expanduser(self.backup_root), slug)
         return spec, dest, slug

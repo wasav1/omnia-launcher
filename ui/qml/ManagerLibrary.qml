@@ -302,6 +302,31 @@ Item {
                     width: parent.width; wrapMode: Text.WrapAnywhere; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 13
                     text: page.g && page.g.romCopy ? qsTr("Tu copia del juego: %1").arg(page.g.romCopy.path) + (page.g.romCopy.buildId ? "  ·  build " + page.g.romCopy.buildId.substring(0, 12) : "") : ""
                 }
+                Text {      // ¿la copia es la versión que acepta el port? (build ID del exefs/main contra el descriptor del port)
+                    visible: !!page.g && !!page.g.romCopy && !!page.g.romCopy.compat
+                    width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
+                    readonly property string st: page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.state : ""
+                    color: st === "ok" ? "#7fd69f" : (st === "mismatch" ? "#e8a24b" : manager.muted)
+                    text: st === "ok" ? qsTr("Es la versión que acepta este port.")
+                        : (st === "mismatch" ? qsTr("Esta copia es de otra versión (build %1); el port espera %2.").arg((page.g.romCopy.compat.found || "").substring(0, 8)).arg(page.g.romCopy.compat.expected.join(", "))
+                        : qsTr("No se pudo comprobar la versión de esta copia (un archivo .nup no se lee todavía); el port espera el build %1.").arg(page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.expected.join(", ") : ""))
+                }
+                Rectangle {      // el port cerró con un código que él mismo explica (exit_codes de su descriptor)
+                    visible: !!page.g && !!page.g.lastExit
+                    width: parent.width; height: exitNote.implicitHeight + ml.s * 20; radius: ml.s * 10; color: "#3A2A1E"; border.color: "#8A5A2F"
+                    Text { id: exitNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 14 }
+                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14
+                        text: page.g && page.g.lastExit ? qsTr("La última vez, el juego se cerró con este aviso: %1").arg(page.g.lastExit.message) : "" }
+                }
+                Text {      // requisitos que declara el port (glibc, Vulkan…) y si este PC los cumple
+                    visible: !!page.g && !!page.g.requirements && page.g.requirements.length > 0
+                    width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
+                    readonly property var bad: page.g && page.g.requirements ? page.g.requirements.filter(function(r) { return r.ok === false }) : []
+                    color: bad.length > 0 ? "#e8a24b" : manager.muted
+                    text: page.g && page.g.requirements
+                          ? qsTr("Requisitos: %1").arg(page.g.requirements.map(function(r) { return r.label + " " + r.need + (r.ok === false ? " ✗ (este PC: " + r.have + ")" : (r.ok === true ? " ✓" : "")) }).join("  ·  "))
+                            + (bad.length > 0 ? "  " + qsTr("El juego puede no arrancar.") : "") : ""
+                }
             }
             // Partidas
             Column {
@@ -322,6 +347,22 @@ Item {
                                     if (sb.modelData.k === "backup") api.savesBackup(page.g, function(st, b) { api.notify(st === 200 ? qsTr("Respaldo creado.") : ((b && b.error) || qsTr("No se pudo respaldar."))) })
                                     else api.savesOpen(page.g, function() { })
                                 } }
+                        }
+                    }
+                }
+                Row {       // carpetas que declara el port (partidas, logs, carpeta del juego…)
+                    visible: !!page.g && !!page.g.folderActions && page.g.folderActions.length > 0
+                    spacing: ml.s * 10
+                    Repeater {
+                        model: page.g && page.g.folderActions ? page.g.folderActions : []
+                        delegate: Rectangle {
+                            id: fb
+                            required property var modelData
+                            width: fbText.implicitWidth + ml.s * 40; height: ml.s * 42; radius: ml.s * 10; color: manager.surface2
+                            Text { id: fbText; anchors.centerIn: parent; text: fb.modelData.label; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14 }
+                            MouseArea { id: fbMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                                onClicked: api.openFolder(page.g.id, fb.modelData.folder, function(st, b) { if (st !== 200) api.notify((b && b.error) || qsTr("No se pudo abrir la carpeta.")) }) }
+                            ToolTip.visible: fbMa.containsMouse && fb.modelData.help !== ""; ToolTip.text: fb.modelData.help
                         }
                     }
                 }
