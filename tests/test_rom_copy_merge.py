@@ -51,6 +51,19 @@ class NupCopyMergeTests(unittest.TestCase):
         listed = self.games(self.rom_game(self.rom, "rom-2"))
         self.assertEqual({g["id"] for g in listed}, {"recomp-longshot", "rom-2"})
 
+    def test_port_available_when_the_ficha_has_a_package_and_no_port_is_installed(self):
+        self.store.set_games([self.rom_game(self.nup, "rom-1", slug="mario-kart-world")])
+        self.store.state["catalog_platforms"] = {"mario-kart-world": ["switch2"]}
+        self.assertIsNone(self.api.library({})["games"][0]["portAvailable"])                  # aún sin paquetes conocidos
+        self.store.state["catalog_packages"] = {"mario-kart-world": [{"id": "0" * 36, "title": "mkw-recomp", "version": "v1", "sizeBytes": 5,
+                                                                      "licenseName": "MIT", "sourceName": "GitHub: a/b"}]}
+        offer = self.api.library({})["games"][0]["portAvailable"]
+        self.assertEqual((offer["slug"], offer["packageId"], offer["licenseName"], offer["count"]), ("mario-kart-world", "0" * 36, "MIT", 1))
+        self.store.set_games([self.rom_game(self.nup, "rom-1", slug="mario-kart-world"),
+                              {"id": "inst", "name": "MKW", "platform": "sw2", "catalogSlug": "mario-kart-world", "installPackageId": "x", "ports": []}])
+        listed = {g["id"]: g for g in self.api.library({})["games"]}
+        self.assertIsNone(listed["rom-1"]["portAvailable"])                                   # ya instalado: no se vuelve a ofrecer
+
     def test_other_fichas_are_not_merged(self):
         listed = self.games(self.rom_game(self.nup, "rom-3", slug="otra-ficha"))
         self.assertEqual({g["id"] for g in listed}, {"recomp-longshot", "rom-3"})

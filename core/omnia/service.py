@@ -116,6 +116,41 @@ def rom_identifier_index(store) -> dict:
     return index
 
 
+PACKAGE_RECHECK_SECS = 6 * 60 * 60
+
+
+def refresh_packages(store, slug: str, retry_at: dict, bus=None) -> bool:
+    """Guarda los paquetes instalables publicados de una ficha (solo lo que la interfaz muestra); True si cambiaron.
+
+    Se consulta cada 6 h por ficha y, si falla (sin red), a la hora. Es lo que permite marcar «Port disponible» sin
+    preguntar al catálogo en cada refresco de la biblioteca."""
+    now = time.time()
+    checked = store.state.get("catalog_packages_checked") or {}
+    if now - int(checked.get(slug, 0) or 0) < PACKAGE_RECHECK_SECS or now < retry_at.get(slug, 0):
+        return False
+    try:
+        body = online_catalog.list_install_packages(slug)
+    except online_catalog.CatalogError as e:
+        log.debug("paquetes de %s: %s", slug, e)
+        retry_at[slug] = now + 60 * 60
+        return False
+    if body.get("offline"):
+        retry_at[slug] = now + 60 * 60
+        return False
+    rows = [{"id": i["id"], "title": i.get("title", ""), "version": i.get("version", ""), "sizeBytes": i.get("sizeBytes", 0),
+             "archiveFormat": i.get("archiveFormat", ""), "licenseName": i.get("licenseName", ""), "sourceName": i.get("sourceName", "")}
+            for i in body.get("items", []) if isinstance(i, dict) and i.get("platformSlug") == "pc" and isinstance(i.get("id"), str)]
+    with store.lock:
+        packages = store.state.setdefault("catalog_packages", {})
+        changed = packages.get(slug) != rows
+        packages[slug] = rows
+        store.state.setdefault("catalog_packages_checked", {})[slug] = int(now)
+        store.save_state()
+    if changed and bus:
+        bus.games_changed()
+    return changed
+
+
 def sync_steam_art(game, retry_at: dict) -> bool:
     """Descarga a la caché el arte público de Steam (portada, banner, logo) de un juego de Steam; True si bajó alguna imagen.
 
@@ -141,10 +176,15 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
         checked = store.state.get("catalog_art_checked") or {}
         for known in [k for k in checked if not (store.state.get("catalog_art") or {}).get(k)]:
             checked.pop(known, None)
+    with store.lock:        # fichas sin paquetes (aún no publicados): se vuelven a consultar al arrancar
+        pk_checked = store.state.get("catalog_packages_checked") or {}
+        for known in [k for k in pk_checked if not (store.state.get("catalog_packages") or {}).get(k)]:
+            pk_checked.pop(known, None)
     scan_at = 0.0
     seen_revision = -1
     catalog_retry_at = {}
     steam_retry_at = {}
+    package_retry_at = {}
     link_at = 0.0
     while not stop.is_set():
         now = time.monotonic()
@@ -206,6 +246,8 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
                     except online_catalog.CatalogError as e:
                         log.debug("arte del catálogo para %s: %s", g.get("name"), e)
                         catalog_retry_at[catalog_slug] = time.time() + 60 * 60
+            if catalog_slug:
+                refresh_packages(store, catalog_slug, package_retry_at, bus)
             stop.wait(pause)
         else:
             stop.wait(pause if pending else 30)

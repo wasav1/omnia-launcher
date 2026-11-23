@@ -141,6 +141,15 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — «Port disponible» (fase 2 del plan de instalación de ports):** 
+  Núcleo: `package_installs` admite el formato `appimage` (un solo archivo que pasa a ser el punto de entrada) y desempaqueta un `.tar.gz`/`.tar.xz` único dentro de un zip
+  (Zelda64Recomp). **Corrección:** el flujo hacía `shutil.rmtree(archive)` sobre un archivo (`NotADirectoryError`), así que ninguna instalación real terminaba; ahora `archive.unlink`.
+  El juego instalado se llama como su ficha y cuelga de su consola original (`online_catalog.local_platform_for`; p. ej. Mario Kart World → Switch 2) y lleva `variant` con el repo del port.
+  `service.refresh_packages` guarda en `state["catalog_packages"]` los paquetes publicados de cada ficha enlazada (cada 6 h; al arrancar se reconsultan las fichas sin paquetes) y `/library`
+  añade `portAvailable` a los volcados/ROMs enlazados a una ficha con paquete cuyo port aún no está instalado. Interfaz: BigMode (`OmniaPortInstall.qml`: paquete, versión, tamaño, fuente, aceptar licencia,
+  destino = carpeta de instalación predeterminada; mando/ratón/teclado; insignia «Port disponible» en la tarjeta, botón «Instalar port» y entrada en el menú contextual) y app de escritorio
+  (botón «Instalar port» en la página del juego → ficha del catálogo con su paquete; `localMatch` ya no toma por instalado un juego con `portAvailable`). Pruebas: `tests/test_package_installs.py`
+  (AppImage, zip con tar interno, zip normal, SHA-256 incorrecto), `test_rom_copy_merge.py` y `test_catalog_search_link.py`. Requiere tener fijada la carpeta de instalación (Ajustes → General).
 - **2026-11-23 — Un solo Zelda: el volcado `.nup` se une al port del mismo juego:** `Api._rom_copies` oculta de `/library` un volcado `.nup` (que ningún emulador puede ejecutar) cuando
   su ficha del catálogo coincide con la de otro juego cuyo port se ve en la biblioteca; ese juego principal lleva `romCopy` ({id, name, path}: «tu copia»). Sin port, el volcado
   sigue visible; una ROM que un emulador sí puede ejecutar (p. ej. N64) se mantiene como entrada propia. Pruebas: `tests/test_rom_copy_merge.py`.

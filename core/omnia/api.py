@@ -563,6 +563,7 @@ class Api:
             language = "es"
         games = list(self.store.games())
         merged_copies = self._rom_copies(games, config)
+        installed_slugs = {x.get("catalogSlug") for x in games if x.get("installPackageId") and x.get("catalogSlug")}
         for g in games:
             if g["id"] in merged_copies["hidden"]:
                 continue                                          # volcado que solo es la copia de un juego que ya aparece (ver _rom_copies)
@@ -595,11 +596,28 @@ class Api:
                             "lastBackup": int(btime or 0), "lastPlayed": snap["lastPlayed"], "totalSecs": snap["totalSecs"],
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
                             "ports": port_rows, "folder": self._folder(ports), "romCopy": merged_copies["by_primary"].get(g["id"]),
+                            "portAvailable": self._port_available(g, installed_slugs),
                             "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
         return {"games": out, "revision": revision, "unchanged": False}
+
+    def _port_available(self, g, installed_slugs) -> dict | None:
+        """«Port disponible»: un volcado/ROM enlazado a una ficha que tiene un paquete publicado y cuyo port aún no está instalado."""
+        slug = g.get("catalogSlug", "")
+        if g.get("auto") != "roms" or not slug or slug in installed_slugs:
+            return None
+        state = self.store.state
+        if not online_catalog.platform_compatible(g.get("platform"), (state.get("catalog_platforms") or {}).get(slug)):
+            return None
+        packages = (state.get("catalog_packages") or {}).get(slug) or []
+        if not packages:
+            return None
+        pick = packages[0]
+        return {"slug": slug, "packageId": pick["id"], "title": pick.get("title", ""), "version": pick.get("version", ""),
+                "sizeBytes": pick.get("sizeBytes", 0), "licenseName": pick.get("licenseName", ""), "sourceName": pick.get("sourceName", ""),
+                "count": len(packages)}
 
     def _rom_copies(self, games, config) -> dict:
         """Une un volcado `.nup` (que ningún emulador puede ejecutar) con el port del mismo juego: no aparecen dos entradas.

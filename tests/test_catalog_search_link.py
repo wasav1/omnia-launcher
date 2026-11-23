@@ -44,6 +44,26 @@ class SearchCandidatesTests(unittest.TestCase):
         self.assertEqual(service.auto_link_catalog(self.store, items), 1)
         self.assertEqual(self.store.games()[0]["catalogSlug"], "ocarina-sw2")
 
+    def test_refresh_packages_keeps_only_pc_packages_and_rechecks_later(self):
+        pkg = {"id": "a" * 36, "title": "Port", "version": "v1", "sizeBytes": 10, "archiveFormat": "appimage", "licenseName": "MIT",
+               "sourceName": "GitHub: o/r", "platformSlug": "pc", "sourceUrl": "https://x"}
+        body = {"items": [pkg, {**pkg, "id": "b" * 36, "platformSlug": "switch"}], "offline": False}
+        retry = {}
+        with mock.patch.object(online_catalog, "list_install_packages", return_value=body) as listing:
+            self.assertTrue(service.refresh_packages(self.store, "mario-kart-world", retry))
+            self.assertFalse(service.refresh_packages(self.store, "mario-kart-world", retry))        # reciente: no vuelve a consultar
+            self.assertEqual(listing.call_count, 1)
+        rows = self.store.state["catalog_packages"]["mario-kart-world"]
+        self.assertEqual([r["id"] for r in rows], ["a" * 36])
+        self.assertNotIn("sourceUrl", rows[0])                                                      # solo lo que muestra la interfaz
+
+    def test_refresh_packages_survives_offline(self):
+        retry = {}
+        with mock.patch.object(online_catalog, "list_install_packages", return_value={"items": [], "offline": True}):
+            self.assertFalse(service.refresh_packages(self.store, "x", retry))
+        self.assertGreater(retry["x"], 0)
+        self.assertNotIn("x", self.store.state.get("catalog_packages") or {})
+
     def test_survives_a_catalog_error(self):
         with mock.patch.object(online_catalog, "list_games", side_effect=online_catalog.CatalogError("sin red")):
             items = service.search_candidates(self.store, [{"slug": "otra"}])

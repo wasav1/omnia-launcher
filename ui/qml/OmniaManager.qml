@@ -123,11 +123,15 @@ Item {
         }, {id: game.id, slug: ""})
         else if (act === "remove") { unlinkGameId = game.id; unlinkGameDialog.open() }
     }
+    function installPortFor(game) {         // «Port disponible»: abre la ficha del catálogo con su paquete, licencia y botón Instalar
+        if (!game || !game.portAvailable) return
+        openCatalogDetail({slug: game.portAvailable.slug, name: game.name, description: game.description})
+    }
     function gameById(id) { return api.games.find(g => g.id === id) || null }
     function localMatch(remote) {
         if (!remote) return null
         const slug = String(remote.slug || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-        return api.games.find(g => g.catalogSlug === remote.slug || g.id === slug || String(g.id).endsWith("-" + slug)) || null
+        return api.games.find(g => !g.portAvailable && (g.catalogSlug === remote.slug || g.id === slug || String(g.id).endsWith("-" + slug))) || null
     }
     function launch(game) {
         if (!game || !game.ports || !game.ports.length) return

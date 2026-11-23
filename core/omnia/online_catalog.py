@@ -169,6 +169,15 @@ LOCAL_TO_CATALOG = {
 }
 
 
+def local_platform_for(catalog_platforms) -> str:
+    """Plataforma local de Omnia para las plataformas de una ficha del catálogo (la más específica; «pc» si no hay otra)."""
+    known = {str(p).lower() for p in (catalog_platforms or []) if p}
+    for local in ("sw2", "sw1", "n64", "nes", "snes", "gba", "nds", "ps1", "ps2", "gcwii", "dreamcast", "xbox", "pc"):
+        if LOCAL_TO_CATALOG[local] & known:
+            return local
+    return "pc"
+
+
 def platform_compatible(local_platform: str, catalog_platforms) -> bool:
     """False solo si ambas plataformas se conocen y no coinciden; con datos incompletos no se bloquea."""
     allowed = LOCAL_TO_CATALOG.get(str(local_platform or "").lower())

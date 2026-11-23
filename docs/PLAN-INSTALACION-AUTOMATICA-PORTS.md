@@ -140,3 +140,7 @@ La ficha `mario-kart-world` (Switch 2) ya existía en el catálogo con tres mód
 - **`MIXIDtheSilly/kart-recomp`** (GPL-3.0): release con tar.gz de Linux, pero su launcher **compila el juego en tu equipo** (~30 min, necesita compilador, Python y SDL3). Queda fuera por ahora
   (equivale a un paso de preparación); posible fase 4.
 - **`STS78721/MKW-THWOMP`** (MIT): solo Windows → fuera (decisión «solo Linux»).
+
+## 10. Avance (2026-11-23): fase 2 (cliente) hecha
+Paquetes publicados en producción (Zelda64Recomp, Starship, mkw-recomp; migraciones 0006 y 0007 aplicadas). Cliente: formatos `appimage` y zip con tar interno, nombre y consola del juego instalado desde su ficha,
+`portAvailable` en `/library` e interfaz (BigMode y escritorio). Pendiente: probar de punta a punta con tu `.nup` de Mario Kart World (descarga de 225 MB), mostrar «tu copia» en la ficha, y la fase 3 (actualizaciones).

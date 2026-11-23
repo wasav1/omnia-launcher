@@ -32,7 +32,7 @@ MAX_ARCHIVE_ITEMS = 200_000
 MIN_FREE_MARGIN = 32 * 1024 * 1024
 MAX_FREE_MARGIN = 256 * 1024 * 1024
 CHUNK = 1024 * 1024
-FORMATS = {"zip", "tar.gz", "tar.xz"}
+FORMATS = {"zip", "tar.gz", "tar.xz", "appimage"}
 
 
 class PackageInstallError(Exception):
@@ -230,6 +230,31 @@ def _extract_tar(archive: Path, stage: Path, mode: str, progress, reserve_space=
             else:
                 raise PackageInstallError("El paquete TAR incluye enlaces o archivos especiales.")
             progress(75 + int(20 * extracted / max(1, total)))
+
+
+_INNER_TAR_MODES = {".tar.gz": "r:gz", ".tgz": "r:gz", ".tar.xz": "r:xz", ".txz": "r:xz"}
+
+
+def _inner_tar_mode(name: str):
+    lower = name.lower()
+    return next((mode for suffix, mode in _INNER_TAR_MODES.items() if lower.endswith(suffix)), None)
+
+
+def _unwrap_single_archive(root: Path, scratch: Path, progress, reserve_space=None, consume_space=None) -> bool:
+    """Si el paquete extraído es solo un .tar.gz/.tar.xz (como el zip de Zelda64Recomp), lo descomprime en su lugar.
+
+    Usa la misma extracción segura (sin enlaces ni rutas fuera del destino). Devuelve True si hubo archivo interno."""
+    entries = list(root.iterdir())
+    if len(entries) != 1 or not entries[0].is_file() or entries[0].is_symlink() or _inner_tar_mode(entries[0].name) is None:
+        return False
+    inner = entries[0]
+    target = scratch / "inner"
+    target.mkdir(mode=0o700)
+    _extract_tar(inner, target, _inner_tar_mode(inner.name), progress, reserve_space, consume_space)
+    inner.unlink()
+    shutil.rmtree(root)
+    os.replace(target, root)
+    return True
 
 
 class PackageInstallManager:
@@ -529,13 +554,22 @@ class PackageInstallManager:
                 self._set(job_id, progress=value)
             extract_root = stage / "contents"
             extract_root.mkdir(mode=0o700)
-            if package["archiveFormat"] == "zip":
-                _extract_zip(archive, extract_root, extraction_progress, reserve_expanded_space,
-                             lambda amount: self._consume_space(job_id, amount))
+            if package["archiveFormat"] == "appimage":
+                # Un AppImage es el programa tal cual: se coloca como punto de entrada (sin extraer nada).
+                single = _target_path(extract_root, (package["installSubdir"] + "/" if package["installSubdir"] else "") + package["entrypoint"])
+                single.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(archive, single)
+                extraction_progress(95)
             else:
-                _extract_tar(archive, extract_root, "r:gz" if package["archiveFormat"] == "tar.gz" else "r:xz",
-                             extraction_progress, reserve_expanded_space,
-                             lambda amount: self._consume_space(job_id, amount))
+                if package["archiveFormat"] == "zip":
+                    _extract_zip(archive, extract_root, extraction_progress, reserve_expanded_space,
+                                 lambda amount: self._consume_space(job_id, amount))
+                else:
+                    _extract_tar(archive, extract_root, "r:gz" if package["archiveFormat"] == "tar.gz" else "r:xz",
+                                 extraction_progress, reserve_expanded_space,
+                                 lambda amount: self._consume_space(job_id, amount))
+                _unwrap_single_archive(extract_root, stage, extraction_progress, reserve_expanded_space,
+                                       lambda amount: self._consume_space(job_id, amount))
             self._pause_point(job_id, cancel, pause)
             self._phase(job_id, "finalizing", cancel, pause)
             subdir = extract_root.joinpath(*PurePosixPath(package["installSubdir"]).parts) if package["installSubdir"] else extract_root
@@ -544,13 +578,23 @@ class PackageInstallManager:
                 raise PackageInstallError("El punto de entrada declarado no está dentro del paquete.")
             if entry.suffix.lower() != ".exe":
                 entry.chmod(entry.stat().st_mode | 0o111)
-            shutil.rmtree(archive)
+            archive.unlink(missing_ok=True)
             shutil.rmtree(stage / "contents" / "__pycache__", ignore_errors=True)
             os.replace(extract_root, final)
             final_created = True
             installed_entry = final.joinpath(*PurePosixPath(package["installSubdir"]).parts, *PurePosixPath(package["entrypoint"]).parts)
             kind = "windows" if installed_entry.suffix.lower() == ".exe" else "native"
-            game = manual.add_game(self.store, {"name": package["title"], "kind": kind, "exe": str(installed_entry), "platform": "pc"}, self.allowed_roots())
+            display_name, platform = package["title"], "pc"
+            with self._lock:
+                detail_slug = self._jobs[job_id]["slug"]
+            try:                                                # el juego se llama como su ficha y cuelga de su consola original
+                data = (online_catalog.game_detail(detail_slug).get("data") or {})
+                if isinstance(data.get("name"), str) and data["name"].strip():
+                    display_name = data["name"].strip()[:80]
+                platform = online_catalog.local_platform_for([p.get("slug") for p in data.get("platforms") or [] if isinstance(p, dict)])
+            except Exception as exc:                            # sin red o ficha rara: se conserva el título del paquete
+                log.debug("ficha de %s: %s", detail_slug, exc)
+            game = manual.add_game(self.store, {"name": display_name, "kind": kind, "exe": str(installed_entry), "platform": platform}, self.allowed_roots())
             registered_game_id = game["id"]
             with self.store.lock:
                 games = self.store.games()
@@ -558,8 +602,10 @@ class PackageInstallManager:
                 if record:
                     with self._lock:
                         catalog_slug = self._jobs[job_id]["slug"]
+                    source = str(package["sourceName"])
                     record.update({"catalogSlug": catalog_slug, "installPackageId": package["id"],
-                                   "installPath": str(final), "installVersion": package["version"], "src": "Omnia"})
+                                   "installPath": str(final), "installVersion": package["version"], "src": "Omnia",
+                                   "variant": (source.split("/")[-1] if source.startswith("GitHub:") else package["title"])[:60]})
                     self.store.set_games(games)
             installed = self.installed()
             installed.append({"gameId": game["id"], "packageId": package["id"], "catalogSlug": catalog_slug,

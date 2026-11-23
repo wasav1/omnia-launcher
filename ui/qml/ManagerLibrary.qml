@@ -137,7 +137,7 @@ Item {
                         Rectangle { anchors.fill: parent; radius: ml.s * 6; color: manager.surface2 }
                         FadedImage { anchors.fill: parent; source: row.g.portada || ""; cornerRadius: ml.s * 6 }
                     }
-                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : ""); elide: Text.ElideRight
+                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : ""); elide: Text.ElideRight
                         color: row.g.hidden ? manager.muted : manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: row.on ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.selId = row.g.id; onDoubleClicked: manager.launch(row.g) }
@@ -209,12 +209,15 @@ Item {
                 anchors { left: parent.left; leftMargin: ml.s * 32; verticalCenter: parent.verticalCenter }
                 spacing: ml.s * 22
                 Rectangle {
-                    width: ml.s * 170; height: ml.s * 48; radius: ml.s * 10
-                    color: page.g && page.g.running ? manager.surface2 : "#2E8B57"
+                    readonly property bool offer: !!page.g && !!page.g.portAvailable
+                    width: ml.s * 190; height: ml.s * 48; radius: ml.s * 10
+                    color: offer ? manager.accent : (page.g && page.g.running ? manager.surface2 : "#2E8B57")
                     Row { anchors.centerIn: parent; spacing: ml.s * 8
-                        LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: ml.s * 18; height: width; name: "play"; color: "white" }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: page.g && page.g.running ? qsTr("Jugando") : qsTr("Jugar"); color: "white"; font.family: ml.font; font.pixelSize: ml.s * 18; font.weight: Font.DemiBold } }
-                    MouseArea { anchors.fill: parent; enabled: !!page.g && !page.g.running; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.launch(page.g) }
+                        LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: ml.s * 18; height: width; name: parent.parent.offer ? "download" : "play"; color: "white" }
+                        Text { anchors.verticalCenter: parent.verticalCenter; color: "white"; font.family: ml.font; font.pixelSize: ml.s * 18; font.weight: Font.DemiBold
+                               text: parent.parent.offer ? qsTr("Instalar port") : (page.g && page.g.running ? qsTr("Jugando") : qsTr("Jugar")) } }
+                    MouseArea { anchors.fill: parent; enabled: parent.offer || (!!page.g && !page.g.running); cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: parent.offer ? manager.installPortFor(page.g) : manager.launch(page.g) }
                 }
                 Column { anchors.verticalCenter: parent.verticalCenter; spacing: ml.s * 2
                     Text { text: qsTr("Última sesión"); color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 12 }
@@ -256,6 +259,13 @@ Item {
             Column {
                 visible: ml.tab === "summary"
                 width: parent.width; spacing: ml.s * 14
+                Rectangle {      // port disponible
+                    visible: !!page.g && !!page.g.portAvailable
+                    width: parent.width; height: portNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#1F2F44"; border.color: "#3B6A99"
+                    Text { id: portNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
+                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
+                        text: page.g && page.g.portAvailable ? qsTr("Port disponible: %1 · %2 · licencia %3. Detectamos tu copia del juego; pulsa «Instalar port» para descargarlo y verificarlo.").arg(page.g.portAvailable.title).arg(page.g.portAvailable.version).arg(page.g.portAvailable.licenseName) : "" }
+                }
                 Text { width: parent.width; text: page.g && page.g.description ? page.g.description : qsTr("Sin descripción disponible."); wrapMode: Text.WordWrap; color: manager.muted
                     font.family: ml.font; font.pixelSize: ml.s * 16; lineHeight: 1.25; maximumLineCount: 6; elide: Text.ElideRight }
                 Row {

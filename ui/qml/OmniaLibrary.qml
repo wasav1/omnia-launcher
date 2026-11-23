@@ -53,7 +53,8 @@ Item {
     function menuItems(g) {
         if (!g) return []
         const out = []
-        if (!g.running) out.push({ key: "play", label: qsTr("Jugar"), icon: "play" })
+        if (g.portAvailable) out.push({ key: "port", label: qsTr("Instalar port"), icon: "download" })
+        else if (!g.running) out.push({ key: "play", label: qsTr("Jugar"), icon: "play" })
         out.push({ key: "details", label: qsTr("Detalles"), icon: "info" })
         out.push({ key: "fav", label: g.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos"), icon: "star" })
         out.push({ key: "saves", label: qsTr("Abrir carpeta de partidas"), icon: "folder-open" })
@@ -72,12 +73,18 @@ Item {
     function menuAction(key) {
         const g = menuGame
         if (!g) return
-        if (key === "play") play(g)
+        if (key === "port") openPortInstall(g)
+        else if (key === "play") play(g)
         else if (key === "details") { selectById(g.id); openDetails() }
         else if (key === "fav") api.toggleFav(g)
         else if (key === "saves") api.savesOpen(g, function() { })
         else if (key === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(g.id), function() { api.refresh() })
         menuGame = null
+    }
+    function openPortInstall(g) {
+        g = g || current
+        if (!g || !g.portAvailable) return
+        portDialog.show(g.portAvailable, g.name)
     }
     function openKeyboard() { searchFocus = false; searchOpen = false; vkb.show(searchText) }
     function openLibrary() { page = "library"; lib.forceActiveFocus() }
@@ -201,6 +208,7 @@ Item {
     function play(g, portId) {
         g = g || current
         if (!g || g.running) return
+        if (g.portAvailable) { openPortInstall(g); return }       // un volcado con port disponible: «Jugar» ofrece instalarlo
         const port = portId || (g.ports || []).filter(function(p) { return p.canLaunch && !p.running }).map(function(p) { return p.id })[0]
         if (port) api.launch(g, port)
     }
@@ -256,6 +264,7 @@ Item {
     Connections {
         target: api
         function onPadKey(k) {
+            if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
             if (ctxMenu.open) { ctxMenu.pad(k); return }
             if (lib.searchFocus) {
@@ -292,6 +301,7 @@ Item {
         }
     }
     Keys.onPressed: function(e) {
+        if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { if (e.key === Qt.Key_Escape) vkb.close(); e.accepted = true; return }
         if (searchOpen) return                              // el campo de texto maneja el teclado
@@ -718,8 +728,8 @@ Item {
                 Row {
                     anchors.centerIn: parent
                     spacing: lib.s * 12
-                    LucideIcon { width: lib.s * 22; height: lib.s * 22; name: "play"; color: lib.ink; anchors.verticalCenter: parent.verticalCenter; visible: !playBtn.running }
-                    Text { text: playBtn.running ? qsTr("En ejecución") : qsTr("Jugar"); color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 22; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                    LucideIcon { width: lib.s * 22; height: lib.s * 22; name: lib.current && lib.current.portAvailable ? "download" : "play"; color: lib.ink; anchors.verticalCenter: parent.verticalCenter; visible: !playBtn.running }
+                    Text { text: playBtn.running ? qsTr("En ejecución") : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 22; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                 }
                 MouseArea { id: playMa; anchors.fill: parent; enabled: !playBtn.running; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.play() }
             }
@@ -844,6 +854,13 @@ Item {
                     width: runTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
                     color: "#6fc3a0"
                     Text { id: runTxt; anchors.centerIn: parent; text: qsTr("En juego"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 14; font.weight: Font.DemiBold }
+                }
+                Rectangle {      // port disponible
+                    visible: !!card.modelData.portAvailable
+                    anchors { left: parent.left; bottom: parent.bottom; margins: lib.s * 10 }
+                    width: portTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
+                    color: "#5b9be0"
+                    Text { id: portTxt; anchors.centerIn: parent; text: qsTr("Port disponible"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 13; font.weight: Font.DemiBold }
                 }
                 Rectangle {      // favorito
                     visible: card.modelData.fav
@@ -976,6 +993,14 @@ Item {
         uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
         onActivated: function(key) { lib.menuAction(key) }
         onClosed: lib.menuGame = null
+    }
+    OmniaPortInstall {
+        id: portDialog
+        anchors.fill: parent
+        z: 58
+        api: lib.api
+        uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
+        onStarted: function(name) { lib.api.notify(qsTr("Instalación iniciada: %1").arg(name)) }
     }
     OmniaVirtualKeyboard {
         id: vkb
