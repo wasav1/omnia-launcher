@@ -55,17 +55,28 @@ def search_candidates(store, items) -> list:
         current = game.get("catalogSlug", "")
         if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
             continue
-        name = str(game.get("name") or "").strip()
-        if not name:
-            continue
-        try:
-            body = online_catalog.list_games({"q": name, "pageSize": 10})
-        except online_catalog.CatalogError:
-            continue
-        for item in body.get("items") or []:
-            if isinstance(item, dict) and item.get("slug") and str(item["slug"]) not in seen:
-                seen.add(str(item["slug"]))
-                out.append(item)
+        for query in _search_queries(game.get("name")):
+            try:
+                body = online_catalog.list_games({"q": query, "pageSize": 30})
+            except online_catalog.CatalogError:
+                continue
+            for item in body.get("items") or []:
+                if isinstance(item, dict) and item.get("slug") and str(item["slug"]) not in seen:
+                    seen.add(str(item["slug"]))
+                    out.append(item)
+    return out
+
+
+def _search_queries(name) -> list:
+    """Consultas por nombre: el catálogo busca la frase tal cual, así que «Zelda Ocarina of Time» (sin los dos puntos del título
+    oficial) no la encuentra; también se prueba con las últimas palabras («Ocarina of Time»). La coincidencia final sigue siendo exacta."""
+    words = str(name or "").split()
+    if not words:
+        return []
+    out = [" ".join(words)]
+    for size in (4, 3):
+        if len(words) > size and " ".join(words[-size:]) not in out:
+            out.append(" ".join(words[-size:]))
     return out
 
 

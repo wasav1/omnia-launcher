@@ -29,6 +29,21 @@ class SearchCandidatesTests(unittest.TestCase):
         self.assertEqual(service.auto_link_catalog(self.store, items), 1)
         self.assertEqual({g["id"]: g.get("catalogSlug") for g in self.store.games()}, {"a": "banjo-kazooie", "b": "ya"})
 
+    def test_finds_a_title_whose_official_name_has_a_colon(self):
+        self.store.set_games([{"id": "n", "name": "The Legend of Zelda Ocarina of Time", "platform": "sw2", "ports": []}])
+        catalog = {"items": [{"slug": "ocarina-sw2", "name": "The Legend of Zelda: Ocarina of Time", "platforms": [{"slug": "switch2"}]}]}
+
+        def listing(query):
+            return catalog if query["q"] == "Ocarina of Time" else {"items": []}      # la frase completa no existe en el catálogo
+        with mock.patch.object(online_catalog, "list_games", side_effect=listing) as called:
+            items = service.search_candidates(self.store, [])
+        self.assertIn("ocarina-sw2", {i["slug"] for i in items})
+        queries = [c.args[0]["q"] for c in called.call_args_list]
+        self.assertEqual(queries[0], "The Legend of Zelda Ocarina of Time")            # primero el nombre completo
+        self.assertIn("Ocarina of Time", queries)
+        self.assertEqual(service.auto_link_catalog(self.store, items), 1)
+        self.assertEqual(self.store.games()[0]["catalogSlug"], "ocarina-sw2")
+
     def test_survives_a_catalog_error(self):
         with mock.patch.object(online_catalog, "list_games", side_effect=online_catalog.CatalogError("sin red")):
             items = service.search_candidates(self.store, [{"slug": "otra"}])

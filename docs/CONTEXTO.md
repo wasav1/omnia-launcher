@@ -141,6 +141,10 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Enlace por nombre con títulos que llevan dos puntos:** el catálogo busca la frase tal cual, así que «The Legend of Zelda Ocarina of Time» (nombre de un
+  `.nup`, sin los dos puntos del título oficial) no encontraba su ficha. `service._search_queries` prueba también con las últimas 4 y 3 palabras («Ocarina of Time»);
+  la coincidencia final sigue siendo exacta (`match_local_game`). Probado contra el catálogo real: el NUP de Ocarina of Time enlaza con
+  `the-legend-of-zelda-ocarina-of-time-switch-2` y Mario Kart World con `mario-kart-world`. El arte de un juego recién enlazado tarda uno o dos minutos en bajar.
 - **2026-11-23 — Detección de volcados `.nup` de Switch 2 (paso 1):** `roms.py` reconoce `.nup` como Nintendo Switch: si el nombre lleva un Title ID entre corchetes se usa
   (04… = Switch 2, 01… = Switch 1; las actualizaciones y DLC no se importan) y, sin ID, se toma por Switch 2 con confianza «extension». No se lee el contenido
   del paquete (solo los primeros 1 KB). `rom_folders` los publica como juegos de Switch 2 en las carpetas de la biblioteca. Probado con los `.nup` reales de
