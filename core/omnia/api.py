@@ -665,7 +665,7 @@ class Api:
         packages = (state.get("catalog_packages") or {}).get(slug) or []
         if not packages:
             return None
-        pick = packages[0]
+        pick = max(packages, key=lambda row: str(row.get("createdAt") or ""))     # el más reciente (a igual fecha, el primero)
         return {"slug": slug, "packageId": pick["id"], "title": pick.get("title", ""), "version": pick.get("version", ""),
                 "sizeBytes": pick.get("sizeBytes", 0), "licenseName": pick.get("licenseName", ""), "sourceName": pick.get("sourceName", ""),
                 "count": len(packages)}
