@@ -241,6 +241,21 @@ def _inner_tar_mode(name: str):
     return next((mode for suffix, mode in _INNER_TAR_MODES.items() if lower.endswith(suffix)), None)
 
 
+def _strip_single_root(root: Path) -> bool:
+    """Si el paquete es una sola carpeta (p. ej. «juego-1.2.0-linux/»), sube su contenido un nivel: así el ejecutable queda en la misma
+    ruta en todas las versiones y una actualización no deja una carpeta vieja al lado. Solo se pide con `setup.stripRoot`."""
+    entries = list(root.iterdir())
+    if len(entries) != 1 or not entries[0].is_dir() or entries[0].is_symlink():
+        return False
+    inner = entries[0]
+    holder = root / (".omnia-raiz-" + uuid.uuid4().hex[:8])
+    inner.rename(holder)
+    for child in holder.iterdir():
+        child.rename(root / child.name)
+    holder.rmdir()
+    return True
+
+
 def _unwrap_single_archive(root: Path, scratch: Path, progress, reserve_space=None, consume_space=None) -> bool:
     """Si el paquete extraído es solo un .tar.gz/.tar.xz (como el zip de Zelda64Recomp), lo descomprime en su lugar.
 
@@ -794,6 +809,8 @@ class PackageInstallManager:
                                  lambda amount: self._consume_space(job_id, amount))
                 _unwrap_single_archive(extract_root, stage, extraction_progress, reserve_expanded_space,
                                        lambda amount: self._consume_space(job_id, amount))
+            if (package.get("setup") or {}).get("stripRoot") is True:
+                _strip_single_root(extract_root)
             self._pause_point(job_id, cancel, pause)
             self._phase(job_id, "finalizing", cancel, pause)
             subdir = extract_root.joinpath(*PurePosixPath(package["installSubdir"]).parts) if package["installSubdir"] else extract_root

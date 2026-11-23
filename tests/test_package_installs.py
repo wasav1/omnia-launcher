@@ -130,6 +130,27 @@ class InstallFlowTests(unittest.TestCase):
         self.assertTrue((exe.parent / "assets/a.png").is_file())
         self.assertTrue(os.access(exe, os.X_OK))
 
+    def test_strip_root_flattens_a_single_versioned_folder(self):
+        data = make_targz({"juego-1.2.0-linux/juego": b"bin", "juego-1.2.0-linux/assets/a.png": b"x"})
+        state = self.run_install(data, self.manifest(data, "tar.gz", "juego", setup={"start": {"program": ["juego"]}, "stripRoot": True}), ficha={"data": {}})
+        self.assertEqual(state["status"], "completed", state.get("error"))
+        exe = Path(self.store.find_game(state["gameId"])["ports"][0]["launch"][-1])
+        self.assertEqual(exe.name, "juego")
+        self.assertEqual(exe.parent.name, Path(self.store.find_game(state["gameId"])["installPath"]).name)         # sin carpeta intermedia
+        self.assertTrue((exe.parent / "assets/a.png").is_file())
+
+    def test_strip_root_is_a_no_op_for_a_flat_archive_or_a_folder_with_the_same_name(self):
+        flat = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, flat, True)
+        (flat / "a").write_text("1"); (flat / "b").write_text("2")
+        self.assertFalse(package_installs._strip_single_root(flat))
+        nested = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, nested, True)
+        (nested / "x" / "x").mkdir(parents=True)
+        (nested / "x" / "x" / "f").write_text("1")
+        self.assertTrue(package_installs._strip_single_root(nested))
+        self.assertTrue((nested / "x" / "f").is_file())
+
     def test_plain_zip_still_works(self):
         data = make_zip({"juego": b"bin", "datos/x.dat": b"1"})
         state = self.run_install(data, self.manifest(data, "zip", "juego"), ficha={"data": {}})
