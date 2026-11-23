@@ -55,6 +55,7 @@ Item {
         const out = []
         if (g.portAvailable) out.push({ key: "port", label: qsTr("Instalar port"), icon: "download" })
         else if (!g.running) out.push({ key: "play", label: qsTr("Jugar"), icon: "play" })
+        if (g.updateAvailable && !g.running) out.push({ key: "update", label: qsTr("Actualizar"), icon: "download" })
         out.push({ key: "details", label: qsTr("Detalles"), icon: "info" })
         out.push({ key: "fav", label: g.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos"), icon: "star" })
         out.push({ key: "saves", label: qsTr("Abrir carpeta de partidas"), icon: "folder-open" })
@@ -74,6 +75,7 @@ Item {
         const g = menuGame
         if (!g) return
         if (key === "port") openPortInstall(g)
+        else if (key === "update") openUpdate(g)
         else if (key === "play") play(g)
         else if (key === "details") { selectById(g.id); openDetails() }
         else if (key === "fav") api.toggleFav(g)
@@ -85,6 +87,11 @@ Item {
         g = g || current
         if (!g || !g.portAvailable) return
         portDialog.show(g.portAvailable, g.name)
+    }
+    function openUpdate(g) {
+        g = g || current
+        if (!g || !g.updateAvailable) return
+        portDialog.show(g.updateAvailable, g.name, g.id)
     }
     function openKeyboard() { searchFocus = false; searchOpen = false; vkb.show(searchText) }
     function openLibrary() { page = "library"; lib.forceActiveFocus() }
@@ -272,6 +279,7 @@ Item {
                 lib.select(at)
                 if (Qt.application.arguments.indexOf("--details") >= 0) Qt.callLater(function() { lib.openDetails(); tabTimer.start() })
                 else if (Qt.application.arguments.indexOf("--install-port") >= 0) Qt.callLater(function() { lib.openLibrary(); lib.openPortInstall() })
+                else if (Qt.application.arguments.indexOf("--update-port") >= 0) Qt.callLater(function() { lib.openLibrary(); lib.openUpdate() })
             }
         }
     }
@@ -895,6 +903,13 @@ Item {
                     width: portTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
                     color: "#5b9be0"
                     Text { id: portTxt; anchors.centerIn: parent; text: qsTr("Port disponible"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 13; font.weight: Font.DemiBold }
+                }
+                Rectangle {      // actualización disponible
+                    visible: !!card.modelData.updateAvailable && !card.modelData.portAvailable
+                    anchors { left: parent.left; bottom: parent.bottom; margins: lib.s * 10 }
+                    width: updTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
+                    color: "#e0a24b"
+                    Text { id: updTxt; anchors.centerIn: parent; text: qsTr("Actualización"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 13; font.weight: Font.DemiBold }
                 }
                 Rectangle {      // favorito
                     visible: card.modelData.fav

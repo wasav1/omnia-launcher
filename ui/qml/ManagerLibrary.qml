@@ -137,7 +137,7 @@ Item {
                         Rectangle { anchors.fill: parent; radius: ml.s * 6; color: manager.surface2 }
                         FadedImage { anchors.fill: parent; source: row.g.portada || ""; cornerRadius: ml.s * 6 }
                     }
-                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : ""); elide: Text.ElideRight
+                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : (row.g.updateAvailable ? "  ⟳" : "")); elide: Text.ElideRight
                         color: row.g.hidden ? manager.muted : manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: row.on ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.selId = row.g.id; onDoubleClicked: manager.launch(row.g) }
@@ -259,6 +259,17 @@ Item {
             Column {
                 visible: ml.tab === "summary"
                 width: parent.width; spacing: ml.s * 14
+                Rectangle {      // actualización disponible
+                    visible: !!page.g && !!page.g.updateAvailable && !page.g.portAvailable
+                    width: parent.width; height: updNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#2F2A1B"; border.color: "#8A6D2F"
+                    Text { id: updNote; anchors { left: parent.left; right: updBtn.left; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
+                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
+                        text: page.g && page.g.updateAvailable ? qsTr("Actualización disponible: %1 → %2. Se conservan tus partidas y los datos del juego.").arg(page.g.updateAvailable.current || "?").arg(page.g.updateAvailable.version) : "" }
+                    Rectangle { id: updBtn; anchors { right: parent.right; rightMargin: ml.s * 16; verticalCenter: parent.verticalCenter }
+                        width: ml.s * 130; height: ml.s * 38; radius: ml.s * 10; color: page.g && page.g.running ? manager.surface2 : "#B8862F"
+                        Text { anchors.centerIn: parent; text: qsTr("Actualizar"); color: "white"; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: Font.DemiBold }
+                        MouseArea { anchors.fill: parent; enabled: !!page.g && !page.g.running; cursorShape: Qt.PointingHandCursor; onClicked: manager.updateFor(page.g) } }
+                }
                 Rectangle {      // port disponible
                     visible: !!page.g && !!page.g.portAvailable
                     width: parent.width; height: portNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#1F2F44"; border.color: "#3B6A99"

@@ -96,6 +96,7 @@ class Api:
             "/settings/language": ("POST", True, self.settings_language),
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/install-root": ("POST", True, self.settings_install_root),
+            "/settings/update-check": ("POST", True, self.settings_update_check),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
             "/view/set": ("POST", True, self.view_set),
@@ -141,6 +142,7 @@ class Api:
             "/installations/pause": ("POST", True, self.installation_pause),
             "/installations/resume": ("POST", True, self.installation_resume),
             "/installations/remove": ("POST", True, self.installation_remove),
+            "/installations/update": ("POST", True, self.installation_update),
             "/audio": ("GET", True, self.audio_status),
             "/system": ("GET", True, self.system_status),
             "/audio/outputs": ("GET", True, self.audio_outputs),
@@ -396,7 +398,8 @@ class Api:
             install_root = ""
         return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme),
                 "language": language, "install_root": install_root,
-                "animated_background": cfg.get("animated_background", True) is not False}
+                "animated_background": cfg.get("animated_background", True) is not False,
+                "update_check": cfg.get("update_check", True) is not False}
 
     def settings_language(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -426,6 +429,22 @@ class Api:
             cfg["animated_background"] = enabled
             write_json_atomic(config_path, cfg)
         return {"ok": True, "animated_background": enabled}
+
+    def settings_update_check(self, q):
+        """Activa o desactiva el aviso de «Actualización disponible» de los ports instalados."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        enabled = body.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ApiError(400, "enabled debe ser verdadero o falso.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg["update_check"] = enabled
+            write_json_atomic(config_path, cfg)
+        self.bus.games_changed()
+        return {"ok": True, "update_check": enabled}
 
     def settings_install_root(self, q):
         """Guarda una carpeta predeterminada para instalaciones; debe existir y estar bajo una raíz permitida."""
@@ -504,6 +523,17 @@ class Api:
             raise ApiError(409, "la instalación no está pausada")
         return {"ok": True}
 
+    def installation_update(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        game_id = body.get("gameId")
+        if not isinstance(game_id, str):
+            raise ApiError(400, "juego no válido")
+        running = {game.get("id") for game in self.running_list()}
+        try:
+            return {"ok": True, "job": self.package_installs.start_update(game_id, lambda gid: gid in running)}
+        except package_installs.PackageInstallError as exc:
+            raise ApiError(409 if "Cierra el juego" in str(exc) else 400, str(exc))
+
     def installation_remove(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
         game_id = body.get("gameId")
@@ -564,6 +594,7 @@ class Api:
         games = list(self.store.games())
         merged_copies = self._rom_copies(games, config)
         installed_slugs = {x.get("catalogSlug") for x in games if x.get("installPackageId") and x.get("catalogSlug")}
+        install_records = {r.get("gameId"): r for r in (self.package_installs.installed() if getattr(self, "package_installs", None) else []) if isinstance(r, dict)}
         for g in games:
             if g["id"] in merged_copies["hidden"]:
                 continue                                          # volcado que solo es la copia de un juego que ya aparece (ver _rom_copies)
@@ -597,11 +628,31 @@ class Api:
                             "plays": snap["plays"], "playingSince": snap["playingSince"], "portCount": len(ports),
                             "ports": port_rows, "folder": self._folder(ports), "romCopy": merged_copies["by_primary"].get(g["id"]),
                             "portAvailable": self._port_available(g, installed_slugs),
+                            "updateAvailable": self._update_available(g, install_records),
                             "running": any(row["running"] for row in port_rows),
                             **self._art(g, self.store.state),
                             "fav": g["id"] in fav, "hidden": g["id"] in hid})
         out.sort(key=lambda x: (-x["lastPlayed"], x["name"].casefold()))
         return {"games": out, "revision": revision, "unchanged": False}
+
+    def _update_check_enabled(self) -> bool:
+        cfg = load_json(self.store.dir / "config.json", {})
+        return not isinstance(cfg, dict) or cfg.get("update_check", True) is not False
+
+    def _update_available(self, g, records) -> dict | None:
+        """«Actualización disponible»: un port instalado desde el catálogo cuya ficha tiene un paquete publicado más nuevo."""
+        slug, package_id = g.get("catalogSlug", ""), g.get("installPackageId", "")
+        if not slug or not package_id or not self._update_check_enabled():
+            return None
+        record = records.get(g.get("id"), {})
+        packages = (self.store.state.get("catalog_packages") or {}).get(slug) or []
+        pick = package_installs.pick_update(packages, package_id, str(record.get("archiveFormat") or ""),
+                                            str(record.get("publishedAt") or ""))
+        if not pick:
+            return None
+        return {"slug": slug, "packageId": pick["id"], "title": pick.get("title", ""), "version": pick.get("version", ""),
+                "current": g.get("installVersion", ""), "sizeBytes": pick.get("sizeBytes", 0),
+                "licenseName": pick.get("licenseName", ""), "sourceName": pick.get("sourceName", "")}
 
     def _port_available(self, g, installed_slugs) -> dict | None:
         """«Port disponible»: un volcado/ROM enlazado a una ficha que tiene un paquete publicado y cuyo port aún no está instalado."""

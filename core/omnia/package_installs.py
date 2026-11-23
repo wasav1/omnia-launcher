@@ -258,6 +258,102 @@ def _unwrap_single_archive(root: Path, scratch: Path, progress, reserve_space=No
     return True
 
 
+PREVIOUS_DIR = ".omnia-previo"
+
+
+def pick_update(items, installed_id: str, installed_format: str = "", installed_at: str = "") -> dict | None:
+    """Paquete más reciente publicado para la misma ficha, si es distinto y más nuevo que el instalado.
+
+    Las versiones del catálogo son etiquetas libres: se compara la fecha de publicación (`createdAt`), no el texto.
+    Si el paquete instalado ya no está publicado y hay otro del mismo formato, ese otro cuenta como actualización
+    (salvo que se conozca la fecha de la versión instalada, `installed_at`, y el otro sea anterior: no se ofrece bajar de versión)."""
+    rows = [i for i in items if isinstance(i, dict) and isinstance(i.get("id"), str) and i.get("platformSlug", "pc") == "pc"]
+    current = next((i for i in rows if i["id"] == installed_id), None)
+    fmt = installed_format or (current or {}).get("archiveFormat", "")
+    candidates = [i for i in rows if i["id"] != installed_id and (not fmt or i.get("archiveFormat") == fmt)]
+    if not candidates:
+        return None
+    newest = max(candidates, key=lambda i: str(i.get("createdAt") or ""))
+    reference = str((current or {}).get("createdAt") or installed_at or "")
+    if not reference:
+        return newest if current is None else None
+    return newest if str(newest.get("createdAt") or "") > reference else None
+
+
+def _restore_previous(dest: Path):
+    """Recupera una actualización interrumpida: devuelve a su sitio lo que quedó en `.omnia-previo`."""
+    backup = dest / PREVIOUS_DIR
+    if backup.is_symlink() or not backup.is_dir():
+        return
+    for dirpath, _dirs, files in os.walk(backup):
+        for name in files:
+            source = Path(dirpath) / name
+            target = dest / source.relative_to(backup)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(source, target)
+    shutil.rmtree(backup, ignore_errors=True)
+
+
+def _overlay_tree(src: Path, dest: Path, retire=()):
+    """Superpone `src` sobre `dest`: reemplaza solo los archivos que trae el paquete y conserva todo lo demás.
+
+    Lo reemplazado (y los archivos de `retire`, p. ej. el ejecutable de la versión anterior) pasa antes a `.omnia-previo`;
+    si algo falla se deshace todo, y al terminar bien se borra esa carpeta."""
+    dest = Path(dest)
+    if (dest / PREVIOUS_DIR).exists():
+        _restore_previous(dest)
+    files = []
+    for dirpath, dirnames, filenames in os.walk(src):
+        base = Path(dirpath)
+        if any((base / name).is_symlink() for name in dirnames + filenames):
+            raise PackageInstallError("El paquete incluye enlaces simbólicos; no se puede actualizar de forma segura.")
+        files.extend((base / name).relative_to(src) for name in filenames)
+    for rel in files:
+        current = dest
+        for part in rel.parts[:-1]:
+            current = current / part
+            if current.is_symlink() or (current.exists() and not current.is_dir()):
+                raise PackageInstallError("La carpeta instalada tiene un enlace o archivo que impide actualizar.")
+        target = dest / rel
+        if target.is_symlink() or target.is_dir() or PREVIOUS_DIR in rel.parts:
+            raise PackageInstallError("La carpeta instalada tiene un enlace o carpeta que impide actualizar.")
+    backup = dest / PREVIOUS_DIR
+    placed, backed, retired = [], [], []
+    try:
+        for rel in files:
+            target = dest / rel
+            if target.exists():
+                saved = backup / rel
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(target, saved)
+                backed.append(rel)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src / rel), str(target))
+            placed.append(target)
+        for old in retire:
+            old = Path(old)
+            try:
+                rel = old.relative_to(dest)
+            except ValueError:
+                continue
+            if old.is_file() and not old.is_symlink() and rel not in files:
+                saved = backup / rel
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(old, saved)
+                retired.append(rel)
+    except BaseException:
+        for target in placed:
+            target.unlink(missing_ok=True)
+        for rel in backed + retired:
+            try:
+                os.replace(backup / rel, dest / rel)
+            except OSError:
+                pass
+        shutil.rmtree(backup, ignore_errors=True)
+        raise
+    shutil.rmtree(backup, ignore_errors=True)
+
+
 class PackageInstallManager:
     def __init__(self, store, allowed_roots, on_change=None):
         self.store = store
@@ -385,6 +481,52 @@ class PackageInstallManager:
             raise
         return dict(job)
 
+    def start_update(self, game_id: str, is_running=lambda gid: False) -> dict:
+        """Actualiza un port instalado superponiendo la versión nueva en su misma carpeta (no pierde saves ni datos preparados)."""
+        with self._lock:
+            record = next((i for i in self.installed() if isinstance(i, dict) and i.get("gameId") == game_id), None)
+            game = self.store.find_game(game_id)
+            if not record or not game or game.get("installPackageId") != record.get("packageId"):
+                raise PackageInstallError("Este juego no se instaló desde el catálogo de Omnia.")
+            if any(j.get("status") in ("queued", "downloading", "verifying", "extracting", "finalizing", "paused")
+                   and j.get("updateOf") == game_id for j in self._jobs.values()):
+                raise PackageInstallError("Ya hay una actualización en curso.")
+        if is_running(game_id):
+            raise PackageInstallError("Cierra el juego antes de actualizarlo.")
+        slug = str(record.get("catalogSlug") or game.get("catalogSlug") or "")
+        response = online_catalog.list_install_packages(slug)
+        if response.get("offline"):
+            raise PackageInstallError("Sin conexión con el catálogo: no se puede actualizar ahora.")
+        pick = pick_update(response.get("items", []), str(record["packageId"]), str(record.get("archiveFormat") or ""),
+                           str(record.get("publishedAt") or ""))
+        if not pick:
+            raise PackageInstallError("No hay una versión más nueva publicada.")
+        package = self._validate_manifest(pick)
+        folder = Path(os.path.expanduser(str(record.get("path", ""))))
+        real = os.path.realpath(folder)
+        allowed = [os.path.realpath(root) for root in self.allowed_roots()]
+        if (os.path.islink(folder) or not os.path.isdir(real) or real == os.path.realpath(Path.home())
+                or not any(real.startswith(root.rstrip(os.sep) + os.sep) for root in allowed)):
+            raise PackageInstallError("La carpeta de instalación ya no existe o no es segura.")
+        job_id = str(uuid.uuid4())
+        self._reserve_space(job_id, Path(real), package["sizeBytes"])
+        cancel, pause = threading.Event(), threading.Event()
+        job = {"id": job_id, "slug": slug, "packageId": package["id"], "name": package["title"], "status": "queued",
+               "progress": 0, "destination": real, "error": "", "updateOf": game_id}
+        try:
+            with self._lock:
+                self._jobs[job_id], self._cancel[job_id], self._pause[job_id] = job, cancel, pause
+                self._persist_jobs_locked()
+            self._pool.submit(self._run, job_id, package, Path(real), cancel, {"gameId": game_id, "record": dict(record)})
+        except Exception:
+            self._release_space(job_id)
+            with self._lock:
+                for table in (self._jobs, self._cancel, self._pause):
+                    table.pop(job_id, None)
+                self._persist_jobs_locked()
+            raise
+        return dict(job)
+
     def cancel(self, job_id: str) -> bool:
         with self._lock:
             event = self._cancel.get(job_id)
@@ -475,6 +617,36 @@ class PackageInstallManager:
             _archive_path(item["installSubdir"])
         return {**item, "sizeBytes": size}
 
+    def _finish_update(self, game_id: str, package: dict, record: dict, new_entry: Path):
+        """Apunta la ficha y el registro a la versión nueva (el ejecutable puede cambiar de nombre entre versiones)."""
+        old_entry = str(record.get("entrypoint") or "")
+        with self.store.lock:
+            games = self.store.games()
+            game = next((g for g in games if g.get("id") == game_id), None)
+            if game:
+                source = str(package["sourceName"])
+                game.update({"installPackageId": package["id"], "installVersion": package["version"],
+                             "variant": (source.split("/")[-1] if source.startswith("GitHub:") else package["title"])[:60]})
+                if old_entry and old_entry != str(new_entry):
+                    for port in game.get("ports") or []:
+                        for key in ("launch", "check"):
+                            value = port.get(key)
+                            if isinstance(value, list):
+                                port[key] = [str(new_entry) if item == old_entry else item for item in value]
+                            elif value == old_entry:
+                                port[key] = str(new_entry)
+                        if port.get("proc") == os.path.basename(old_entry):
+                            port["proc"] = os.path.basename(str(new_entry))
+                self.store.set_games(games)
+        with self._lock:
+            installed = self.installed()
+            for item in installed:
+                if isinstance(item, dict) and item.get("gameId") == game_id:
+                    item.update({"packageId": package["id"], "name": package["title"], "version": package["version"],
+                                 "entrypoint": str(new_entry), "archiveFormat": package["archiveFormat"],
+                                 "publishedAt": str(package.get("createdAt") or ""), "updatedAt": int(time.time())})
+            write_json_atomic(self._file, installed, mode=0o600)
+
     def _set(self, job_id, **fields):
         with self._lock:
             job = self._jobs.get(job_id)
@@ -510,7 +682,7 @@ class PackageInstallManager:
                         self._persist_jobs_locked()
                 return
 
-    def _run(self, job_id, package, final: Path, cancel: threading.Event):
+    def _run(self, job_id, package, final: Path, cancel: threading.Event, update: dict | None = None):
         stage = None
         final_created = False
         registered_game_id = ""
@@ -581,6 +753,15 @@ class PackageInstallManager:
                 entry.chmod(entry.stat().st_mode | 0o111)
             archive.unlink(missing_ok=True)
             shutil.rmtree(stage / "contents" / "__pycache__", ignore_errors=True)
+            if update:
+                record = update["record"]
+                new_entry = final.joinpath(*PurePosixPath(package["installSubdir"]).parts, *PurePosixPath(package["entrypoint"]).parts)
+                _overlay_tree(extract_root, final, retire=[record.get("entrypoint", "")] if record.get("entrypoint") else [])
+                self._finish_update(update["gameId"], package, record, new_entry)
+                shutil.rmtree(stage, ignore_errors=True)
+                self._phase(job_id, "completed", cancel, pause, progress=100, gameId=update["gameId"], destination=str(final))
+                self.on_change()
+                return
             os.replace(extract_root, final)
             final_created = True
             installed_entry = final.joinpath(*PurePosixPath(package["installSubdir"]).parts, *PurePosixPath(package["entrypoint"]).parts)
@@ -615,7 +796,8 @@ class PackageInstallManager:
             installed = self.installed()
             installed.append({"gameId": game["id"], "packageId": package["id"], "catalogSlug": catalog_slug,
                               "name": package["title"], "version": package["version"], "path": str(final),
-                              "entrypoint": str(installed_entry), "installedAt": int(time.time())})
+                              "entrypoint": str(installed_entry), "installedAt": int(time.time()),
+                              "archiveFormat": package["archiveFormat"], "publishedAt": str(package.get("createdAt") or "")})
             write_json_atomic(self._file, installed, mode=0o600)
             self._phase(job_id, "completed", cancel, pause, progress=100, gameId=game["id"], destination=str(final))
             self.on_change()

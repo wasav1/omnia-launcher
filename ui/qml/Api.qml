@@ -46,6 +46,7 @@ QtObject {
     property bool padOn: false
     property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
+    property bool updateCheck: true         // avisar de «Actualización disponible» de los ports instalados (Ajustes)
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
     property string padFamily: ""          // tipo de mando para los iconos: xbox | ps | switch | deck
@@ -248,6 +249,7 @@ QtObject {
                 api.themeAccent = body.theme_accent || "#336599"
                 api.installRoot = body.install_root || ""
                 api.animatedBackground = body.animated_background !== false
+                api.updateCheck = body.update_check !== false
                 Qt.uiLanguage = body.language === "en" ? "en_US" : "es"
                 api.language = body.language === "en" ? "en" : "es"
             }
@@ -312,6 +314,7 @@ QtObject {
     function startInstallation(slug, packageId, destination, done) {
         call("POST", "/installations/start", done, {slug: slug, packageId: packageId, destination: destination})
     }
+    function updateInstallation(gameId, done) { call("POST", "/installations/update", done, {gameId: gameId}) }
     function cancelInstallation(jobId, done) { call("POST", "/installations/cancel", done, {jobId: jobId}) }
     function pauseInstallation(jobId, done) { call("POST", "/installations/pause", done, {jobId: jobId}) }
     function resumeInstallation(jobId, done) { call("POST", "/installations/resume", done, {jobId: jobId}) }
@@ -423,6 +426,12 @@ QtObject {
     function setAnimatedBackground(enabled, done) {
         call("POST", "/settings/animated-background", function(status, body) {
             if (status === 200) api.animatedBackground = body.animated_background !== false
+            if (done) done(status, body)
+        }, {enabled: enabled})
+    }
+    function setUpdateCheck(enabled, done) {
+        call("POST", "/settings/update-check", function(status, body) {
+            if (status === 200) api.updateCheck = body.update_check !== false
             if (done) done(status, body)
         }, {enabled: enabled})
     }

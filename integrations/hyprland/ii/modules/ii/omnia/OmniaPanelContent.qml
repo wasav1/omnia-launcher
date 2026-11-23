@@ -60,6 +60,7 @@ Item {
         const g = root.game, out = [];
         if (!g) return out;
         if (g.portAvailable) out.push({ id: "port", label: "Instalar port en Big Mode", icon: "download" });
+        if (g.updateAvailable && !g.running) out.push({ id: "update", label: "Actualizar en Big Mode (" + (g.updateAvailable.version || "nueva versión") + ")", icon: "download" });
         out.push({ id: "details", label: "Ver detalles en Big Mode", icon: "layout-grid" });
         out.push({ id: "fav", label: g.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "star" });
         if (OmniaWallpaper.canPin(g)) out.push({ id: "pin", label: "Usar su fondo en el escritorio", icon: "image" });
@@ -80,6 +81,7 @@ Item {
         const it = menuItems[i];
         if (!it || !game) return;
         if (it.id === "port") { OmniaApi.openBigMode(game.id, false, true); menuOpen = false; root.closeRequested(); return; }
+        if (it.id === "update") { OmniaApi.openBigMode(game.id, false, false, true); menuOpen = false; root.closeRequested(); return; }
         if (it.id === "details") { OmniaApi.openBigMode(game.id, true); menuOpen = false; root.closeRequested(); return; }
         if (it.id === "fav") OmniaApi.toggleFav(game.id);
         else if (it.id === "pin") OmniaWallpaper.pin(game);

@@ -672,6 +672,16 @@ Item {
                     }
                 }
                 Rectangle {
+                    visible: manager.settingsSection === "general"
+                    width: parent.width; height: manager.s * 86; radius: manager.s * 16; color: manager.surface
+                    Column { anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: manager.s * 18 } spacing: manager.s * 4
+                        Text { text: qsTr("Buscar actualizaciones de ports"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; font.weight: Font.DemiBold }
+                        Text { text: qsTr("Avisa cuando un port instalado desde el catálogo tiene una versión nueva. Nunca se actualiza sin confirmar."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 } }
+                    Switch { anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 18 }
+                        checked: api.updateCheck
+                        onToggled: api.setUpdateCheck(checked, function(status) { if (status !== 200) api.notify(qsTr("No se pudo guardar el ajuste.")) }) }
+                }
+                Rectangle {
                     visible: manager.settingsSection === "library"
                     width: parent.width; height: manager.s * 116; radius: manager.s * 16; color: manager.surface
                     Column { anchors { left: parent.left; top: parent.top; margins: manager.s * 18 } spacing: manager.s * 5
@@ -756,6 +766,31 @@ Item {
                 else api.notify((body && body.error) || qsTr("No se pudo guardar la carpeta de instalación."))
             })
         }
+    }
+    property var updateGame: null
+    function updateFor(game) {              // «Actualización disponible»: confirma y superpone la versión nueva (conserva partidas y datos)
+        if (!game || !game.updateAvailable) return
+        updateGame = game
+        updateDialog.open()
+    }
+    Dialog {
+        id: updateDialog
+        modal: true
+        anchors.centerIn: parent
+        title: qsTr("Actualizar port")
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        Label {
+            width: manager.s * 460; wrapMode: Text.WordWrap
+            text: manager.updateGame && manager.updateGame.updateAvailable
+                  ? qsTr("%1: %2 → %3 (%4 MB, %5).\nSe verifica su SHA-256 y se superpone sobre la carpeta actual; tus partidas y los archivos que el port preparó se conservan. Cierra el juego antes de actualizar.")
+                        .arg(manager.updateGame.name).arg(manager.updateGame.updateAvailable.current || "?").arg(manager.updateGame.updateAvailable.version)
+                        .arg(Math.round((manager.updateGame.updateAvailable.sizeBytes || 0) / 1048576)).arg(manager.updateGame.updateAvailable.sourceName || "")
+                  : ""
+        }
+        onAccepted: api.updateInstallation(manager.updateGame.id, function(status, body) {
+            if (status === 200) { api.notify(qsTr("Actualización iniciada: %1").arg(manager.updateGame.name)); manager.loadInstallations() }
+            else api.notify((body && body.error) || qsTr("No se pudo iniciar la actualización."))
+        })
     }
     property string removeGameId: ""
     Dialog {

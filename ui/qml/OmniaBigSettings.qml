@@ -74,6 +74,24 @@ Item {
             }
         }
 
+        Rectangle {
+            width: parent.width; height: set.s * 132; radius: set.s * 22
+            color: Qt.rgba(0.082, 0.114, 0.153, 0.92); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.10)
+            Column {
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: set.s * 24 }
+                Text { text: qsTr("Buscar actualizaciones de ports"); color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 26; font.weight: Font.DemiBold }
+                Text { text: qsTr("Avisa cuando un port instalado desde el catálogo tiene una versión nueva. Nunca se actualiza sin que lo confirmes."); color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 19 }
+            }
+            Switch {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: set.s * 24 }
+                scale: set.s * 1.4
+                checked: set.host.api.updateCheck
+                onToggled: set.host.api.setUpdateCheck(checked, function(status, body) {
+                    set.msg = status === 200 ? qsTr("Ajuste guardado.") : ((body && body.error) || qsTr("No se pudo guardar el ajuste."))
+                })
+            }
+        }
+
         Text { text: qsTr("Biblioteca"); color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 22; font.weight: Font.DemiBold }
         Rectangle {
             width: parent.width; height: set.s * 132; radius: set.s * 22

@@ -138,7 +138,7 @@ def refresh_packages(store, slug: str, retry_at: dict, bus=None) -> bool:
         retry_at[slug] = now + 60 * 60
         return False
     rows = [{"id": i["id"], "title": i.get("title", ""), "version": i.get("version", ""), "sizeBytes": i.get("sizeBytes", 0),
-             "archiveFormat": i.get("archiveFormat", ""), "licenseName": i.get("licenseName", ""), "sourceName": i.get("sourceName", "")}
+             "archiveFormat": i.get("archiveFormat", ""), "createdAt": i.get("createdAt", ""), "licenseName": i.get("licenseName", ""), "sourceName": i.get("sourceName", "")}
             for i in body.get("items", []) if isinstance(i, dict) and i.get("platformSlug") == "pc" and isinstance(i.get("id"), str)]
     with store.lock:
         packages = store.state.setdefault("catalog_packages", {})
@@ -178,8 +178,9 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
             checked.pop(known, None)
     with store.lock:        # fichas sin paquetes (aún no publicados): se vuelven a consultar al arrancar
         pk_checked = store.state.get("catalog_packages_checked") or {}
-        for known in [k for k in pk_checked if not (store.state.get("catalog_packages") or {}).get(k)]:
-            pk_checked.pop(known, None)
+        cached = store.state.get("catalog_packages") or {}
+        for known in [k for k in pk_checked if not cached.get(k) or any("createdAt" not in row for row in cached[k])]:
+            pk_checked.pop(known, None)      # (las filas antiguas sin fecha de publicación se renuevan para poder avisar de actualizaciones)
     scan_at = 0.0
     seen_revision = -1
     catalog_retry_at = {}

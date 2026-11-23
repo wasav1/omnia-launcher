@@ -81,3 +81,22 @@ class NupCopyMergeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UpdateAvailableTests(NupCopyMergeTests):
+    def test_update_available_only_for_a_newer_published_package(self):
+        installed = {"id": "recomp-mkw", "name": "Mario Kart World", "platform": "sw2", "catalogSlug": "mario-kart-world",
+                     "installPackageId": "a" * 36, "installVersion": "v1",
+                     "ports": [{"id": "p", "name": "mkw", "launch": ["x"], "check": str(self.tmp)}]}
+        self.store.set_games([installed])
+        old = {"id": "a" * 36, "version": "v1", "createdAt": "2026-01-01T00:00:00Z", "archiveFormat": "appimage", "sizeBytes": 5}
+        self.store.state["catalog_packages"] = {"mario-kart-world": [old]}
+        self.assertIsNone(self.api.library({})["games"][0]["updateAvailable"])
+        new = {"id": "b" * 36, "version": "v2", "createdAt": "2026-06-01T00:00:00Z", "archiveFormat": "appimage", "sizeBytes": 9,
+               "title": "mkw", "licenseName": "MIT", "sourceName": "GitHub: a/b"}
+        self.store.state["catalog_packages"] = {"mario-kart-world": [old, new]}
+        offer = self.api.library({})["games"][0]["updateAvailable"]
+        self.assertEqual((offer["packageId"], offer["version"], offer["current"]), ("b" * 36, "v2", "v1"))
+        self.api.settings_update_check({"_body": {"enabled": False}})
+        self.assertFalse(self.api.settings({})["update_check"])
+        self.assertIsNone(self.api.library({})["games"][0]["updateAvailable"])
