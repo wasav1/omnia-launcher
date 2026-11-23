@@ -169,6 +169,15 @@ def sync_steam_art(game, retry_at: dict) -> bool:
     return downloaded
 
 
+def art_priority(games: list, state: dict) -> list:
+    """Orden en que el vigilante de arte revisa los juegos: primero los enlazados a una ficha que aún no se ha consultado nunca.
+
+    El vigilante vuelve a construir la lista cada minuto; con muchos juegos no llegaba al final, y un juego recién instalado
+    (el último de la biblioteca) se quedaba sin arte durante mucho tiempo."""
+    checked = state.get("catalog_art_checked") or {}
+    return sorted(games, key=lambda g: 0 if g.get("catalogSlug") and not int(checked.get(g["catalogSlug"], 0) or 0) else 1)
+
+
 def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
     """Sincroniza periódicamente el artwork aprobado del catálogo público de Omnia."""
     pending = []
@@ -212,7 +221,7 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
         if seen_revision != store.revision:
             link_at = min(link_at, now + 10)        # juegos nuevos (p. ej. ROMs recién detectadas): enlazarlos pronto
         if now >= scan_at or seen_revision != store.revision:
-            pending = list(store.games())
+            pending = art_priority(list(store.games()), store.state)
             scan_at, seen_revision = now + 60, store.revision
         if pending and not stop.is_set():
             g = pending.pop(0)
