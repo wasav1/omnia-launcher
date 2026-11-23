@@ -24,7 +24,7 @@ el usuario elige; no detecta carpetas de Hydra. El disco de Bazzite se monta sol
 | `packaging/arch/` | PKGBUILD (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh` |
 | `tests/` | Pruebas `unittest` (342). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
 | `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
-| `legacy/`, `plasmoid/`, `tools/`, `install-arch.sh` | Material del prototipo y utilidades |
+| `legacy/`, `plasmoid/`, `tools/` | Material del prototipo y utilidades |
 
 **Importante:** sin `PYTHONPATH=core` los tests importan el paquete instalado en el sistema (más antiguo).
 
@@ -141,6 +141,7 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Limpieza antes de promocionar el repo:** se quita `install-arch.sh` (un instalador de otra aplicación, el cliente de ChatGPT para Arch, que se coló en el repo el 2026-11-21; ningún archivo lo usaba). El registro de cuentas del AUR estaba cerrado temporalmente (HTTP 503, oleada de cuentas automáticas), así que se preparó una release de GitHub con los paquetes compilados desde la etiqueta v0.3.0 (`~/Proyectos/release-omnia-0.3.0`, con `SHA256SUMS`).
 - **2026-11-23 — Versión 0.3.0 y auditoría previa al AUR:** `pkgver`/`pyproject.toml`/`omnia.__version__` suben a 0.3.0 (la etiqueta `v0.3.0` la crea el usuario al hacer público el repo). Escaneo del historial: sin secretos; quedan rutas con el usuario del sistema en `docs/` y `legacy/` (ver `docs/PUBLICAR-AUR.md`).
 - **2026-11-23 — Preparación del AUR:** `packaging/arch/prepare-aur.sh` (comprueba la etiqueta en origin, `updpkgsums`, `.SRCINFO`, `namcap`, copia a la carpeta del AUR; no sube nada). Backend: 34 fichas con plataforma (`platform-assignments.json` + `assign_platforms.py`, plataformas nuevas `mobile`/`psvita`/`pce`) y 11 overrides de arte seguros, pendientes de que el usuario sincronice/aplique con su clave.
 - **2026-11-23 — Guía de publicación en el AUR y propuesta de plataformas:** `docs/PUBLICAR-AUR.md` (nombres `omnia-*` libres en el AUR, repo público, nueva etiqueta v0.3.0, `updpkgsums`, `namcap`, `.SRCINFO`, push SSH; PKGBUILD con licencia GPL-3.0-or-later ya sin nota abierta). En el backend, `seeds/recomp-launcher/PLAN-fichas-sin-plataforma.md` agrupa las 70 fichas `draft` sin plataforma (8 fusionadas, 24 con consola clara, 38 que necesitan plataformas nuevas `mobile`/`ps2`/`psvita`/`pce`/`wii` o `pc`); decisión pendiente.
