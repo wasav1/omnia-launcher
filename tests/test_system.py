@@ -130,6 +130,10 @@ class LiveMetrics(unittest.TestCase):
         self.hwmon(3, "amdgpu", [("edge", 48000)])
         self.assertEqual(system.gpu_stats(str(self.tmp), run=mock.Mock(side_effect=AssertionError), now=lambda: 50.0), (12.0, 48.0))
 
+    def test_nvidia_smi_decimals_are_accepted(self):
+        smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="28, 55.31\n"))
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=smi, now=lambda: 60.0), (28.0, 55.31))
+
     def test_live_includes_temperatures_when_available(self):
         self.hwmon(2, "coretemp", [("Package id 0", 70000)])
         live = system.live(str(self.tmp), str(self.tmp))

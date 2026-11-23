@@ -175,6 +175,14 @@ def cpu_temperature(sys_root: str = "/sys"):
     return _hwmon_temp(("coretemp", "k10temp", "zenpower", "cpu_thermal"), ("package", "tctl", "tdie"), sys_root)
 
 
+def _number(text):
+    """Número de una celda de nvidia-smi («28», «55.31») o None."""
+    try:
+        return float(str(text).strip())
+    except ValueError:
+        return None
+
+
 def gpu_stats(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=time.monotonic):
     """(uso %, temperatura °C) de la GPU: sysfs/hwmon de AMD/Intel si existe; si no, una sola consulta a nvidia-smi. Se cachea unos segundos."""
     global _gpu_cache
@@ -194,8 +202,8 @@ def gpu_stats(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=
                       capture_output=True, text=True, timeout=1.5)
             first = out.stdout.strip().splitlines()[0] if out.returncode == 0 and out.stdout.strip() else ""
             parts = [x.strip() for x in first.split(",")]
-            value = float(parts[0]) if parts and parts[0].isdigit() else None
-            temp = float(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+            value = _number(parts[0]) if parts else None
+            temp = _number(parts[1]) if len(parts) > 1 else None             # el controlador puede dar decimales («55.31»)
         except (OSError, subprocess.SubprocessError, ValueError, IndexError):
             value = temp = None
     _gpu_cache = (t, (value, temp))
