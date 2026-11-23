@@ -73,7 +73,7 @@ class LiveMetrics(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         system._cpu_prev = None
-        system._gpu_cache = (0.0, None)
+        system._gpu_cache = (0.0, (None, None))
 
     def stat(self, user, idle):
         (self.tmp / "stat").write_text(f"cpu  {user} 0 0 {idle} 0 0 0 0 0 0\ncpu0 1 1 1 1\n")
@@ -101,6 +101,39 @@ class LiveMetrics(unittest.TestCase):
         shutil.rmtree(self.tmp / "class")
         smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="64\n"))
         self.assertEqual(system.gpu_percent(str(self.tmp), run=smi, now=lambda: 20.0), 64.0)
+
+    def hwmon(self, n, name, temps):
+        d = self.tmp / f"class/hwmon/hwmon{n}"
+        d.mkdir(parents=True)
+        (d / "name").write_text(name + "\n")
+        for i, (label, milli) in enumerate(temps, 1):
+            (d / f"temp{i}_input").write_text(f"{milli}\n")
+            if label:
+                (d / f"temp{i}_label").write_text(label + "\n")
+
+    def test_cpu_temperature_prefers_the_package_sensor(self):
+        self.hwmon(1, "acpitz", [(None, 30000)])
+        self.hwmon(2, "coretemp", [("Core 0", 75000), ("Package id 0", 76000), ("Core 1", 74000)])
+        self.assertEqual(system.cpu_temperature(str(self.tmp)), 76.0)
+
+    def test_cpu_temperature_amd_and_missing(self):
+        self.assertIsNone(system.cpu_temperature(str(self.tmp)))
+        self.hwmon(0, "k10temp", [("Tctl", 61500)])
+        self.assertEqual(system.cpu_temperature(str(self.tmp)), 61.5)
+
+    def test_gpu_temperature_from_nvidia_smi_and_amd_hwmon(self):
+        smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="33, 55\n"))
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=smi, now=lambda: 40.0), (33.0, 55.0))
+        card = self.tmp / "class/drm/card0/device"
+        card.mkdir(parents=True)
+        (card / "gpu_busy_percent").write_text("12\n")
+        self.hwmon(3, "amdgpu", [("edge", 48000)])
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=mock.Mock(side_effect=AssertionError), now=lambda: 50.0), (12.0, 48.0))
+
+    def test_live_includes_temperatures_when_available(self):
+        self.hwmon(2, "coretemp", [("Package id 0", 70000)])
+        live = system.live(str(self.tmp), str(self.tmp))
+        self.assertEqual(live.get("cpu_temp"), 70.0)
 
     def test_gpu_unavailable_is_none(self):
         self.assertIsNone(system.gpu_percent(str(self.tmp), run=mock.Mock(side_effect=FileNotFoundError), now=lambda: 30.0))

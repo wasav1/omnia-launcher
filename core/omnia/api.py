@@ -25,6 +25,7 @@ from . import (
     importer,
     launcher,
     library_paths,
+    paths,
     manual,
     online_catalog,
     package_installs,
@@ -133,6 +134,9 @@ class Api:
             "/art/browse": ("GET", True, self.art_browse),
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
+            "/art/local": ("POST", True, self.art_local),
+            "/art/tmp": ("GET", True, self.art_tmp),
+            "/art/reset": ("POST", True, self.art_reset),
             "/catalog/games": ("GET", True, self.catalog_games),
             "/catalog/game": ("GET", True, self.catalog_game),
             "/catalog/platforms": ("GET", True, self.catalog_platforms),
@@ -777,7 +781,12 @@ class Api:
         slug = (g.get("art") or {}).get("slug") or g["id"]
         out = {}
         selected = ((state or {}).get("art") or {}).get(g["id"], {})
+        custom = ((state or {}).get("art_custom") or {}).get(g["id"], {})
         for kind in art.KINDS:
+            mine = (custom.get(kind) or {}).get("file", "")
+            if mine and os.path.isfile(mine):                  # arte elegido a mano por el usuario: manda sobre el del catálogo
+                out[kind] = "file://" + mine
+                continue
             if g.get("catalogSlug") and online_catalog.platform_compatible(
                     g.get("platform"), ((state or {}).get("catalog_platforms") or {}).get(g.get("catalogSlug"))):
                 remote = (((state or {}).get("catalog_art") or {}).get(g.get("catalogSlug")) or {})
@@ -1305,7 +1314,9 @@ class Api:
             with self.store.lock:
                 aliases = {"portada": "grid", "fondo": "hero", "logo": "logo"}
                 self.store.state.setdefault("catalog_art", {}).setdefault(g["catalogSlug"], {})[aliases[kind]] = result["items"][index]["url"]
+                (self.store.state.get("art_custom") or {}).get(g["id"], {}).pop(kind, None)       # elegir del catálogo anula la imagen propia
                 self.store.save_state()
+            self.bus.games_changed()
             self._notify_selected_art(g["id"], kind)
             return {"ok": True, "kind": kind}
         except ValueError:
@@ -1314,6 +1325,96 @@ class Api:
             raise ApiError(502, str(e))
         except online_catalog.CatalogError as e:
             raise ApiError(502, str(e))
+
+    USER_ART_MAX = 25 * 1024 * 1024
+    USER_ART_KINDS = {"portada": (200, 20000), "fondo": (400, 20000), "logo": (32, 20000)}
+
+    def art_tmp(self, q):
+        """Carpeta donde la interfaz deja la imagen ya encuadrada antes de enviarla a `/art/local` (se crea si no existe)."""
+        folder = paths.cache_dir() / "user-art-tmp"
+        folder.mkdir(parents=True, exist_ok=True)
+        return {"dir": str(folder)}
+
+    def art_local(self, q):
+        """Usa una imagen del propio usuario como portada, fondo o logo de un juego. La interfaz ya la dejó encuadrada (Rellenar o Ajustar);
+        aquí solo se valida (archivo normal dentro de las carpetas permitidas, PNG/JPEG/WebP, ≤ 25 MiB, dimensiones razonables) y se
+        copia a la caché de Omnia: el original no se toca ni se vuelve a leer."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        g = self.store.find_game(str(body.get("id") or ""))
+        kind, path = str(body.get("kind") or ""), str(body.get("path") or "")
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        if kind not in self.USER_ART_KINDS:
+            raise ApiError(400, "tipo de arte no válido")
+        real = os.path.realpath(os.path.expanduser(path))
+        if not path or os.path.islink(os.path.expanduser(path)) or not os.path.isfile(real) or not self._allowed(real):
+            raise ApiError(403, "elige una imagen dentro de tus carpetas")
+        try:
+            size = os.path.getsize(real)
+        except OSError:
+            raise ApiError(404, "no se pudo leer la imagen")
+        if size <= 0 or size > self.USER_ART_MAX:
+            raise ApiError(413, "la imagen debe pesar menos de 25 MiB")
+        width, height = art.image_dimensions(Path(real))
+        low, high = self.USER_ART_KINDS[kind]
+        if not width or not height or min(width, height) < low // 4 or max(width, height) > high:
+            raise ApiError(400, "no es una imagen PNG, JPEG o WebP válida, o sus dimensiones no son razonables")
+        with open(real, "rb") as stream:
+            head = stream.read(16)
+        ext = ".png" if head.startswith(b"\x89PNG") else (".webp" if head[:4] == b"RIFF" and head[8:12] == b"WEBP" else ".jpg")
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "-", g["id"])[:80] or "juego"
+        folder = paths.cache_dir() / "user-art" / safe
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = int(time.time() * 1000)
+        target = folder / f"{kind}-{stamp}{ext}"
+        shutil.copyfile(real, target)
+        if os.path.dirname(real) == str(paths.cache_dir() / "user-art-tmp"):       # la imagen encuadrada que dejó la interfaz: ya no hace falta
+            try:
+                os.unlink(real)
+            except OSError:
+                pass
+        with self.store.lock:
+            entry = self.store.state.setdefault("art_custom", {}).setdefault(g["id"], {})
+            previous = (entry.get(kind) or {}).get("file")
+            entry[kind] = {"file": str(target), "at": stamp}
+            self.store.save_state()
+        if previous and previous != str(target):
+            try:
+                os.unlink(previous)
+            except OSError:
+                pass
+        self._notify_selected_art(g["id"], kind)
+        self.bus.games_changed()
+        return {"ok": True, "kind": kind}
+
+    def art_reset(self, q):
+        """Quita la imagen propia (de un tipo o de todos) y vuelve a la del catálogo; el vigilante de arte la vuelve a elegir."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        g = self.store.find_game(str(body.get("id") or ""))
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        kinds = [str(body["kind"])] if body.get("kind") else list(self.USER_ART_KINDS)
+        if any(k not in self.USER_ART_KINDS for k in kinds):
+            raise ApiError(400, "tipo de arte no válido")
+        aliases = {"portada": "grid", "fondo": "hero", "logo": "logo"}
+        with self.store.lock:
+            custom = (self.store.state.get("art_custom") or {}).get(g["id"], {})
+            for kind in kinds:
+                old = (custom.pop(kind, None) or {}).get("file")
+                if old:
+                    try:
+                        os.unlink(old)
+                    except OSError:
+                        pass
+                slug = g.get("catalogSlug")
+                if slug:
+                    ((self.store.state.get("catalog_art") or {}).get(slug) or {}).pop(aliases[kind], None)
+                    (self.store.state.get("catalog_art_checked") or {}).pop(slug, None)       # se vuelve a pedir la elegida por defecto
+                (self.store.state.get("art") or {}).get(g["id"], {}).pop(kind, None)
+            self.store.save_state()
+        self.bus.games_changed()
+        self.bus.selection_changed()
+        return {"ok": True}
 
     def art_cycle(self, q):
         g = self.store.find_game(q.get("id", ""))

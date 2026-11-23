@@ -40,7 +40,7 @@ Item {
     property bool searchOpen: false
     property bool searchFocus: false          // con mando: el foco está en la lupa de la barra superior
     function lastPlayedOf(g) { return Number(g && (g.lastPlayed || (g.played || {}).last) || 0) }
-    property string page: "home"               // home | library | all | details | settings | downloads
+    property string page: "home"               // home | library | all | details | settings | downloads | art
     readonly property bool detailsOpen: page === "details"
     readonly property bool padOn: api.padOn
     property bool detailsFromAll: false
@@ -68,6 +68,8 @@ Item {
             if (jobs.some(function(j) { return j.status === "completed" })) api.refresh()
         })
     }
+    function openArt(g) { g = g || current; if (!g) return; artEditor.start(g); page = "art"; artEditor.forceActiveFocus() }
+    function closeArt() { page = "library"; lib.forceActiveFocus() }
     function openDownloads() { page = "downloads"; downloads.forceActiveFocus() }
     function closeDownloads() { page = "library"; lib.forceActiveFocus(); pollDownloads() }
     Timer { interval: 2000; repeat: true; running: api.ok && lib.visible && lib.page !== "downloads"; triggeredOnStart: true; onTriggered: lib.pollDownloads() }
@@ -84,6 +86,7 @@ Item {
         out.push({ key: "details", label: qsTr("Detalles"), icon: "info" })
         out.push({ key: "fav", label: g.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos"), icon: "star" })
         out.push({ key: "saves", label: qsTr("Abrir carpeta de partidas"), icon: "folder-open" })
+        out.push({ key: "art", label: qsTr("Cambiar arte"), icon: "image" })
         out.push({ key: "hide", label: qsTr("Ocultar de la biblioteca"), icon: "eye-off" })
         return out
     }
@@ -105,6 +108,7 @@ Item {
         else if (key === "details") { selectById(g.id); openDetails() }
         else if (key === "fav") api.toggleFav(g)
         else if (key === "saves") api.savesOpen(g, function() { })
+        else if (key === "art") openArt(g)
         else if (key === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(g.id), function() { api.refresh() })
         menuGame = null
     }
@@ -274,7 +278,8 @@ Item {
         if (port) api.launch(g, port)
     }
     function back() {
-        if (page === "downloads") closeDownloads()
+        if (page === "art") closeArt()
+        else if (page === "downloads") closeDownloads()
         else if (page === "settings") closeSettings()
         else if (page === "all") openLibrary()
         else if (detailsOpen) closeDetails()
@@ -339,6 +344,7 @@ Item {
                 else if (k === "d" || k === "B") lib.searchFocus = false
                 return
             }
+            if (lib.page === "art") { artEditor.pad(k); return }
             if (lib.page === "downloads") { downloads.pad(k); return }
             if (k === "START" && lib.dlBusy + lib.dlFailed > 0) { lib.openDownloads(); return }
             if (lib.page === "settings") { if (k === "B") lib.closeSettings(); return }
@@ -374,7 +380,7 @@ Item {
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { if (e.key === Qt.Key_Escape) vkb.close(); e.accepted = true; return }
         if (searchOpen) return                              // el campo de texto maneja el teclado
-        if (detailsOpen || page === "settings" || page === "downloads") return           // la ficha, los ajustes y las descargas manejan su propio teclado
+        if (detailsOpen || page === "settings" || page === "downloads" || page === "art") return           // la ficha, los ajustes y las descargas manejan su propio teclado
         if (page === "all") { e.accepted = allGames.key(e); return }
         if (page === "home") {
             if (e.key === Qt.Key_Left) home.nav("left")
@@ -681,27 +687,75 @@ Item {
             }
         }
 
-        Rectangle {
+        Rectangle {      // panel Sistema: tres anillos (CPU, GPU, RAM) con temperaturas, y energía, perfil y disco debajo
+            id: sysCard
             visible: lib.showSystem && api.ok && !api.gameRunning
             anchors { right: clockPill.right; top: sysPill.bottom; topMargin: lib.s * 10 }
-            width: lib.s * 300
-            height: metrics.implicitHeight + lib.s * 32
-            radius: lib.s * 18
+            width: Math.max(lib.s * 340, clockPill.x + clockPill.width - sysPill.x)       // al menos tan ancho como los botones Sistema y reloj
+            height: sysCol.implicitHeight + lib.s * 36
+            radius: lib.s * 20
             color: lib.surface
             border.color: "#30ffffff"
+            readonly property var sys: api.system || ({})
+            function tempColor(t) { return t === undefined ? lib.ink2 : (t <= 70 ? "#7fd69f" : (t <= 85 ? "#E8B86D" : "#E86D6D")) }
+            function tempText(t) { return t === undefined ? "" : Math.round(t) + " °C" }
             Column {
-                id: metrics
+                id: sysCol
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: lib.s * 18 }
-                spacing: lib.s * 10
-                Repeater {
-                    model: [
-                        lib.live.cpu_pct === undefined ? "" : "CPU  ·  " + Math.round(lib.live.cpu_pct) + "%",
-                        lib.live.gpu_pct === undefined ? "" : "GPU  ·  " + Math.round(lib.live.gpu_pct) + "%",
-                        lib.live.ram_total === undefined ? "" : "RAM  ·  " + (lib.live.ram_used / 1073741824).toFixed(1) + " / " + (lib.live.ram_total / 1073741824).toFixed(1) + " GB"
-                    ].filter(value => value.length > 0)
-                    Text { required property string modelData; text: modelData; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 18 }
+                spacing: lib.s * 14
+                Row {
+                    width: parent.width
+                    readonly property real cell: width / 3
+                    SystemGauge {
+                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
+                        value: lib.live.cpu_pct === undefined ? -1 : lib.live.cpu_pct / 100
+                        centerText: lib.live.cpu_pct === undefined ? "–" : Math.round(lib.live.cpu_pct) + "%"
+                        label: "CPU"; detail: sysCard.tempText(lib.live.cpu_temp); detailColor: sysCard.tempColor(lib.live.cpu_temp)
+                        ringColor: lib.live.cpu_pct > 90 ? "#E8B86D" : "#5B9BE0"
+                    }
+                    SystemGauge {
+                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
+                        value: lib.live.gpu_pct === undefined ? -1 : lib.live.gpu_pct / 100
+                        centerText: lib.live.gpu_pct === undefined ? "–" : Math.round(lib.live.gpu_pct) + "%"
+                        label: "GPU"; detail: sysCard.tempText(lib.live.gpu_temp); detailColor: sysCard.tempColor(lib.live.gpu_temp)
+                        ringColor: lib.live.gpu_pct > 90 ? "#E8B86D" : "#5B9BE0"
+                    }
+                    SystemGauge {
+                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
+                        value: lib.live.ram_total ? lib.live.ram_used / lib.live.ram_total : -1
+                        centerText: lib.live.ram_total ? Math.round(100 * lib.live.ram_used / lib.live.ram_total) + "%" : "–"
+                        label: "RAM"
+                        detail: lib.live.ram_total ? (lib.live.ram_used / 1073741824).toFixed(1) + " / " + (lib.live.ram_total / 1073741824).toFixed(1) + " GB" : ""
+                        ringColor: lib.live.ram_total && lib.live.ram_used / lib.live.ram_total > 0.9 ? "#E8B86D" : "#5B9BE0"
+                    }
                 }
-                Text { visible: lib.live.cpu_pct === undefined && lib.live.gpu_pct === undefined && lib.live.ram_total === undefined; text: qsTr("Sin datos de telemetría"); color: lib.ink2; font.family: lib.uiFont; font.pixelSize: lib.s * 16 }
+                Flow {
+                    width: parent.width; spacing: lib.s * 8
+                    layoutDirection: Qt.LeftToRight
+                    Repeater {
+                        model: {
+                            const out = [], sys = sysCard.sys
+                            if (sys.bat && sys.bat.pct !== undefined) out.push({ icon: "activity", text: sys.bat.pct + " %" + (sys.ac ? "  ·  " + qsTr("conectado") : "") })
+                            if (sys.profile) out.push({ icon: "activity", text: sys.profile })
+                            if (sys.disk && sys.disk.total) out.push({ icon: "folder-open", text: Math.round(sys.disk.used / 1073741824) + " / " + Math.round(sys.disk.total / 1073741824) + " GB" })
+                            return out
+                        }
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: chipText.implicitWidth + lib.s * 24; height: lib.s * 32; radius: height / 2
+                            color: "#b30b0f14"; border.color: "#30ffffff"
+                            Text { id: chipText; anchors.centerIn: parent; text: modelData.text; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 15 }
+                        }
+                    }
+                }
+                Text {
+                    visible: !!sysCard.sys.cpu && !!sysCard.sys.cpu.model
+                    width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
+                    color: lib.ink2; font.family: lib.uiFont; font.pixelSize: lib.s * 14
+                    text: sysCard.sys.cpu ? sysCard.sys.cpu.model + (sysCard.sys.cpu.ghz ? "  ·  " + sysCard.sys.cpu.ghz + " GHz" : "") : ""
+                }
+                Text { visible: lib.live.cpu_pct === undefined && lib.live.gpu_pct === undefined && lib.live.ram_total === undefined; text: qsTr("Sin datos de telemetría"); color: lib.ink2
+                       font.family: lib.uiFont; font.pixelSize: lib.s * 18 }
             }
         }
     }
@@ -1168,6 +1222,15 @@ Item {
         host: lib
         visible: lib.page === "downloads"
         onBack: lib.closeDownloads()
+    }
+
+    // ================= editor de arte (menú contextual → Cambiar arte) =================
+    OmniaArtEditor {
+        id: artEditor
+        anchors.fill: parent
+        host: lib
+        visible: lib.page === "art"
+        onBack: lib.closeArt()
     }
 
     // ================= ajustes de BigMode =================

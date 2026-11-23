@@ -119,7 +119,7 @@ def fan_speeds(sys_root: str = "/sys") -> list[dict]:
 
 
 _cpu_prev: tuple | None = None
-_gpu_cache = (0.0, None)
+_gpu_cache = (0.0, (None, None))
 
 
 def _cpu_times(proc: str):
@@ -152,38 +152,69 @@ def memory(proc: str = "/proc") -> dict:
     return {"ram_total": total, "ram_used": max(0, total - avail)} if total else {}
 
 
-def gpu_percent(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=time.monotonic):
-    """Uso de la GPU: sysfs de AMD/Intel si existe; si no, nvidia-smi. Se cachea unos segundos."""
+def _hwmon_temp(names: tuple, prefer: tuple = (), sys_root: str = "/sys"):
+    """°C de un sensor hwmon cuyo `name` esté en `names`; entre sus lecturas prefiere la etiqueta que contenga alguna de `prefer`."""
+    best = None
+    for hw in sorted(glob.glob(f"{sys_root}/class/hwmon/hwmon*")):
+        if _read(f"{hw}/name").strip() not in names:
+            continue
+        for path in sorted(glob.glob(f"{hw}/temp*_input")):
+            raw = _read(path).strip()
+            if not raw.lstrip("-").isdigit():
+                continue
+            value = int(raw) / 1000.0
+            label = _read(path.replace("_input", "_label")).strip().lower()
+            if any(p in label for p in prefer):
+                return round(value, 1)
+            best = best if best is not None else round(value, 1)
+    return best
+
+
+def cpu_temperature(sys_root: str = "/sys"):
+    """Temperatura del procesador: coretemp (Intel, «Package id 0») o k10temp/zenpower (AMD, «Tctl»/«Tdie»); None si no hay sensor."""
+    return _hwmon_temp(("coretemp", "k10temp", "zenpower", "cpu_thermal"), ("package", "tctl", "tdie"), sys_root)
+
+
+def gpu_stats(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=time.monotonic):
+    """(uso %, temperatura °C) de la GPU: sysfs/hwmon de AMD/Intel si existe; si no, una sola consulta a nvidia-smi. Se cachea unos segundos."""
     global _gpu_cache
     t = now()
     if t - _gpu_cache[0] < ttl:
         return _gpu_cache[1]
-    value = None
+    value, temp = None, None
     for path in sorted(glob.glob(f"{sys_root}/class/drm/card*/device/gpu_busy_percent")):
         raw = _read(path)
         if raw.isdigit():
             value = float(raw)
+            temp = _hwmon_temp(("amdgpu",), ("edge",), sys_root)
             break
     if value is None:
         try:
-            out = run(["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+            out = run(["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu", "--format=csv,noheader,nounits"],
                       capture_output=True, text=True, timeout=1.5)
-            first = out.stdout.strip().splitlines()[0].strip() if out.returncode == 0 and out.stdout.strip() else ""
-            value = float(first) if first.isdigit() else None
+            first = out.stdout.strip().splitlines()[0] if out.returncode == 0 and out.stdout.strip() else ""
+            parts = [x.strip() for x in first.split(",")]
+            value = float(parts[0]) if parts and parts[0].isdigit() else None
+            temp = float(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
         except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-            value = None
-    _gpu_cache = (t, value)
-    return value
+            value = temp = None
+    _gpu_cache = (t, (value, temp))
+    return value, temp
+
+
+def gpu_percent(sys_root: str = "/sys", run=subprocess.run, ttl: float = 2.0, now=time.monotonic):
+    """Uso de la GPU (ver `gpu_stats`)."""
+    return gpu_stats(sys_root, run, ttl, now)[0]
 
 
 def live(proc: str = "/proc", sys_root: str = "/sys") -> dict:
-    """Carga en vivo para la barra superior de la biblioteca: CPU %, GPU % y RAM."""
+    """Carga en vivo para la barra superior de la biblioteca: CPU %, GPU %, RAM y las temperaturas de CPU y GPU."""
     out = dict(memory(proc))
-    c, g = cpu_percent(proc), gpu_percent(sys_root)
-    if c is not None:
-        out["cpu_pct"] = c
-    if g is not None:
-        out["gpu_pct"] = g
+    c, (g, gt) = cpu_percent(proc), gpu_stats(sys_root)
+    ct = cpu_temperature(sys_root)
+    for key, value in (("cpu_pct", c), ("gpu_pct", g), ("cpu_temp", ct), ("gpu_temp", gt)):
+        if value is not None:
+            out[key] = value
     return out
 
 
