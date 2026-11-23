@@ -7,7 +7,7 @@ import zlib
 from pathlib import Path
 from unittest import mock
 
-from omnia import security
+from omnia import online_catalog, security
 from omnia.api import Api, ApiError
 from omnia.store import Store
 
@@ -76,6 +76,42 @@ class UserArtTests(unittest.TestCase):
         with mock.patch.object(self.api, "_allowed", return_value=True):
             self.local(path=str(framed))
         self.assertFalse(framed.exists())
+
+    def test_choosing_an_option_downloads_verifies_and_stores_it(self):
+        url = "https://cdn2.steamgriddb.com/hero/abc.png"
+        with mock.patch.object(online_catalog, "download_option_image", return_value=png(640, 360)) as dl:
+            self.assertEqual(self.api.art_choose({"_body": {"id": "g1", "kind": "fondo", "url": url}}), {"ok": True, "kind": "fondo"})
+        self.assertEqual(dl.call_args.args[0], url)
+        self.assertTrue(self.api.library({})["games"][0]["fondo"].startswith("file://"))
+
+    def test_choosing_rejects_bad_urls_images_and_kinds(self):
+        for url in ("http://cdn2.steamgriddb.com/x.png", "https://evil.example.com/x.png", "https://user@cdn2.steamgriddb.com/x.png", ""):
+            with self.assertRaises(ApiError, msg=url):
+                self.api.art_choose({"_body": {"id": "g1", "kind": "fondo", "url": url}})
+        with mock.patch.object(online_catalog, "download_option_image", return_value=b"no soy una imagen"), self.assertRaises(ApiError):
+            self.api.art_choose({"_body": {"id": "g1", "kind": "fondo", "url": "https://cdn2.steamgriddb.com/x.png"}})
+        with self.assertRaises(ApiError):
+            self.api.art_choose({"_body": {"id": "g1", "kind": "icono", "url": "https://cdn2.steamgriddb.com/x.png"}})
+
+    def test_browse_lists_the_current_image_then_the_steamgriddb_page(self):
+        cur = "https://recompihub.example/api/v1/artwork/1/image"
+        remote = [{"kind": "hero", "url": cur}]
+        options = {"linked": True, "hasMore": True, "offline": False, "stale": False, "items": [
+            {"id": "7", "url": "https://cdn2.steamgriddb.com/hero/a.png", "thumb": "https://cdn2.steamgriddb.com/thumb/a.png", "width": 1920, "height": 620, "author": "ana", "style": "alternate", "score": 5}]}
+        with mock.patch.object(online_catalog, "fetch_artwork", return_value=remote), mock.patch.object(online_catalog, "fetch_art_options", return_value=options):
+            first = self.api.art_browse({"id": "g1", "kind": "fondo", "page": "0"})
+            more = self.api.art_browse({"id": "g1", "kind": "fondo", "page": "1"})
+        self.assertEqual([(i["id"], i["cur"]) for i in first["items"]], [("actual", True), ("7", False)])
+        self.assertTrue(first["more"])
+        self.assertEqual([i["id"] for i in more["items"]], ["7"])                      # la imagen actual solo va en la página 0
+
+    def test_browse_keeps_the_current_image_when_the_options_endpoint_fails(self):
+        remote = [{"kind": "hero", "url": "https://recompihub.example/api/v1/artwork/1/image"}]
+        with mock.patch.object(online_catalog, "fetch_artwork", return_value=remote), \
+                mock.patch.object(online_catalog, "fetch_art_options", side_effect=online_catalog.CatalogError("sin red")):
+            result = self.api.art_browse({"id": "g1", "kind": "fondo"})
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["warning"], "sin red")
 
     def test_reset_returns_to_the_catalog_and_removes_the_copy(self):
         self.local()

@@ -265,6 +265,54 @@ def fetch_artwork(slug: str, *, opener=None) -> list[dict]:
     return fetch_entry(slug, opener=opener)["artwork"]
 
 
+_OPTION_KINDS = {"portada": "grid", "fondo": "hero", "logo": "logo"}
+
+
+def fetch_art_options(slug: str, kind: str, page: int = 0, *, base: Path | None = None, opener=None) -> dict:
+    """Una página de opciones de arte de un juego (SteamGridDB, a través del backend de Omnia: la clave no sale de ahí).
+
+    Devuelve {linked, hasMore, items:[{id,url,thumb,width,height,author,style,score}]}; ante un fallo del backend lanza CatalogError."""
+    slug = str(slug or "")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", slug) or kind not in _OPTION_KINDS or not isinstance(page, int) or not 0 <= page <= 20:
+        raise CatalogError("Opciones de arte no válidas.")
+    response = _get("/games/" + urllib.parse.quote(slug, safe="") + "/artwork/options", {"type": _OPTION_KINDS[kind], "page": str(page)},
+                    base=base, opener=opener)
+    data = response.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        raise CatalogError("El backend no devolvió opciones de arte.")
+    items = []
+    for row in data["items"][:60]:
+        if not isinstance(row, dict) or not (_is_option_url(row.get("url")) and _is_option_url(row.get("thumb"))):
+            continue
+        items.append({key: row.get(key) for key in ("id", "url", "thumb", "width", "height", "author", "style", "score")})
+    return {"linked": bool(data.get("linked")), "hasMore": bool(data.get("hasMore")), "items": items,
+            "offline": bool(response.get("offline")), "stale": bool(response.get("stale"))}
+
+
+def _is_option_url(url) -> bool:
+    parsed = urllib.parse.urlsplit(url) if isinstance(url, str) else None
+    return bool(parsed and parsed.scheme == "https" and not parsed.username and not parsed.fragment and parsed.port in (None, 443) and _is_art_cdn(parsed.hostname))
+
+
+def download_option_image(url: str, *, opener=None, limit: int = 25 * 1024 * 1024) -> bytes:
+    """Descarga la imagen que la persona eligió entre las opciones: solo HTTPS del CDN público de SteamGridDB, sin credenciales ni
+    redirecciones a otros orígenes, con límite de tamaño y solo PNG, JPEG o WebP."""
+    if not _is_option_url(url):
+        raise CatalogError("La imagen no es del CDN permitido.")
+    request = urllib.request.Request(url, headers={"Accept": "image/png,image/jpeg,image/webp", "User-Agent": "Omnia/0.3"})
+    try:
+        with (opener or urllib.request.urlopen)(request, timeout=30) as response:
+            if not _is_option_url(response.geturl()):
+                raise CatalogError("La imagen se redirigió a otro origen.")
+            raw = response.read(limit + 1)
+            mime = (response.headers.get("Content-Type") or "").split(";", 1)[0].lower()
+    except (OSError, urllib.error.URLError, TimeoutError) as exc:
+        raise CatalogError("No se pudo descargar la imagen elegida.") from exc
+    if len(raw) > limit or mime not in {"image/png", "image/jpeg", "image/webp"}:
+        raise CatalogError("La imagen elegida supera los límites permitidos.")
+    return raw
+
+
 def _is_art_cdn(host) -> bool:
     """El backend redirige las imágenes al CDN público de SteamGridDB (sin clave); no se acepta ningún otro destino."""
     host = str(host or "").lower()

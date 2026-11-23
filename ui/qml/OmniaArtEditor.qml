@@ -16,7 +16,10 @@ Item {
     readonly property var kindLabels: ({ portada: qsTr("Portada"), fondo: qsTr("Fondo"), logo: qsTr("Logo") })
     property string kind: "portada"
     property var options: ({ portada: [], fondo: [], logo: [] })
-    property var choice: ({ portada: null, fondo: null, logo: null })      // null = sin cambios · {t:"catalog"|"local"|"reset", …}
+    property var meta: ({ portada: { page: 0, more: false, loading: false, linked: true, warning: "" },
+                          fondo: { page: 0, more: false, loading: false, linked: true, warning: "" },
+                          logo: { page: 0, more: false, loading: false, linked: true, warning: "" } })
+    property var choice: ({ portada: null, fondo: null, logo: null })      // null = sin cambios · {t:"option"|"local"|"reset", …}
     property int index: 0
     property bool busy: false
     property string message: ""
@@ -27,6 +30,7 @@ Item {
 
     readonly property var tiles: {
         const out = (options[kind] || []).map(function(o, i) { return { k: "cat", i: i, url: o.thumb || o.url, cur: !!o.cur } })
+        if (meta[kind] && meta[kind].more) out.push({ k: "more" })
         out.push({ k: "local" })
         if (localActive && kind !== "logo") out.push({ k: "fit" })
         out.push({ k: "reset" })
@@ -38,7 +42,7 @@ Item {
     // ---- vista previa: lo elegido o, si no se tocó ese tipo, lo que tiene el juego ahora
     function previewUrl(k) {
         const c = choice[k]
-        if (c && c.t === "catalog") return c.url
+        if (c && c.t === "option") return c.url
         if (c && c.t === "local") return "file://" + c.path
         if (c && c.t === "reset") return ""
         return game && game[k] ? game[k] : ""
@@ -49,17 +53,33 @@ Item {
         game = g; kind = "portada"; index = 0; message = ""; busy = false
         choice = { portada: null, fondo: null, logo: null }
         options = { portada: [], fondo: [], logo: [] }
-        for (const k of ed.kinds) loadKind(k)
+        meta = { portada: { page: 0, more: false, loading: false, linked: true, warning: "" },
+                 fondo: { page: 0, more: false, loading: false, linked: true, warning: "" },
+                 logo: { page: 0, more: false, loading: false, linked: true, warning: "" } }
+        for (const k of ed.kinds) loadKind(k, 0)
         ed.host.api.artTmp(function(st, b) { if (st === 200 && b) ed.tmpDir = b.dir })
         forceActiveFocus()
     }
-    function loadKind(k) {
-        ed.host.api.artBrowse(game, k, 0, 0, function(st, body) {
+    function loadKind(k, page) {
+        const m = Object.assign({}, ed.meta[k]); m.loading = true
+        const all = Object.assign({}, ed.meta); all[k] = m; ed.meta = all
+        ed.host.api.artBrowse(game, k, page, 0, function(st, body) {
             const next = Object.assign({}, ed.options)
-            next[k] = st === 200 && body && body.items ? body.items : []
+            const info = Object.assign({}, ed.meta[k]); info.loading = false
+            if (st === 200 && body) {
+                next[k] = (page === 0 ? [] : (ed.options[k] || [])).concat(body.items || [])
+                info.page = page; info.more = !!body.more; info.linked = body.linked !== false; info.warning = body.warning || ""
+            } else {
+                info.more = false; info.warning = (body && body.error) || qsTr("No se pudieron cargar las opciones.")
+            }
+            const meta2 = Object.assign({}, ed.meta); meta2[k] = info; ed.meta = meta2
             ed.options = next
-            if (k === ed.kind) moveToCurrent()
+            if (page === 0 && k === ed.kind) moveToCurrent()
         })
+    }
+    function loadMore() {
+        const m = meta[kind]
+        if (m && m.more && !m.loading) loadKind(kind, m.page + 1)
     }
     function moveToCurrent() {
         const at = (options[kind] || []).findIndex(function(o) { return o.cur })
@@ -74,8 +94,9 @@ Item {
         if (!t) return
         if (t.k === "cat") {
             if (options[kind][t.i].cur) setChoice(null)           // volver a la imagen actual = sin cambios
-            else setChoice({ t: "catalog", index: t.i, url: options[kind][t.i].url })
-        } else if (t.k === "reset") setChoice({ t: "reset" })
+            else setChoice({ t: "option", url: options[kind][t.i].url })
+        } else if (t.k === "more") loadMore()
+        else if (t.k === "reset") setChoice({ t: "reset" })
     }
     function move(dx, dy) {
         const cols = Math.max(1, Math.floor(grid.width / (tileW + s * 8)))
@@ -113,7 +134,7 @@ Item {
         const k = queue[0], c = choice[k]
         queue = queue.slice(1)
         const done = function(st, b) { if (st === 200) ed.next(); else ed.fail(b && b.error) }
-        if (c.t === "catalog") ed.host.api.artPick(game, k, 0, 1, c.index, done)
+        if (c.t === "option") ed.host.api.artChoose(game, k, c.url, done)
         else if (c.t === "reset") ed.host.api.artReset(game, k, done)
         else if (k === "logo") ed.host.api.artLocal(game, k, c.path, done)       // un logo conserva su forma: se envía tal cual
         else renderFramed(k, c, function(path) { if (path) ed.host.api.artLocal(game, k, path, done); else ed.fail(qsTr("No se pudo preparar la imagen.")) })
@@ -252,7 +273,7 @@ Item {
             }
             Text { anchors { left: parent.left; right: parent.right; top: screen.bottom; topMargin: ed.s * 10 } wrapMode: Text.WordWrap; color: ed.host.ink2
                    font.family: ed.host.uiFont; font.pixelSize: ed.s * 17
-                   text: ed.message !== "" ? ed.message : qsTr("La estantería, la ficha y la lista usan estas mismas imágenes. Nada cambia hasta que pulses Guardar.") }
+                   text: ed.message !== "" ? ed.message : (ed.meta[ed.kind].warning !== "" ? ed.meta[ed.kind].warning : qsTr("Opciones de SteamGridDB. La estantería, la ficha y la lista usan estas mismas imágenes; nada cambia hasta que pulses Guardar.")) }
         }
         // ---- derecha: tipo de imagen y opciones
         Item {
@@ -299,9 +320,9 @@ Item {
                             visible: cell.modelData.k !== "cat" && !(cell.modelData.k === "local" && ed.localActive)
                             anchors.centerIn: parent; spacing: ed.s * 4
                             LucideIcon { anchors.horizontalCenter: parent.horizontalCenter; width: ed.s * 26; height: width; color: ed.host.ink2
-                                         name: cell.modelData.k === "local" ? "folder-open" : (cell.modelData.k === "fit" ? "layout-grid" : "eye-off") }
+                                         name: cell.modelData.k === "local" ? "folder-open" : (cell.modelData.k === "fit" ? "layout-grid" : (cell.modelData.k === "more" ? "chevron-right" : "eye-off")) }
                             Text { anchors.horizontalCenter: parent.horizontalCenter; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 15
-                                   text: cell.modelData.k === "local" ? qsTr("Mi archivo…") : (cell.modelData.k === "fit" ? (ed.current && ed.current.fit === "fit" ? qsTr("Ajustar") : qsTr("Rellenar")) : qsTr("Original")) }
+                                   text: cell.modelData.k === "local" ? qsTr("Mi archivo…") : (cell.modelData.k === "fit" ? (ed.current && ed.current.fit === "fit" ? qsTr("Ajustar") : qsTr("Rellenar")) : (cell.modelData.k === "more" ? (ed.meta[ed.kind].loading ? qsTr("Cargando…") : qsTr("Ver más")) : qsTr("Original"))) }
                         }
                         Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"
                                     border.width: cell.sel ? 3 : 1; border.color: cell.sel ? ed.host.accent : Qt.rgba(1, 1, 1, 0.12) }
@@ -310,15 +331,16 @@ Item {
                             onClicked: {
                                 ed.index = cell.index
                                 if (cell.modelData.k === "local") ed.chooseLocal()
+                                else if (cell.modelData.k === "more") ed.loadMore()
                                 else if (cell.modelData.k === "fit") ed.toggleFit()
                                 else ed.applyCursor()
                             }
                         }
                     }
                 }
-                Text { visible: ed.tiles.length <= 2 && ed.options[ed.kind].length === 0; anchors.centerIn: parent; width: parent.width * 0.8; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                Text { visible: ed.options[ed.kind].length <= 1 && !ed.meta[ed.kind].more; anchors.centerIn: parent; width: parent.width * 0.8; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                        color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 18
-                       text: qsTr("El catálogo no tiene otras imágenes de este tipo. Puedes usar un archivo tuyo.") }
+                       text: ed.meta[ed.kind].loading ? qsTr("Cargando opciones…") : (!ed.meta[ed.kind].linked ? qsTr("Este juego aún no está enlazado a SteamGridDB: solo está la imagen actual. Puedes usar un archivo tuyo.") : qsTr("No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.")) }
             }
         }
     }

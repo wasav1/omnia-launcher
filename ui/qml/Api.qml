@@ -404,6 +404,7 @@ QtObject {
     function artPick(g, kind, page, sgid, index, done) {
         call("POST", "/art/pick?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&page=" + page + "&sgid=" + sgid + "&index=" + index, done)
     }
+    function artChoose(g, kind, url, done) { call("POST", "/art/choose", done, {id: g.id, kind: kind, url: url}) }
     function artTmp(done) { call("GET", "/art/tmp", done) }
     function artLocal(g, kind, path, done) { call("POST", "/art/local", done, {id: g.id, kind: kind, path: path}) }
     function artReset(g, kind, done) { call("POST", "/art/reset", done, kind ? {id: g.id, kind: kind} : {id: g.id}) }

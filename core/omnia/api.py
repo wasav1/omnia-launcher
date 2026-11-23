@@ -135,6 +135,7 @@ class Api:
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
             "/art/local": ("POST", True, self.art_local),
+            "/art/choose": ("POST", True, self.art_choose),
             "/art/tmp": ("GET", True, self.art_tmp),
             "/art/reset": ("POST", True, self.art_reset),
             "/catalog/games": ("GET", True, self.catalog_games),
@@ -1261,6 +1262,7 @@ class Api:
 
     # --- artwork del catálogo público de Omnia (el núcleo no recibe ni guarda claves de proveedores)
     def art_browse(self, q):
+        """Opciones de arte de un juego: la imagen actual del catálogo (solo en la página 0) y una página de SteamGridDB que sirve el backend."""
         g = self.store.find_game(q.get("id", ""))
         if not g:
             raise ApiError(404, "juego desconocido")
@@ -1268,29 +1270,36 @@ class Api:
         if kind not in art.KINDS:
             raise ApiError(400, "tipo de arte no válido")
         try:
-            page, sgid = int(q.get("page", "0")), int(q.get("sgid", "0"))
-            if page < 0 or sgid < 0:
+            page = int(q.get("page", "0"))
+            if page < 0 or page > 20:
                 raise ValueError
-            if not g.get("catalogSlug"):
-                raise ApiError(409, "Este juego no tiene artwork publicado en el catálogo Omnia.")
-            remote = online_catalog.fetch_artwork(g["catalogSlug"])
-            alias = {"portada": "grid", "fondo": "hero", "logo": "logo"}.get(kind)
-            items = [{"url": row["url"], "thumb": row["url"], "w": 0, "h": 0, "by": "Omnia"}
-                     for row in remote if row.get("kind") == alias]
-            result = {"sgid": 1 if items else 0, "games": [{"id": 1, "name": g["name"]}] if items else [],
-                      "items": items, "page": 0, "more": False}
-            current = (((self.store.state.get("art_sources") or {}).get(g["id"]) or {}).get(kind) or "")
-            if g.get("catalogSlug"):
-                current = (((self.store.state.get("catalog_art") or {}).get(g["catalogSlug"]) or {}).get(alias) or current)
-            for item in result["items"]:
-                item["cur"] = item["url"] == current
-            return result
         except ValueError:
-            raise ApiError(400, "página o edición no válida")
-        except art.ArtError as e:
-            raise ApiError(502, str(e))
+            raise ApiError(400, "página no válida")
+        slug = g.get("catalogSlug")
+        if not slug:
+            raise ApiError(409, "Este juego no tiene artwork publicado en el catálogo Omnia.")
+        alias = {"portada": "grid", "fondo": "hero", "logo": "logo"}[kind]
+        items, warning, linked, more = [], "", True, False
+        try:
+            if page == 0:
+                remote = online_catalog.fetch_artwork(slug)
+                current = (((self.store.state.get("catalog_art") or {}).get(slug) or {}).get(alias) or "")
+                items += [{"id": "actual", "url": row["url"], "thumb": row["url"], "w": 0, "h": 0, "by": "Omnia", "cur": row["url"] == current or not current}
+                          for row in remote if row.get("kind") == alias][:1]
         except online_catalog.CatalogError as e:
-            raise ApiError(502, str(e))
+            warning = str(e)
+        try:
+            options = online_catalog.fetch_art_options(slug, kind, page)
+            linked, more = options["linked"], options["hasMore"]
+            have = {i["url"] for i in items}
+            items += [{"id": str(o.get("id") or ""), "url": o["url"], "thumb": o["thumb"], "w": o.get("width") or 0, "h": o.get("height") or 0,
+                       "by": o.get("author") or "SteamGridDB", "style": o.get("style") or "", "cur": False}
+                      for o in options["items"] if o["url"] not in have]
+        except online_catalog.CatalogError as e:
+            warning = warning or str(e)
+        if not items and warning:
+            raise ApiError(502, warning)
+        return {"items": items, "page": page, "more": more, "linked": linked, "warning": warning, "sgid": 1 if items else 0}
 
     def art_pick(self, q):
         g = self.store.find_game(q.get("id", ""))
@@ -1349,6 +1358,32 @@ class Api:
         real = os.path.realpath(os.path.expanduser(path))
         if not path or os.path.islink(os.path.expanduser(path)) or not os.path.isfile(real) or not self._allowed(real):
             raise ApiError(403, "elige una imagen dentro de tus carpetas")
+        return self._save_user_art(g, kind, real)
+
+    def art_choose(self, q):
+        """Usa como arte de un juego una de las opciones de SteamGridDB que ofrece el backend: se descarga una vez (solo del CDN
+        público de SteamGridDB, ≤ 25 MiB, PNG/JPEG/WebP), se verifica y queda como arte propio de ese juego."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        g = self.store.find_game(str(body.get("id") or ""))
+        kind, url = str(body.get("kind") or ""), str(body.get("url") or "")
+        if not g:
+            raise ApiError(404, "juego desconocido")
+        if kind not in self.USER_ART_KINDS:
+            raise ApiError(400, "tipo de arte no válido")
+        try:
+            raw = online_catalog.download_option_image(url, opener=package_installs._safe_package_opener().open)
+        except online_catalog.CatalogError as e:
+            raise ApiError(502, str(e))
+        folder = paths.cache_dir() / "user-art-tmp"
+        folder.mkdir(parents=True, exist_ok=True)
+        tmp = folder / f"opcion-{int(time.time() * 1000)}.bin"
+        tmp.write_bytes(raw)
+        try:
+            return self._save_user_art(g, kind, str(tmp))
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def _save_user_art(self, g, kind, real):
         try:
             size = os.path.getsize(real)
         except OSError:
