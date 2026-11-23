@@ -41,6 +41,7 @@ Variants {
         readonly property real after: edgeLen - zoneLen - before
 
         OmniaPanelWindow { modelData: scope.modelData }
+        OmniaPadPromptWindow { modelData: scope.modelData }
 
         PanelWindow {
             id: zone

@@ -141,6 +141,12 @@ se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 
 - El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
 
 ## 7. Registro de cambios
+- **2026-11-23 — Aviso «Mando conectado · ¿Abrir Omnia?» (prototipo A) y Big Mode que se aparta mientras juegas:** Panel (Quickshell): `OmniaApi` mantiene una escucha permanente de `/events` (`padWatching`) y emite
+  `padConnected` solo en conexiones posteriores al arranque; el singleton `OmniaPadPrompt` decide si mostrar el aviso (ajuste `padPrompt` en `hyprland.json`, panel cerrado, sin Big Mode abierto —clase
+  `org.omnia.bigmode.qml6`— y sin juegos en marcha) y `OmniaPadPromptWindow` lo dibuja en el centro del monitor con el foco (capa Overlay): A/clic abre Big Mode, B/clic lo descarta, 12 s sin respuesta lo cierra.
+  Interruptor «Preguntar al conectar un mando» en los ajustes del panel; prueba manual: `qs -c ii ipc call omnia padprompt`. Big Mode (`OmniaLibrary`): con un juego en marcha la ventana se oculta
+  (`hideForGame`) y, cuando el juego se cierra (confirmado 1,5 s), vuelve a pantalla completa y con el foco; el núcleo no entrega botones del mando a la interfaz mientras hay un juego abierto.
+  Hay que ejecutar `omnia-hyprland install` y recargar ii (`CTRL+SUPER+R`) para que el panel use los archivos nuevos.
 - **2026-11-23 — «Instalar port» en todas partes donde antes decía «Jugar»:** un juego con `portAvailable` (volcado sin port instalado) muestra «Instalar port» (y el icono de descarga) en BigMode (botón del héroe, pie de
   ayuda, ficha del juego, tarjeta «Seguir jugando» del Inicio, tarjeta expandida de «Ver todos», menú), app de escritorio (página del juego, lista de «Juegos en este equipo»), panel de acceso rápido y `GameCard`; `manager.launch`,
   `OmniaApi.play` (panel) y `lib.play` ofrecen instalar en vez de lanzar, y `/launch` responde 409 con un mensaje claro si se intenta lanzar un juego así. Corregido el texto que se montaba sobre el logo ancho de consola

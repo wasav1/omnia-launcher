@@ -143,7 +143,7 @@ Singleton {
         onPressed: root.toggleShortcut()
     }
 
-    // Control y diagnóstico por IPC:  qs -c ii ipc call omnia toggle | open | close | status | settings | bigmode | setting
+    // Control y diagnóstico por IPC:  qs -c ii ipc call omnia toggle | open | close | status | settings | bigmode | padprompt | setting
     IpcHandler {
         target: "omnia"
         function toggle(): void { root.toggleShortcut(); }
@@ -158,6 +158,7 @@ Singleton {
             try { OmniaSettings.set(name, JSON.parse(json)); return "ok"; } catch (e) { return "error: " + e; }
         }
         function bigmode(): void { OmniaApi.openLibrary(); }
+        function padprompt(): void { OmniaPadPrompt.preview(); }
         function library(): void { OmniaApi.openLibrary(); }
         function libraryCommand(): string { return JSON.stringify(OmniaSettings.libraryCommand); }
         function status(): string {

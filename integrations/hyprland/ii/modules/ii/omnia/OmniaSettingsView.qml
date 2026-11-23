@@ -149,6 +149,23 @@ Flickable {
                         }
                         OmniaSwitch { checked: OmniaSettings.blur; onToggled: v => OmniaSettings.set("blur", v) }
                     }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            StyledText { text: "Preguntar al conectar un mando"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: "Al conectar un mando aparece «¿Abrir Omnia?»: A abre Big Mode y B lo descarta."
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: OmniaTheme.inkDim
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                        OmniaSwitch { checked: OmniaSettings.padPrompt; onToggled: v => OmniaSettings.set("padPrompt", v) }
+                    }
                 }
             }
         }

@@ -128,6 +128,35 @@ Item {
         }
     }
     Connections { target: api; function onGameRunningChanged() { if (!api.gameRunning) activityDelay.restart() } }
+    // Big Mode se oculta mientras hay un juego en marcha y vuelve a pantalla completa cuando el juego se cierra.
+    // Con un juego abierto el núcleo no entrega los botones del mando a la interfaz, así que no hay entradas accidentales.
+    property bool hiddenForGame: false
+    Connections {
+        target: api
+        function onGameRunningChanged() {
+            if (api.gameRunning) { reopenDelay.stop(); lib.hideForGame() }
+            else if (lib.hiddenForGame) reopenDelay.restart()
+        }
+    }
+    Timer {      // el cierre se confirma un instante (un lanzador puede soltar el proceso antes de que arranque el juego)
+        id: reopenDelay
+        interval: 1500
+        onTriggered: lib.reopenAfterGame()
+    }
+    function hideForGame() {
+        const win = lib.Window.window
+        if (!win || !win.visible || hiddenForGame) return
+        hiddenForGame = true
+        win.hide()
+    }
+    function reopenAfterGame() {
+        if (!hiddenForGame || api.gameRunning) return
+        hiddenForGame = false
+        const win = lib.Window.window
+        if (!win) return
+        win.showFullScreen()
+        win.requestActivate()
+    }
     Timer { interval: 15000; repeat: true; running: lib.visible; onTriggered: lib.clockTime = new Date() }
     FontLoader { source: Qt.resolvedUrl("fonts/HankenGrotesk.ttf") }
     Api {
