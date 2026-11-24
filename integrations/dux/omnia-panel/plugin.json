@@ -2,9 +2,9 @@
   "id": "omniaPanel",
   "name": "Panel de Omnia",
   "description": "Panel rápido de Omnia como pestaña del dashboard de Dux, con el mando conectado y su batería en la barra.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Omnia",
-  "icon": "gamepad-2",
+  "icon": "sports_esports",
   "type": "composite",
   "capabilities": [
     "dankbar-widget",
@@ -19,6 +19,7 @@
     "dash": "./OmniaDashboard.qml"
   },
   "dash": {
-    "title": "Omnia"
+    "title": "Omnia",
+    "icon": "sports_esports"
   }
 }

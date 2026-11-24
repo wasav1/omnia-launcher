@@ -212,7 +212,9 @@ DashTabComponent {
                     }
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 150
+                        Layout.fillHeight: true             // el banner absorbe el espacio libre de la tarjeta
+                        Layout.minimumHeight: 150
+                        Layout.maximumHeight: 320
                         radius: Theme.cornerRadius
                         color: Theme.surfaceContainerHighest
                         clip: true
@@ -272,7 +274,6 @@ DashTabComponent {
                             }
                         }
                     }
-                    Item { Layout.fillHeight: true }
                     StyledText {
                         visible: root.actionError !== ""
                         Layout.fillWidth: true
