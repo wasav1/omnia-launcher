@@ -482,6 +482,11 @@ QtObject {
     function loadAudioDevices(done) { call("GET", "/audio/devices", done) }
     function setInputDevice(source, done) { call("POST", "/audio/input/set", done, {source: source}) }
     function setAudioLevel(target, changes, done) { call("POST", "/audio/level", done, Object.assign({target: target}, changes)) }
+    function loadStores(done) { call("GET", "/stores", done) }
+    function storeLoginUrl(store, done) { call("GET", "/stores/login-url?store=" + encodeURIComponent(store), done) }
+    function storeLogin(store, code, done) { call("POST", "/stores/login", done, {store: store, code: code}) }
+    function storeLogout(store, done) { call("POST", "/stores/logout", done, {store: store}) }
+    function storeLibrary(store, done) { call("GET", "/stores/library?store=" + encodeURIComponent(store), done) }
     function loadPads(done) { call("GET", "/pads", done) }
     function setPadSettings(id, changes, done) { call("POST", "/pads/settings", done, Object.assign({id: id}, changes)) }
     function rumblePad(id, done) { call("POST", "/pads/rumble", done, {id: id, strong: 0.7, weak: 0.7, ms: 350}) }
