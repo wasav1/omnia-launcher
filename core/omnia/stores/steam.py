@@ -1,84 +1,58 @@
 """Steam: sin clave de API ni contraseñas en Omnia.
 
-El usuario inicia sesión en la página oficial de Steam dentro de la ventana de Omnia (StoreLogin.qml). Con esa sesión web, la ventana pide
-`/my/games?tab=all&xml=1` (la propia lista de juegos de la cuenta, con cualquier privacidad) y entrega el XML a Omnia, que guarda solo la
-lista (id y nombre). Instalar abre el diálogo oficial `steam://install/<id>`; Steam no permite otra vía.
+El usuario inicia sesión en la página oficial de Steam dentro de la ventana de Omnia (StoreLogin.qml). Con esa sesión web, la ventana
+lee de su propia página de juegos el token de corta duración de la Web API (`strWebAPIToken`) y el id de la cuenta, y se los entrega a
+Omnia. Omnia consulta `IPlayerService/GetOwnedGames` solo en api.steampowered.com, usa el token una vez, NO lo guarda, y conserva
+únicamente la lista (id y nombre). Instalar abre el diálogo oficial `steam://install/<id>`; Steam no permite otra vía.
 """
-import html as htmllib
 import json
 import re
 import time
-import xml.etree.ElementTree as ET
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from .base import StoreError
 
 LOGIN_URL = "https://steamcommunity.com/my/"
-MAX_XML = 8_000_000
+OWNED_URL = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?"
+STEAMID_RE = re.compile(r"7656\d{13}")
+TOKEN_RE = re.compile(r"[A-Za-z0-9_.\-]{40,2000}")
 
 
-def parse_games_xml(text: str) -> dict:
-    """{steamid, name, games:[{id, title}]} desde el XML de /games?xml=1. Rechaza DTD/entidades (sin expansión de entidades)."""
-    if not isinstance(text, str) or len(text) > MAX_XML:
-        raise StoreError("La respuesta de Steam no es válida.")
-    head = text[:4000].upper()
-    if "<!DOCTYPE" in head or "<!ENTITY" in text.upper():
-        raise StoreError("La respuesta de Steam no es válida.")
-    start = text.find("<")
+def fetch_owned(steamid: str, token: str, opener=urllib.request.urlopen) -> list:
+    """Juegos de la cuenta [{id, title}] con el token de la sesión web. El token solo viaja a api.steampowered.com."""
+    if not STEAMID_RE.fullmatch(steamid or "") or not TOKEN_RE.fullmatch(token or ""):
+        raise StoreError("Steam no entregó los datos de la sesión. Inicia sesión e inténtalo otra vez.")
+    query = urllib.parse.urlencode({"access_token": token, "steamid": steamid, "include_appinfo": 1,
+                                    "include_played_free_games": 1, "format": "json"})
+    req = urllib.request.Request(OWNED_URL + query, headers={"User-Agent": "Omnia/0.3", "Accept": "application/json"})
     try:
-        root = ET.fromstring(text[start:] if start > 0 else text)
-    except ET.ParseError:
-        raise StoreError("La respuesta de Steam no es válida.")
-    err = root.findtext("error")
-    if root.tag == "response" and err:
-        raise StoreError("Steam no dejó leer tu biblioteca. Inicia sesión en Steam e inténtalo otra vez.")
-    steamid = (root.findtext("steamID64") or "").strip()
-    if not re.fullmatch(r"7656\d{13}", steamid):
-        raise StoreError("Steam no devolvió una cuenta válida. Inicia sesión e inténtalo otra vez.")
+        with opener(req, timeout=30) as r:
+            data = json.loads(r.read(20_000_000).decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise StoreError("Steam rechazó la sesión (código %d). Inicia sesión otra vez." % e.code)
+    except (urllib.error.URLError, OSError, ValueError):
+        raise StoreError("No se pudo consultar tu biblioteca de Steam.")
     games = []
-    for g in root.iter("game"):
-        appid = (g.findtext("appID") or "").strip()
-        if appid.isdigit() and len(appid) <= 10:
-            games.append({"id": appid, "title": (g.findtext("name") or appid).strip()[:120]})
-    return {"steamid": steamid, "name": (root.findtext("steamID") or "").strip()[:64], "games": games}
-
-
-def parse_games_html(text: str) -> list:
-    """Juegos de la página moderna /games (la lista va en el atributo data-profile-gameslist, en JSON)."""
-    m = re.search(r'data-profile-gameslist="([^"]*)"', text or "")
-    if not m:
-        raise StoreError("Steam no mostró tu lista de juegos. Inicia sesión e inténtalo otra vez.")
-    try:
-        data = json.loads(htmllib.unescape(m.group(1)))
-    except ValueError:
-        raise StoreError("La lista de juegos de Steam no se pudo leer.")
-    games = []
-    for g in (data.get("rgGames") or []) if isinstance(data, dict) else []:
+    for g in (data.get("response") or {}).get("games", []) if isinstance(data, dict) else []:
         appid = str(g.get("appid", "")) if isinstance(g, dict) else ""
         if appid.isdigit() and len(appid) <= 10:
             games.append({"id": appid, "title": str(g.get("name") or appid).strip()[:120]})
     return games
 
 
-def parse_capture(raw: str) -> dict:
-    """Resultado de lo que entrega la ventana: sobre JSON {steamid, name, xml, html} o, por compatibilidad, el XML directo."""
+def parse_capture(raw: str, opener=urllib.request.urlopen) -> dict:
+    """Lo que entrega la ventana: JSON {steamid, name, token}. Devuelve {steamid, name, games}."""
     try:
         env = json.loads(raw)
     except (TypeError, ValueError):
         env = None
     if not isinstance(env, dict):
-        return parse_games_xml(raw)
-    if len(str(env.get("html", ""))) > MAX_XML or len(str(env.get("xml", ""))) > MAX_XML:
         raise StoreError("La respuesta de Steam no es válida.")
-    steamid = str(env.get("steamid", "")).strip()
-    name = str(env.get("name", "")).strip()[:64]
-    if env.get("xml"):
-        data = parse_games_xml(env["xml"])
-        data["name"] = data["name"] or name
-        return data
-    if not re.fullmatch(r"7656\d{13}", steamid):
-        raise StoreError("Steam no devolvió una cuenta válida. Inicia sesión e inténtalo otra vez.")
-    return {"steamid": steamid, "name": name, "games": parse_games_html(str(env.get("html", "")))}
+    steamid, token = str(env.get("steamid", "")).strip(), str(env.get("token", "")).strip()
+    return {"steamid": steamid, "name": str(env.get("name", "")).strip()[:64], "games": fetch_owned(steamid, token, opener)}
 
 
 class Steam:
@@ -86,9 +60,10 @@ class Steam:
     name = "Steam"
     short = "Steam"
 
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, opener=urllib.request.urlopen):
         self.dir = Path(data_dir) / "steam"
         self.file = self.dir / "library.json"
+        self._opener = opener
 
     def _read(self) -> dict | None:
         try:
@@ -107,7 +82,7 @@ class Steam:
         return LOGIN_URL
 
     def login(self, raw: str) -> dict:
-        data = parse_capture(raw)
+        data = parse_capture(raw, self._opener)
         data["updated"] = int(time.time())
         self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.dir.chmod(0o700)

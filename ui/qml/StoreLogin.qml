@@ -57,13 +57,12 @@ Window {
             if (win.store === "steam") {
                 if (String(url).indexOf("/login") >= 0) { win.reveal(); return }
                 if (/^https:\/\/steamcommunity\.com\/(id|profiles)\//.test(String(url)))
-                    // lista de juegos de la propia cuenta (XML); XHR síncrono con la sesión web de esta ventana
-                    // lista de juegos de la propia cuenta: primero el XML clásico y, si no hay, la página moderna (lista en JSON dentro del HTML);
-                    // XHR síncrono con la sesión web de esta ventana. Entrega un sobre JSON con el id de la cuenta que expone el perfil.
+                    // de la propia página de juegos de la cuenta (con la sesión web de esta ventana) se toma el token de corta duración de la Web API
+                    // y el id de la cuenta; Omnia consulta después la lista y no guarda el token. XHR síncrono, mismo origen.
                     runJavaScript("(function(){function get(u){try{var x=new XMLHttpRequest();x.open('GET',u,false);x.send();return x.status===200?x.responseText:''}catch(e){return ''}}"
-                                  + "var pd=window.g_rgProfileData||{};var xml=get('/my/games?tab=all&xml=1');var ok=xml.indexOf('<gamesList')>=0;"
-                                  + "var html=ok?'':get('/my/games/?tab=all');"
-                                  + "return JSON.stringify({steamid:pd.steamid||window.g_steamID||'',name:pd.personaname||'',xml:ok?xml:'',html:html})})()",
+                                  + "var c={};try{c=JSON.parse(get('/chat/clientjstoken'))}catch(e){}"
+                                  + "var h=get('/my/games/?tab=all');var i=h.indexOf('strWebAPIToken');var m=i<0?null:/[A-Za-z0-9_.-]{80,}/.exec(h.substr(i+14,900));"
+                                  + "return JSON.stringify({steamid:c.steamid||'',name:c.account_name||'',token:m?m[0]:''})})()",
                                   function(t) {
                                       if (win.attempts >= 2) return
                                       win.attempts += 1
