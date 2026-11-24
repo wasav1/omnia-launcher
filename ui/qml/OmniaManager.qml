@@ -714,7 +714,7 @@ Item {
         anchors.fill: parent; visible: manager.detailGame !== null; z: 10; color: "#99000000"
         MouseArea { anchors.fill: parent; onClicked: manager.detailGame = null }
         Rectangle {
-            anchors.centerIn: parent; width: Math.min(parent.width * 0.68, manager.s * 800); height: manager.s * 480; radius: manager.s * 24; color: manager.surface; clip: true
+            anchors.centerIn: parent; width: Math.min(parent.width * 0.8, manager.s * 920); height: manager.s * 520; radius: manager.s * 24; color: manager.surface; clip: true
             MouseArea { anchors.fill: parent; onClicked: function(mouse) { mouse.accepted = true } }
             FadedImage { anchors.fill: parent; source: manager.imageFor(manager.detailGame, ["hero", "grid"]); cornerRadius: manager.s * 24; opacity: 0.3 }
             Rectangle { anchors.fill: parent; radius: manager.s * 24; gradient: Gradient { GradientStop { position: 0; color: "#B3151D27" } GradientStop { position: 1; color: "#F0151D27" } } }
@@ -730,8 +730,8 @@ Item {
                 Text { visible: manager.packagesBusy; text: qsTr("Consultando paquetes…"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
                 Text { visible: !manager.packagesBusy && manager.packageOptions.length === 0; text: manager.packageMessage; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; wrapMode: Text.WordWrap }
                 Row { visible: manager.packageOptions.length > 0; spacing: manager.s * 8
-                    ComboBox { id: packageChoice; width: manager.s * 300; height: manager.s * 36; model: manager.packageOptions.map(p => p.title + " · " + p.version); onActivated: manager.selectedPackage = manager.packageOptions[currentIndex] }
-                    Rectangle { width: manager.s * 145; height: manager.s * 36; radius: manager.s * 10; color: manager.surface2; Text { anchors.centerIn: parent; text: api.installRoot ? qsTr("Destino predeterminado") : qsTr("Elegir destino"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; elide: Text.ElideRight; width: parent.width - manager.s * 12; horizontalAlignment: Text.AlignHCenter } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: installFolderDialog.open() } }
+                    ComboBox { id: packageChoice; width: Math.min(manager.s * 640, Math.max(manager.s * 300, parent.parent.width - destButton.width - manager.s * 8)); height: manager.s * 36; model: manager.packageOptions.map(p => p.title + " · " + p.version); onActivated: manager.selectedPackage = manager.packageOptions[currentIndex] }
+                    Rectangle { id: destButton; width: Math.max(manager.s * 160, destText.implicitWidth + manager.s * 28); height: manager.s * 36; radius: manager.s * 10; color: manager.surface2; Text { id: destText; anchors.centerIn: parent; text: api.installRoot ? qsTr("Destino predeterminado") : qsTr("Elegir destino"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: installFolderDialog.open() } }
                 }
                 Text { visible: manager.selectedPackage !== null; width: parent.width; text: manager.selectedPackage ? qsTr("Fuente: ") + manager.selectedPackage.sourceName + " · " + qsTr("Licencia: ") + manager.selectedPackage.licenseName + " · " + (Number(manager.selectedPackage.sizeBytes) / 1073741824).toFixed(2) + " GiB" : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideRight }
                 Row { visible: manager.selectedPackage !== null; spacing: manager.s * 8
