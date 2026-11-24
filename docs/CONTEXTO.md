@@ -85,6 +85,8 @@ app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando 
 
 ## 7. Registro de cambios
 
+- **2026-11-24 — Tiendas: el indicador ya no parpadea al terminar:** `submit` mantiene `connecting` hasta que `refreshStores(done)` haya actualizado `stores` (antes se quitaba antes y reaparecían un instante los botones de inicio de sesión). Si falla, se quita de inmediato.
+
 - **2026-11-24 — Tiendas: sin casilla en el flujo automático y con indicador:** `ManagerStores.qml` separa el envío del código capturado (`submit(sid, texto)`, estado `connecting`) del pegado manual (`linking`): la casilla solo aparece en el flujo manual (navegador del sistema). Mientras conecta, la fila de la tienda muestra un `BusyIndicator` y «Conectando…» y oculta los botones.
 
 - **2026-11-24 — Tiendas: Epic ya pasa el captcha en la ventana de Omnia:** el usuario probó `tools/epic-login-test.qml`; la variante c (perfil guardado en disco con `storageName`, `Accept-Language` del sistema y user-agent sin «QtWebEngine») pasa sin captcha. `StoreLogin.qml` usa ese perfil (`omnia-stores`) y Epic vuelve a usar la ventana propia como GOG y Amazon; el portapapeles y «Usar mi navegador» quedan de respaldo. Consecuencia: las cookies de las tiendas persisten en el perfil de WebEngine de Omnia (cerrar sesión en Omnia no las borra del perfil).

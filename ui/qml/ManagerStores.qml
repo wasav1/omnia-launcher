@@ -47,10 +47,11 @@ Item {
     readonly property var disconnected: ["epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
 
     function open() { refreshStores() }
-    function refreshStores() {
+    function refreshStores(done) {
         api.loadStores(function(code, body) {
-            if (code !== 200) { st.message = qsTr("No se pudo consultar las tiendas."); return }
+            if (code !== 200) { st.message = qsTr("No se pudo consultar las tiendas."); if (done) done(); return }
             st.stores = body.stores || []
+            if (done) done()                                   // después de actualizar `stores`, para que la fila ya muestre el estado nuevo
             st.stores.forEach(function(x) { if (x.logged_in && !st.remote[x.id] && !st.loading[x.id]) st.loadLibrary(x.id) })
         })
     }
@@ -114,10 +115,11 @@ Item {
     function submit(sid, text) {
         st.busy = true; st.connecting = sid; st.message = ""
         api.storeLogin(sid, text, function(code, body) {
-            st.busy = false; st.connecting = ""
-            if (code !== 200) { st.message = body.error || qsTr("No se pudo conectar."); return }
+            st.busy = false
+            if (code !== 200) { st.connecting = ""; st.message = body.error || qsTr("No se pudo conectar."); return }
             st.linking = ""; st.pasted = ""; st.message = qsTr("%1 conectada.").arg(st.names[sid])
-            st.refreshStores()
+            // el indicador sigue hasta que el estado de la tienda ya diga «conectada»: así no reaparecen las opciones de inicio de sesión
+            st.refreshStores(function() { st.connecting = "" })
         })
     }
     function unlink(sid) {
