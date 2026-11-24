@@ -684,8 +684,9 @@ class Api:
             raise ApiError(502, str(e))
         mine = {g.get("store_id", {}).get("id") for g in self.store.games()
                 if isinstance(g.get("store_id"), dict) and g["store_id"].get("store") == store.id}
+        local_ids = {g.get("id") for g in self.store.games()}
         for g in games:
-            if g["id"] in mine:
+            if g["id"] in mine or (store.id == "steam" and "steam-" + g["id"] in local_ids):
                 g["installed"] = True
         return {"games": games}
 

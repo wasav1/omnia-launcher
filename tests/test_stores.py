@@ -77,7 +77,7 @@ class EpicTests(unittest.TestCase):
             e.library()
 
     def test_registry(self):
-        self.assertEqual(list(registry.build(Path(self.tmp.name))), ["epic", "gog", "amazon"])
+        self.assertEqual(list(registry.build(Path(self.tmp.name))), ["epic", "gog", "amazon", "steam"])
 
 
 if __name__ == "__main__":

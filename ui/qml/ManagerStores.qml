@@ -47,9 +47,13 @@ Item {
     readonly property var items: allItems.filter(function(i) { return filter === "all" || i.store === filter })
     function count(sid) { return allItems.filter(function(i) { return i.store === sid }).length }
     function status(sid) { return stores.find(function(x) { return x.id === sid }) || null }
-    readonly property var disconnected: ["epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
+    readonly property var disconnected: ["steam", "epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
 
     property var installTarget: null
+    function installSteam(item) {
+        Qt.openUrlExternally("steam://install/" + item.rawId)
+        st.message = qsTr("Steam abrió el diálogo para instalar «%1»; confírmalo allí.").arg(item.name)
+    }
     function askInstall(item) { st.installTarget = item; installFolder.open() }
     FolderDialog {
         id: installFolder
@@ -94,7 +98,13 @@ Item {
         api.storeLoginUrl(sid, function(code, body) {
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
             st.pasted = ""
-            if (!external && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
+            if (!external && st.webLogin(sid, body.url)) {
+                st.linking = ""
+                if (sid === "steam") { st.connecting = "steam"; st.message = qsTr("Conectando con Steam…") }
+                else st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid])
+                return
+            }
+            if (sid === "steam") { st.message = qsTr("Steam necesita el componente qt6-webengine para conectarse desde Omnia."); return }
             st.linking = sid
             Qt.openUrlExternally(body.url)
         })
@@ -123,9 +133,10 @@ Item {
         id: webLoader
         active: false
         source: "StoreLogin.qml"
-        onLoaded: item.codeCaptured.connect(function(sid, text) {
-            st.submit(sid, text.trim())
-        })
+        onLoaded: {
+            item.codeCaptured.connect(function(sid, text) { st.submit(sid, text.trim()) })
+            item.abandoned.connect(function(sid) { st.connecting = "" })
+        }
     }
     function finishLink() {
         if (!st.linking || st.pasted.trim() === "") return
@@ -221,7 +232,7 @@ Item {
                 Text { anchors { left: parent.left; right: parent.right; top: cov.bottom; margins: st.s * 8 } elide: Text.ElideRight
                        text: cell.modelData.name; color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (cell.modelData.local) { st.manager.selectPage("library") } else st.askInstall(cell.modelData) } }
+                    onClicked: { if (cell.modelData.local) { st.manager.selectPage("library") } else if (cell.modelData.store === "steam") st.installSteam(cell.modelData); else st.askInstall(cell.modelData) } }
             }
         }
     }
@@ -249,7 +260,7 @@ Item {
                 Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13
                        text: qsTr("Inicias sesión en el navegador de cada tienda. Omnia nunca ve tu contraseña: solo guarda la sesión en este equipo.") }
                 Repeater {
-                    model: ["epic", "gog", "amazon"]
+                    model: ["steam", "epic", "gog", "amazon"]
                     delegate: Rectangle {
                         id: acc
                         required property string modelData
@@ -275,7 +286,8 @@ Item {
                                 visible: st.connecting !== acc.modelData
                                 spacing: st.s * 8
                                 Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
-                                Button { text: qsTr("Usar mi navegador"); visible: acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
+                                Button { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "steam" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
+                                Button { visible: acc.modelData === "steam" && acc.info && acc.info.logged_in; text: qsTr("Actualizar"); onClicked: st.startLink("steam") }
                                 Button { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
                             }
                             Column {
