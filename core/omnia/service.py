@@ -154,7 +154,7 @@ def refresh_packages(store, slug: str, retry_at: dict, bus=None) -> bool:
 def sync_steam_art(game, retry_at: dict) -> bool:
     """Descarga a la caché el arte público de Steam (portada, banner, logo) de un juego de Steam; True si bajó alguna imagen.
 
-    Las que fallan (p. ej. 404 porque el juego no tiene esa imagen) se reintentan a las 24 h."""
+    Las que fallan (un corte de red, o un 404 porque el juego no tiene esa imagen) se reintentan a los 30 min."""
     urls = online_catalog.steam_art_urls(game)
     downloaded = False
     for url in urls.values():
@@ -165,17 +165,25 @@ def sync_steam_art(game, retry_at: dict) -> bool:
             downloaded = True
         except (online_catalog.CatalogError, OSError, KeyError) as e:
             log.debug("arte de Steam %s: %s", url, e)
-            retry_at[url] = time.time() + 24 * 60 * 60
+            retry_at[url] = time.time() + 30 * 60
     return downloaded
 
 
 def art_priority(games: list, state: dict) -> list:
-    """Orden en que el vigilante de arte revisa los juegos: primero los enlazados a una ficha que aún no se ha consultado nunca.
+    """Orden en que el vigilante de arte revisa los juegos: primero los que aún no tienen su arte.
 
-    El vigilante vuelve a construir la lista cada minuto; con muchos juegos no llegaba al final, y un juego recién instalado
-    (el último de la biblioteca) se quedaba sin arte durante mucho tiempo."""
+    Son los enlazados a una ficha que nunca se ha consultado y los de Steam cuyas imágenes públicas no están en la caché.
+    El vigilante vuelve a construir la lista cada minuto; con muchos juegos no llegaba al final, y un juego recién instalado o
+    recién añadido a Steam (el último de la biblioteca) se quedaba sin arte durante mucho tiempo."""
     checked = state.get("catalog_art_checked") or {}
-    return sorted(games, key=lambda g: 0 if g.get("catalogSlug") and not int(checked.get(g["catalogSlug"], 0) or 0) else 1)
+
+    def missing(game) -> bool:
+        if game.get("catalogSlug") and not int(checked.get(game["catalogSlug"], 0) or 0):
+            return True
+        urls = online_catalog.steam_art_urls(game)
+        return any(not online_catalog.cached_artwork_path(url) for url in urls.values())
+
+    return sorted(games, key=lambda g: 0 if missing(g) else 1)
 
 
 def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
