@@ -1,13 +1,24 @@
 {
   "id": "omniaPanel",
   "name": "Panel de Omnia",
-  "description": "Abre el panel rápido de Omnia desde la barra de Dux y muestra el mando conectado con su batería.",
-  "version": "1.1.0",
+  "description": "Panel rápido de Omnia como pestaña del dashboard de Dux, con el mando conectado y su batería en la barra.",
+  "version": "2.0.0",
   "author": "Omnia",
   "icon": "gamepad-2",
-  "type": "widget",
-  "capabilities": ["dankbar-widget"],
-  "component": "./OmniaPanelWidget.qml",
-  "permissions": ["process"],
-  "requires_dms": ">=2.0.0"
+  "type": "composite",
+  "capabilities": [
+    "dankbar-widget",
+    "dash-tab"
+  ],
+  "permissions": [
+    "process"
+  ],
+  "requires_dms": ">=2.0.0",
+  "components": {
+    "widget": "./OmniaPanelWidget.qml",
+    "dash": "./OmniaDashboard.qml"
+  },
+  "dash": {
+    "title": "Omnia"
+  }
 }

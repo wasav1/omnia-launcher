@@ -1,15 +1,21 @@
 # Omnia en Dux (Dux Modular Shell)
 
-Dos piezas:
+Plugin **`omnia-panel`** (composite: botón de barra + pestaña del dashboard), con el mismo mecanismo que usan otros plugins de Dux:
 
-1. **Plugin de barra `omnia-panel`** (`omnia-panel/`): el botón del mando en la barra de Dux. Abre el panel rápido de Omnia y, con un mando
-   conectado, muestra su nombre y su batería (`Xbox ▮ 100 %`; naranja ≤30 %, rojo ≤10 %, verde al cargar). Lee `GET /pad` del núcleo de
-   Omnia cada 5 s con `pad-status.sh`; si el sistema no da batería, solo enseña el nombre.
-2. **Instancia del panel** (`omnia-dms-shell.qml`): una instancia mínima de Quickshell que carga solo `OmniaEdge` (el panel rápido), sin la
-   barra ni el resto de la configuración «ii». La arranca `toggle-omnia-panel.sh` cuando hace falta (también con `Super+Shift+O`).
+- **Botón de la barra** (`OmniaPanelWidget.qml`): icono del mando y, con un mando conectado, su nombre y su batería
+  (`Xbox ▮ 100 %`; naranja ≤30 %, rojo ≤10 %, verde al cargar). Un clic abre la pestaña «Omnia» anclada al botón.
+  Lee `GET /pad` del núcleo de Omnia cada 5 s con `pad-status.sh`; si el sistema no da batería, solo enseña el nombre.
+- **Pestaña «Omnia» del dashboard** (`OmniaDashboard.qml`): el panel rápido con el estilo, los colores y la animación de Dux (igual que
+  la pestaña de ASUS TUF): buscador, lista de juegos con su portada, el juego seleccionado con **Jugar**, favorito, detalles en la app y
+  carpeta, «Jugado recientemente» y el mando con su batería. Habla con el núcleo de Omnia por HTTP local con el token de sesión
+  (`$XDG_RUNTIME_DIR/omnia/token`); no depende de illogical-impulse ni de otra instancia de Quickshell.
+- `toggle-omnia-panel.sh`: abre/cierra la pestaña desde un atajo de teclado (`dms ipc call dash toggle plugin_omniaPanel`).
 
-Instalar o actualizar: `integrations/dux/install.sh` (o `/usr/share/omnia/dux/install.sh` con el paquete `omnia-hyprland`). Deja una copia de la
-versión anterior en `~/.config/dms/plugins-backup` y recarga el plugin en Dux. Después, en Ajustes de Dux → Barra, añade «Panel de Omnia».
+Instalar o actualizar: `integrations/dux/install.sh` (o `/usr/share/omnia/dux/install.sh` con el paquete `omnia-hyprland`). Deja una copia
+de la versión anterior en `~/.config/dms/plugins-backup`. Dux solo registra los archivos nuevos de un plugin al arrancar: la primera vez
+ejecuta `dms restart`. Después, en Ajustes de Dux → Barra, añade «Panel de Omnia».
 
-Requisitos: Dux (`dux-shell`), Quickshell, el núcleo de Omnia en marcha y los módulos del panel de Hyprland (`omnia-hyprland`) en
-`~/.config/quickshell/ii/modules/ii/omnia`.
+Limitaciones: la pestaña no navega con el mando ni tiene la zona de activación por borde del panel de illogical-impulse (que sigue
+funcionando con `omnia-hyprland` si usas esa configuración).
+
+Requisitos: Dux (`dux-shell`) y el núcleo de Omnia en marcha.

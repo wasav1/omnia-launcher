@@ -5,7 +5,7 @@ import qs.Widgets
 import qs.DCommon.Widgets
 import qs.Modules.Plugins
 
-// Botón de Omnia en la barra de Dux: abre el panel rápido y, si hay un mando conectado, muestra su nombre y su batería
+// Botón de Omnia en la barra de Dux: abre el panel rápido (pestaña del dashboard) y, si hay un mando conectado, muestra su nombre y su batería
 // (datos del núcleo de Omnia, GET /pad; si el sistema no expone la batería solo se muestra el nombre, nunca un porcentaje inventado).
 PluginComponent {
     id: root
@@ -65,17 +65,11 @@ PluginComponent {
         onTriggered: if (!padPoll.running) padPoll.running = true
     }
 
-    Process {
-        id: togglePanel
-        command: [root.dir + "toggle-omnia-panel.sh"]
-    }
+    property var popoutService: null
 
-    pillClickAction: (x, y, width, section, screen) => {
-        if (!togglePanel.running) {
-            togglePanel.command = [root.dir + "toggle-omnia-panel.sh", "bar", String(Math.round(x + width / 2))];
-            togglePanel.running = true;
-        }
-    }
+    // El panel es la pestaña «Omnia» del dashboard de Dux (OmniaDashboard.qml), anclada a este botón como la de ASUS TUF.
+    pillClickAction: (x, y, width, section, screen) =>
+        popoutService?.toggleDankDash("plugin_omniaPanel", x, y, width, section, screen)
 
     horizontalBarPill: Component {
         Row {

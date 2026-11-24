@@ -65,9 +65,8 @@ package_omnia-hyprland() {
   install -Dm755 integrations/hyprland/omnia-hyprland "$pkgdir/usr/share/omnia/hyprland/omnia-hyprland"
   install -Dm644 integrations/hyprland/README.md "$pkgdir/usr/share/omnia/hyprland/README.md"
   ln -s /usr/share/omnia/hyprland/omnia-hyprland "$pkgdir/usr/bin/omnia-hyprland"
-  install -d "$pkgdir/usr/share/omnia/dux"                 # integración con Dux (botón de barra con mando y batería, y su instancia del panel)
+  install -d "$pkgdir/usr/share/omnia/dux"                 # integración con Dux (botón de barra con mando y batería, y el panel como pestaña del dashboard)
   cp -r integrations/dux/omnia-panel "$pkgdir/usr/share/omnia/dux/"
-  install -Dm644 integrations/dux/omnia-dms-shell.qml "$pkgdir/usr/share/omnia/dux/omnia-dms-shell.qml"
   install -Dm755 integrations/dux/install.sh "$pkgdir/usr/share/omnia/dux/install.sh"
   install -Dm644 integrations/dux/README.md "$pkgdir/usr/share/omnia/dux/README.md"
 }
