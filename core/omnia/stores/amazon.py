@@ -1,4 +1,6 @@
 """Amazon Games mediante nile (configuración propia de Omnia en XDG_CONFIG_HOME/nile)."""
+import json
+import os
 import re
 from pathlib import Path
 
@@ -10,6 +12,7 @@ CODE_RE = r"[A-Za-z0-9_\-]{8,200}"
 class Amazon:
     id = "amazon"
     name = "Amazon Games"
+    short = "Amazon"
 
     def __init__(self, data_dir: Path, runner=None, tool=None):
         self.dir = Path(data_dir) / "nile"
@@ -99,3 +102,27 @@ class Amazon:
             items.append({"id": g["id"], "title": str(prod.get("title") or g.get("title") or g["id"]), "art": art,
                           "installed": g["id"] in installed})
         return sorted(items, key=lambda x: x["title"].lower())
+
+    def install_command(self, game_id: str, folder: str):
+        tool = self.tool()
+        if not tool:
+            raise StoreError("Falta nile. Instala Heroic.")
+        self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return [tool, "install", game_id, "--base-path", folder], {"XDG_CONFIG_HOME": str(self.dir)}
+
+    def find_executable(self, game_id: str, folder: str) -> str:
+        try:
+            installed = json.loads((self.dir / "nile" / "installed.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            installed = []
+        for g in installed if isinstance(installed, list) else []:
+            if isinstance(g, dict) and g.get("id") == game_id and g.get("path"):
+                path = Path(str(g["path"]))
+                try:
+                    fuel = json.loads((path / "fuel.json").read_text(encoding="utf-8"))
+                    exe = path / str((fuel.get("Main") or {}).get("Command", "")).replace("\\", "/")
+                except (OSError, ValueError):
+                    continue
+                if exe.is_file():
+                    return str(exe)
+        raise StoreError("Se instaló, pero Omnia no encontró el ejecutable del juego.")

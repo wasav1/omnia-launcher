@@ -1,4 +1,5 @@
 """Epic Games Store mediante legendary (con configuración propia de Omnia)."""
+import os
 import re
 from pathlib import Path
 
@@ -22,6 +23,7 @@ def clean_code(raw: str) -> str:
 class Epic:
     id = "epic"
     name = "Epic Games"
+    short = "Epic"
 
     def __init__(self, data_dir: Path, runner=None, tool=None):
         self.dir = Path(data_dir) / "legendary"
@@ -92,3 +94,19 @@ class Epic:
                         break
             items.append({"id": app, "title": g.get("app_title") or app, "art": art, "installed": app in installed})
         return sorted(items, key=lambda x: x["title"].lower())
+
+    def install_command(self, game_id: str, folder: str):
+        tool = self.tool()
+        if not tool:
+            raise StoreError("Falta legendary. Instala Heroic o el paquete legendary.")
+        self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return [tool, "install", game_id, "--base-path", folder, "-y"], {"LEGENDARY_CONFIG_PATH": str(self.dir)}
+
+    def find_executable(self, game_id: str, folder: str) -> str:
+        code, out, _ = self._run(["list-installed", "--json"], 60)
+        for g in (parse_json(out) if code == 0 else []):
+            if isinstance(g, dict) and g.get("app_name") == game_id:
+                exe = os.path.join(str(g.get("install_path", "")), str(g.get("executable", "")).replace("\\", "/"))
+                if os.path.isfile(exe):
+                    return exe
+        raise StoreError("Se instaló, pero Omnia no encontró el ejecutable del juego.")

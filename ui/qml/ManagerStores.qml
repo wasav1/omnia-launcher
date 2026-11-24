@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 
 // Tiendas de la app de escritorio: una biblioteca unificada (Steam, Epic, GOG, Amazon) con filtros por tienda.
 // Las cuentas se conectan en el navegador: Omnia abre la página de la tienda y el usuario pega la dirección de retorno.
@@ -32,10 +33,12 @@ Item {
     readonly property var localGames: (api && api.games ? api.games : []).filter(function(g) { return !g.hidden && storeOf(g) !== "" })
     readonly property var allItems: {
         const out = []
+        const localNames = {}
+        localGames.forEach(function(g) { localNames[storeOf(g) + "|" + String(g.name).toLowerCase()] = true })
         localGames.forEach(function(g) { out.push({ id: g.id, name: g.name, store: storeOf(g), art: g.portada || "", installed: true, local: g }) })
         Object.keys(remote).forEach(function(sid) {
             (remote[sid] || []).forEach(function(r) {
-                if (!r.installed) out.push({ id: sid + "-" + r.id, name: r.title, store: sid, art: r.art || "", installed: false, local: null })
+                if (!r.installed && !localNames[sid + "|" + String(r.title).toLowerCase()]) out.push({ id: sid + "-" + r.id, rawId: r.id, name: r.title, store: sid, art: r.art || "", installed: false, local: null })
             })
         })
         out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1 })
@@ -46,6 +49,22 @@ Item {
     function status(sid) { return stores.find(function(x) { return x.id === sid }) || null }
     readonly property var disconnected: ["epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
 
+    property var installTarget: null
+    function askInstall(item) { st.installTarget = item; installFolder.open() }
+    FolderDialog {
+        id: installFolder
+        title: st.installTarget ? qsTr("Elige dónde instalar %1").arg(st.installTarget.name) : ""
+        onAccepted: {
+            const t = st.installTarget
+            if (!t) return
+            const path = decodeURIComponent(selectedFolder.toString().replace(/^file:\/\//, ""))
+            api.storeInstall(t.store, t.rawId, t.name, path, function(code, body) {
+                if (code !== 200) { st.message = body.error || qsTr("No se pudo empezar la instalación."); return }
+                st.message = qsTr("Instalando «%1»: sigue el progreso en Descargas.").arg(t.name)
+                st.manager.selectPage("installs")
+            })
+        }
+    }
     function open() { refreshStores() }
     function refreshStores(done) {
         api.loadStores(function(code, body) {
@@ -202,7 +221,7 @@ Item {
                 Text { anchors { left: parent.left; right: parent.right; top: cov.bottom; margins: st.s * 8 } elide: Text.ElideRight
                        text: cell.modelData.name; color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (cell.modelData.local) { st.manager.selectPage("library") } else st.message = qsTr("Instalar desde Omnia llega en la próxima versión: «%1» se instala por ahora desde su tienda.").arg(cell.modelData.name) } }
+                    onClicked: { if (cell.modelData.local) { st.manager.selectPage("library") } else st.askInstall(cell.modelData) } }
             }
         }
     }

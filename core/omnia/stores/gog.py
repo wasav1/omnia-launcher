@@ -26,6 +26,7 @@ def _http_json(url: str, token: str, opener=urllib.request.urlopen):
 class Gog:
     id = "gog"
     name = "GOG"
+    short = "GOG"
 
     def __init__(self, data_dir: Path, runner=None, tool=None, opener=urllib.request.urlopen):
         self.dir = Path(data_dir) / "gogdl"
@@ -115,3 +116,27 @@ class Gog:
                               "linux": bool((p.get("worksOn") or {}).get("Linux"))})
             page += 1
         return sorted(items, key=lambda x: x["title"].lower())
+
+    def install_command(self, game_id: str, folder: str):
+        tool = self.tool()
+        if not tool:
+            raise StoreError("Falta gogdl. Instala Heroic.")
+        self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self._credentials()                              # renueva el token antes de descargar
+        return [tool, "--auth-config-path", str(self.auth_file), "download", game_id, "--path", folder,
+                "--platform", "windows", "--lang", "en-US"], {}
+
+    def find_executable(self, game_id: str, folder: str) -> str:
+        base = Path(folder)
+        infos = sorted(base.glob("goggame-%s.info" % game_id)) + sorted(base.glob("*/goggame-%s.info" % game_id)) + sorted(base.glob("*/*/goggame-%s.info" % game_id))
+        for info in infos:
+            try:
+                tasks = json.loads(info.read_text(encoding="utf-8", errors="replace")).get("playTasks", [])
+            except (OSError, ValueError):
+                continue
+            for t in tasks:
+                if t.get("isPrimary") and t.get("path"):
+                    exe = info.parent / str(t["path"]).replace("\\", "/")
+                    if exe.is_file():
+                        return str(exe)
+        raise StoreError("Se instaló, pero Omnia no encontró el ejecutable del juego.")

@@ -137,3 +137,36 @@ class PastedTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindExeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+
+    def test_gog_exe_from_goggame_info(self):
+        g = Gog(self.tmp / "d", tool="/bin/gogdl")
+        game = self.tmp / "inst" / "Cool Game"
+        game.mkdir(parents=True)
+        (game / "Bin").mkdir()
+        (game / "Bin" / "cool.exe").write_bytes(b"MZ")
+        (game / "goggame-123.info").write_text(json.dumps({"playTasks": [{"path": "Bin\\cool.exe", "isPrimary": True}]}))
+        self.assertEqual(g.find_executable("123", str(self.tmp / "inst")), str(game / "Bin" / "cool.exe"))
+        with self.assertRaises(StoreError):
+            g.find_executable("999", str(self.tmp / "inst"))
+        cmd, _ = g.install_command("123", "/x")
+        self.assertEqual(cmd[cmd.index("download") + 1], "123")
+
+    def test_amazon_exe_from_fuel_json(self):
+        a = Amazon(self.tmp / "d", tool="/bin/nile")
+        game = self.tmp / "Amz"
+        game.mkdir()
+        (game / "run.exe").write_bytes(b"MZ")
+        (game / "fuel.json").write_text(json.dumps({"Main": {"Command": "run.exe"}}))
+        (self.tmp / "d" / "nile" / "nile").mkdir(parents=True)
+        (self.tmp / "d" / "nile" / "nile" / "installed.json").write_text(json.dumps([{"id": "amzn1.X", "path": str(game)}]))
+        self.assertEqual(a.find_executable("amzn1.X", str(game)), str(game / "run.exe"))
+        with self.assertRaises(StoreError):
+            a.find_executable("otro", str(game))
+        cmd, env = a.install_command("amzn1.X", "/x")
+        self.assertEqual(env["XDG_CONFIG_HOME"], str(self.tmp / "d" / "nile"))

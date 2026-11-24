@@ -40,3 +40,35 @@ class StoresApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StoreInstallApiTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.api = Api(Store(self.tmp / "cfg"), security.new_token(self.tmp / "run"), [], scan_fn=list, fs_roots=[self.tmp])
+        self.api.store_runner = FakeRun()
+        import omnia.stores.epic as epic
+        self._tool = epic.find_tool
+        epic.find_tool = lambda name: "/bin/legendary"
+        self.addCleanup(setattr, epic, "find_tool", self._tool)
+
+    def test_snapshot_merges_store_jobs_and_routes_actions(self):
+        mgr = self.api._store_installs()
+        mgr._jobs["j1"] = {"id": "j1", "kind": "store", "store": "epic", "gameId": "a", "name": "X", "status": "failed", "progress": 3, "error": "x"}
+        snap = self.api.installations_snapshot({})
+        self.assertIn("j1", [j["id"] for j in snap["jobs"]])
+        with self.assertRaises(ApiError) as cm:
+            self.api.installation_retry({"_body": {"jobId": "j1"}})
+        self.assertEqual(cm.exception.code, 409)
+        self.assertEqual(self.api.installation_dismiss({"_body": {"jobId": "j1"}})["dismissed"], 1)
+        self.assertEqual(mgr.jobs(), [])
+
+    def test_install_validation(self):
+        for body in ({}, {"store": "nope"}, {"store": 5}):
+            with self.assertRaises(ApiError) as cm:
+                self.api.stores_install({"_body": body})
+            self.assertEqual(cm.exception.code, 404)
+        with self.assertRaises(ApiError) as cm:
+            self.api.stores_install({"_body": {"store": "epic", "id": "A", "title": "t", "destination": str(self.tmp)}})
+        self.assertEqual(cm.exception.code, 400)               # sin sesión de Epic

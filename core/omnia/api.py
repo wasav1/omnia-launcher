@@ -159,7 +159,8 @@ class Api:
             "/catalog/platforms": ("GET", True, self.catalog_platforms),
             "/catalog/rom-identifiers": ("GET", True, self.catalog_rom_identifiers),
             "/catalog/install-packages": ("GET", True, self.catalog_install_packages),
-            "/installations": ("GET", True, lambda q: self.package_installs.snapshot()),
+            "/installations": ("GET", True, self.installations_snapshot),
+            "/stores/install": ("POST", True, self.stores_install),
             "/installations/start": ("POST", True, self.installation_start),
             "/installations/cancel": ("POST", True, self.installation_cancel),
             "/installations/pause": ("POST", True, self.installation_pause),
@@ -678,9 +679,37 @@ class Api:
         from .stores.base import StoreError
         store, _ = self._store(q)
         try:
-            return {"games": store.library()}
+            games = store.library()
         except StoreError as e:
             raise ApiError(502, str(e))
+        mine = {g.get("store_id", {}).get("id") for g in self.store.games()
+                if isinstance(g.get("store_id"), dict) and g["store_id"].get("store") == store.id}
+        for g in games:
+            if g["id"] in mine:
+                g["installed"] = True
+        return {"games": games}
+
+    def _store_installs(self):
+        if getattr(self, "_store_install_mgr", None) is None:
+            from .stores.installer import StoreInstalls
+            self._store_install_mgr = StoreInstalls(self._stores(), self.store, self._roots, on_change=self.bus.games_changed)
+        return self._store_install_mgr
+
+    def installations_snapshot(self, q):
+        snap = self.package_installs.snapshot()
+        snap["jobs"] = snap["jobs"] + self._store_installs().jobs()
+        return snap
+
+    def stores_install(self, q):
+        from .stores.base import StoreError
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        store = body.get("store")
+        if not isinstance(store, str) or store not in self._stores():
+            raise ApiError(404, "tienda desconocida")
+        try:
+            return {"ok": True, "job": self._store_installs().start(store, body.get("id"), body.get("title"), body.get("destination"))}
+        except StoreError as e:
+            raise ApiError(400, str(e))
 
     def pads_rumble(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -786,6 +815,10 @@ class Api:
     def installation_cancel(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
         job_id = body.get("jobId")
+        if isinstance(job_id, str) and self._store_installs().owns(job_id):
+            if not self._store_installs().cancel(job_id):
+                raise ApiError(404, "la instalación no está activa")
+            return {"ok": True}
         if not isinstance(job_id, str) or not self.package_installs.cancel(job_id):
             raise ApiError(404, "la instalación no está activa")
         return {"ok": True}
@@ -818,8 +851,10 @@ class Api:
     def installation_dismiss(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
         if body.get("all") is True:
-            return {"ok": True, "dismissed": self.package_installs.dismiss(only_failed=True)}
+            return {"ok": True, "dismissed": self.package_installs.dismiss(only_failed=True) + self._store_installs().dismiss(only_failed=True)}
         job_id = body.get("jobId")
+        if isinstance(job_id, str) and self._store_installs().owns(job_id):
+            return {"ok": True, "dismissed": self._store_installs().dismiss(job_id)}
         if not isinstance(job_id, str) or not self.package_installs.dismiss(job_id):
             raise ApiError(404, "ese trabajo no existe o sigue en curso")
         return {"ok": True, "dismissed": 1}
@@ -829,6 +864,8 @@ class Api:
         job_id = body.get("jobId")
         if not isinstance(job_id, str):
             raise ApiError(400, "trabajo no válido")
+        if self._store_installs().owns(job_id):
+            raise ApiError(409, "Vuelve a instalarlo desde la pantalla Tiendas.")
         running = {game.get("id") for game in self.running_list()}
         try:
             return {"ok": True, "job": self.package_installs.retry(job_id, lambda gid: gid in running)}
