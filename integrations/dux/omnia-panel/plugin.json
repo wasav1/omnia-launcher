@@ -1,25 +1,17 @@
 {
   "id": "omniaPanel",
   "name": "Panel de Omnia",
-  "description": "Panel rápido de Omnia como pestaña del dashboard de Dux, con el mando conectado y su batería en la barra.",
-  "version": "2.1.0",
+  "description": "Panel rápido de Omnia como popout compacto de la barra de Dux, con el mando conectado y su batería.",
+  "version": "3.0.0",
   "author": "Omnia",
   "icon": "sports_esports",
-  "type": "composite",
+  "type": "widget",
   "capabilities": [
-    "dankbar-widget",
-    "dash-tab"
+    "dankbar-widget"
   ],
   "permissions": [
     "process"
   ],
   "requires_dms": ">=2.0.0",
-  "components": {
-    "widget": "./OmniaPanelWidget.qml",
-    "dash": "./OmniaDashboard.qml"
-  },
-  "dash": {
-    "title": "Omnia",
-    "icon": "sports_esports"
-  }
+  "component": "./OmniaPanelWidget.qml"
 }

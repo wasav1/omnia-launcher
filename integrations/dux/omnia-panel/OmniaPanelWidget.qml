@@ -5,7 +5,7 @@ import qs.Widgets
 import qs.DCommon.Widgets
 import qs.Modules.Plugins
 
-// Botón de Omnia en la barra de Dux: abre el panel rápido (pestaña del dashboard) y, si hay un mando conectado, muestra su nombre y su batería
+// Botón de Omnia en la barra de Dux: abre el panel rápido (popout compacto) y, si hay un mando conectado, muestra su nombre y su batería
 // (datos del núcleo de Omnia, GET /pad; si el sistema no expone la batería solo se muestra el nombre, nunca un porcentaje inventado).
 PluginComponent {
     id: root
@@ -65,11 +65,21 @@ PluginComponent {
         onTriggered: if (!padPoll.running) padPoll.running = true
     }
 
-    property var popoutService: null
+    // El panel es un popout compacto anclado a este botón (OmniaPanel.qml): una columna, con el último jugado anclado y 10 juegos con scroll.
+    popoutWidth: 400
+    popoutHeight: 590
+    popoutContent: Component {
+        OmniaPanel { onCloseRequested: root.closePopout() }
+    }
 
-    // El panel es la pestaña «Omnia» del dashboard de Dux (OmniaDashboard.qml), anclada a este botón como la de ASUS TUF.
-    pillClickAction: (x, y, width, section, screen) =>
-        popoutService?.toggleDankDash("plugin_omniaPanel", x, y, width, section, screen)
+    // Atajo de teclado: `dms ipc call omniaPanel toggle` abre o cierra el popout del botón (Dux no lo ofrece para plugins).
+    IpcHandler {
+        target: "omniaPanel"
+        function toggle(): string {
+            root.triggerPopout();
+            return "OMNIA_PANEL_TOGGLE";
+        }
+    }
 
     horizontalBarPill: Component {
         Row {
