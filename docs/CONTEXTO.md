@@ -85,6 +85,8 @@ app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando 
 
 ## 7. Registro de cambios
 
+- **2026-11-24 — Tiendas: sin casilla en el flujo automático y con indicador:** `ManagerStores.qml` separa el envío del código capturado (`submit(sid, texto)`, estado `connecting`) del pegado manual (`linking`): la casilla solo aparece en el flujo manual (navegador del sistema). Mientras conecta, la fila de la tienda muestra un `BusyIndicator` y «Conectando…» y oculta los botones.
+
 - **2026-11-24 — Tiendas: Epic ya pasa el captcha en la ventana de Omnia:** el usuario probó `tools/epic-login-test.qml`; la variante c (perfil guardado en disco con `storageName`, `Accept-Language` del sistema y user-agent sin «QtWebEngine») pasa sin captcha. `StoreLogin.qml` usa ese perfil (`omnia-stores`) y Epic vuelve a usar la ventana propia como GOG y Amazon; el portapapeles y «Usar mi navegador» quedan de respaldo. Consecuencia: las cookies de las tiendas persisten en el perfil de WebEngine de Omnia (cerrar sesión en Omnia no las borra del perfil).
 
 - **2026-11-24 — Tiendas: Epic sin copiar nada (investigación):** el flujo por código de dispositivo no sirve (el cliente de legendary responde `unsupported_grant_type` a `deviceAuthorization`), y la redirección de Epic es fija, así que la única vía automática es que su captcha pase dentro de la ventana embebida. Nuevo `tools/epic-login-test.qml` con variantes a/b/c (sin perfil guardado, perfil guardado, perfil guardado + idioma) para que el usuario compruebe cuál pasa el captcha; imprime «FUNCIONA» sin mostrar el código. Pendiente: resultado del usuario y aplicar la variante ganadora a `StoreLogin.qml`.

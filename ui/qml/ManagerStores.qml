@@ -16,6 +16,7 @@ Item {
     property string linking: ""                           // tienda cuyo inicio de sesión está en curso
     property string pasted: ""
     property bool busy: false
+    property string connecting: ""                        // tienda que se está conectando (muestra el indicador)
     readonly property var loginWindow: webLoader.item
     readonly property real s: manager ? manager.s : 1
     readonly property var names: ({ steam: "Steam", epic: "Epic", gog: "GOG", amazon: "Amazon" })
@@ -103,16 +104,18 @@ Item {
         active: false
         source: "StoreLogin.qml"
         onLoaded: item.codeCaptured.connect(function(sid, text) {
-            st.linking = sid; st.pasted = text; st.finishLink()
+            st.submit(sid, text.trim())
         })
     }
     function finishLink() {
         if (!st.linking || st.pasted.trim() === "") return
-        st.busy = true
-        api.storeLogin(st.linking, st.pasted.trim(), function(code, body) {
-            st.busy = false
+        st.submit(st.linking, st.pasted.trim())
+    }
+    function submit(sid, text) {
+        st.busy = true; st.connecting = sid; st.message = ""
+        api.storeLogin(sid, text, function(code, body) {
+            st.busy = false; st.connecting = ""
             if (code !== 200) { st.message = body.error || qsTr("No se pudo conectar."); return }
-            const sid = st.linking
             st.linking = ""; st.pasted = ""; st.message = qsTr("%1 conectada.").arg(st.names[sid])
             st.refreshStores()
         })
@@ -242,6 +245,13 @@ Item {
                                        text: !acc.info ? "…" : (!acc.info.available ? qsTr("Falta la herramienta (instala Heroic)") : (acc.info.logged_in ? qsTr("Conectada") + (acc.info.account ? " · " + acc.info.account : "") : qsTr("Sin conectar"))) }
                             }
                             Row {
+                                visible: st.connecting === acc.modelData
+                                spacing: st.s * 10
+                                BusyIndicator { running: parent.visible; width: st.s * 28; height: width }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Conectando…"); color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13 }
+                            }
+                            Row {
+                                visible: st.connecting !== acc.modelData
                                 spacing: st.s * 8
                                 Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
                                 Button { text: qsTr("Usar mi navegador"); visible: acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
