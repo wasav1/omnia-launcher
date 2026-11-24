@@ -4,6 +4,7 @@ El usuario inicia sesión en la página oficial de Steam dentro de la ventana de
 `/my/games?tab=all&xml=1` (la propia lista de juegos de la cuenta, con cualquier privacidad) y entrega el XML a Omnia, que guarda solo la
 lista (id y nombre). Instalar abre el diálogo oficial `steam://install/<id>`; Steam no permite otra vía.
 """
+import html as htmllib
 import json
 import re
 import time
@@ -42,6 +43,44 @@ def parse_games_xml(text: str) -> dict:
     return {"steamid": steamid, "name": (root.findtext("steamID") or "").strip()[:64], "games": games}
 
 
+def parse_games_html(text: str) -> list:
+    """Juegos de la página moderna /games (la lista va en el atributo data-profile-gameslist, en JSON)."""
+    m = re.search(r'data-profile-gameslist="([^"]*)"', text or "")
+    if not m:
+        raise StoreError("Steam no mostró tu lista de juegos. Inicia sesión e inténtalo otra vez.")
+    try:
+        data = json.loads(htmllib.unescape(m.group(1)))
+    except ValueError:
+        raise StoreError("La lista de juegos de Steam no se pudo leer.")
+    games = []
+    for g in (data.get("rgGames") or []) if isinstance(data, dict) else []:
+        appid = str(g.get("appid", "")) if isinstance(g, dict) else ""
+        if appid.isdigit() and len(appid) <= 10:
+            games.append({"id": appid, "title": str(g.get("name") or appid).strip()[:120]})
+    return games
+
+
+def parse_capture(raw: str) -> dict:
+    """Resultado de lo que entrega la ventana: sobre JSON {steamid, name, xml, html} o, por compatibilidad, el XML directo."""
+    try:
+        env = json.loads(raw)
+    except (TypeError, ValueError):
+        env = None
+    if not isinstance(env, dict):
+        return parse_games_xml(raw)
+    if len(str(env.get("html", ""))) > MAX_XML or len(str(env.get("xml", ""))) > MAX_XML:
+        raise StoreError("La respuesta de Steam no es válida.")
+    steamid = str(env.get("steamid", "")).strip()
+    name = str(env.get("name", "")).strip()[:64]
+    if env.get("xml"):
+        data = parse_games_xml(env["xml"])
+        data["name"] = data["name"] or name
+        return data
+    if not re.fullmatch(r"7656\d{13}", steamid):
+        raise StoreError("Steam no devolvió una cuenta válida. Inicia sesión e inténtalo otra vez.")
+    return {"steamid": steamid, "name": name, "games": parse_games_html(str(env.get("html", "")))}
+
+
 class Steam:
     id = "steam"
     name = "Steam"
@@ -68,7 +107,7 @@ class Steam:
         return LOGIN_URL
 
     def login(self, raw: str) -> dict:
-        data = parse_games_xml(raw)
+        data = parse_capture(raw)
         data["updated"] = int(time.time())
         self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.dir.chmod(0o700)

@@ -9,6 +9,7 @@ Window {
     id: win
     property string store: ""
     property bool captured: false
+    property int attempts: 0
     signal codeCaptured(string store, string text)
     signal abandoned(string store)
     width: 520; height: 720; minimumWidth: 420; minimumHeight: 560
@@ -16,7 +17,7 @@ Window {
     title: store === "steam" ? "Steam" : store === "epic" ? "Epic Games" : (store === "gog" ? "GOG" : "Amazon")
 
     function begin(sid, url) {
-        store = sid; captured = false
+        store = sid; captured = false; attempts = 0
         view.url = url
         if (sid === "steam") { visible = false; showTimer.restart(); return }     // si ya hay sesión web, se actualiza sin mostrar la ventana
         visible = true; raise(); requestActivate()
@@ -57,8 +58,17 @@ Window {
                 if (String(url).indexOf("/login") >= 0) { win.reveal(); return }
                 if (/^https:\/\/steamcommunity\.com\/(id|profiles)\//.test(String(url)))
                     // lista de juegos de la propia cuenta (XML); XHR síncrono con la sesión web de esta ventana
-                    runJavaScript("(function(){try{var x=new XMLHttpRequest();x.open('GET','/my/games?tab=all&xml=1',false);x.send();return x.status===200?x.responseText:''}catch(e){return ''}})()",
-                                  function(t) { if (t && String(t).indexOf("steamID64") >= 0) win.deliver(String(t)); else win.reveal() })
+                    // lista de juegos de la propia cuenta: primero el XML clásico y, si no hay, la página moderna (lista en JSON dentro del HTML);
+                    // XHR síncrono con la sesión web de esta ventana. Entrega un sobre JSON con el id de la cuenta que expone el perfil.
+                    runJavaScript("(function(){function get(u){try{var x=new XMLHttpRequest();x.open('GET',u,false);x.send();return x.status===200?x.responseText:''}catch(e){return ''}}"
+                                  + "var pd=window.g_rgProfileData||{};var xml=get('/my/games?tab=all&xml=1');var ok=xml.indexOf('<gamesList')>=0;"
+                                  + "var html=ok?'':get('/my/games/?tab=all');"
+                                  + "return JSON.stringify({steamid:pd.steamid||window.g_steamID||'',name:pd.personaname||'',xml:ok?xml:'',html:html})})()",
+                                  function(t) {
+                                      if (win.attempts >= 2) return
+                                      win.attempts += 1
+                                      if (t) win.deliver(String(t))
+                                  })
             }
             if (win.store === "epic" && String(url).indexOf("https://www.epicgames.com/id/api/redirect") === 0)
                 runJavaScript("document.body ? document.body.innerText : ''", function(t) { if (t) win.deliver(String(t)) })

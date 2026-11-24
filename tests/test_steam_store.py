@@ -45,3 +45,27 @@ class SteamTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CaptureTests(unittest.TestCase):
+    HTML = ('<html><div id="gameslist_config" data-profile-gameslist="{&quot;rgGames&quot;:[{&quot;appid&quot;:10,&quot;name&quot;:&quot;Counter-Strike&quot;},'
+            '{&quot;appid&quot;:620,&quot;name&quot;:&quot;Portal 2 &amp; co&quot;},{&quot;appid&quot;:&quot;x&quot;}]}"></div></html>')
+    SID = "76561198273393717"
+
+    def test_html_envelope(self):
+        from omnia.stores.steam import parse_capture
+        d = parse_capture(json.dumps({"steamid": self.SID, "name": "Alex", "xml": "", "html": self.HTML}))
+        self.assertEqual((d["steamid"], d["name"]), (self.SID, "Alex"))
+        self.assertEqual([(g["id"], g["title"]) for g in d["games"]], [("10", "Counter-Strike"), ("620", "Portal 2 & co")])
+
+    def test_xml_envelope_and_raw_xml(self):
+        from omnia.stores.steam import parse_capture
+        self.assertEqual(len(parse_capture(json.dumps({"steamid": "", "name": "", "xml": XML, "html": ""}))["games"]), 2)
+        self.assertEqual(len(parse_capture(XML)["games"]), 2)
+
+    def test_bad_envelopes(self):
+        from omnia.stores.steam import parse_capture
+        for env in ({"steamid": "123", "html": self.HTML}, {"steamid": self.SID, "html": "<html>login</html>"},
+                    {"steamid": self.SID, "html": '<div data-profile-gameslist="no json">'}, {}):
+            with self.assertRaises(StoreError, msg=str(env)[:40]):
+                parse_capture(json.dumps(env))
