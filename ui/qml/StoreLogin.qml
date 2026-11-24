@@ -35,7 +35,11 @@ Window {
     WebEngineView {
         id: view
         anchors.fill: parent
-        profile: WebEngineProfile { offTheRecord: true }
+        profile: WebEngineProfile {
+            offTheRecord: true
+            // las tiendas rechazan navegadores que se anuncian como «QtWebEngine» (su antibots falla): se presenta como el Chrome en que se basa
+            Component.onCompleted: httpUserAgent = httpUserAgent.replace(/ QtWebEngine\/[0-9.]+/, "")
+        }
         onUrlChanged: win.check(url)
         onLoadingChanged: function(r) {
             if (r.status !== WebEngineView.LoadSucceededStatus) return

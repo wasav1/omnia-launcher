@@ -68,12 +68,12 @@ Item {
         webLoader.item.begin(sid, url)
         return true
     }
-    function startLink(sid) {
+    function startLink(sid, external) {
         st.message = ""
         api.storeLoginUrl(sid, function(code, body) {
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
             st.pasted = ""
-            if (st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
+            if (!external && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
             st.linking = sid
             Qt.openUrlExternally(body.url)
         })
@@ -224,6 +224,7 @@ Item {
                             Row {
                                 spacing: st.s * 8
                                 Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
+                                Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Usar mi navegador"); onClicked: st.startLink(acc.modelData, true) }
                                 Button { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
                             }
                             Column {
