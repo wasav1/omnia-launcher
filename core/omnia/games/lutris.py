@@ -18,6 +18,24 @@ def db_path(home: Path | None = None) -> Path:
     return root / "lutris" / "pga.db"
 
 
+_IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
+_MAX_IMAGE = 12 * 1024 * 1024
+
+
+def local_cover(slug: str, root: Path) -> str:
+    """Carátula que Lutris ya descargó (`coverart/<slug>.jpg|png|webp`): un archivo normal, sin enlaces y de tamaño razonable."""
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}", slug or ""):
+        return ""
+    for ext in _IMAGE_EXT:
+        path = root / "coverart" / (slug + ext)
+        try:
+            if path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= _MAX_IMAGE:
+                return str(path)
+        except OSError:
+            continue
+    return ""
+
+
 class LutrisDetector(Detector):
     name = "lutris"
     label = "Lutris"
@@ -38,8 +56,12 @@ class LutrisDetector(Detector):
         for gid, name, slug, runner, directory in rows:
             if not name or runner == "steam" or NOT_GAMES.match(name.strip()) or NOT_GAMES.match(slug or ""):
                 continue
+            art = {"slug": f'lutris-{gid:d}', "sgdb": name}
+            cover = local_cover(slug, self.db.parent)
+            if cover:
+                art["local"] = {"portada": cover}
             games.append({"id": f'lutris-{gid:d}', "name": name, "sub": "PC · Lutris", "platform": "pc", "src": "Lutris",
-                          "auto": "lutris", "art": {"slug": f'lutris-{gid:d}', "sgdb": name},
+                          "auto": "lutris", "art": art,
                           "ports": [{"id": f'lutris-{gid:d}-main', "name": "Lutris", "chips": ["Lutris"],
                                      "launch": ["lutris", f'lutris:rungameid/{gid:d}'],
                                      "check": str(directory) if directory and os.path.isdir(directory) else "",

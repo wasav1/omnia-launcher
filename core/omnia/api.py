@@ -822,10 +822,14 @@ class Api:
             if f:
                 out[kind] = "file://" + f
                 continue
-            steam_url = online_catalog.steam_art_urls(g).get(kind)        # juegos de Steam sin arte propio: arte público de Steam
+            steam_url = online_catalog.game_art_urls(g).get(kind)        # Steam y Heroic sin arte propio: arte público de su tienda
             cached_steam = online_catalog.cached_artwork_path(steam_url) if steam_url else None
             if cached_steam:
                 out[kind] = "file://" + str(cached_steam)
+                continue
+            mine = ((g.get("art") or {}).get("local") or {}).get(kind) if isinstance((g.get("art") or {}).get("local"), dict) else None
+            if isinstance(mine, str) and os.path.isfile(mine) and not os.path.islink(mine):      # Lutris: su propia carátula en disco
+                out[kind] = "file://" + mine
         return out
 
     def refresh(self, q):

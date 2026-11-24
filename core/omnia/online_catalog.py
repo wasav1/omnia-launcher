@@ -336,8 +336,39 @@ def steam_art_urls(game) -> dict:
     return {kind: f"https://{STEAM_CDN_HOST}/steam/apps/{appid}/{name}" for kind, name in _STEAM_FILES.items()} if appid else {}
 
 
+# Arte público que Heroic guarda en su caché de la biblioteca (GOG y Epic): solo estas URLs exactas de sus CDN, sin claves ni cuentas.
+_STORE_ART_RE = re.compile(
+    r"https://images\.gog(?:-statics)?\.com/[0-9a-f]{40,80}(?:\.(?:jpg|jpeg|png|webp))?(?:\?namespace=gamesdb)?"
+    r"|https://cdn1\.epicgames\.com/[A-Za-z0-9_./-]{1,200}")
+_STORE_ART_KEYS = {"portada": ("art_square", "art_cover"), "fondo": ("art_background", "art_cover")}
+
+
 def _is_steam_art_url(url) -> bool:
-    return isinstance(url, str) and _STEAM_ART_RE.fullmatch(url) is not None
+    return isinstance(url, str) and (_STEAM_ART_RE.fullmatch(url) is not None or _STORE_ART_RE.fullmatch(url) is not None)
+
+
+def store_art_from_heroic(entry) -> dict:
+    """{portada, fondo} con las URLs de arte de un juego de la biblioteca de Heroic (GOG/Epic) que son de un CDN admitido.
+
+    `art_square` es la portada vertical; el fondo es `art_background` (GOG) o, si falta, `art_cover` (apaisada)."""
+    out = {}
+    for kind, keys in _STORE_ART_KEYS.items():
+        for key in keys:
+            url = (entry or {}).get(key) if isinstance(entry, dict) else None
+            if isinstance(url, str) and _STORE_ART_RE.fullmatch(url):
+                out[kind] = url
+                break
+    return out
+
+
+def game_art_urls(game) -> dict:
+    """Todas las URLs públicas de arte que se pueden bajar para un juego: las de Steam y las que Heroic trae de su tienda."""
+    urls = dict(steam_art_urls(game))
+    remote = ((game or {}).get("art") or {}).get("remote") if isinstance((game or {}).get("art"), dict) else None
+    for kind, url in (remote or {}).items() if isinstance(remote, dict) else []:
+        if kind in ("portada", "fondo") and isinstance(url, str) and _STORE_ART_RE.fullmatch(url) and kind not in urls:
+            urls[kind] = url
+    return urls
 
 
 def download_artwork(url: str, *, opener=None) -> tuple[bytes, str]:

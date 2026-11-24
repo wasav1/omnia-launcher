@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 
+from .. import online_catalog
 from .base import Detector
 
 RUNNERS = {"legendary": ("Epic", "legendaryConfig/legendary/installed.json", "legendary_library.json", "library"),
@@ -76,6 +77,15 @@ class HeroicDetector(Detector):
                 return x["title"]
         return ""
 
+    @staticmethod
+    def _store_art(cfg: Path, cache: str, key: str, aid: str) -> dict:
+        """Portada y fondo públicos (CDN de GOG/Epic) que Heroic ya trae en la caché de su biblioteca."""
+        d = _load(cfg / "store_cache" / cache)
+        for x in (d or {}).get(key, []) if isinstance(d, dict) else []:
+            if isinstance(x, dict) and str(x.get("app_name")) == aid:
+                return online_catalog.store_art_from_heroic(x)
+        return {}
+
     def _game(self, v, runner, store, cfg, cache, key, cmd):
         if not isinstance(v, dict) or v.get("is_dlc"):
             return None
@@ -86,8 +96,12 @@ class HeroicDetector(Detector):
         aid = str(aid)
         title = v.get("title") or self._title(cfg, cache, key, aid) or os.path.basename(str(path).rstrip("/")) or aid
         exe = v.get("executable") or gog_exe(path)
+        art = {"slug": f"heroic-{runner}-{aid}", "sgdb": title}
+        remote = self._store_art(cfg, cache, key, aid)
+        if remote:
+            art["remote"] = remote
         return {"id": f"heroic-{runner}-{aid}", "name": title, "sub": "PC · " + store, "platform": "pc",
-                "src": "Heroic", "auto": "heroic", "art": {"slug": f"heroic-{runner}-{aid}", "sgdb": title},
+                "src": "Heroic", "auto": "heroic", "art": art,
                 "ports": [{"id": f"heroic-{runner}-{aid}-main", "name": "Heroic", "chips": ["Heroic", store],
                            "launch": cmd + [f"heroic://launch/{runner}/{aid}"], "check": str(path),
                            "proc": os.path.basename(exe.replace("\\", "/")), "disk_dir": str(path)}]}

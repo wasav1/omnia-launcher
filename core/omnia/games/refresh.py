@@ -45,8 +45,17 @@ def _refresh(store, detectors) -> dict:
                     new = found.pop(g["id"])
                     merged = {**g, "ports": new["ports"],            # conserva arte y ajustes del usuario
                               **{k: new[k] for k in ("name", "variant", "played", "platform", "s", "chips", "sub") if k in new}}
-                    if (new.get("art") or {}).get("sgdb"):           # el nombre de búsqueda del arte lo decide el detector
-                        merged["art"] = {**(g.get("art") or {}), "sgdb": new["art"]["sgdb"]}
+                    new_art = new.get("art") or {}
+                    if new_art.get("sgdb") or "remote" in new_art or "local" in new_art or (g.get("art") or {}).keys() & {"remote", "local"}:
+                        art = dict(g.get("art") or {})
+                        if new_art.get("sgdb"):                      # el nombre de búsqueda del arte lo decide el detector
+                            art["sgdb"] = new_art["sgdb"]
+                        for key in ("remote", "local"):              # arte de la tienda (Heroic) o carátula de Lutris: lo que ve el detector hoy
+                            if new_art.get(key):
+                                art[key] = new_art[key]
+                            else:
+                                art.pop(key, None)
+                        merged["art"] = art
                     keep.append(merged)
                 else:
                     removed += 1

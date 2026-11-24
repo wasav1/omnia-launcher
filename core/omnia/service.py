@@ -152,10 +152,10 @@ def refresh_packages(store, slug: str, retry_at: dict, bus=None) -> bool:
 
 
 def sync_steam_art(game, retry_at: dict) -> bool:
-    """Descarga a la caché el arte público de Steam (portada, banner, logo) de un juego de Steam; True si bajó alguna imagen.
+    """Descarga a la caché el arte público de un juego de Steam (portada, banner, logo) o de Heroic (portada y fondo de GOG/Epic); True si bajó alguna imagen.
 
     Las que fallan (un corte de red, o un 404 porque el juego no tiene esa imagen) se reintentan a los 30 min."""
-    urls = online_catalog.steam_art_urls(game)
+    urls = online_catalog.game_art_urls(game)
     downloaded = False
     for url in urls.values():
         if online_catalog.cached_artwork_path(url) or time.time() < retry_at.get(url, 0):
@@ -180,7 +180,7 @@ def art_priority(games: list, state: dict) -> list:
     def missing(game) -> bool:
         if game.get("catalogSlug") and not int(checked.get(game["catalogSlug"], 0) or 0):
             return True
-        urls = online_catalog.steam_art_urls(game)
+        urls = online_catalog.game_art_urls(game)
         return any(not online_catalog.cached_artwork_path(url) for url in urls.values())
 
     return sorted(games, key=lambda g: 0 if missing(g) else 1)
