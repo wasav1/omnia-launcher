@@ -17,13 +17,11 @@ class MangoHudStyleTests(unittest.TestCase):
             self.assertIn(line + "\n", text)
         self.assertTrue(text.startswith(mangohud.MARKER))
 
-    def test_the_pill_has_side_padding_and_a_translucent_background(self):
+    def test_the_pill_has_dot_separators_side_padding_concave_corners_and_a_translucent_background(self):
         text = mangohud.render("")
-        self.assertEqual(text.count("custom_text=" + mangohud.SIDE + "\n"), 2)
-        lines = text.splitlines()
-        self.assertTrue(lines[lines.index("custom_text=" + mangohud.SIDE) + 1] == "fps")        # el primero va antes de FPS
-        self.assertEqual(lines[-1], "custom_text=" + mangohud.SIDE)                              # el último cierra la línea
-        self.assertIn("background_alpha=0.55\n", text)
+        for line in ("horizontal_separator_dot", "window_padding_x=24", "concave_top_corners=14", "background_alpha=0.55"):
+            self.assertIn(line + "\n", text)
+        self.assertNotIn("custom_text", text)                        # el relleno ya no se simula con elementos en blanco (daban divisores en los extremos)
 
     def test_an_older_omnia_file_is_updated(self):
         path = self.dir / "MangoHud.conf"

@@ -9,8 +9,7 @@ import os
 from pathlib import Path
 
 OWNED = "# omnia-generado"                  # cualquier versión del archivo que escribió Omnia (se actualiza); sin esta marca es del usuario
-MARKER = OWNED + " v2"
-SIDE = "\u00a0" * 4                          # relleno lateral: MangoHud no tiene opción, pero un texto de espacios duros al inicio y al final da aire a la píldora
+MARKER = OWNED + " v3"
 FONT_NAME = "Rajdhani-SemiBold.ttf"
 FONT_DIRS = (Path("/usr/share/omnia/ui/qml/fonts"), Path(__file__).resolve().parents[2] / "assets" / "fonts")
 
@@ -28,8 +27,10 @@ background_alpha=0.55
 alpha=1
 text_color=F3EFE3
 engine_color=91A9C2
-horizontal_separator_color=336599
-custom_text={side}
+horizontal_separator_color=6F8DAA
+horizontal_separator_dot
+window_padding_x=24
+concave_top_corners=14
 fps
 fps_color_change
 fps_color=E86D6D,E8A24B,7FD69F
@@ -51,7 +52,6 @@ vram
 vram_color=E8B86D
 ram
 ram_color=E8B86D
-custom_text={side}
 """
 
 
@@ -66,7 +66,7 @@ def find_font(dirs=FONT_DIRS) -> str:
 def render(font: str | None = None) -> str:
     font = find_font() if font is None else font
     line = f"font_file={font}\n" if font and "\n" not in font else ""
-    return f"{MARKER}\n# Quita la línea de arriba si quieres editar este archivo a mano: Omnia dejará de reescribirlo.\n" + _BODY.format(font=line, side=SIDE)
+    return f"{MARKER}\n# Quita la línea de arriba si quieres editar este archivo a mano: Omnia dejará de reescribirlo.\n" + _BODY.format(font=line)
 
 
 def ensure(config_dir) -> Path:
