@@ -1,146 +1,91 @@
 # Omnia — documento de contexto
 
-> Documento vivo. Se actualiza con **cada cambio** (ver «Registro de cambios» al final). Es el punto de entrada para
-> retomar el proyecto sin haber visto las conversaciones anteriores. Detalles por tema: ver `docs/`.
+> Documento vivo. Se actualiza con **cada cambio** (ver «Registro de cambios» al final). Para retomar el proyecto con otra persona o IA,
+> empieza por `docs/HANDOFF.md` (guía de arranque) y `AGENTS.md` (reglas); aquí está el detalle y el historial. Más por tema: `docs/`.
 
 ## 1. Qué es
-Omnia es una aplicación instalable e independiente de biblioteca y gestión de juegos para Linux. Incluye un gestor de
-escritorio, biblioteca unificada (Steam, Heroic, Lutris, ports, ejecutables y ROMs locales), un **panel rápido** y **Big
-Mode**. Big Mode incorpora Inicio para catálogo, novedades y juegos recientes. Todas las superficies comparten el estado
-mediante `omnia-core`; la integración con KDE Plasma 6 o Hyprland/illogical-impulse es opcional. También incluye control
-con **mando**, **modo juego**, **historial**, **respaldo/restauración de partidas** y selector de español/inglés.
-
-Repo: https://github.com/wasav1/omnia-launcher (privado por ahora). Se planea publicarlo para el AUR.
-Principios: cambios en KDE siempre reversibles, Omnia no incluye ni descarga ROMs y solo analiza archivos locales que
-el usuario elige; no detecta carpetas de Hydra. El disco de Bazzite se monta solo lectura y no se modifica.
+Omnia es una **biblioteca unificada de juegos para Linux** (Arch/CachyOS como objetivo): reúne juegos de Steam, Heroic (Epic, GOG, Amazon), Lutris,
+ports y recompilaciones instalables desde un catálogo, ROMs y ejecutables locales, y los gestiona desde varias superficies que comparten el mismo
+servicio:
+- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio (Inicio, Biblioteca, Explorar el catálogo, Descargas, Ajustes).
+- **Big Mode (BM)** (`omnia-ui --window`, o desde la app): interfaz de consola para mando/teclado/ratón, con bienvenida animada, estantería, ficha de
+  juego, editor de arte, ajustes (sonido, audio, mandos) y sonidos de interfaz.
+- **Panel rápido**: integración opcional con Hyprland (módulo de illogical-impulse, `integrations/hyprland/ii`) y con el shell Dux/DMS
+  (`integrations/dux`, popout compacto en la barra con el mando y su batería).
+- **Backend público** (Cloudflare Workers, repo `omnia-backend`): catálogo de fichas, arte (SteamGridDB) y **paquetes instalables** de ports/recomps
+  (descarga con SHA-256 y extracción segura), con herramientas para descubrir y publicar releases de GitHub.
+Repos: `github.com/wasav1/omnia-launcher` (rama `work/standalone-application`) y `github.com/wasav1/omnia-backend`; fork de MangoHud en
+`~/Proyectos/MangoHud-Gerudo` (local). Principios: Omnia no incluye ni descarga ROMs ni datos de juegos con copyright; nunca maneja contraseñas de
+terceros; todo cambio de configuración del usuario es reversible; el usuario ejecuta `git push` y `sudo`.
 
 ## 2. Estructura del repo
 | Ruta | Contenido |
 |---|---|
-| `core/omnia/` | Servicio `omnia-core` (Python, solo biblioteca estándar) |
-| `ui/qml/` | Componentes QML compartidos por la app de escritorio, panel, Big Mode y los módulos opcionales de Plasma |
-| `plasma/` | Wallpaper pasivo, widget interactivo y proveedor QML del token de sesión |
-| `kwin/` | Scripts de KWin: `omnia-showdesktop`, `omnia-watch` |
-| `packaging/arch/` | PKGBUILD (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh` |
-| `tests/` | Pruebas `unittest` (342). Ejecutar: `PYTHONPATH=core python -m unittest discover -s tests` |
-| `docs/` | `MIGRACION`, `SPIKE-LAYER-SHELL`, `MODO-JUEGO`, `HISTORIAL`, `PARTIDAS`, y este documento |
-| `legacy/`, `plasmoid/`, `tools/` | Material del prototipo y utilidades |
-
-**Importante:** sin `PYTHONPATH=core` los tests importan el paquete instalado en el sistema (más antiguo).
+| `core/omnia/` | Servicio `omnia-core` (Python, solo biblioteca estándar): API HTTP, detectores de juegos, instalador de paquetes, audio, mandos, MangoHud… |
+| `ui/qml/` | Interfaz QML: app de escritorio (`OmniaManager`, `Manager*`), Big Mode (`OmniaLibrary`, `OmniaHome`, `OmniaGameDetails`, `OmniaBigSettings`, `OmniaIntro`, `OmniaSounds`, `OmniaPadTest`…), `Api.qml` (cliente), `sounds/` (paquetes de sonidos) |
+| `integrations/hyprland/ii/` | Panel rápido de Hyprland (módulos Quickshell de illogical-impulse) |
+| `integrations/dux/` | Plugin de la barra de Dux (botón con mando y batería, popout compacto), instalador |
+| `plasma/`, `kwin/` | Integración opcional con KDE Plasma 6 (wallpaper, widget, scripts de KWin) |
+| `packaging/arch/` | PKGBUILD de 4 paquetes (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh`, preparación del AUR |
+| `tools/` | `sound/` (generadores de sonidos, vista previa de la bienvenida), `release.sh`, `dev-service.sh` |
+| `tests/` | `unittest` (610 pruebas). `PYTHONPATH=core python3 -m unittest discover -s tests` (sin `PYTHONPATH=core` importa el paquete instalado, más antiguo) |
+| `docs/` | `HANDOFF.md` (arranque), este documento, `HISTORICO-KDE.md`, y planes por tema (`PLAN-*`, `ESTANDARES-PORTS`, `PUBLICAR-AUR`, `MODO-JUEGO`, `PARTIDAS`…) |
 
 ## 3. Arquitectura
-- **Servicio** `omnia.service` (systemd de usuario): API HTTP en `127.0.0.1:47831`. Token de sesión en
-  `$XDG_RUNTIME_DIR/omnia/token` (0600), cabecera `Authorization: Bearer`, comprobación de `Host`, rutas que modifican solo
-  por POST, sin CORS.
-- **Aplicación principal**: `omnia-ui --manager` abre el gestor de biblioteca, catálogo, instalaciones y ajustes. Desde él
-  se abre Big Mode, que comparte el mismo servicio local. El panel rápido es una integración opcional de Hyprland/ii o
-  Plasma; ninguna integración de escritorio es necesaria para usar la aplicación.
-- **D-Bus** `org.omnia.Core` (Gio/PyGObject): los scripts de KWin informan `SetDesktop(active, covered)` y llaman `ToggleMenu`.
-- **Rutas API** (resumen): `/health /library /library/refresh /library/roots /rom/{scan,add} /game/{fav,hide,add,remove}
-  /launch /apps /app/{launch,fav} /events /pad /emit /desktop /menu /menu/state /gamemode /fs/list /templates
-  /saves/{config,backup,restore,open,suggest} /art/{browse,pick,cycle} /catalog/{games,game,platforms,install-packages}
-  /installations{,/start,/cancel,/pause,/resume,/remove} /audio /system /power /import/{find,preview,apply}`.
-- **Módulos del core:** `paths, store (state.json/library.json), security, launcher (systemd-run --user --scope), api, events,
-  pad (evdev sin dependencias), audio, system, audio_out, power, dbus, service, apps, art (caché local compatible),
-  online_catalog (Omnia Backend público), package_installs (instalación verificada), roms, gamemode, sessions,
-  saves, fsbrowse, templates, manual, importer, roms (escaneo N64 local), online_catalog, games/{base,vdf,steam,heroic,lutris,gfn,refresh,registry}`.
-- **Datos del usuario** (fuera del repo): `~/.config/omnia/{library.json,state.json,first-run.json,setup-backup.json,
-  steamgriddb.key}`, `~/.local/share/omnia/art`.
+- **Servicio** `omnia.service` (systemd de usuario): API HTTP en `127.0.0.1:47831`, token de sesión en `$XDG_RUNTIME_DIR/omnia/token` (0600), cabecera
+  `Authorization: Bearer`, comprobación de `Host`, rutas que modifican solo por POST, sin CORS. Un único proceso atiende a todas las superficies.
+- **Rutas principales** (resumen): `/library`, `/launch`, `/catalog/*` (consulta al backend), `/installations*` (descarga e instalación de paquetes),
+  `/art/*` (arte y editor), `/settings/*` (idioma, fondo, actualizaciones, MangoHud, sonidos, bienvenida, nombre), `/audio/*` (salida, micrófono, volumen),
+  `/pads*` (mandos: estado en vivo, ajustes, vibración), `/events` (mando y selección), `/system` (CPU/GPU/temperaturas), `/folders/open`.
+- **Datos del usuario** (fuera del repo): `~/.config/omnia/{config.json, state.json, library.json, MangoHud.conf}`, `~/.local/share/omnia/{package-installs.json, …}`,
+  cachés en `~/.cache/omnia/{catalog-art, online-catalog, user-art}`. Claves en `config.json` (algunas): `language, install_root, external_roots,
+  mangohud_enabled, ui_sounds, ui_sound_volume, ui_sound_pack, intro_enabled, display_name, pads, update_check`.
+- **Detectores de juegos** (`core/omnia/games/`): Steam (VDF), Heroic (installed.json + caché de la biblioteca con arte público de GOG/Epic), Lutris
+  (pga.db + carátulas locales), GeForce NOW, Bedrock, ports de recomps (descriptor `recomplauncher.json`).
+- **Instalación de ports**: `package_installs.py` descarga con SHA-256, extrae de forma segura (sin `..`, enlaces simbólicos solo simples a archivos
+  hermanos), admite `setup.stripRoot`, superpone actualizaciones con `.omnia-previo`. El catálogo de paquetes sale del backend.
+- **MangoHud**: `mangohud.py` genera `~/.config/omnia/MangoHud.conf` con el estilo de Omnia (una línea centrada, puntos, esquinas cóncavas; usa opciones del
+  fork Gerudo) y detecta los nombres de la GPU dedicada y la CPU. El `env.lua` de Hyprland del usuario apunta a ese archivo.
+- **Backend** (`omnia-backend`): Hono/TypeScript sobre Workers + D1 + R2; lecturas públicas con caché de 10 min; escrituras con `ADMIN_API_KEY`
+  (`/admin/*`). `tools/release-packages` (descubrir, comprobar y publicar paquetes), `tools/game-metadata` (descripciones, años, desarrolladores),
+  `seeds/` (manifiestos reproducibles).
 
-## 4. Decisiones y hallazgos clave
-- **Auditoría técnica (18/11/2026):** se redujeron los sondeos en reposo, se comparte un snapshot de procesos, `/library` usa revisión y caché de arte, el servidor HTTP está acotado y el token QML se importa de forma relativa junto a Omnia. Debian/openSUSE ahora comprueban dependencias; el `.PKGINFO` separa `pkgver` y `pkgrel`. El detalle y las limitaciones siguen en el PDF entregado por el usuario.
-- **Tipografías empaquetadas:** Hanken Grotesk variable y Rajdhani 400/500/600/700 se incluyen en `assets/fonts/` con sus licencias SIL OFL y SHA-256; Omnia los carga desde su árbol QML para no depender de fuentes instaladas por el usuario.
-- **Referencia visual (15/11):** material en `~/Juegos/PROTOTIPO OMNIA/` (9 capturas, PDF de 33 páginas y respaldos).
-  Inventario, diferencias y etapas en `docs/REFERENCIA-PROTOTIPO.md`. Se priorizó la UI de Omnia; el tema/layout de Plasma
-  queda fuera del código hasta capturar la configuración visual que el usuario termine de aplicar en su PC. Los respaldos del 14/11
-  contienen código más antiguo que el conservado en el repo; contrastar antes de portar.
-- **Layer-shell:** la superficie de fondo queda sobre el escritorio de Plasma y bajo las ventanas. El «Mostrar escritorio»
-  nativo oculta toda superficie layer externa → script KWin `omnia-showdesktop` (atajo `OmniaShowDesktop`, minimiza y
-  restaura); Meta+D se reasigna vía KGlobalAccel (`setForeignShortcut`, firma busctl `asai`).
-- **Tecla Windows:** en Plasma 6.8 es una acción global de plasmashell («activate application launcher»), no
-  `ModifierOnlyShortcuts`. `omnia-setup` le quita Meta y se lo da a la acción `OmniaMenu` de `omnia-watch`. KDE rechaza
-  teclas duplicadas: al deshacer, primero se libera la de Omnia.
-- **Mando:** la estantería lo controla solo si tiene el foco o no hay ventanas normales visibles; el Big Menu abierto lo
-  posee (caduca si no hay sondeo `/events` en 30 s); con un juego en marcha el mando se silencia. Mapeo Xbox BT medido
-  (0x133=X, 0x134=Y; ABS_Z/RZ = stick derecho).
-- **Modo juego:** SIGSTOP a clientes de descarga + `HoldProfile` de power-profiles-daemon (mantener `self.conn`);
-  recuperación en `~/.cache/omnia/gamemode.json`.
-- **Historial:** `Sessions` (inicia con 2 sondeos, termina con 3 ausentes, ignora <10 s, persiste cada 30 s).
-- **Partidas:** specs `glob`/`files`/`dirs`; respaldos `.tar.gz` con manifiesto `omnia-backup.json`; restauración segura
-  (valida todo antes de escribir, solo dentro de las carpetas del juego, sin enlaces ni `..`, respaldo previo). Explorador
-  `fsbrowse` limitado al home y discos externos. Configuración por juego en `state.json › saves`.
-- **Plantillas:** Gopher64 (por SHA-256 de la ROM, incluidos órdenes v64/n64), Longshot, Hookshot, NX2navi, TOTK Recomp;
-  Savage Wind sin ubicación conocida (no se afirma nada).
-- **Gopher64 nativo** (`paru -S gopher64`, v1.2.1): datos en `~/.local/share/gopher64/{saves,states}`, config en
-  `~/.config/gopher64/config.json`; opciones `-f/--fullscreen`. Las partidas se llaman `<ROM>-<SHA256>.eep|.mpk`.
-- **Importador** de la biblioteca anterior: vista previa → aplicar; reglas de omisión (auto/Steam/Heroic/Hydra, GeForce NOW,
-  ports sin lanzador o archivo ausente); adapta los comandos de Gopher64 Flatpak al nativo.
-- **Lecciones QML:** usar `shell.backend` (no `api: api`); `!!()` para undefined→bool; `ListView` reinicia `currentIndex` al
-  cambiar el modelo; no destruir un `Loader` dentro de un callback XHR (cerrar con `Qt.callLater`).
+## 4. Decisiones y hallazgos clave (vigentes)
+- **App independiente**: ninguna integración de escritorio es obligatoria; el panel rápido y los módulos de Plasma son opcionales.
+- **Cero dependencias en el núcleo** (solo biblioteca estándar); lo externo se invoca como proceso (`pactl`, `ffmpeg` solo en herramientas).
+- **Seguridad**: descargas solo por HTTPS a hosts de lista cerrada; arte de terceros solo de CDN conocidos (SteamGridDB, Steam, GOG, Epic) y como imagen;
+  rutas validadas contra las raíces permitidas; los ajustes validan tipo y rango; nada de texto del usuario llega a un shell.
+- **Catálogo**: cada port pasa `build_packages.py --deep` (datos de juego, estándares); sin VirusTotal por falta de clave. Solo se publican motores libres
+  o recomps que piden la ROM del usuario; se descartan los de 32 bits, pre-releases y los de origen dudoso.
+- **Sonido**: sintetizado desde cero (`tools/sound/`), sin licencias de terceros; paquete gratuito opcional de Kenney (CC0). Los sonidos nunca suenan con un juego en marcha.
+- **Bienvenida**: «F · Nace de la constelación», determinista por reloj `tt`; el sonido va con `SoundEffect` (WAV), **nunca `MediaPlayer`**: su backend FFmpeg abre un
+  dispositivo Vulkan y la capa global de MangoHud lo tumba.
+- **Mandos**: Xbox por Bluetooth envía los gatillos como GAS/BRAKE y el stick derecho como Z/RZ; la zona muerta fija también el umbral de navegación (0,35 + zona muerta).
+- **Dux/DMS**: las pestañas del dashboard tienen ancho fijo; el panel de Omnia es un popout del botón de la barra. Dux solo detecta archivos nuevos de un plugin al
+  arrancar (`dms restart`), y un reinicio puede quitar los botones de la barra si el plugin queda desactivado un instante.
+- **Fork de MangoHud** (`MangoHud-Gerudo`): opciones propias `horizontal_separator_dot`, `window_padding_x`, `concave_top_corners`; se compila con Meson en
+  `build-gerudo` e instala solo en su `install/`; sus reglas están en su `AGENTS.md` (sin commits ni `sudo`).
 
-## 5. Estado actual
-**Correcciones de auditoría:** suite `unittest` en verde antes del trabajo Q-05 (342 pruebas, 3 omitidas); las cinco pruebas nuevas del diario pasan de forma enfocada. El workflow CI cubre Python 3.11–3.14, Bash y QML. Los scripts locales `qmllint`, `shellcheck` y `ruff` no estaban instalados, por lo que esos trabajos se ejecutan en CI. La ruta QML ahora es canónica, las fuentes de diseño se incluyen con licencia y el instalador pide confirmación antes de reiniciar Plasma. El AppImage revisión 38 empaqueta el diario de rollback Q-05 y quedó instalado. La protección cubre errores ordinarios, no corte eléctrico/SIGKILL/reinicio, y no revierte capas rpm-ostree. Sigue pendiente validar la matriz de distros/paquetes y todas las pantallas del instalador en Bazzite.
-**Hecho y probado:** arquitectura, Win+D, tecla Windows, mando, modo juego, historial, partidas (respaldo/restauración),
-juegos manuales, plantillas, importador, rescate de partidas de Bazzite (Gopher64: 4 archivos, Longshot: 14 → ya colocadas).
-
-**Adaptación visual en curso (código de desarrollo; sin empaquetar ni aplicar al escritorio):** `OmniaShell.qml` y
-`GameCard.qml` se reescribieron sobre el lienzo 1920×1080, tomando proporciones, tonos, jerarquía tipográfica, insignias
-y escalas de tarjetas del prototipo. Se copiaron al UI los componentes auxiliares preservados del plasmoide original
-(escena, broche, iconos de plataforma y mando, ondas, MPRIS y sensores). El core entrega campos seguros de presentación,
-historial y ports sin exponer comandos de lanzamiento. La ventana se revisó a 1920×1080; el carrusel, las tarjetas y las
-coordenadas del lienzo coinciden con la referencia. Usa los iconos de plataforma y ordena filtros Switch 2, PC, Switch,
-N64. Se corrigieron el solapamiento del reloj y el texto largo de GPU. Las operaciones de partidas usan el port
-seleccionado; la petición se difiere hasta que `ListView` estabiliza sus bindings y la ventana muestra el estado vacío real.
-El `Loader` de cada tarjeta fija su tamaño según selección (290×435 activa, 190×285 lateral) para que las laterales
-aparezcan compactas desde el primer render. La respuesta de `/saves` conserva `used` para que la UI distinga ranuras
-ocupadas de vacías.
-
-La fidelidad visual exacta sigue pendiente de revisión renderizada a 1920×1080. El ciclo de arte y el selector SteamGridDB
-ya están conectados al core, incluido logo, paginación, cambio de edición, validación de host y selección persistente; falta
-probarlos con la clave del usuario. Sigue pendiente la navegación del PDF. Hechos el 16/11: energía (`/power`, con
-confirmación en la UI), panel «Sistema» completo (`/system`: modelo/GHz de CPU, disco de juegos, batería; curva de temperatura
-de 60 s en la UI) y el Big Menu v8 (ver registro). El espectro del monitor de salida se calcula en 32 bandas mel de 55 Hz a
-9,5 kHz (Goertzel con ventana propia por banda, captura a 22,05 kHz en trozos de 20 ms; sin análisis en silencio: ~7 % de CPU,
-la FFT anterior costaba ~27 %); las ondas están siempre activas (reposo = oleaje suave abajo) y solo se ocultan con un juego en
-marcha, una ventana maximizada o el Big Menu. Requiere `pipewire-pulse`
-(`parec`); las muestras solo se procesan en memoria. Falta validar con audio real en la sesión de KDE. No mostrar métricas
-de ejemplo como reales.
-
-El reproductor MPRIS interpola la posición según la velocidad; conserva su reloj local cuando un cliente devuelve cero o
-un valor viejo y solo reajusta al recibir un salto significativo. Si no se conoce la duración, muestra `—`. Título,
-artista y aplicación de origen admiten marquee. El fondo
-conserva la proporción con `PreserveAspectCrop`, un overscan del 14 % y paneo horizontal reversible de 80 s por sentido.
-
-**Prototipo visual:** `docs/prototipo-visual.html` muestra una propuesta navegable del escritorio Omnia a 16:9, con shelf,
-panel superior/dock Plasma, filtros, ficha y ports, ranuras, tarjetas, panel MPRIS/sistema, Big Menu y energía. Sus datos son
-ilustrativos; métricas no integradas se señalan con «—». Es una maqueta de diseño, no un tema instalable ni UI conectada.
-
-**Instalador local:** revisión 11 del asistente Arch y `.run` de fuentes preparados con dependencias completas para CachyOS.
-El asistente ya compiló e instaló Omnia en este PC. Tras publicar QML_IMPORT_PATH y reiniciar Plasma,
-se verificó el plugin cargado en el proceso real y ambos servicios activos; 19 pruebas de instalador OK.
-
-**Pendiente:**
-- Comparar detalles de arte/logo, ficha y telemetría a 1920×1080 contra el PNG de referencia.
-- Probar selector/ciclo de arte con la clave local de SteamGridDB sin revelar su contenido.
-- Completar y revisar el menú contextual, energía, audio, métricas, paridad Big Menu/mando y navegación del PDF.
-- Cuando el usuario termine de configurar Plasma, tomar esa configuración como referencia para crear un preset nativo.
-- Instalar los últimos paquetes y aplicar el importador en la sesión real (solo probado contra un core temporal).
-- Abrir Longshot (¿carga las 6 ranuras?) y un juego N64; comprobar que Gopher64 use la **NVIDIA GTX 1650 Ti** (Vulkan lista
-  primero la Intel UHD); si no, lanzar con `prime-run`.
-- Heroic y Lutris con juegos reales; prueba de cerrar/abrir sesión (autostart).
-- Antes de publicar: licencia (propuesta GPL-3.0-or-later), comprobar disponibilidad del nombre «Omnia Launcher», quitar el
-  usuario `wsaenz` del código/metadatos (ids D-Bus `org.wsaenz.*` → `org.omnia.*`, rutas heredadas), repo público para el AUR.
+## 5. Estado actual (2026-11-24)
+**Hecho y probado:** instalación de ports desde Explorar (≈58 paquetes publicados), Descargas independientes (tanda 5 publicada o por publicar: ver HANDOFF),
+actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
+con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
+integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
+**Pendiente (prioridad en `docs/HANDOFF.md`):** integración con Discord (presencia y voz), integración con tiendas (Steam, Epic, GOG, Amazon…), mejoras de Big Mode y de la
+app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
 ## 6. Operación
-- Compilar paquetes: `packaging/arch/build-local.sh` (deja los `.pkg.tar.zst` en `/tmp/omnia-pkg/`; copiarlos a `out/`).
-- Instalar: `sudo pacman -U packaging/arch/out/omnia-*.pkg.tar.zst` y
-  `systemctl --user restart omnia.service omnia-ui.service`.
-- Configuración de KDE: `omnia-setup --status | --dry-run | --yes | --undo` (copia en `~/.config/omnia/setup-backup.json`).
-- Pruebas manuales: usar `XDG_*` temporales, `OMNIA_DBUS_NAME` único y otro puerto; teclas del mando con `POST /emit?k=…`;
-  capturas con `spectacle -b -n -a`. No usar `pkill -f`.
-- El usuario ejecuta los `sudo`; nunca imprimir la clave de SteamGridDB; confirmar antes de commit/push.
+- **Pruebas:** `PYTHONPATH=core python3 -m unittest discover -s tests`; QML: `/usr/lib/qt6/bin/qmllint <archivo>`; pruebas visuales con arneses `qml6` fuera de pantalla
+  (ver HANDOFF, «Cómo verificar»).
+- **Paquetes:** `OMNIA_PKGREL=N packaging/arch/build-local.sh` deja los `.pkg.tar.zst` en `/tmp/omnia-pkg/` (tarda ~2 min). **El usuario** instala con `sudo pacman -U` y reinicia
+  `systemctl --user restart omnia.service`.
+- **Backend:** `npx vitest run` (344 pruebas); publicar paquetes con `python3 tools/release-packages/build_packages.py --send-only --publish` y metadata con
+  `tools/game-metadata/apply.py --send`, ambos con `ADMIN_API_KEY` (el usuario la carga con `omnia-admin` en fish).
+- **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Documentación de traspaso.** Nuevos `docs/HANDOFF.md`, `AGENTS.md`, `tools/check-context.sh` y `.githooks/pre-commit` (aviso opcional); secciones 1–6 de este documento reescritas con el estado real; el contenido de diseño KDE antiguo pasó a `docs/HISTORICO-KDE.md`; `CLAUDE.md` apunta a los nuevos archivos.
 - **2026-11-24 — Paquete gratuito de sonidos (Kenney, CC0) y nombre de la bienvenida por usuario:** con la autorización del usuario se descargó `kenney_interface-sounds.zip` (834.536 bytes, 100 OGG + `License.txt` CC0, de https://kenney.nl/assets/interface-sounds; kenney.nl rechaza `curl` con 403, así que se bajó con el navegador integrado «Continuar sin donar»; el ZIP se revisó antes de usarlo: sin rutas peligrosas, solo `.ogg`, `.txt` y dos `.url` ignorados). `tools/sound/import_kenney.py` (reproducible, no descarga nada) convierte 12 de sus sonidos a WAV mono de 44,1 kHz, al mismo nivel que el paquete de Omnia (pico ≈ −7 dBFS; recorta a ≤700 ms y «página» a 260 ms) y copia la licencia: `ui/qml/sounds/kenney/` (move←tick_001, confirm←confirmation_001, back←back_001, menu←open_001, page←scroll_003, error←error_001, done←confirmation_002, pad-on←maximize_001, pad-off←minimize_001, toggle←toggle_001, open←open_002, close←close_001). Ya aparece en Ajustes → Sonido → Paquete («Kenney · Interface Sounds (CC0)»). La bienvenida sigue usando su propio `welcome.wav` con cualquier paquete. Test `test_sound_packs.py`: todos los paquetes traen los 12 sonidos que pide `OmniaSounds.qml`. **Nombre del saludo por usuario:** `_user_name()` ya usaba el usuario del sistema que ejecuta Omnia (primera palabra del nombre completo o, si no, el login); ahora se prueba con varios usuarios y la persona puede elegir cómo la saludan en Ajustes → General («Tu nombre en la bienvenida», con el teclado virtual; `/settings/profile`, `display_name`; vacío = el del sistema; saneado, 24 caracteres).
 - **2026-11-24 — Big Mode no abría (segfault) en el paquete 0.3.0-78; corregido:** `qml6` moría con SIGSEGV al crear el `MediaPlayer` de la bienvenida: el backend FFmpeg de QtMultimedia llama a `av_hwdevice_ctx_create` → `vkCreateDevice`, y la capa Vulkan global de MangoHud (`MANGOHUD=1` + `VK_ADD_IMPLICIT_LAYER_PATH` del fork Gerudo en la sesión del usuario) falla en `overlay_CreateDevice`. No salió en mis arneses porque los ejecuté con `MANGOHUD=0`. Correcciones: (1) `ui/omnia-ui` exporta `MANGOHUD=0 DISABLE_MANGOHUD=1` (la propia interfaz de Omnia no debe cargar el HUD; así tampoco peta con ninguna biblioteca que cree un dispositivo Vulkan); (2) la bienvenida usa `SoundEffect` con `welcome.wav` (1 MB, ya no `MediaPlayer`/OGG); (3) `OmniaSounds` usa `Instantiator` en vez de `Repeater` (los delegados de `Repeater` deben ser `Item`; avisaba «Delegate must be of Item type»). Verificado con `omnia-ui --window`, `--manager` y `--window --game … --details` en la sesión real con MangoHud global: sobreviven al tiempo límite sin volcado. Lección: probar siempre los arneses también con el entorno real de la sesión (MangoHud global incluido). Mientras no se instale el paquete nuevo: `DISABLE_MANGOHUD=1 omnia-ui --window`.
 - **2026-11-24 — Fase 1 de Big Mode: bienvenida F con sonido sutil, sonidos de la interfaz, ajustes de audio y mandos:** decisiones del usuario: bienvenida «F · Nace de la constelación» y banda sonora más sutil. **Bienvenida:** `OmniaIntro.qml` (~5,6 s, determinista a partir de un reloj `tt`): 52 puntos convergen sobre el contorno del logo (puntos precalculados por longitud de arco), líneas que lo unen, logo (`omnia-logo.svg`) que se rellena, dos pulsos del aro, olas del fondo, saludo con el nombre del sistema, resumen (juegos, actualizaciones, batería del mando) y «Tu biblioteca unificada»; se salta con cualquier tecla, botón del mando o clic; no se muestra si Big Mode se abre con `--game` o `--downloads`; ajuste «Pantalla de bienvenida». Sonido `ui/qml/sounds/omnia/welcome.ogg` regenerado más sutil (impacto como fundido, platillo apagado; pico −9,9 dBFS, RMS −20,5 dBFS; generador `tools/sound/generate_welcome.py`). **Sonidos de la interfaz:** `OmniaSounds.qml` (`SoundEffect`, 12 sonidos: move, confirm, back, menu, page, error, done, pad-on, pad-off, toggle, open, close), paquete «omnia» sintetizado (`tools/sound/generate_ui_sounds.py`, 50–480 ms), con interruptor, volumen propio y selector de paquete (`core/omnia/sounds.py` lista las carpetas `sounds/<paquete>/` completas; la biblioteca gratuita se añadirá como otro paquete); nunca suenan con un juego en marcha o la estantería tapada; mando y teclado suenan en todas las pantallas (`padSound`/`keySound`), la estantería suena al cambiar de página, y hay sonidos de descarga terminada, error y mando conectado/desconectado. **Ajustes de Big Mode** (`OmniaBigSettings.qml`, rehecha: antes solo se manejaba con ratón): navegación completa con mando, teclado y ratón, categorías General · Sonido · Audio · Mandos (LB/RB), filas de interruptor, selector, deslizador y acción. Núcleo: `/settings/sounds`, `/settings/intro`, `/audio/devices`, `/audio/input/set`, `/audio/level` (salida y micrófono: dispositivo, volumen 0–150 validado, silencio; `audio_out.py`), `/pads`, `/pads/settings`, `/pads/rumble`. **Mandos** (`pad.py`): estado en vivo (botones, sticks, gatillos, cruceta; en Xbox por Bluetooth los gatillos son GAS/BRAKE y el stick derecho Z/RZ), zona muerta por mando (también fija el umbral de navegación: 0,35 + zona muerta; con 0,15 es el 0,5 de siempre), familia de iconos forzable (Automático/Xbox/PlayStation/Switch/Deck), apodo (con el teclado virtual), vibración de prueba por force-feedback (`ff_rumble_effect`, `EVIOCSFF`; solo sobre mandos ya detectados) y vibración suave opcional al aceptar/cambiar de página. Pantalla de prueba en vivo `OmniaPadTest.qml` (cierra manteniendo B 1,2 s, Esc o clic). Ajustes por mando guardados en `config.json` (`pads`). Pruebas: audio (3), mandos (9), API (8) y paquetes de sonido (1) nuevas; todo el conjunto pasa. Verificado con arneses offscreen contra un núcleo aislado con el código nuevo (puerto 47990, configuración temporal): fotogramas de la bienvenida, pestañas de ajustes, audio real (84 % de salida, 3 salidas, 2 micrófonos), 12 sonidos cargados; la prueba del mando con datos simulados (no había mando conectado). Pendiente: probar a mano con mando (vibración y gatillos), añadir el paquete gratuito de sonidos (a la espera de autorización de descarga), Discord (a la espera del Application ID) y el resto de mejoras de las listas.
