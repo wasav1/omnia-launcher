@@ -73,8 +73,7 @@ Item {
         api.storeLoginUrl(sid, function(code, body) {
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
             st.pasted = ""
-            // Epic: su captcha rechaza los navegadores embebidos, así que se usa el navegador del sistema (donde ya hay sesión)
-            if (!external && sid !== "epic" && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
+            if (!external && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
             st.linking = sid
             Qt.openUrlExternally(body.url)
         })
@@ -245,14 +244,14 @@ Item {
                             Row {
                                 spacing: st.s * 8
                                 Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
-                                Button { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "epic" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
+                                Button { text: qsTr("Usar mi navegador"); visible: acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
                                 Button { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
                             }
                             Column {
                                 visible: st.linking === acc.modelData
                                 width: parent.width; spacing: st.s * 6
                                 Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 12
-                                       text: acc.modelData === "epic" ? qsTr("Inicia sesión en tu navegador. Cuando veas el texto con el código, pulsa Ctrl+A y Ctrl+C y vuelve a Omnia: se conecta sola.")
+                                       text: acc.modelData === "epic" ? qsTr("Inicia sesión; cuando veas el texto con el código, pulsa Ctrl+A y Ctrl+C y vuelve a Omnia: se conecta sola.")
                                                                       : qsTr("Inicia sesión; cuando termines, copia la dirección completa de la barra (Ctrl+L, Ctrl+C) y vuelve a Omnia: se conecta sola.") }
                                 Row {
                                     spacing: st.s * 8; width: parent.width

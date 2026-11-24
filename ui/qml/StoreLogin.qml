@@ -3,7 +3,7 @@ import QtQuick.Window
 import QtWebEngine
 
 // Ventana de inicio de sesión de una tienda (como la de Heroic): muestra la página oficial de la tienda y, cuando la tienda
-// redirige con el código, lo captura y lo entrega a Omnia. Navegación aislada (sin cookies guardadas) y solo a la tienda.
+// redirige con el código, lo captura y lo entrega a Omnia. El perfil se guarda en disco (el antibots de Epic lo exige).
 // Se carga de forma opcional: si falta QtWebEngine, ManagerStores usa el navegador del sistema y el pegado manual.
 Window {
     id: win
@@ -36,8 +36,12 @@ Window {
         id: view
         anchors.fill: parent
         profile: WebEngineProfile {
-            offTheRecord: true
-            // las tiendas rechazan navegadores que se anuncian como «QtWebEngine» (su antibots falla): se presenta como el Chrome en que se basa
+            // Perfil guardado en disco y con el idioma del sistema: el antibots de Epic (hCaptcha) lo acepta; sin perfil guardado o con otro
+            // idioma el captcha respondía «Respuesta incorrecta» (probado con tools/epic-login-test.qml, variante c).
+            storageName: "omnia-stores"
+            offTheRecord: false
+            httpAcceptLanguage: Qt.locale().name.replace("_", "-") + "," + Qt.locale().name.split("_")[0] + ";q=0.9,en;q=0.8"
+            // las tiendas rechazan navegadores que se anuncian como «QtWebEngine»: se presenta como el Chrome en que se basa
             Component.onCompleted: httpUserAgent = httpUserAgent.replace(/ QtWebEngine\/[0-9.]+/, "")
         }
         onUrlChanged: win.check(url)
