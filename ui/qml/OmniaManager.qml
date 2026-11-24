@@ -186,6 +186,7 @@ Item {
         if (key === "catalog") loadOnline()
         if (key === "installs") loadInstallations()
         if (key === "stores") storesView.open()
+        if (key === "stats") statsView.open()
         if (key === "settings") loadRoots()
     }
     function openCatalogDetail(game) {
@@ -339,6 +340,7 @@ Item {
                     {key:"library",label:qsTr("Biblioteca")},
                     {key:"catalog",label:qsTr("Explorar")},
                     {key:"stores",label:qsTr("Tiendas")},
+                    {key:"stats",label:qsTr("Estadísticas")},
                     {key:"installs",label:qsTr("Descargas")}
                 ]
                 delegate: Item {
@@ -564,6 +566,15 @@ Item {
                     text: qsTr("%1 juegos").arg(Number(manager.onlineMeta.total) || manager.onlineGames.length)
                     color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
             }
+        }
+
+        // Estadísticas de juego
+        ManagerStats {
+            id: statsView
+            anchors.fill: parent
+            visible: manager.page === "stats"
+            manager: manager
+            api: api
         }
 
         // Tiendas: biblioteca unificada (Steam, Epic, GOG, Amazon)

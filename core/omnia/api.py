@@ -107,6 +107,7 @@ class Api:
             "/audio/devices": ("GET", True, self.audio_devices),
             "/audio/input/set": ("POST", True, self.audio_input_set),
             "/audio/level": ("POST", True, self.audio_level),
+            "/stats": ("GET", True, self.play_stats),
             "/discord": ("GET", True, self.discord_status),
             "/settings/discord": ("POST", True, self.settings_discord),
             "/stores": ("GET", True, self.stores_list),
@@ -640,6 +641,22 @@ class Api:
             write_json_atomic(config_path, cfg)
         reader.configure(pads)
         return {"ok": True, "pad": self._pad_item(body.get("id"))[1]}
+
+    def play_stats(self, q):
+        """Estadísticas de juego (horas, partidas, racha, top, días recientes) del historial de sesiones."""
+        from . import stats
+        raw = q.get("days", "14")
+        raw = raw[0] if isinstance(raw, list) and raw else raw
+        if str(raw) not in ("7", "14", "30"):
+            raise ApiError(400, "days debe ser 7, 14 o 30.")
+        with self.store.lock:
+            state = dict(self.store.state)
+            games = list(self.store.games())
+            active = dict(self.sessions.active) if self.sessions else {}
+            history = list(state.get("history") or [])
+        state["history"] = history
+        from .sessions import HISTORY_MAX
+        return stats.compute(state, games, active, time.time(), int(raw), HISTORY_MAX)
 
     def discord_settings(self) -> dict:
         cfg = load_json(self.store.dir / "config.json", {})

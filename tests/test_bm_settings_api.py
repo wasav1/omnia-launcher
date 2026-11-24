@@ -145,3 +145,13 @@ class DiscordApiTests(BmSettingsApiTests):
             with self.assertRaises(ApiError, msg=str(bad)):
                 self.api.settings_discord({"_body": bad})
         self.assertEqual(self.api.settings_discord({"_body": {"app_id": ""}})["app_id"], "")
+
+
+class StatsApiTests(BmSettingsApiTests):
+    def test_stats_endpoint(self):
+        out = self.api.play_stats({})
+        self.assertEqual((out["totalSecs"], len(out["days"])), (0, 14))
+        self.assertEqual(len(self.api.play_stats({"days": "30"})["days"]), 30)
+        for bad in ("0", "15", "x", "99"):
+            with self.assertRaises(ApiError, msg=bad):
+                self.api.play_stats({"days": bad})

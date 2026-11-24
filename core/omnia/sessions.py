@@ -7,7 +7,7 @@ Se alimenta del mismo sondeo rápido que el modo juego (cada 350 ms). Reglas:
   * Las sesiones de menos de 10 s no cuentan (un lanzador que abre y cierra).
   * Si el servicio muere en mitad de una partida, la sesión se anota cada 30 s en `active_sessions` y se cierra al
     arrancar de nuevo con la última hora vista (se pierden como mucho 30 s).
-Todo vive en state.json: sessions[id], last_played[id], active_sessions, history (últimas 200 sesiones).
+Todo vive en state.json: sessions[id], last_played[id], active_sessions, history (últimas 1000 sesiones).
 """
 import logging
 import time
@@ -17,7 +17,7 @@ log = logging.getLogger("omnia")
 START_AFTER, END_AFTER = 2, 3
 MIN_SECS = 10
 PERSIST_EVERY = 30
-HISTORY_MAX = 200
+HISTORY_MAX = 1000
 
 
 class Sessions:
