@@ -368,6 +368,8 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, sessions, stop), name="omnia-gamemode")
     gm_thread.start()
     reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
+    reader.configure(cfg.get("pads") if isinstance(cfg.get("pads"), dict) else {})       # apodo, iconos, zona muerta y vibración de cada mando
+    api.pad_reader = reader
     reader.start()
     dbus = DesktopService(api.set_desktop_state, on_menu=api.toggle_menu, name=os.environ.get("OMNIA_DBUS_NAME") or cfg.get("dbus_name", "org.omnia.Core"))
     if dbus.start():

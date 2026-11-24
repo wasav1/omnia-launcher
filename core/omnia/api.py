@@ -29,6 +29,7 @@ from . import (
     manual,
     online_catalog,
     package_installs,
+    pad,
     port_catalog,
     power,
     procs,
@@ -40,7 +41,7 @@ from . import (
 )
 from .events import EventBus
 from .games import refresh as games_refresh
-from . import descriptor, mangohud
+from . import descriptor, mangohud, sounds
 from .games.base import Detector
 from .store import load_json
 from .themes import accent_for, normalize_theme
@@ -100,6 +101,14 @@ class Api:
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
             "/settings/mangohud": ("POST", True, self.settings_mangohud),
+            "/settings/sounds": ("POST", True, self.settings_sounds),
+            "/settings/intro": ("POST", True, self.settings_intro),
+            "/audio/devices": ("GET", True, self.audio_devices),
+            "/audio/input/set": ("POST", True, self.audio_input_set),
+            "/audio/level": ("POST", True, self.audio_level),
+            "/pads": ("GET", True, self.pads),
+            "/pads/settings": ("POST", True, self.pads_settings),
+            "/pads/rumble": ("POST", True, self.pads_rumble),
             "/folders/open": ("POST", True, self.folder_open),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
@@ -410,7 +419,10 @@ class Api:
                 "language": language, "install_root": install_root,
                 "animated_background": cfg.get("animated_background", True) is not False,
                 "update_check": cfg.get("update_check", True) is not False,
-                "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud"))}
+                "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
+                "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
+                "ui_sound_pack": self._sound_pack(cfg), "ui_sound_packs": sounds.packs(),
+                "intro_enabled": cfg.get("intro_enabled", True) is not False, "user_name": self._user_name()}
 
     def settings_language(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -453,6 +465,162 @@ class Api:
                 self.open_fn(path)
                 return {"ok": True}
         raise ApiError(404, "esa carpeta no existe")
+
+    @staticmethod
+    def _sound_volume(cfg) -> int:
+        v = cfg.get("ui_sound_volume", 70)
+        return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100 else 70
+
+    @staticmethod
+    def _sound_pack(cfg) -> str:
+        ids = [p["id"] for p in sounds.packs()]
+        pack = cfg.get("ui_sound_pack", "omnia")
+        return pack if pack in ids else (ids[0] if ids else "omnia")
+
+    @staticmethod
+    def _user_name() -> str:
+        """Nombre para el saludo de la bienvenida: el nombre completo del sistema (primera palabra) o, si no, el usuario."""
+        try:
+            import pwd
+            entry = pwd.getpwuid(os.getuid())
+            full = (entry.pw_gecos or "").split(",")[0].strip()
+            return (full.split()[0] if full else entry.pw_name)[:30]
+        except (KeyError, ImportError, OSError):
+            return os.environ.get("USER", "")[:30]
+
+    def _update_config(self, **changes):
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg.update(changes)
+            write_json_atomic(config_path, cfg)
+            return cfg
+
+    def settings_sounds(self, q):
+        """Sonidos de la interfaz de Big Mode: activar, volumen propio (0–100) y paquete."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        changes = {}
+        if "enabled" in body:
+            if not isinstance(body["enabled"], bool):
+                raise ApiError(400, "enabled debe ser verdadero o falso.")
+            changes["ui_sounds"] = body["enabled"]
+        if "volume" in body:
+            v = body["volume"]
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= 100:
+                raise ApiError(400, "el volumen debe ser un entero de 0 a 100.")
+            changes["ui_sound_volume"] = v
+        if "pack" in body:
+            if body["pack"] not in [p["id"] for p in sounds.packs()]:
+                raise ApiError(400, "paquete de sonidos no disponible.")
+            changes["ui_sound_pack"] = body["pack"]
+        if not changes:
+            raise ApiError(400, "indica enabled, volume o pack.")
+        cfg = self._update_config(**changes)
+        return {"ok": True, "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
+                "ui_sound_pack": self._sound_pack(cfg)}
+
+    def settings_intro(self, q):
+        """Activa o desactiva la animación de bienvenida de Big Mode."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        if not isinstance(body.get("enabled"), bool):
+            raise ApiError(400, "enabled debe ser verdadero o falso.")
+        self._update_config(intro_enabled=body["enabled"])
+        return {"ok": True, "intro_enabled": body["enabled"]}
+
+    # --- audio: salida y micrófono con volumen y silencio ---
+    def audio_devices(self, q):
+        run = getattr(self, "pactl_run", subprocess.run)
+        out = {"ok": True}
+        for target, lister in (("output", audio_out.list_outputs), ("input", audio_out.list_inputs)):
+            try:
+                out[target] = {"items": lister(run), **audio_out.get_level(target, run)}
+            except audio_out.AudioOutError as e:
+                out[target] = {"items": [], "volume": 0, "muted": False, "error": str(e)}
+        return out
+
+    def audio_input_set(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        try:
+            audio_out.set_input(str(body.get("source", "")), getattr(self, "pactl_run", subprocess.run))
+        except audio_out.AudioOutError as e:
+            raise ApiError(400, str(e))
+        return {"ok": True}
+
+    def audio_level(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        target = body.get("target")
+        if target not in ("output", "input"):
+            raise ApiError(400, "target debe ser output o input.")
+        if "muted" in body and not isinstance(body["muted"], bool):
+            raise ApiError(400, "muted debe ser verdadero o falso.")
+        run = getattr(self, "pactl_run", subprocess.run)
+        try:
+            audio_out.set_level(target, volume=body.get("volume"), muted=body.get("muted"), run=run)
+            return {"ok": True, **audio_out.get_level(target, run)}
+        except audio_out.AudioOutError as e:
+            raise ApiError(400, str(e))
+
+    # --- mandos: estado en vivo, ajustes y vibración ---
+    def _pad_item(self, pad_id):
+        reader = getattr(self, "pad_reader", None)
+        if reader is None:
+            raise ApiError(503, "el lector de mandos no está activo.")
+        for item in reader.snapshot():
+            if item["id"] == pad_id:
+                return reader, item
+        raise ApiError(404, "mando desconocido.")
+
+    def pads(self, q):
+        reader = getattr(self, "pad_reader", None)
+        return {"ok": reader is not None, "pads": reader.snapshot() if reader else []}
+
+    def pads_settings(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        reader, item = self._pad_item(body.get("id"))
+        mine = {}
+        if "nickname" in body:
+            name = re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f<>]", "", str(body["nickname"]))).strip()[:24]
+            mine["nickname"] = name
+        if "family" in body:
+            if body["family"] not in ("auto", *pad.FAMILIES):
+                raise ApiError(400, "familia de iconos no válida.")
+            mine["family"] = "" if body["family"] == "auto" else body["family"]
+        if "deadzone" in body:
+            dz = body["deadzone"]
+            if isinstance(dz, bool) or not isinstance(dz, (int, float)) or not 0.05 <= dz <= 0.4:
+                raise ApiError(400, "la zona muerta debe estar entre 0,05 y 0,4.")
+            mine["deadzone"] = round(float(dz), 3)
+        if "haptics" in body:
+            if not isinstance(body["haptics"], bool):
+                raise ApiError(400, "haptics debe ser verdadero o falso.")
+            mine["haptics"] = body["haptics"]
+        if not mine:
+            raise ApiError(400, "no hay nada que cambiar.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            pads = cfg.get("pads") if isinstance(cfg.get("pads"), dict) else {}
+            pads[item["key"]] = {**(pads.get(item["key"]) or {}), **mine}
+            cfg["pads"] = pads
+            write_json_atomic(config_path, cfg)
+        reader.configure(pads)
+        return {"ok": True, "pad": self._pad_item(body.get("id"))[1]}
+
+    def pads_rumble(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        reader, item = self._pad_item(body.get("id"))
+        num = lambda key, default: min(1.0, max(0.0, float(body.get(key, default)))) if isinstance(body.get(key, default), (int, float)) and not isinstance(body.get(key, default), bool) else default
+        ms = body.get("ms", 350)
+        ms = ms if isinstance(ms, int) and not isinstance(ms, bool) else 350
+        try:
+            reader.rumble(item["id"], num("strong", 0.7), num("weak", 0.7), max(1, min(1500, ms)))
+        except OSError as e:
+            raise ApiError(409, "este mando no admite vibración (" + str(e) + ").")
+        return {"ok": True}
 
     def settings_mangohud(self, q):
         """Muestra u oculta el monitor de rendimiento (MangoHud con el estilo de Omnia) en los juegos que Omnia lanza."""

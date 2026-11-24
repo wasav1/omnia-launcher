@@ -17,7 +17,7 @@ import numpy as np
 
 SR = 44100
 LEN = 5.8
-TARGET = 0.6                                       # pico final ≈ −4,4 dBFS: un sonido de interfaz no debe ir al máximo; el volumen lo ajusta la propia interfaz
+TARGET = 0.32                                       # pico final ≈ −4,4 dBFS: un sonido de interfaz no debe ir al máximo; el volumen lo ajusta la propia interfaz
 N = int(SR * LEN)
 rng = np.random.default_rng(7)
 t = np.arange(N) / SR
@@ -111,20 +111,20 @@ tension = np.zeros(N)
 for detune, f0, f1 in ((0.0, 146.83, 293.66), (0.4, 146.83, 293.66), (-0.4, 146.83, 293.66), (0.0, 220.0, 440.0)):
     ph = sweep(f0 * 2 ** (detune / 12 / 5), f1 * 2 ** (detune / 12 / 5), 1.2, 1.1)
     tension += sum(np.sin(h * ph) / h for h in range(1, 7))
-tension = lowpass(tension, 2400) * env(1.2, 1.0, 0.12, 0.25, 0.035)
+tension = lowpass(tension, 2400) * env(1.2, 1.0, 0.12, 0.3, 0.025)
 add(tension, 0, 1.0)
-rev_cym = stft_filter(rng.standard_normal(N), lambda x: 4500, 1.4) * env(1.5, 0.8, 0.0, 0.05, 0.22)
+rev_cym = stft_filter(rng.standard_normal(N), lambda x: 3000, 1.6) * env(1.5, 0.95, 0.0, 0.2, 0.12)
 add(rev_cym, 0.1, 1.0)
 
 # --- 4. impacto cuando el logo se rellena (2,30 s) -----------------------------------------------------------------------
 ti = 2.3
 x = np.clip(t - ti, 0, None)
-boom = np.sin(2 * np.pi * (36 * x + 62 * (1 - np.exp(-x * 7)) / 7)) * np.exp(-x / 0.42) * (t >= ti) * 0.85
-click = lowpass(rng.standard_normal(N), 900) * np.exp(-x / 0.09) * (t >= ti) * 0.8
+boom = np.sin(2 * np.pi * (36 * x + 62 * (1 - np.exp(-x * 7)) / 7)) * np.minimum(1, x / 0.045) * np.exp(-x / 0.5) * (t >= ti) * 0.38
+click = lowpass(rng.standard_normal(N), 500) * np.minimum(1, x / 0.03) * np.exp(-x / 0.14) * (t >= ti) * 0.25
 add(boom, 0, 1.0)
-add(click, 0, 0.35)
-add(bell(1174.66, ti + 0.01, dur=3.4, amp=0.2, bright=1.3), -0.15)
-add(bell(1760.0, ti + 0.02, dur=3.0, amp=0.11, bright=1.2), 0.2)
+add(click, 0, 0.5)
+add(bell(1174.66, ti + 0.02, dur=3.4, amp=0.13, bright=0.9), -0.15)
+add(bell(1760.0, ti + 0.03, dur=3.0, amp=0.07, bright=0.9), 0.2)
 
 # --- 5. acorde cálido (Re mayor con novena: Re2 La2 Mi3 Fa#3 La3 Do#4) que se abre y se apaga ---------------------------------
 pad = np.zeros(N)
@@ -132,16 +132,16 @@ for f, a in ((73.42, 0.9), (110.0, 0.8), (164.81, 0.7), (185.0, 0.55), (220.0, 0
     for d in (-0.003, 0.0, 0.003):
         ph = 2 * np.pi * f * (1 + d) * t + 0.35 * np.sin(2 * np.pi * (0.2 + d * 40) * t)
         pad += a * (np.sin(ph) + 0.35 * np.sin(2 * ph) + 0.12 * np.sin(3 * ph)) / 3
-pad = lowpass(pad, 1800) * env(ti + 0.05, 0.9, 1.3, 1.9, 0.028)
+pad = lowpass(pad, 1800) * env(ti + 0.05, 1.1, 1.3, 1.9, 0.034)
 add(pad, -0.2, 1.0)
 add(np.roll(pad, int(0.017 * SR)), 0.2, 1.0)
 
 # --- 6. latidos del aro (2,9 y 4,5 s) y notas de saludo (3,1 / 3,5 / 3,9 s) -------------------------------------------------
 for tp in (2.9, 4.5):
     xp = np.clip(t - tp, 0, None)
-    add(np.sin(2 * np.pi * 52 * xp * np.exp(-xp / 1.2)) * np.exp(-xp / 0.45) * (t >= tp) * 0.16, 0)
+    add(np.sin(2 * np.pi * 52 * xp * np.exp(-xp / 1.2)) * np.exp(-xp / 0.45) * (t >= tp) * 0.09, 0)
 for tn, f in ((3.1, 1318.51), (3.5, 1479.98), (3.9, 1760.0)):
-    add(bell(f, tn, dur=1.9, amp=0.085, bright=0.9), 0.1)
+    add(bell(f, tn, dur=1.9, amp=0.06, bright=0.8), 0.1)
 
 # --- reverberación (respuesta sintética de sala grande) y masterización -----------------------------------------------------
 ir_len = int(2.3 * SR)
@@ -168,7 +168,7 @@ def write(path):
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "assets/sounds/omnia/welcome.wav")
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "ui/qml/sounds/omnia/welcome.wav")
     out.parent.mkdir(parents=True, exist_ok=True)
     write(out)
     rms = float(np.sqrt(np.mean(np.concatenate([L2, R2]) ** 2)))

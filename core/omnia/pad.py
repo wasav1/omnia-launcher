@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-EV_KEY, EV_ABS = 1, 3
+EV_KEY, EV_ABS, EV_FF = 1, 3, 0x15
 EVENT = struct.Struct("@llHHi")           # struct input_event: tiempo (16 B) + tipo + código + valor
 ABSINFO = struct.Struct("6i")             # value, minimum, maximum, fuzz, flat, resolution
 EVIOCGABS = lambda a: 0x80184540 + a      # _IOR('E', 0x40 + abs, struct input_absinfo)
@@ -27,6 +27,12 @@ EVIOCGABS = lambda a: 0x80184540 + a      # _IOR('E', 0x40 + abs, struct input_a
 BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST = 0x130, 0x131, 0x133, 0x134
 BTN_TL, BTN_TR, BTN_SELECT, BTN_START, BTN_MODE = 0x136, 0x137, 0x13A, 0x13B, 0x13C
 ABS_X, ABS_Y, ABS_Z, ABS_RZ, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y = 0, 1, 2, 5, 9, 10, 0x10, 0x11
+ABS_RX, ABS_RY = 3, 4
+BTN_THUMBL, BTN_THUMBR = 0x13D, 0x13E
+FF_RUMBLE = 0x50
+EVIOCSFF = 0x40304580                       # _IOW('E', 0x80, struct ff_effect): 48 bytes en 64 bits
+EVIOCRMFF = 0x40044581                      # _IOW('E', 0x81, int)
+FAMILIES = ("xbox", "ps", "switch", "deck")
 
 COMMON = {BTN_TL: "LB", BTN_TR: "RB", BTN_SELECT: "SELECT", BTN_START: "START", BTN_MODE: "MODE"}
 BUTTONS = {   # posición física -> etiqueta del mando
@@ -178,18 +184,22 @@ class PadLogic:
     REPEAT_FIRST, REPEAT_NEXT = 0.40, 0.12
     STICK, TRIGGER = 0.5, 0.5
 
-    def __init__(self, layout: str = "xbox"):
+    def __init__(self, layout: str = "xbox", deadzone: float = 0.15):
         self.buttons = BUTTONS.get(layout, BUTTONS["xbox"])
+        self.set_deadzone(deadzone)
         self.src = {}                  # origen («stickx», «hatx», …) -> dirección activa o None
         self.held = {}                 # dirección -> instante del próximo repetido
         self.trig = {"LT": False, "RT": False}
 
-    @staticmethod
-    def _dir(source, v):
+    def set_deadzone(self, deadzone: float) -> None:
+        """La zona muerta del stick fija también cuánto hay que inclinarlo para navegar: 0,35 + zona muerta (con 0,15, el 0,5 de siempre)."""
+        self.stick = max(0.4, min(0.9, 0.35 + float(deadzone)))
+
+    def _dir(self, source, v):
         horizontal = source in ("stickx", "hatx")
-        if v <= -PadLogic.STICK:
+        if v <= -self.stick:
             return "l" if horizontal else "u"
-        if v >= PadLogic.STICK:
+        if v >= self.stick:
             return "r" if horizontal else "d"
         return None
 
@@ -233,6 +243,31 @@ class PadLogic:
         return out
 
 
+def ff_rumble_effect(strong: float, weak: float, ms: int, effect_id: int = -1) -> bytes:
+    """struct ff_effect (48 bytes) de tipo FF_RUMBLE con motores fuerte y débil entre 0 y 1."""
+    mag = lambda v: max(0, min(65535, int(round(float(v) * 65535))))
+    length = max(1, min(5000, int(ms)))
+    return struct.pack("<HhHHHHH2xHH28x", FF_RUMBLE, effect_id, 0, 0, 0, length, 0, mag(strong), mag(weak))
+
+
+def rumble_device(path: str, strong: float, weak: float, ms: int) -> None:
+    """Hace vibrar un mando ya detectado (el hilo que llama es el que espera a que termine). OSError si no lo admite."""
+    ms = max(1, min(1500, int(ms)))
+    fd = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+    try:
+        buf = bytearray(ff_rumble_effect(strong, weak, ms))
+        fcntl.ioctl(fd, EVIOCSFF, buf, True)                      # el núcleo escribe en el campo «id» el efecto asignado
+        effect_id = struct.unpack_from("<h", buf, 2)[0]
+        os.write(fd, EVENT.pack(0, 0, EV_FF, effect_id, 1))
+        time.sleep(ms / 1000 + 0.05)
+        try:
+            fcntl.ioctl(fd, EVIOCRMFF, effect_id)
+        except OSError:
+            pass
+    finally:
+        os.close(fd)
+
+
 def normalize(code: int, raw: int, info: tuple) -> float:
     """Normaliza un eje con su absinfo (value, min, max, fuzz, flat, res). Los gatillos van de 0 a 1; el resto de -1 a 1."""
     _, lo, hi, _, _, _ = info
@@ -258,20 +293,29 @@ class PadReader(threading.Thread):
         self.stop_event = threading.Event()
         self.open = {}          # fd -> (Device, PadLogic, {código: absinfo})
         self.uniq_by_path = {}
+        self.allinfo = {}       # fd -> {código: absinfo} de todos los ejes (para la pantalla de prueba)
+        self.state = {}         # fd -> {"buttons": {códigos pulsados}, "axes": {código: valor normalizado}}
+        self.settings = {}      # clave del mando (dirección o nombre) -> {nickname, family, deadzone, haptics}
+        self.haptic = rumble_device
+        self._haptic_at = 0.0
 
     def _open(self, dev: Device):
         fd = os.open(dev.path, os.O_RDONLY | os.O_NONBLOCK)
         info = {}
-        for code in (ABS_X, ABS_Y, ABS_Z, ABS_RZ, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y):
+        for code in (ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y):
             try:
                 info[code] = ABSINFO.unpack(fcntl.ioctl(fd, EVIOCGABS(code), bytes(ABSINFO.size)))
             except OSError:
                 pass
+        self.allinfo[fd] = dict(info)
+        self.state[fd] = {"buttons": set(), "axes": {}}
+        info.pop(ABS_RX, None)                  # la navegación solo usa el stick izquierdo, la cruceta y los gatillos
+        info.pop(ABS_RY, None)
         if ABS_GAS in info or ABS_BRAKE in info:
             # Xbox por Bluetooth: los gatillos son GAS/BRAKE y ABS_Z/ABS_RZ son el stick derecho (no se usa para navegar)
             info.pop(ABS_Z, None)
             info.pop(ABS_RZ, None)
-        self.open[fd] = (dev, PadLogic(dev.layout), info)
+        self.open[fd] = (dev, PadLogic(dev.layout, self.settings_for(dev).get("deadzone", 0.15)), info)
         self.uniq_by_path[dev.path] = dev.uniq
 
     def _rescan(self):
@@ -292,7 +336,74 @@ class PadReader(threading.Thread):
         if first and battery is None and first[0].uniq:
             battery = self._battery_from_bus(first[0].uniq)
         self.bus.set_pad(bool(first), first[0].name if first else "", first[0].layout if first else "",
-                         first[0].family if first else "", battery)
+                         self.effective_family(first[0]) if first else "", battery)
+
+    # --- ajustes por mando, estado en vivo y vibración (pantalla «Mandos» de Big Mode) ------------------------------------------------
+    @staticmethod
+    def key_of(dev: Device) -> str:
+        return dev.uniq or dev.name
+
+    def settings_for(self, dev: Device) -> dict:
+        return self.settings.get(self.key_of(dev)) or {}
+
+    def effective_family(self, dev: Device) -> str:
+        forced = self.settings_for(dev).get("family")
+        return forced if forced in FAMILIES else dev.family
+
+    def configure(self, settings: dict) -> None:
+        """Aplica los ajustes guardados (también a los mandos ya abiertos)."""
+        self.settings = settings if isinstance(settings, dict) else {}
+        for dev, logic, _ in list(self.open.values()):
+            logic.set_deadzone(self.settings_for(dev).get("deadzone", 0.15))
+
+    def snapshot(self) -> list:
+        """Mandos abiertos con su estado actual: botones pulsados (etiquetas), sticks, gatillos y cruceta (−1…1; gatillos 0…1)."""
+        out = []
+        for fd, (dev, _, _) in list(self.open.items()):
+            st, info = self.state.get(fd) or {"buttons": set(), "axes": {}}, self.allinfo.get(fd) or {}
+            cfg = self.settings_for(dev)
+            dz = float(cfg.get("deadzone", 0.15))
+            labels = dict(BUTTONS.get(dev.layout, BUTTONS["xbox"]))
+            labels.update({BTN_THUMBL: "LS", BTN_THUMBR: "RS"})
+            axes = st["axes"]
+            val = lambda code: axes.get(code, 0.0)
+            zone = lambda v: 0.0 if abs(v) < dz else round(v, 3)
+            xbox_bt = ABS_GAS in info or ABS_BRAKE in info
+            right = (ABS_Z, ABS_RZ) if xbox_bt else (ABS_RX, ABS_RY)
+            trig = (ABS_GAS, ABS_BRAKE) if xbox_bt else (ABS_Z, ABS_RZ)
+            out.append({"id": dev.path, "key": self.key_of(dev), "name": dev.name, "nickname": cfg.get("nickname", ""),
+                        "family": self.effective_family(dev), "detectedFamily": dev.family, "layout": dev.layout,
+                        "battery": read_battery(dev.uniq, self.power_dir) if dev.uniq else None, "deadzone": dz,
+                        "haptics": bool(cfg.get("haptics", False)),
+                        "buttons": sorted(labels[c] for c in st["buttons"] if c in labels),
+                        "lx": zone(val(ABS_X)), "ly": zone(val(ABS_Y)), "rx": zone(val(right[0])), "ry": zone(val(right[1])),
+                        "lt": round(max(0.0, val(trig[0])), 3), "rt": round(max(0.0, val(trig[1])), 3),
+                        "hatx": round(val(ABS_HAT0X)), "haty": round(val(ABS_HAT0Y))})
+        return out
+
+    def rumble(self, path: str, strong: float = 0.7, weak: float = 0.7, ms: int = 350) -> None:
+        """Vibra un mando ya detectado (la ruta debe ser una de las abiertas). OSError si no admite vibración."""
+        if path not in {d.path for d, _, _ in self.open.values()}:
+            raise OSError("mando desconocido")
+        self.haptic(path, strong, weak, ms)
+
+    def _haptic_pulse(self, key: str):
+        """Vibración suave al pulsar en la interfaz (solo en mandos con «vibración» activada)."""
+        pulse = {"A": (0.0, 0.30, 35), "LT": (0.2, 0.0, 30), "RT": (0.2, 0.0, 30)}.get(key)
+        now = time.monotonic()
+        if not pulse or now - self._haptic_at < 0.12:
+            return
+        for dev, _, _ in list(self.open.values()):
+            if self.settings_for(dev).get("haptics"):
+                self._haptic_at = now
+                threading.Thread(target=lambda p=dev.path: self._safe_haptic(p, *pulse), daemon=True).start()
+                break
+
+    def _safe_haptic(self, path, strong, weak, ms):
+        try:
+            self.haptic(path, strong, weak, ms)
+        except OSError:
+            pass
 
     def _battery_from_bus(self, uniq: str):
         now = time.monotonic()
@@ -304,6 +415,8 @@ class PadReader(threading.Thread):
 
     def _close(self, fd):
         dev = self.open.pop(fd)[0]
+        self.allinfo.pop(fd, None)
+        self.state.pop(fd, None)
         try:
             os.close(fd)
         except OSError:
@@ -314,6 +427,7 @@ class PadReader(threading.Thread):
         if keys and self.gate():
             for k in keys:
                 self.bus.push(k)
+                self._haptic_pulse(k)
 
     def run(self):
         last_scan = 0.0
@@ -335,8 +449,14 @@ class PadReader(threading.Thread):
                     self._close(fd)
                     continue
                 _, logic, info = self.open[fd]
+                st, allinfo = self.state.get(fd), self.allinfo.get(fd, {})
                 for i in range(0, len(data) - EVENT.size + 1, EVENT.size):
                     _, _, etype, code, value = EVENT.unpack_from(data, i)
+                    if st is not None:                       # estado en vivo para la pantalla de prueba de mandos
+                        if etype == EV_KEY:
+                            (st["buttons"].add if value else st["buttons"].discard)(code)
+                        elif etype == EV_ABS and code in allinfo:
+                            st["axes"][code] = normalize(code, value, allinfo[code])
                     if etype == EV_ABS and code in info:
                         self._emit(logic.feed(etype, code, normalize(code, value, info[code]), time.monotonic()))
                     elif etype == EV_KEY:

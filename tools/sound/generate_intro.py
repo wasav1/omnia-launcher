@@ -207,7 +207,7 @@ def write(path):
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "assets/sounds/omnia/intro.wav")
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "tools/sound/out/intro.wav")
     out.parent.mkdir(parents=True, exist_ok=True)
     write(out)
     m = (L2 + R2) / 2
