@@ -6,7 +6,7 @@ import QtMultimedia
 /**
  * Bienvenida de Big Mode («Nace de la constelación», ~5,6 s): los puntos de la constelación convergen y se posan sobre el contorno del
  * logo, las líneas lo unen, el logo se rellena, el aro late, y aparecen el saludo con datos reales y la frase de Omnia; las olas del
- * fondo suben durante toda la escena. Va con su sonido (sounds/omnia/welcome.ogg, volumen de los sonidos de la interfaz).
+ * fondo suben durante toda la escena. Va con su sonido (sounds/omnia/welcome.wav, volumen de los sonidos de la interfaz).
  * Se salta con cualquier tecla, botón del mando o clic. Todo se calcula a partir del tiempo `tt`, así que es determinista.
  */
 Item {
@@ -35,9 +35,9 @@ Item {
         intro.closing = false
         intro.opacity = 1
         intro.active = true
-        ao.volume = intro.api.uiSoundVolume / 100
+        welcome.volume = intro.api.uiSoundVolume / 100
         clock.restart()
-        if (intro.api.uiSounds && intro.api.uiSoundVolume > 0) player.play()
+        if (intro.api.uiSounds && intro.api.uiSoundVolume > 0) welcome.play()
         intro.forceActiveFocus()
     }
     function skip() { if (intro.active && !intro.closing) intro.beginExit() }
@@ -46,9 +46,10 @@ Item {
 
     NumberAnimation { id: clock; target: intro; property: "tt"; from: 0; to: 6.2; duration: 6200 }
     NumberAnimation { id: fadeOut; target: intro; property: "opacity"; to: 0; duration: 450; easing.type: Easing.InOutQuad
-        onFinished: { intro.active = false; clock.stop(); player.stop(); intro.closing = false; intro.host.lastFocus() } }
-    NumberAnimation { id: fadeAudio; target: ao; property: "volume"; to: 0; duration: 400 }
-    MediaPlayer { id: player; source: Qt.resolvedUrl("sounds/omnia/welcome.ogg"); audioOutput: AudioOutput { id: ao } }
+        onFinished: { intro.active = false; clock.stop(); welcome.stop(); intro.closing = false; intro.host.lastFocus() } }
+    NumberAnimation { id: fadeAudio; target: welcome; property: "volume"; to: 0; duration: 400 }
+    // SoundEffect y no MediaPlayer: el reproductor de vídeo (FFmpeg) abre un dispositivo Vulkan y con la capa global de MangoHud tumbaba Big Mode.
+    SoundEffect { id: welcome; source: Qt.resolvedUrl("sounds/omnia/welcome.wav") }
 
     Keys.onPressed: function(e) { intro.skip(); e.accepted = true }
     MouseArea { anchors.fill: parent; onClicked: intro.skip() }

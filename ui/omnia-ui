@@ -9,6 +9,9 @@ QML_FILE="main.qml"
 if [ "${1:-}" = "--manager" ]; then QML_FILE="manager-window.qml"; shift
 elif [ "${1:-}" = "--window" ]; then QML_FILE="main-window.qml"; shift; fi
 EXTRA_ARGS=("$@")
+# MangoHud no debe cargarse en la propia interfaz de Omnia (ni tiene sentido un HUD sobre Big Mode): su capa de Vulkan se cuela en cualquier
+# biblioteca que cree un dispositivo Vulkan (p. ej. QtMultimedia/FFmpeg) y llegó a tumbar Big Mode al abrirlo.
+export MANGOHUD=0 DISABLE_MANGOHUD=1
 export QML_XHR_ALLOW_FILE_READ=1                     # la UI lee el token de la sesión (archivo 0600 del usuario)
 ensure_core() {
   if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then

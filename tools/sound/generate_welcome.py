@@ -9,7 +9,7 @@ Va sincronizado con la animación (tiempos en segundos):
   2.9/4.5  pulsos del aro                               → latidos graves suaves
   3.1/3.5/3.9  saludo, resumen y frase                  → tres notas suaves de cristal
 
-    python3 tools/sound/generate_welcome.py [salida.wav]      # escribe también salida.ogg si hay ffmpeg
+    python3 tools/sound/generate_welcome.py [salida.wav]      # la interfaz lo reproduce con SoundEffect (WAV)
 """
 import subprocess, sys, wave
 from pathlib import Path
@@ -173,8 +173,3 @@ if __name__ == "__main__":
     write(out)
     rms = float(np.sqrt(np.mean(np.concatenate([L2, R2]) ** 2)))
     print(f"{out} · {LEN:.1f} s · pico {20*np.log10(TARGET):.1f} dBFS · RMS {20*np.log10(rms):.1f} dBFS")
-    try:
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(out), "-c:a", "libvorbis", "-q:a", "5", str(out.with_suffix(".ogg"))], check=True)
-        print(out.with_suffix(".ogg"), out.with_suffix(".ogg").stat().st_size, "bytes")
-    except (OSError, subprocess.CalledProcessError) as e:
-        print("sin OGG:", e)

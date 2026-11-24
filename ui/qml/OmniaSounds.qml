@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQml.Models
 import QtMultimedia
 
 /** Sonidos de la interfaz de Big Mode. `play("move" | "confirm" | "back" | "menu" | "page" | "error" | "done" | "pad-on" | "pad-off" |
@@ -18,15 +19,13 @@ Item {
         const e = sfx.reg[name]
         if (e && e.status !== SoundEffect.Error) e.play()
     }
-    Repeater {
-        id: effects
+    Instantiator {
         model: sfx.names
         delegate: SoundEffect {
-            id: se
             required property string modelData
-            Component.onCompleted: sfx.reg[se.modelData] = se
             source: Qt.resolvedUrl("sounds/" + sfx.api.uiSoundPack + "/" + modelData + ".wav")
             volume: sfx.api.uiSoundVolume / 100
         }
+        onObjectAdded: function(index, object) { sfx.reg[sfx.names[index]] = object }
     }
 }

@@ -14,5 +14,4 @@ packaging/arch/out/
 packaging/distros/out/
 # Instalador universal generado localmente
 packaging/universal/out/
-ui/qml/sounds/omnia/welcome.wav
 tools/sound/out/
