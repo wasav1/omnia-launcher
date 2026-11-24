@@ -17,6 +17,20 @@ class MangoHudStyleTests(unittest.TestCase):
             self.assertIn(line + "\n", text)
         self.assertTrue(text.startswith(mangohud.MARKER))
 
+    def test_the_pill_has_side_padding_and_a_translucent_background(self):
+        text = mangohud.render("")
+        self.assertEqual(text.count("custom_text=" + mangohud.SIDE + "\n"), 2)
+        lines = text.splitlines()
+        self.assertTrue(lines[lines.index("custom_text=" + mangohud.SIDE) + 1] == "fps")        # el primero va antes de FPS
+        self.assertEqual(lines[-1], "custom_text=" + mangohud.SIDE)                              # el último cierra la línea
+        self.assertIn("background_alpha=0.55\n", text)
+
+    def test_an_older_omnia_file_is_updated(self):
+        path = self.dir / "MangoHud.conf"
+        path.write_text("# omnia-generado v1\nfps\n", encoding="utf-8")
+        mangohud.ensure(self.dir)
+        self.assertTrue(path.read_text(encoding="utf-8").startswith(mangohud.MARKER))
+
     def test_without_the_font_the_file_still_works(self):
         self.assertNotIn("font_file", mangohud.render(""))
 
