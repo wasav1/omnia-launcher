@@ -15,8 +15,8 @@ Window {
         id: view
         anchors.fill: parent
         profile: WebEngineProfile {
-            offTheRecord: win.variant === "a"
             storageName: win.variant === "a" ? "" : "omnia-epic-test-" + win.variant
+            offTheRecord: win.variant === "a"
             httpAcceptLanguage: win.variant === "c" ? "es-CO,es;q=0.9,en;q=0.8" : httpAcceptLanguage
             Component.onCompleted: httpUserAgent = httpUserAgent.replace(/ QtWebEngine\/[0-9.]+/, "")
         }
