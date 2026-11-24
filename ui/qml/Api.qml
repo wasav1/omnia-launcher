@@ -46,6 +46,8 @@ QtObject {
     property bool padOn: false
     property bool menuOpen: false         // Big Menu abierto (la UI lo informa; pausa el sondeo del espectro)
     property string padName: ""
+    property bool mangohud: false           // monitor de rendimiento (MangoHud con el estilo de Omnia) en los juegos lanzados
+    property bool mangohudInstalled: true
     property bool updateCheck: true         // avisar de «Actualización disponible» de los ports instalados (Ajustes)
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
@@ -250,6 +252,8 @@ QtObject {
                 api.installRoot = body.install_root || ""
                 api.animatedBackground = body.animated_background !== false
                 api.updateCheck = body.update_check !== false
+                api.mangohud = body.mangohud === true
+                api.mangohudInstalled = body.mangohud_installed !== false
                 Qt.uiLanguage = body.language === "en" ? "en_US" : "es"
                 api.language = body.language === "en" ? "en" : "es"
             }
@@ -433,6 +437,12 @@ QtObject {
     function setAnimatedBackground(enabled, done) {
         call("POST", "/settings/animated-background", function(status, body) {
             if (status === 200) api.animatedBackground = body.animated_background !== false
+            if (done) done(status, body)
+        }, {enabled: enabled})
+    }
+    function setMangohud(enabled, done) {
+        call("POST", "/settings/mangohud", function(status, body) {
+            if (status === 200) api.mangohud = body.mangohud === true
             if (done) done(status, body)
         }, {enabled: enabled})
     }

@@ -92,6 +92,26 @@ Item {
             }
         }
 
+        Rectangle {
+            width: parent.width; height: set.s * 132; radius: set.s * 22
+            color: Qt.rgba(0.082, 0.114, 0.153, 0.92); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.10)
+            Column {
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: set.s * 24 }
+                Text { text: qsTr("Monitor de rendimiento en los juegos"); color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 26; font.weight: Font.DemiBold }
+                Text { text: set.host.api.mangohudInstalled ? qsTr("Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia.") : qsTr("Necesita MangoHud: instálalo desde el gestor de paquetes."); color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 19 }
+            }
+            Switch {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: set.s * 24 }
+                scale: set.s * 1.4
+                checked: set.host.api.mangohud
+                enabled: set.host.api.mangohudInstalled || set.host.api.mangohud
+                onToggled: set.host.api.setMangohud(checked, function(status, body) {
+                    if (status !== 200) checked = set.host.api.mangohud
+                    set.msg = status === 200 ? qsTr("Ajuste guardado.") : ((body && body.error) || qsTr("No se pudo guardar el ajuste."))
+                })
+            }
+        }
+
         Text { text: qsTr("Biblioteca"); color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 22; font.weight: Font.DemiBold }
         Rectangle {
             width: parent.width; height: set.s * 132; radius: set.s * 22

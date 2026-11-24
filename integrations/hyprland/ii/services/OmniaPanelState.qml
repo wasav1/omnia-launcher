@@ -152,6 +152,10 @@ Singleton {
         function pin(): void { root.pin(); }
         function settings(): void { if (root.mode === "closed") root.toggleShortcut(); root.viewRequested("settings"); }
         function bar(x: int): void { root.close(); root.open("bar", Hyprland.focusedMonitor?.name ?? Quickshell.screens[0].name, "pinned", x); }
+        function barToggle(x: int): void {
+            if (root.mode === "closed") root.open("bar", Hyprland.focusedMonitor?.name ?? Quickshell.screens[0].name, "pinned", x);
+            else root.close();
+        }
         function key(name: string): void { root.navRequested(name); }
         function menu(): void { if (root.mode === "closed") root.toggleShortcut(); root.viewRequested("menu"); }
         function setting(name: string, json: string): string {

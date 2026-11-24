@@ -662,6 +662,17 @@ Item {
                         onToggled: api.setUpdateCheck(checked, function(status) { if (status !== 200) api.notify(qsTr("No se pudo guardar el ajuste.")) }) }
                 }
                 Rectangle {
+                    visible: manager.settingsSection === "general"
+                    width: parent.width; height: manager.s * 86; radius: manager.s * 16; color: manager.surface
+                    Column { anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: manager.s * 18 } spacing: manager.s * 4
+                        Text { text: qsTr("Monitor de rendimiento en los juegos"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; font.weight: Font.DemiBold }
+                        Text { text: api.mangohudInstalled ? qsTr("Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia, sobre los juegos que lanzas desde aquí.") : qsTr("Necesita MangoHud: instálalo desde el gestor de paquetes."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 } }
+                    Switch { anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 18 }
+                        checked: api.mangohud
+                        enabled: api.mangohudInstalled || api.mangohud
+                        onToggled: api.setMangohud(checked, function(status, body) { if (status !== 200) { checked = api.mangohud; api.notify((body && body.error) || qsTr("No se pudo guardar el ajuste.")) } }) }
+                }
+                Rectangle {
                     visible: manager.settingsSection === "library"
                     width: parent.width; height: manager.s * 116; radius: manager.s * 16; color: manager.surface
                     Column { anchors { left: parent.left; top: parent.top; margins: manager.s * 18 } spacing: manager.s * 5

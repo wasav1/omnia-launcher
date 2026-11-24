@@ -40,7 +40,7 @@ from . import (
 )
 from .events import EventBus
 from .games import refresh as games_refresh
-from . import descriptor
+from . import descriptor, mangohud
 from .games.base import Detector
 from .store import load_json
 from .themes import accent_for, normalize_theme
@@ -99,6 +99,7 @@ class Api:
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
+            "/settings/mangohud": ("POST", True, self.settings_mangohud),
             "/folders/open": ("POST", True, self.folder_open),
             "/selection": ("GET", True, self.selection),
             "/selection/set": ("POST", True, self.selection_set),
@@ -408,7 +409,8 @@ class Api:
         return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme),
                 "language": language, "install_root": install_root,
                 "animated_background": cfg.get("animated_background", True) is not False,
-                "update_check": cfg.get("update_check", True) is not False}
+                "update_check": cfg.get("update_check", True) is not False,
+                "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud"))}
 
     def settings_language(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -451,6 +453,23 @@ class Api:
                 self.open_fn(path)
                 return {"ok": True}
         raise ApiError(404, "esa carpeta no existe")
+
+    def settings_mangohud(self, q):
+        """Muestra u oculta el monitor de rendimiento (MangoHud con el estilo de Omnia) en los juegos que Omnia lanza."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        enabled = body.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ApiError(400, "enabled debe ser verdadero o falso.")
+        if enabled and not shutil.which("mangohud"):
+            raise ApiError(503, "MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg["mangohud_enabled"] = enabled
+            write_json_atomic(config_path, cfg)
+        return {"ok": True, "mangohud": enabled}
 
     def settings_update_check(self, q):
         """Activa o desactiva el aviso de «Actualización disponible» de los ports instalados."""
@@ -819,7 +838,7 @@ class Api:
         if not shutil.which("mangohud"):
             raise ApiError(503, "MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.")
         return {"OMNIA_MANGOHUD": "1", "MANGOHUD": "1", "MANGOHUD_DLSYM": "1",
-                "MANGOHUD_CONFIGFILE": str(self.store.dir / "MangoHud.conf")}
+                "MANGOHUD_CONFIGFILE": str(mangohud.ensure(self.store.dir))}
 
     def toggle(self, key, q):
         gid = q.get("id", "")

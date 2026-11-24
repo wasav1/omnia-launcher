@@ -37,5 +37,22 @@ class InstallationApiTests(unittest.TestCase):
                 self.api.installation_retry({"_body": body})
 
 
+class MangoHudSettingTests(InstallationApiTests):
+    def test_toggle_requires_a_boolean_and_an_installed_mangohud(self):
+        from unittest import mock
+        with self.assertRaises(ApiError):
+            self.api.settings_mangohud({"_body": {"enabled": "si"}})
+        with mock.patch("omnia.api.shutil.which", return_value=None):
+            with self.assertRaises(ApiError):
+                self.api.settings_mangohud({"_body": {"enabled": True}})
+            self.assertTrue(self.api.settings_mangohud({"_body": {"enabled": False}})["ok"])
+        with mock.patch("omnia.api.shutil.which", return_value="/usr/bin/mangohud"):
+            self.assertEqual(self.api.settings_mangohud({"_body": {"enabled": True}}), {"ok": True, "mangohud": True})
+            self.assertTrue(self.api.settings({})["mangohud"])
+            env = self.api._mangohud_env()
+        self.assertEqual(env["MANGOHUD_CONFIGFILE"], str(self.api.store.dir / "MangoHud.conf"))
+        self.assertTrue((self.api.store.dir / "MangoHud.conf").read_text().startswith("# omnia-generado"))
+
+
 if __name__ == "__main__":
     unittest.main()
