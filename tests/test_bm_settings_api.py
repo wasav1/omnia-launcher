@@ -49,6 +49,28 @@ class BmSettingsApiTests(unittest.TestCase):
         self.api._update_config(ui_sound_pack="borrado")
         self.assertEqual(self.api.settings({})["ui_sound_pack"], "omnia")
 
+    def test_the_greeting_name_belongs_to_each_system_user(self):
+        import pwd
+        from types import SimpleNamespace
+        cases = (("Ana María López,,,", "ana", "Ana"), ("", "carlos", "carlos"), ("Zoë", "zoe", "Zoë"), ("  ", "root", "root"))
+        for gecos, login, expected in cases:
+            entry = SimpleNamespace(pw_gecos=gecos, pw_name=login)
+            with mock.patch.object(pwd, "getpwuid", return_value=entry):
+                self.assertEqual(self.api.settings({})["user_name"], expected, (gecos, login))
+        with mock.patch.object(pwd, "getpwuid", side_effect=KeyError("sin usuario")), mock.patch.dict("os.environ", {"USER": "invitada"}):
+            self.assertEqual(self.api.settings({})["user_name"], "invitada")
+
+    def test_a_chosen_display_name_wins_and_is_sanitized(self):
+        import pwd
+        from types import SimpleNamespace
+        with mock.patch.object(pwd, "getpwuid", return_value=SimpleNamespace(pw_gecos="Wichmann", pw_name="wsaenz")):
+            self.assertEqual(self.api.settings_profile({"_body": {"display_name": "  Sofi  <b>Pro</b>  "}})["user_name"], "Sofi bPro/b")
+            self.assertEqual(self.api.settings({})["display_name"], "Sofi bPro/b")
+            self.assertEqual(self.api.settings_profile({"_body": {"display_name": ""}})["user_name"], "Wichmann")   # vacío: vuelve al del sistema
+            self.assertEqual(self.api.settings_profile({"_body": {"display_name": "x" * 80}})["display_name"], "x" * 24)
+        with self.assertRaises(ApiError):
+            self.api.settings_profile({"_body": {"display_name": 5}})
+
     def test_intro_setting(self):
         self.assertEqual(self.api.settings_intro({"_body": {"enabled": False}}), {"ok": True, "intro_enabled": False})
         self.assertFalse(self.api.settings({})["intro_enabled"])

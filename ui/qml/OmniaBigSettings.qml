@@ -56,6 +56,7 @@ Item {
             out.push({ id: "pack", kind: "choice", label: qsTr("Paquete de sonidos"), desc: qsTr("Cada paquete es un conjunto de sonidos distinto; se cambia al instante."), text: pk ? pk.label : a.uiSoundPack })
             out.push({ id: "sndtest", kind: "action", label: qsTr("Probar los sonidos"), desc: qsTr("Reproduce los de este paquete uno tras otro."), text: qsTr("Probar") })
             H(qsTr("Bienvenida"))
+            out.push({ id: "myname", kind: "action", label: qsTr("Tu nombre en la bienvenida"), desc: a.displayName ? qsTr("Te saluda como «%1». Déjalo vacío para usar el nombre de tu usuario.").arg(a.displayName) : qsTr("Ahora te saluda con el nombre de tu usuario (%1).").arg(a.userName || "—"), text: qsTr("Cambiar") })
             out.push({ id: "intro", kind: "toggle", label: qsTr("Pantalla de bienvenida"), desc: qsTr("Animación con sonido al abrir Big Mode. Se salta pulsando cualquier tecla o botón."), on: a.introEnabled })
             out.push({ id: "introplay", kind: "action", label: qsTr("Ver la bienvenida otra vez"), desc: "", text: qsTr("Reproducir") })
         } else if (set.tab === 2) {
@@ -173,6 +174,11 @@ Item {
         case "snd": a.uiSounds = !r.on; a.setSounds({ enabled: !r.on }, function(st, b) { set.saved(st, b); set.play("toggle") }); break
         case "pack": case "lang": case "out": case "in": case "pfam": set.cycle(r, 1); break
         case "sndtest": set.runSoundTest(); break
+        case "myname": {
+            let pending = a.displayName
+            set.host.openKeyboardFor(pending, function(v) { pending = v }, function() { a.setDisplayName(pending, function(st, b) { set.saved(st, b, qsTr("Nombre guardado.")) }) })
+            break
+        }
         case "intro": a.setIntro(!r.on, function(st, b) { set.saved(st, b) }); set.play("toggle"); break
         case "introplay": set.play("confirm"); set.host.playIntro(); break
         case "outmute": case "inmute": {

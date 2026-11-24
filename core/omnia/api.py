@@ -103,6 +103,7 @@ class Api:
             "/settings/mangohud": ("POST", True, self.settings_mangohud),
             "/settings/sounds": ("POST", True, self.settings_sounds),
             "/settings/intro": ("POST", True, self.settings_intro),
+            "/settings/profile": ("POST", True, self.settings_profile),
             "/audio/devices": ("GET", True, self.audio_devices),
             "/audio/input/set": ("POST", True, self.audio_input_set),
             "/audio/level": ("POST", True, self.audio_level),
@@ -422,7 +423,8 @@ class Api:
                 "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
                 "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
                 "ui_sound_pack": self._sound_pack(cfg), "ui_sound_packs": sounds.packs(),
-                "intro_enabled": cfg.get("intro_enabled", True) is not False, "user_name": self._user_name()}
+                "intro_enabled": cfg.get("intro_enabled", True) is not False, "user_name": self._display_name(cfg),
+                "display_name": self._clean_name(cfg.get("display_name"))}
 
     def settings_language(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
@@ -478,6 +480,17 @@ class Api:
         return pack if pack in ids else (ids[0] if ids else "omnia")
 
     @staticmethod
+    def _clean_name(value) -> str:
+        """Nombre elegido por la persona para el saludo: sin caracteres de control ni «<>», 24 como máximo."""
+        if not isinstance(value, str):
+            return ""
+        return re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f<>]", "", value)).strip()[:24]
+
+    def _display_name(self, cfg) -> str:
+        """A quién saluda la bienvenida: el nombre que la persona eligió en Ajustes y, si no, el del usuario del sistema que ejecuta Omnia."""
+        return self._clean_name(cfg.get("display_name")) or self._user_name()
+
+    @staticmethod
     def _user_name() -> str:
         """Nombre para el saludo de la bienvenida: el nombre completo del sistema (primera palabra) o, si no, el usuario."""
         try:
@@ -520,6 +533,15 @@ class Api:
         cfg = self._update_config(**changes)
         return {"ok": True, "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
                 "ui_sound_pack": self._sound_pack(cfg)}
+
+    def settings_profile(self, q):
+        """Nombre que usa la bienvenida para saludar (vacío = el del usuario del sistema)."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        if not isinstance(body.get("display_name"), str):
+            raise ApiError(400, "display_name debe ser un texto.")
+        name = self._clean_name(body["display_name"])
+        cfg = self._update_config(display_name=name)
+        return {"ok": True, "display_name": name, "user_name": self._display_name(cfg)}
 
     def settings_intro(self, q):
         """Activa o desactiva la animación de bienvenida de Big Mode."""

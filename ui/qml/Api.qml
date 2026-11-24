@@ -53,7 +53,8 @@ QtObject {
     property string uiSoundPack: "omnia"
     property var uiSoundPacks: []
     property bool introEnabled: true        // animación de bienvenida de Big Mode
-    property string userName: ""
+    property string userName: ""          // a quién saluda la bienvenida (elegido o el del sistema)
+    property string displayName: ""        // el elegido en Ajustes (vacío = el del sistema)
     property bool prefsLoaded: false        // ya se leyeron los ajustes del núcleo
     property bool updateCheck: true         // avisar de «Actualización disponible» de los ports instalados (Ajustes)
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
@@ -267,6 +268,7 @@ QtObject {
                 api.uiSoundPacks = body.ui_sound_packs || []
                 api.introEnabled = body.intro_enabled !== false
                 api.userName = body.user_name || ""
+                api.displayName = body.display_name || ""
                 api.prefsLoaded = true
                 Qt.uiLanguage = body.language === "en" ? "en_US" : "es"
                 api.language = body.language === "en" ? "en" : "es"
@@ -463,6 +465,12 @@ QtObject {
             }
             if (done) done(status, body)
         }, changes)
+    }
+    function setDisplayName(name, done) {
+        call("POST", "/settings/profile", function(status, body) {
+            if (status === 200) { api.userName = body.user_name || ""; api.displayName = body.display_name || "" }
+            if (done) done(status, body)
+        }, {display_name: name})
     }
     function setIntro(enabled, done) {
         call("POST", "/settings/intro", function(status, body) {
