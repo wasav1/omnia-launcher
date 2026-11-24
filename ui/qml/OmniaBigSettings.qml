@@ -18,11 +18,13 @@ Item {
     property int cur: 0
     property var audio: ({})
     property var pads: []
+    property var discord: ({})
+    property bool discordLoaded: false
     property bool padsLoaded: false
     property bool testOpen: false
     property string testId: ""
     property real backHeld: 0
-    readonly property var tabNames: [qsTr("General"), qsTr("Sonido"), qsTr("Audio"), qsTr("Mandos")]
+    readonly property var tabNames: [qsTr("General"), qsTr("Sonido"), qsTr("Audio"), qsTr("Mandos"), qsTr("Discord")]
     readonly property var familyNames: [qsTr("Automático"), "Xbox", "PlayStation", "Nintendo Switch", "Steam Deck"]
     readonly property var familyIds: ["auto", "xbox", "ps", "switch", "deck"]
 
@@ -79,7 +81,7 @@ Item {
                 out.push({ id: "invol", kind: "slider", label: qsTr("Volumen de entrada"), desc: "", value: m.volume || 0, min: 0, max: 100, step: 5 })
                 out.push({ id: "inmute", kind: "toggle", label: qsTr("Silenciar el micrófono"), desc: "", on: !!m.muted })
             }
-        } else {
+        } else if (set.tab === 3) {
             if (!set.padsLoaded) out.push({ id: "loading", kind: "info", label: qsTr("Buscando mandos…"), desc: "" })
             else if (!set.pads.length) out.push({ id: "nopad", kind: "info", label: qsTr("No hay ningún mando conectado"), desc: qsTr("Conecta uno por USB o Bluetooth y aparecerá aquí.") })
             for (const p of set.pads) {
@@ -93,6 +95,18 @@ Item {
                 out.push({ id: "phap", pad: p.id, kind: "toggle", label: qsTr("Vibración al navegar"), desc: qsTr("Un toque suave al aceptar y al cambiar de página (si el mando lo admite)."), on: p.haptics })
                 out.push({ id: "pname", pad: p.id, kind: "action", label: qsTr("Apodo del mando"), desc: p.nickname ? qsTr("Ahora: %1").arg(p.nickname) : qsTr("Sin apodo: se muestra el nombre del fabricante."), text: qsTr("Cambiar") })
             }
+        } else {
+            const d = set.discord
+            if (!set.discordLoaded) { out.push({ id: "loading", kind: "info", label: qsTr("Consultando Discord…"), desc: "" }); return out }
+            H(qsTr("Presencia"))
+            out.push({ id: "dcon", kind: "toggle", label: qsTr("Mostrar a qué juego juego"), desc: qsTr("Tus amigos de Discord ven «Jugando a …» con el tiempo de partida mientras juegas desde Omnia. Es opcional y está apagado al instalar."), on: !!d.enabled })
+            out.push({ id: "dcid", kind: "action", label: qsTr("Application ID"), desc: d.app_id ? qsTr("Guardado: %1").arg(d.app_id) : qsTr("Falta. Créalo gratis en discord.com/developers (Nueva aplicación, nómbrala «Omnia») y copia su Application ID."), text: d.app_id ? qsTr("Cambiar") : qsTr("Escribir") })
+            const state = !d.enabled ? qsTr("Apagado.")
+                : !d.app_id_set ? qsTr("Falta el Application ID.")
+                : d.connected ? qsTr("Conectado como %1.").arg(d.user || "Discord")
+                : d.socket ? qsTr("Discord está abierto pero no aceptó la conexión; revisa el Application ID.")
+                : qsTr("Abre Discord en este equipo para conectar.")
+            out.push({ id: "dcstate", kind: "info", label: qsTr("Estado"), desc: state })
         }
         return out
     }
@@ -114,11 +128,13 @@ Item {
         set.play("page")
         if (set.tab === 2) set.refreshAudio()
         if (set.tab === 3) set.refreshPads()
+        if (set.tab === 4) set.refreshDiscord()
     }
     function refreshAudio() { set.api.loadAudioDevices(function(status, body) { if (status === 200) set.audio = body }) }
+    function refreshDiscord() { set.api.call("GET", "/discord", function(status, body) { if (status === 200) { set.discord = body; set.discordLoaded = true } }) }
     function refreshPads() { set.api.loadPads(function(status, body) { if (status === 200) { set.pads = body.pads || []; set.padsLoaded = true } }) }
-    onVisibleChanged: if (visible) { set.msg = ""; set.testOpen = false; set.audio = ({}); set.padsLoaded = false; set.setTabQuiet() }
-    function setTabQuiet() { set.cur = set.firstSelectable(); if (set.tab === 2) set.refreshAudio(); if (set.tab === 3) set.refreshPads() }
+    onVisibleChanged: if (visible) { set.msg = ""; set.testOpen = false; set.audio = ({}); set.padsLoaded = false; set.discordLoaded = false; set.setTabQuiet() }
+    function setTabQuiet() { set.cur = set.firstSelectable(); if (set.tab === 2) set.refreshAudio(); if (set.tab === 3) set.refreshPads(); if (set.tab === 4) set.refreshDiscord() }
 
     // ---------------- acciones ----------------
     function clampStep(r, dir) { return Math.max(r.min, Math.min(r.max, r.value + dir * r.step)) }
@@ -186,6 +202,12 @@ Item {
             a.setAudioLevel(t, { muted: !r.on }, function(st, b) { if (st === 200) { const au = Object.assign({}, set.audio); au[t] = Object.assign({}, au[t], { volume: b.volume, muted: b.muted }); set.audio = au } else set.saved(st, b) })
             set.play("toggle"); break
         }
+        case "dcon": a.call("POST", "/settings/discord", function(st, b) { if (st === 200) { set.discord = b; set.discordLoaded = true } else set.saved(st, b) }, { enabled: !r.on }); set.play("toggle"); break
+        case "dcid": {
+            let pending = set.discord.app_id || ""
+            set.host.openKeyboardFor(pending, function(v) { pending = v }, function() { a.call("POST", "/settings/discord", function(st, b) { if (st === 200) { set.discord = b; set.note(qsTr("Application ID guardado.")) } else set.saved(st, b) }, { app_id: pending }) })
+            break
+        }
         case "phap": a.setPadSettings(r.pad, { haptics: !r.on }, function(st, b) { if (st === 200) set.refreshPads(); else set.saved(st, b) }); set.play("toggle"); break
         case "prum": a.rumblePad(r.pad, function(st, b) { set.note(st === 200 ? qsTr("Vibrando…") : ((b && b.error) || qsTr("No se pudo hacer vibrar el mando."))) }); break
         case "ptest": set.testId = r.pad; set.testOpen = true; set.backHeld = 0; set.play("open"); break
@@ -203,6 +225,7 @@ Item {
     Timer { id: msgTimer; interval: 3500; onTriggered: set.msg = "" }
     Timer { interval: 1500; repeat: true; running: set.visible && !set.testOpen && set.tab === 3; onTriggered: set.refreshPads() }
     Timer { interval: 2500; repeat: true; running: set.visible && set.tab === 2; onTriggered: set.refreshAudio() }
+    Timer { interval: 3000; repeat: true; running: set.visible && set.tab === 4; onTriggered: set.refreshDiscord() }
 
     // ---------------- entrada ----------------
     function pad(k) {

@@ -131,3 +131,17 @@ class SoundPackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiscordApiTests(BmSettingsApiTests):
+    def test_discord_settings_validate_and_persist(self):
+        self.assertEqual(self.api.discord_status({})["enabled"], False)
+        out = self.api.settings_discord({"_body": {"enabled": True, "app_id": " 1234567890123456789 "}})
+        self.assertEqual((out["enabled"], out["app_id"], out["app_id_set"]), (True, "1234567890123456789", False))
+        cfg = self.config()
+        self.assertEqual((cfg["discord_enabled"], cfg["discord_app_id"]), (True, "1234567890123456789"))
+        self.assertEqual(self.api.discord_settings()["enabled"], True)
+        for bad in ({}, {"enabled": "si"}, {"app_id": "abc"}, {"app_id": 5}, {"app_id": "1" * 30}):
+            with self.assertRaises(ApiError, msg=str(bad)):
+                self.api.settings_discord({"_body": bad})
+        self.assertEqual(self.api.settings_discord({"_body": {"app_id": ""}})["app_id"], "")

@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 
-from . import __version__, audio, gamemode, importer, mangohud, online_catalog, pad, paths, security
+from . import __version__, audio, discord, gamemode, importer, mangohud, online_catalog, pad, paths, security
 from .api import Api
 from .dbus import DesktopService
 from .games import refresh as games_refresh
@@ -285,6 +285,11 @@ def gamemode_worker(api, mode, sessions, stop: threading.Event, every: float = 0
                 changed = sessions.update({g["id"]: g.get("name", g["id"]) for g in running}) or changed
                 if changed:
                     api.bus.games_changed()
+                presence = getattr(api, "discord", None)
+                if presence is not None:
+                    current = running[0] if running else None
+                    presence.set_game(current.get("name", current["id"]) if current else None,
+                                      (sessions.active.get(current["id"]) or {}).get("start") if current else None)
                 if mode.update([g.get("name", g["id"]) for g in running if not g.get("cloud")]):
                     api.bus.set_gamemode(mode.status())
             except Exception:
@@ -364,6 +369,9 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     if closed:
         log.warning("historial: cerradas %d sesiones que quedaron abiertas", closed)
     api.sessions = sessions
+    presence = discord.DiscordPresence(api.discord_settings)
+    api.discord = presence
+    presence.start()
     threading.Thread(target=art_worker, args=(store, stop, 1.5, api.bus), daemon=True).start()
     gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, sessions, stop), name="omnia-gamemode")
     gm_thread.start()
@@ -389,6 +397,7 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
         spectrum.stop()
         gm_thread.join(5)                           # suelta lo congelado y el perfil antes de salir
         reader.stop()
+        presence.stop()
         dbus.stop()
         api.stop()
         try:

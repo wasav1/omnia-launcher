@@ -107,6 +107,8 @@ class Api:
             "/audio/devices": ("GET", True, self.audio_devices),
             "/audio/input/set": ("POST", True, self.audio_input_set),
             "/audio/level": ("POST", True, self.audio_level),
+            "/discord": ("GET", True, self.discord_status),
+            "/settings/discord": ("POST", True, self.settings_discord),
             "/stores": ("GET", True, self.stores_list),
             "/stores/login-url": ("GET", True, self.stores_login_url),
             "/stores/login": ("POST", True, self.stores_login),
@@ -637,6 +639,42 @@ class Api:
             write_json_atomic(config_path, cfg)
         reader.configure(pads)
         return {"ok": True, "pad": self._pad_item(body.get("id"))[1]}
+
+    def discord_settings(self) -> dict:
+        cfg = load_json(self.store.dir / "config.json", {})
+        cfg = cfg if isinstance(cfg, dict) else {}
+        app = cfg.get("discord_app_id", "")
+        return {"enabled": cfg.get("discord_enabled") is True, "app_id": app if isinstance(app, str) else "",
+                "lang": "en" if cfg.get("language") == "en" else "es"}
+
+    def discord_status(self, q):
+        presence = getattr(self, "discord", None)
+        s = self.discord_settings()
+        base = presence.status() if presence else {"enabled": s["enabled"], "app_id_set": False, "connected": False, "user": "", "socket": False}
+        base["app_id"] = s["app_id"]
+        return base
+
+    def settings_discord(self, q):
+        """Presencia de Discord (nivel A): activar y Application ID (público, de la aplicación que crea el usuario)."""
+        import re
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        changes = {}
+        if "enabled" in body:
+            if not isinstance(body["enabled"], bool):
+                raise ApiError(400, "enabled debe ser verdadero o falso.")
+            changes["discord_enabled"] = body["enabled"]
+        if "app_id" in body:
+            app = body["app_id"]
+            if not isinstance(app, str) or (app.strip() and not re.fullmatch(r"\d{17,20}", app.strip())):
+                raise ApiError(400, "El Application ID son 17 a 20 números (está en discord.com/developers).")
+            changes["discord_app_id"] = app.strip()
+        if not changes:
+            raise ApiError(400, "indica enabled o app_id.")
+        self._update_config(**changes)
+        presence = getattr(self, "discord", None)
+        if presence:
+            presence.poke()
+        return dict(self.discord_status({}), ok=True)
 
     def _stores(self):
         if getattr(self, "_store_map", None) is None:
