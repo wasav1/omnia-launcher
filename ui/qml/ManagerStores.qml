@@ -305,8 +305,11 @@ Item {
                         }
                     }
                 }
+                Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 12
+                       text: qsTr("Las sesiones que abres en las ventanas de las tiendas se guardan en este equipo para no repetirlas. Puedes borrarlas: se aplica al abrir Omnia otra vez y no cierra las conexiones.") }
                 Row {
                     spacing: st.s * 8
+                    Button { text: qsTr("Borrar sesión web"); onClicked: api.clearStoresWebSession(function(code, body) { st.message = code === 200 ? qsTr("Listo: la sesión web se borrará al abrir Omnia otra vez.") : qsTr("No se pudo marcar el borrado.") }) }
                     Button { text: qsTr("Cerrar"); onClicked: { st.accountsOpen = false; st.linking = "" } }
                 }
             }

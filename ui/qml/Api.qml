@@ -487,6 +487,7 @@ QtObject {
     function storeLogin(store, code, done) { call("POST", "/stores/login", done, {store: store, code: code}) }
     function storeLogout(store, done) { call("POST", "/stores/logout", done, {store: store}) }
     function storeInstall(store, id, title, destination, done) { call("POST", "/stores/install", done, {store: store, id: id, title: title, destination: destination}) }
+    function clearStoresWebSession(done) { call("POST", "/stores/web-session/clear", done, {}) }
     function storeLibrary(store, done) { call("GET", "/stores/library?store=" + encodeURIComponent(store), done) }
     function loadPads(done) { call("GET", "/pads", done) }
     function setPadSettings(id, changes, done) { call("POST", "/pads/settings", done, Object.assign({id: id}, changes)) }

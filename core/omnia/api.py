@@ -110,6 +110,7 @@ class Api:
             "/discord": ("GET", True, self.discord_status),
             "/settings/discord": ("POST", True, self.settings_discord),
             "/stores": ("GET", True, self.stores_list),
+            "/stores/web-session/clear": ("POST", True, self.stores_clear_web_session),
             "/stores/login-url": ("GET", True, self.stores_login_url),
             "/stores/login": ("POST", True, self.stores_login),
             "/stores/logout": ("POST", True, self.stores_logout),
@@ -675,6 +676,14 @@ class Api:
         if presence:
             presence.poke()
         return dict(self.discord_status({}), ok=True)
+
+    def stores_clear_web_session(self, q):
+        """Marca para borrar la sesión web de las tiendas (cookies de la ventana de inicio de sesión) al abrir Omnia otra vez.
+        No se borra en caliente: la ventana la tiene en uso. Las conexiones (bibliotecas, instalaciones) no se tocan."""
+        flag = self.store.dir / "clear-web-session"
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.write_text("1")
+        return {"ok": True, "pending": True}
 
     def _stores(self):
         if getattr(self, "_store_map", None) is None:

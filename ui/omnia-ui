@@ -19,6 +19,14 @@ ensure_core() {
   fi
 }
 ensure_core
+# «Borrar sesión web» (Tiendas → Cuentas) deja una marca: se borra la sesión de la ventana de inicio de sesión antes de abrir la interfaz
+CONFIG_BASE0="${XDG_CONFIG_HOME:-}"
+case "$CONFIG_BASE0" in /*) ;; *) CONFIG_BASE0="$HOME/.config" ;; esac
+if [ -e "$CONFIG_BASE0/omnia/clear-web-session" ]; then
+  DATA0="${XDG_DATA_HOME:-$HOME/.local/share}"; CACHE0="${XDG_CACHE_HOME:-$HOME/.cache}"
+  rm -rf "$DATA0/QtProject/Qml Runtime/QtWebEngine/omnia-stores" "$CACHE0/QtProject/Qml Runtime/QtWebEngine/omnia-stores"
+  rm -f "$CONFIG_BASE0/omnia/clear-web-session"
+fi
 if [ "$QML_FILE" = "main.qml" ]; then
   export QT_WAYLAND_SHELL_INTEGRATION=layer-shell    # sin esto Qt crea una ventana normal en vez de una capa
 fi

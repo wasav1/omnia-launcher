@@ -72,3 +72,10 @@ class StoreInstallApiTests(unittest.TestCase):
         with self.assertRaises(ApiError) as cm:
             self.api.stores_install({"_body": {"store": "epic", "id": "A", "title": "t", "destination": str(self.tmp)}})
         self.assertEqual(cm.exception.code, 400)               # sin sesión de Epic
+
+
+class WebSessionClearTests(StoresApiTests):
+    def test_clear_marks_flag(self):
+        out = self.api.stores_clear_web_session({})
+        self.assertEqual(out["pending"], True)
+        self.assertTrue((self.api.store.dir / "clear-web-session").exists())
