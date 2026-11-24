@@ -73,10 +73,31 @@ Item {
         api.storeLoginUrl(sid, function(code, body) {
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
             st.pasted = ""
-            if (!external && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
+            // Epic: su captcha rechaza los navegadores embebidos, así que se usa el navegador del sistema (donde ya hay sesión)
+            if (!external && sid !== "epic" && st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
             st.linking = sid
             Qt.openUrlExternally(body.url)
         })
+    }
+    // Detección del portapapeles mientras se conecta una tienda por el navegador: al copiar el texto de la página de retorno
+    // y volver a Omnia, se conecta sola. Solo se mira mientras hay un inicio de sesión abierto y solo se actúa si el texto encaja.
+    TextEdit { id: clip; visible: false; width: 1; height: 1 }
+    function clipboardLooksRight(sid, t) {
+        if (!t || t.length > 4000) return false
+        if (sid === "epic") return t.indexOf("authorizationCode") >= 0 || /^\s*"?[A-Za-z0-9]{16,64}"?\s*$/.test(t)
+        if (sid === "gog") return t.indexOf("embed.gog.com/on_login_success") >= 0
+        if (sid === "amazon") return t.indexOf("openid.oa2.authorization_code=") >= 0
+        return false
+    }
+    Timer {
+        interval: 1000; repeat: true
+        running: st.accountsOpen && st.linking !== "" && !st.busy
+        onTriggered: {
+            clip.text = ""
+            clip.paste()
+            const t = clip.text
+            if (st.clipboardLooksRight(st.linking, t)) { st.pasted = t; st.finishLink() }
+        }
     }
     Loader {
         id: webLoader
@@ -224,15 +245,15 @@ Item {
                             Row {
                                 spacing: st.s * 8
                                 Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
-                                Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Usar mi navegador"); onClicked: st.startLink(acc.modelData, true) }
+                                Button { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "epic" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
                                 Button { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
                             }
                             Column {
                                 visible: st.linking === acc.modelData
                                 width: parent.width; spacing: st.s * 6
                                 Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 12
-                                       text: acc.modelData === "epic" ? qsTr("Inicia sesión y copia el código que muestra la página (o todo el texto).")
-                                                                      : qsTr("Inicia sesión y copia la dirección completa de la página a la que te lleva (la barra de direcciones).") }
+                                       text: acc.modelData === "epic" ? qsTr("Inicia sesión en tu navegador. Cuando veas el texto con el código, pulsa Ctrl+A y Ctrl+C y vuelve a Omnia: se conecta sola.")
+                                                                      : qsTr("Inicia sesión; cuando termines, copia la dirección completa de la barra (Ctrl+L, Ctrl+C) y vuelve a Omnia: se conecta sola.") }
                                 Row {
                                     spacing: st.s * 8; width: parent.width
                                     TextField { id: codeField; width: parent.width - connectBtn.width - st.s * 8; placeholderText: qsTr("Pega aquí el código o la dirección"); text: st.pasted; onTextEdited: st.pasted = text; onAccepted: st.finishLink() }
