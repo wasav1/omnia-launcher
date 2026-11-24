@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 
-from . import __version__, audio, gamemode, importer, online_catalog, pad, paths, security
+from . import __version__, audio, gamemode, importer, mangohud, online_catalog, pad, paths, security
 from .api import Api
 from .dbus import DesktopService
 from .games import refresh as games_refresh
@@ -347,6 +347,10 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
         log.error("no se pudo abrir el puerto %d: %s", args.port, e)
         return 1
     api.serve()
+    try:        # el archivo de estilo de MangoHud se mantiene al día siempre: un MANGOHUD_CONFIGFILE global puede apuntar a él
+        mangohud.ensure(store.dir)
+    except Exception as e:
+        log.debug("MangoHud.conf: %s", e)
     mode = gamemode.new(cfg)
     resumed = mode.freezer.resume()                 # si el servicio murió con algo congelado, se reanuda al arrancar
     if resumed:
