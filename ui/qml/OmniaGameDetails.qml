@@ -101,6 +101,7 @@ Item {
         }
     }
     Keys.onPressed: function(e) {
+        host.keySound(e)
         const m = {}
         m[Qt.Key_Up] = "up"; m[Qt.Key_Down] = "down"; m[Qt.Key_Left] = "left"; m[Qt.Key_Right] = "right"
         m[Qt.Key_Return] = "accept"; m[Qt.Key_Enter] = "accept"; m[Qt.Key_Escape] = "back"; m[Qt.Key_Backspace] = "back"

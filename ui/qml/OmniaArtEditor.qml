@@ -196,6 +196,7 @@ Item {
         else if (k === "B") back()
     }
     function key(e) {
+        ed.host.keySound(e)
         if (browser.active) return false
         if (e.key === Qt.Key_Left) pad("l")
         else if (e.key === Qt.Key_Right) pad("r")

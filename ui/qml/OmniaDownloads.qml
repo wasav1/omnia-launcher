@@ -55,6 +55,7 @@ Item {
         else if (k === "B" || k === "START") back()
     }
     function key(e) {
+        dl.host.keySound(e)
         if (e.key === Qt.Key_Up) pad("u")
         else if (e.key === Qt.Key_Down) pad("d")
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) pad("A")

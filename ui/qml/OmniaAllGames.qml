@@ -152,6 +152,7 @@ Item {
         else if (k === "Y") viewMode = viewMode === "grid" ? "list" : "grid"
     }
     function key(e) {
+        if (host) host.keySound(e)
         if (e.key === Qt.Key_Left) pad("l")
         else if (e.key === Qt.Key_Right) pad("r")
         else if (e.key === Qt.Key_Up) pad("u")

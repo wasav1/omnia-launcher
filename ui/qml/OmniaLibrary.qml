@@ -37,6 +37,35 @@ Item {
     // ---- estado
     readonly property alias allView: allGames
     readonly property alias shelfView: shelf        // para pruebas
+    readonly property alias sfx: sfx
+    readonly property alias introView: intro
+    readonly property alias settingsView: settings
+    property bool introShown: false
+    property var kbCallback: null
+    property var kbClosed: null
+    function playIntro() { intro.start() }
+    function lastFocus() { lib.forceActiveFocus() }
+    // Teclado virtual para otros usos (apodo de un mando): el texto va a `onText` en vivo y `onDone` se llama al cerrar.
+    function openKeyboardFor(initial, onText, onDone) { kbCallback = onText; kbClosed = onDone; searchFocus = false; vkb.show(initial || "") }
+    function maybeIntro() {
+        if (introShown || !api.prefsLoaded) return
+        introShown = true
+        if (api.introEnabled && api.arg("--game", "") === "" && api.arg("--downloads", "") === "") intro.start()
+    }
+    // Sonidos: el mando y el teclado ponen los suyos en todas las pantallas (los ajustes tienen los propios y la estantería suena al cambiar de página).
+    function padSound(k) {
+        if (page === "settings") return
+        const m = { l: "move", r: "move", u: "move", d: "move", A: "confirm", B: "back", X: "menu", Y: "menu", LB: "move", RB: "move", START: "menu" }
+        if (m[k]) sfx.play(m[k])
+    }
+    function keySound(e) {
+        if (page === "settings") return
+        const k = e.key
+        if (k === Qt.Key_Left || k === Qt.Key_Right || k === Qt.Key_Up || k === Qt.Key_Down || k === Qt.Key_Tab || k === Qt.Key_Backtab) sfx.play("move")
+        else if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) sfx.play("confirm")
+        else if (k === Qt.Key_Escape || k === Qt.Key_Backspace) sfx.play("back")
+        else if (k === Qt.Key_M || k === Qt.Key_Menu) sfx.play("menu")
+    }
     property string filterKey: "all"
     property string searchText: ""
     property bool searchOpen: false
@@ -62,8 +91,10 @@ Item {
             if (st !== 200) return
             const jobs = body.jobs || []
             for (const job of jobs) {                     // aviso único al terminar bien
-                if (job.status === "completed" && dlSeen[job.id] && dlSeen[job.id] !== "completed")
+                if (job.status === "completed" && dlSeen[job.id] && dlSeen[job.id] !== "completed") {
                     api.notify(job.updateOf ? qsTr("Actualizado: %1").arg(job.name) : qsTr("Instalado: %1").arg(job.name))
+                    sfx.play("done")
+                } else if (job.status === "failed" && dlSeen[job.id] && dlSeen[job.id] !== "failed") sfx.play("error")
                 dlSeen[job.id] = job.status
             }
             dlJobs = jobs
@@ -278,6 +309,7 @@ Item {
         if (g.portAvailable) { openPortInstall(g); return }       // un volcado con port disponible: «Jugar» ofrece instalarlo
         const port = portId || (g.ports || []).filter(function(p) { return p.canLaunch && !p.running }).map(function(p) { return p.id })[0]
         if (port) api.launch(g, port)
+        else sfx.play("error")
     }
     function back() {
         if (page === "art") closeArt()
@@ -338,6 +370,8 @@ Item {
     Connections {
         target: api
         function onPadKey(k) {
+            if (intro.active) { intro.skip(); return }
+            lib.padSound(k)
             if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
             if (ctxMenu.open) { ctxMenu.pad(k); return }
@@ -349,7 +383,7 @@ Item {
             if (lib.page === "art") { artEditor.pad(k); return }
             if (lib.page === "downloads") { downloads.pad(k); return }
             if (k === "START" && lib.dlBusy + lib.dlFailed > 0) { lib.openDownloads(); return }
-            if (lib.page === "settings") { if (k === "B") lib.closeSettings(); return }
+            if (lib.page === "settings") { settings.pad(k); return }
             if (lib.page === "all") { allGames.pad(k); return }
             if (lib.page === "home") {
                 if (home.detail) { if (k === "B") home.closeCatalogDetails(); return }
@@ -380,6 +414,8 @@ Item {
         }
     }
     Keys.onPressed: function(e) {
+        if (intro.active) { intro.skip(); e.accepted = true; return }
+        lib.keySound(e)
         if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { if (e.key === Qt.Key_Escape) vkb.close(); e.accepted = true; return }
@@ -945,6 +981,7 @@ Item {
             lib.select(first)
             paging = false
             scrollTo(first * cardStep - hlBegin, true)
+            sfx.play("page")
         }
         NumberAnimation { id: scrollAnim; target: shelf; property: "contentX"; duration: 260; easing.type: Easing.OutCubic }
         Connections {
@@ -1089,6 +1126,7 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: function(m) {
+                    sfx.play(m.button === Qt.RightButton ? "menu" : "move")
                     lib.select(card.index)
                     if (m.button === Qt.RightButton) lib.openMenu(card.modelData)
                 }
@@ -1212,7 +1250,15 @@ Item {
         anchors.fill: parent
         z: 60
         uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
-        onTextChanged2: function(v) { lib.searchText = v; Qt.callLater(function() { lib.select(0) }) }
+        onTextChanged2: function(v) {
+            if (lib.kbCallback) { lib.kbCallback(v); return }
+            lib.searchText = v; Qt.callLater(function() { lib.select(0) })
+        }
+        onClosed: {
+            const done = lib.kbClosed
+            lib.kbCallback = null; lib.kbClosed = null
+            if (done) done()
+        }
     }
 
     // ================= inicio del catálogo =================
@@ -1319,4 +1365,13 @@ Item {
     }
 
     Component.onCompleted: forceActiveFocus()
+
+    // ================= sonidos y bienvenida =================
+    OmniaSounds { id: sfx; api: lib.api; muted: lib.api.gameRunning || lib.api.covered }
+    OmniaIntro { id: intro; anchors.fill: parent; host: lib }
+    Connections { target: lib.api; function onPrefsLoadedChanged() { lib.maybeIntro() } }
+    Timer { interval: 60; running: true; onTriggered: lib.maybeIntro() }
+    property bool padSoundsArmed: false
+    Timer { interval: 4000; running: true; onTriggered: lib.padSoundsArmed = true }
+    Connections { target: lib.api; function onPadOnChanged() { if (lib.padSoundsArmed && !intro.active) sfx.play(lib.api.padOn ? "pad-on" : "pad-off") } }
 }

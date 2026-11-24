@@ -48,6 +48,13 @@ QtObject {
     property string padName: ""
     property bool mangohud: false           // monitor de rendimiento (MangoHud con el estilo de Omnia) en los juegos lanzados
     property bool mangohudInstalled: true
+    property bool uiSounds: true            // sonidos de la interfaz de Big Mode
+    property int uiSoundVolume: 70
+    property string uiSoundPack: "omnia"
+    property var uiSoundPacks: []
+    property bool introEnabled: true        // animación de bienvenida de Big Mode
+    property string userName: ""
+    property bool prefsLoaded: false        // ya se leyeron los ajustes del núcleo
     property bool updateCheck: true         // avisar de «Actualización disponible» de los ports instalados (Ajustes)
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
@@ -254,6 +261,13 @@ QtObject {
                 api.updateCheck = body.update_check !== false
                 api.mangohud = body.mangohud === true
                 api.mangohudInstalled = body.mangohud_installed !== false
+                api.uiSounds = body.ui_sounds !== false
+                api.uiSoundVolume = body.ui_sound_volume === undefined ? 70 : body.ui_sound_volume
+                api.uiSoundPack = body.ui_sound_pack || "omnia"
+                api.uiSoundPacks = body.ui_sound_packs || []
+                api.introEnabled = body.intro_enabled !== false
+                api.userName = body.user_name || ""
+                api.prefsLoaded = true
                 Qt.uiLanguage = body.language === "en" ? "en_US" : "es"
                 api.language = body.language === "en" ? "en" : "es"
             }
@@ -440,6 +454,29 @@ QtObject {
             if (done) done(status, body)
         }, {enabled: enabled})
     }
+    function setSounds(changes, done) {
+        call("POST", "/settings/sounds", function(status, body) {
+            if (status === 200) {
+                api.uiSounds = body.ui_sounds !== false
+                api.uiSoundVolume = body.ui_sound_volume
+                api.uiSoundPack = body.ui_sound_pack
+            }
+            if (done) done(status, body)
+        }, changes)
+    }
+    function setIntro(enabled, done) {
+        call("POST", "/settings/intro", function(status, body) {
+            if (status === 200) api.introEnabled = body.intro_enabled !== false
+            if (done) done(status, body)
+        }, {enabled: enabled})
+    }
+    // Audio y mandos (ajustes de Big Mode)
+    function loadAudioDevices(done) { call("GET", "/audio/devices", done) }
+    function setInputDevice(source, done) { call("POST", "/audio/input/set", done, {source: source}) }
+    function setAudioLevel(target, changes, done) { call("POST", "/audio/level", done, Object.assign({target: target}, changes)) }
+    function loadPads(done) { call("GET", "/pads", done) }
+    function setPadSettings(id, changes, done) { call("POST", "/pads/settings", done, Object.assign({id: id}, changes)) }
+    function rumblePad(id, done) { call("POST", "/pads/rumble", done, {id: id, strong: 0.7, weak: 0.7, ms: 350}) }
     function setMangohud(enabled, done) {
         call("POST", "/settings/mangohud", function(status, body) {
             if (status === 200) api.mangohud = body.mangohud === true
