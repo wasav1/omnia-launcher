@@ -52,3 +52,20 @@ def parse_json(text: str):
             except ValueError:
                 continue
     raise StoreError("La tienda devolvió datos que Omnia no entiende.")
+
+
+def pasted_code(raw: str, names, pattern) -> str:
+    """Código de un solo uso pegado por el usuario: solo, o dentro de la URL de retorno (?code=…)."""
+    import re
+    import urllib.parse
+    raw = (raw or "").strip().strip('"')
+    if "://" in raw or "?" in raw:
+        query = urllib.parse.urlsplit(raw).query or raw.split("?", 1)[-1]
+        params = urllib.parse.parse_qs(query)
+        for n in names:
+            if params.get(n):
+                raw = params[n][0]
+                break
+    if not re.fullmatch(pattern, raw):
+        raise StoreError("El código no es válido. Copia la dirección completa de la página a la que te lleva el inicio de sesión.")
+    return raw
