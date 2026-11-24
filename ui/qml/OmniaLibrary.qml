@@ -7,8 +7,9 @@ import Qt5Compat.GraphicalEffects
  * sistema; ficha del juego con logo, descripción, «Jugar» y «Detalles»; estantería de portadas; guía de botones.
  * Todo se escala con el alto de la ventana (referencia 1920×1080). El fondo ocupa el 100 % del alto (OmniaBackdrop).
  *
- * Teclado: ←/→ cambiar juego · Enter jugar · Espacio/I detalles · Tab filtro · / buscar · F favorito · Esc atrás.
- * Mando: ◀ ▶ cambiar · A jugar · X detalles · LB/RB filtro · B atrás.
+ * Teclado: ←/→ cambiar juego · Re Pág/Av Pág cambiar de página de la estantería · Enter jugar · Espacio/I detalles · Tab filtro · / buscar · F favorito · Esc atrás.
+ * Ratón: rueda = desplazar la estantería (sin cambiar la selección) · flechas laterales = saltar de página.
+ * Mando: ◀ ▶ cambiar · LT/RT cambiar de página · A jugar · X detalles · LB/RB filtro · B atrás.
  */
 Item {
     id: lib
@@ -35,6 +36,7 @@ Item {
 
     // ---- estado
     readonly property alias allView: allGames
+    readonly property alias shelfView: shelf        // para pruebas
     property string filterKey: "all"
     property string searchText: ""
     property bool searchOpen: false
@@ -373,6 +375,8 @@ Item {
             else if (k === "B") lib.back()
             else if (k === "LB") lib.stepFilter(-1)
             else if (k === "RB") lib.stepFilter(1)
+            else if (k === "LT") shelf.page(-1)
+            else if (k === "RT") shelf.page(1)
         }
     }
     Keys.onPressed: function(e) {
@@ -396,6 +400,8 @@ Item {
         if (e.key === Qt.Key_Left) step(-1)
         else if (e.key === Qt.Key_Right) step(1)
         else if (e.key === Qt.Key_V && page === "library") openAll()
+        else if (e.key === Qt.Key_PageUp && page === "library") shelf.page(-1)
+        else if (e.key === Qt.Key_PageDown && page === "library") shelf.page(1)
         else if (e.key === Qt.Key_Home && page === "library") select(0)
         else if (e.key === Qt.Key_1 && (e.modifiers & Qt.ControlModifier)) openHome()
         else if (e.key === Qt.Key_2 && (e.modifiers & Qt.ControlModifier)) openLibrary()
@@ -900,13 +906,61 @@ Item {
         spacing: lib.s * 18
         model: lib.visibleGames
         currentIndex: lib.index
-        highlightFollowsCurrentItem: true
-        highlightRangeMode: ListView.ApplyRange
-        preferredHighlightBegin: fadeOk ? fadeWidth + lib.s * 6 : 0
-        preferredHighlightEnd: width * 0.62
-        highlightMoveDuration: 260
+        // El desplazamiento es propio (no el de ListView) para separarlo de la selección: la rueda mueve la estantería sin cambiar
+        // el juego seleccionado y los saltos de página llevan la selección a la página nueva.
+        highlightFollowsCurrentItem: false
+        highlightRangeMode: ListView.NoHighlightRange
         boundsBehavior: Flickable.StopAtBounds
-        interactive: false          // ni rueda ni arrastre: la estantería solo avanza con la navegación (teclas, mando o flechas)
+        interactive: false          // sin arrastre: la estantería avanza con la rueda, las flechas, los gatillos o la navegación
+        readonly property real cardStep: lib.s * 210 + spacing                 // ancho de una tarjeta más su separación
+        readonly property real hlBegin: fadeOk ? fadeWidth + lib.s * 6 : 0     // la tarjeta seleccionada queda entre estos dos bordes
+        readonly property real hlEnd: width * 0.62
+        readonly property real maxX: Math.max(0, contentWidth - width)
+        readonly property int perPage: Math.max(2, Math.floor((width + spacing) / cardStep))   // tarjetas completas que caben
+        property bool paging: false
+        function clampX(x) { return Math.max(0, Math.min(maxX, x)) }
+        function scrollTo(x, animate, ms) {
+            x = clampX(x)
+            scrollAnim.stop()
+            if (!animate) { contentX = x; return }
+            scrollAnim.duration = ms || 260
+            scrollAnim.to = x
+            scrollAnim.restart()
+        }
+        function scrollBy(dx) { scrollTo((scrollAnim.running ? scrollAnim.to : contentX) + dx, true, 160) }
+        // Lo mismo que hacía highlightRangeMode: ApplyRange: la tarjeta seleccionada queda dentro de [hlBegin, hlEnd].
+        function revealIndex(i, animate) {
+            const left = i * cardStep, right = left + lib.s * 210
+            if (left < contentX + hlBegin) scrollTo(left - hlBegin, animate)
+            else if (right > contentX + hlEnd) scrollTo(right - hlEnd, animate)
+        }
+        // Salta una página (los juegos visibles menos uno, para conservar una referencia) y lleva la selección a su primera tarjeta.
+        function page(dir) {
+            const n = lib.visibleGames.length
+            if (n === 0) return
+            const jump = Math.max(1, perPage - 1)
+            const from = Math.max(0, Math.min(n - 1, Math.round(((scrollAnim.running ? scrollAnim.to : contentX) + hlBegin) / cardStep)))
+            const first = Math.max(0, Math.min(n - 1, from + dir * jump))
+            paging = true
+            lib.select(first)
+            paging = false
+            scrollTo(first * cardStep - hlBegin, true)
+        }
+        NumberAnimation { id: scrollAnim; target: shelf; property: "contentX"; duration: 260; easing.type: Easing.OutCubic }
+        Connections {
+            target: lib
+            function onIndexChanged() { if (!shelf.paging) shelf.revealIndex(lib.index, true) }
+        }
+        onCountChanged: Qt.callLater(function() { shelf.revealIndex(lib.index, false) })
+        onWidthChanged: Qt.callLater(function() { shelf.revealIndex(lib.index, false) })
+        // Rueda del mouse (o del panel táctil): desplaza la estantería una tarjeta por muesca, sin tocar la selección.
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(ev) {
+                const d = ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x
+                if (d !== 0) shelf.scrollBy(-d / 120 * shelf.cardStep)
+            }
+        }
         clip: true
         cacheBuffer: 1200
         // Las tarjetas que quedan cortadas en un extremo se desvanecen hacia ese extremo (solo del lado donde hay más contenido).
@@ -1043,7 +1097,8 @@ Item {
         }
     }
 
-    Repeater {      // flechas para el ratón (con mando o teclado se navega con ← y →)
+    Repeater {      // flechas para el ratón: saltan una página. Con mando se sustituyen por LT / RT, que hacen lo mismo
+
         model: [-1, 1]
         delegate: Rectangle {
             id: shelfArrow
@@ -1059,14 +1114,15 @@ Item {
             color: shelfArrowMouse.containsMouse ? lib.accent : lib.surface
             border.color: "#40ffffff"
             Accessible.role: Accessible.Button
-            Accessible.name: previous ? qsTr("Juego anterior") : qsTr("Juego siguiente")
-            LucideIcon { anchors.centerIn: parent; width: lib.s * 21; height: width; name: shelfArrow.previous ? "arrow-left" : "arrow-right"; color: lib.ink }
+            Accessible.name: previous ? qsTr("Página anterior") : qsTr("Página siguiente")
+            LucideIcon { visible: !lib.padOn; anchors.centerIn: parent; width: lib.s * 21; height: width; name: shelfArrow.previous ? "arrow-left" : "arrow-right"; color: lib.ink }
+            PadGlyph { visible: lib.padOn; anchors.centerIn: parent; size: lib.s * 34; family: lib.api.padFamily || "xbox"; key: shelfArrow.previous ? "LT" : "RT" }
             MouseArea {
                 id: shelfArrowMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: lib.step(shelfArrow.modelData)
+                onClicked: shelf.page(shelfArrow.modelData)
             }
         }
     }
@@ -1104,10 +1160,11 @@ Item {
             Hint { padKeys: lib.padOn ? (lib.page === "home" ? ["DPAD"] : ["l"]) : []; glyph: lib.page === "home" ? "← ↑ ↓ →" : "← / →"
                 label: lib.page === "home" ? qsTr("Navegar") : qsTr("Cambiar juego") }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: lib.page === "all" ? qsTr("Consola") : qsTr("Filtrar") }
+            Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["LT", "RT"] : []; glyph: "Re Pág / Av Pág"; label: qsTr("Página") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["Y"] : []; glyph: "V"; label: qsTr("Ver todos") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
-            Hint { visible: !lib.padOn; icon: "mouse"; label: qsTr("Clic para seleccionar") }
+            Hint { visible: !lib.padOn; icon: "mouse"; label: lib.page === "library" ? qsTr("Clic para seleccionar · rueda para desplazar") : qsTr("Clic para seleccionar") }
         }
         Row {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
