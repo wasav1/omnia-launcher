@@ -16,6 +16,7 @@ Item {
     property string linking: ""                           // tienda cuyo inicio de sesión está en curso
     property string pasted: ""
     property bool busy: false
+    readonly property var loginWindow: webLoader.item
     readonly property real s: manager ? manager.s : 1
     readonly property var names: ({ steam: "Steam", epic: "Epic", gog: "GOG", amazon: "Amazon" })
 
@@ -60,12 +61,29 @@ Item {
             else st.message = body.error || qsTr("No se pudo leer la biblioteca de %1.").arg(st.names[sid])
         })
     }
+    function webLogin(sid, url) {
+        // ventana propia con QtWebEngine (opcional); false si no está disponible
+        webLoader.active = true
+        if (webLoader.status !== Loader.Ready || !webLoader.item) { webLoader.active = false; return false }
+        webLoader.item.begin(sid, url)
+        return true
+    }
     function startLink(sid) {
         st.message = ""
         api.storeLoginUrl(sid, function(code, body) {
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
-            st.linking = sid; st.pasted = ""
+            st.pasted = ""
+            if (st.webLogin(sid, body.url)) { st.linking = ""; st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid]); return }
+            st.linking = sid
             Qt.openUrlExternally(body.url)
+        })
+    }
+    Loader {
+        id: webLoader
+        active: false
+        source: "StoreLogin.qml"
+        onLoaded: item.codeCaptured.connect(function(sid, text) {
+            st.linking = sid; st.pasted = text; st.finishLink()
         })
     }
     function finishLink() {

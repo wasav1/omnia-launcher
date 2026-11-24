@@ -38,6 +38,7 @@ package_omnia-app() {
   pkgdesc="Aplicación independiente de biblioteca y gestión de juegos para Linux"
   depends=(omnia-core qt6-base qt6-declarative qt6-5compat qt6-svg)
   optdepends=('qt6-wayland: integración nativa en sesiones Wayland'
+              'qt6-webengine: inicio de sesión de las tiendas dentro de Omnia, sin copiar códigos'
               'steam: detección de juegos de Steam'
               'lutris: detección de juegos de Lutris'
               'heroic-games-launcher-bin: detección de juegos de Heroic')
