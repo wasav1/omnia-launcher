@@ -52,6 +52,8 @@ vram
 vram_color=E8B86D
 ram
 ram_color=E8B86D
+frame_timing
+frametime_color=5B9BE0
 """
 
 

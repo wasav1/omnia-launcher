@@ -21,6 +21,8 @@ class MangoHudStyleTests(unittest.TestCase):
         text = mangohud.render("")
         for line in ("horizontal_separator_dot", "window_padding_x=24", "concave_top_corners=14", "background_alpha=0.55"):
             self.assertIn(line + "\n", text)
+        lines = text.splitlines()
+        self.assertEqual(lines[-2:], ["frame_timing", "frametime_color=5B9BE0"])               # la gráfica de tiempos de fotograma va al final de la fila
         self.assertNotIn("custom_text", text)                        # el relleno ya no se simula con elementos en blanco (daban divisores en los extremos)
 
     def test_an_older_omnia_file_is_updated(self):
