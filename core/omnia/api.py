@@ -107,6 +107,11 @@ class Api:
             "/audio/devices": ("GET", True, self.audio_devices),
             "/audio/input/set": ("POST", True, self.audio_input_set),
             "/audio/level": ("POST", True, self.audio_level),
+            "/stores": ("GET", True, self.stores_list),
+            "/stores/login-url": ("GET", True, self.stores_login_url),
+            "/stores/login": ("POST", True, self.stores_login),
+            "/stores/logout": ("POST", True, self.stores_logout),
+            "/stores/library": ("GET", True, self.stores_library),
             "/pads": ("GET", True, self.pads),
             "/pads/settings": ("POST", True, self.pads_settings),
             "/pads/rumble": ("POST", True, self.pads_rumble),
@@ -631,6 +636,51 @@ class Api:
             write_json_atomic(config_path, cfg)
         reader.configure(pads)
         return {"ok": True, "pad": self._pad_item(body.get("id"))[1]}
+
+    def _stores(self):
+        if getattr(self, "_store_map", None) is None:
+            from .stores import registry
+            self._store_map = registry.build(self.store.dir / "stores", runner=getattr(self, "store_runner", None))
+        return self._store_map
+
+    def _store(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        sid = body.get("store", q.get("store"))
+        store = self._stores().get(sid) if isinstance(sid, str) else None
+        if store is None:
+            raise ApiError(404, "tienda desconocida")
+        return store, body
+
+    def stores_list(self, q):
+        return {"stores": [s.status() for s in self._stores().values()]}
+
+    def stores_login_url(self, q):
+        store, _ = self._store(q)
+        return {"url": store.login_url()}
+
+    def stores_login(self, q):
+        from .stores.base import StoreError
+        store, body = self._store(q)
+        try:
+            return {"ok": True, "store": store.login(str(body.get("code", "")))}
+        except StoreError as e:
+            raise ApiError(400, str(e))
+
+    def stores_logout(self, q):
+        from .stores.base import StoreError
+        store, _ = self._store(q)
+        try:
+            return {"ok": True, "store": store.logout()}
+        except StoreError as e:
+            raise ApiError(400, str(e))
+
+    def stores_library(self, q):
+        from .stores.base import StoreError
+        store, _ = self._store(q)
+        try:
+            return {"games": store.library()}
+        except StoreError as e:
+            raise ApiError(502, str(e))
 
     def pads_rumble(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
