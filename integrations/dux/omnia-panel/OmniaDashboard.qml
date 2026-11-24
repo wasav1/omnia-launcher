@@ -14,7 +14,7 @@ import qs.Modules.DDash.Overview
 DashTabComponent {
     id: root
 
-    implicitHeight: 560
+    implicitHeight: 540
 
     readonly property string base: "http://127.0.0.1:47831"
     property string token: ""
@@ -22,25 +22,36 @@ DashTabComponent {
     property string errorText: ""
     property string actionError: ""
     property var games: []
-    property string selectedId: ""
     property string search: ""
     property bool padOn: false
     property string padName: ""
     property int padLevel: -1
     property bool padCharging: false
 
+    readonly property int maxShown: 10
     readonly property var library: games.filter(g => !g.hidden)
-    readonly property var shown: {
+    function byRecent(a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0) || String(a.name).localeCompare(String(b.name)); }
+    // Anclado: lo último que jugaste (si nunca jugaste nada, el primer favorito o el primer juego).
+    readonly property var pinned: {
+        const played = library.filter(g => (g.lastPlayed || 0) > 0).sort(byRecent);
+        if (played.length) return played[0];
+        return library.find(g => g.fav) ?? (library.length ? library[0] : null);
+    }
+    readonly property bool searching: search.trim() !== ""
+    readonly property var matches: {
         const q = search.trim().toLocaleLowerCase();
-        return q ? library.filter(g => [g.name, g.variant, g.src].some(v => (v || "").toLocaleLowerCase().includes(q))) : library;
+        return q ? library.filter(g => [g.name, g.variant, g.src].some(v => (v || "").toLocaleLowerCase().includes(q))) : [];
     }
-    readonly property var game: library.find(g => g.id === selectedId) ?? (library.length ? library[0] : null)
-    readonly property var recent: {
-        const seen = {}, out = [];
-        const played = library.filter(g => (g.lastPlayed || 0) > 0).sort((a, b) => b.lastPlayed - a.lastPlayed);
-        for (const g of played) { if (!seen[g.id]) { seen[g.id] = true; out.push(g); } if (out.length === 3) break; }
-        return out;
+    // Lista: con búsqueda, coincidencias de TODA la biblioteca; sin ella, favoritos (por último juego) y después jugados; nunca el anclado.
+    readonly property var queue: {
+        if (searching) return matches.slice(0, maxShown);
+        const rest = library.filter(g => !pinned || g.id !== pinned.id);
+        const favs = rest.filter(g => g.fav).sort(byRecent);
+        const played = rest.filter(g => !g.fav && (g.lastPlayed || 0) > 0).sort(byRecent);
+        const out = favs.concat(played);
+        return (out.length ? out : rest.sort((a, b) => String(a.name).localeCompare(String(b.name)))).slice(0, maxShown);
     }
+    readonly property int hiddenCount: Math.max(0, (searching ? matches.length : library.length - (pinned ? 1 : 0)) - queue.length)
     readonly property bool padKnown: padOn && padLevel >= 0
     readonly property color padTone: padOn && !padCharging && padLevel >= 0 && padLevel <= 10 ? "#E86D6D"
         : padOn && !padCharging && padLevel >= 0 && padLevel <= 30 ? "#E8B86D" : padCharging ? "#7FD69F" : Theme.surfaceVariantText
@@ -91,11 +102,6 @@ DashTabComponent {
             padCharging = !!(bat && bat.charging);
         });
     }
-    function select(id) {
-        selectedId = id;
-        actionError = "";
-        request("POST", "/selection/set", { id: id, filterKey: "all" }, null);
-    }
     function closeDash() { popoutService?.closeDankDash(); }
     function openApp(id, flag) {
         const cmd = ["omnia-ui", "--manager"];
@@ -104,8 +110,7 @@ DashTabComponent {
         Quickshell.execDetached(cmd);
         closeDash();
     }
-    function play() {
-        const g = game;
+    function play(g) {
         if (!g) return;
         if (g.portAvailable) { openApp(g.id, "--install-port"); return; }      // sin port instalado se ofrece instalarlo en la app de escritorio
         const port = g.ports ? g.ports.find(p => p.canLaunch && !p.running) : null;
@@ -115,8 +120,14 @@ DashTabComponent {
             else closeDash();
         });
     }
-    function toggleFav() {
-        if (game) request("POST", "/game/fav?id=" + encodeURIComponent(game.id), {}, () => root.refresh());
+    function toggleFav(g) {
+        if (g) request("POST", "/game/fav?id=" + encodeURIComponent(g.id), {}, () => root.refresh());
+    }
+    function playTime(seconds) {
+        const total = Math.floor(Number(seconds) || 0);
+        if (total < 60) return "Sin tiempo registrado";
+        const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60);
+        return h > 0 ? h + " h " + m + " min" : m + " min";
     }
     function playedDate(seconds) {
         const date = new Date(seconds * 1000);
@@ -150,14 +161,8 @@ DashTabComponent {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingM
-            StyledText {
-                text: "Omnia"
-                color: Theme.surfaceText
-                font.pixelSize: Theme.fontSizeLarge
-                font.weight: Font.Bold
-            }
+            StyledText { text: "Omnia"; color: Theme.surfaceText; font.pixelSize: Theme.fontSizeLarge; font.weight: Font.Bold }
             Rectangle {
-                id: padChip
                 visible: root.padOn
                 Layout.preferredHeight: 30
                 implicitWidth: chipRow.implicitWidth + Theme.spacingM * 2
@@ -174,7 +179,6 @@ DashTabComponent {
             }
             Item { Layout.fillWidth: true }
             DButton { text: "Actualizar"; iconName: "refresh"; onClicked: root.refresh() }
-            DButton { text: "App"; iconName: "open_in_new"; variant: "tonal"; onClicked: root.openApp("", "") }
         }
 
         StyledText {
@@ -192,8 +196,111 @@ DashTabComponent {
             Layout.fillHeight: true
             spacing: Theme.spacingM
 
+            // ---- anclado: lo último que jugaste ----
             Card {
-                Layout.preferredWidth: 290
+                Layout.preferredWidth: 330
+                Layout.fillHeight: true
+                clip: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacingM
+                    spacing: Theme.spacingS
+                    StyledText {
+                        text: root.pinned && (root.pinned.lastPlayed || 0) > 0 ? "Continuar jugando" : "Para empezar"
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 150
+                        radius: Theme.cornerRadius
+                        color: Theme.surfaceContainerHighest
+                        clip: true
+                        Image {
+                            anchors.fill: parent
+                            source: root.pinned ? (root.pinned.fondo || root.pinned.portada || "") : ""
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                        }
+                        Rectangle {
+                            visible: !!(root.pinned && root.pinned.running)
+                            anchors { left: parent.left; top: parent.top; margins: Theme.spacingS }
+                            height: 22
+                            width: runLabel.implicitWidth + Theme.spacingM
+                            radius: 11
+                            color: "#7FD69F"
+                            StyledText { id: runLabel; anchors.centerIn: parent; text: "En ejecución"; color: "#0b2a18"; font.pixelSize: Theme.fontSizeSmall }
+                        }
+                    }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.pinned ? root.pinned.name : ""
+                        elide: Text.ElideRight
+                        color: Theme.surfaceText
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Font.Bold
+                    }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.pinned ? (root.pinned.sub || root.pinned.src || "") : ""
+                        elide: Text.ElideRight
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        Repeater {
+                            model: [
+                                { label: "Tiempo jugado", value: root.pinned ? root.playTime(root.pinned.totalSecs) : "" },
+                                { label: "Última vez", value: root.pinned && (root.pinned.lastPlayed || 0) > 0 ? root.playedDate(root.pinned.lastPlayed) : "Nunca" }
+                            ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                implicitHeight: statCol.implicitHeight + Theme.spacingS * 2
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHigh
+                                Column {
+                                    id: statCol
+                                    anchors.fill: parent
+                                    anchors.margins: Theme.spacingS
+                                    StyledText { text: modelData.label; color: Theme.surfaceVariantText; font.pixelSize: Theme.fontSizeSmall }
+                                    StyledText { width: parent.width; text: modelData.value; elide: Text.ElideRight; color: Theme.surfaceText; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.Medium }
+                                }
+                            }
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                    StyledText {
+                        visible: root.actionError !== ""
+                        Layout.fillWidth: true
+                        text: root.actionError
+                        wrapMode: Text.WordWrap
+                        color: "#E8B86D"
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                    DButton {
+                        Layout.fillWidth: true
+                        text: root.pinned && root.pinned.portAvailable ? "Instalar" : "Jugar"
+                        iconName: root.pinned && root.pinned.portAvailable ? "download" : "play_arrow"
+                        enabled: !!root.pinned
+                        onClicked: root.play(root.pinned)
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: "Favorito"; iconName: root.pinned && root.pinned.fav ? "star" : "star_border"; variant: "tonal"; enabled: !!root.pinned; onClicked: root.toggleFav(root.pinned) }
+                        DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: "Detalles"; iconName: "grid_view"; variant: "tonal"; enabled: !!root.pinned; onClicked: root.openApp(root.pinned.id, "") }
+                        DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: "Carpeta"; iconName: "folder_open"; variant: "tonal"; enabled: !!(root.pinned && root.pinned.folder); onClicked: { Quickshell.execDetached(["xdg-open", root.pinned.folder]); root.closeDash(); } }
+                    }
+                }
+            }
+
+            // ---- lista con scroll: máximo 10, favoritos > últimos jugados ----
+            Card {
+                Layout.fillWidth: true
                 Layout.fillHeight: true
                 ColumnLayout {
                     anchors.fill: parent
@@ -201,10 +308,24 @@ DashTabComponent {
                     spacing: Theme.spacingS
                     DTextField {
                         Layout.fillWidth: true
-                        placeholderText: "Buscar juegos…"
+                        placeholderText: "Buscar en toda tu biblioteca…"
                         leftIconName: "search"
                         showClearButton: true
                         onTextChanged: root.search = text
+                    }
+                    StyledText {
+                        Layout.leftMargin: Theme.spacingXS
+                        text: root.searching ? (root.matches.length + (root.matches.length === 1 ? " resultado" : " resultados")) : "Favoritos y jugados recientemente"
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                    StyledText {
+                        visible: root.searching && root.matches.length === 0
+                        Layout.fillWidth: true
+                        Layout.margins: Theme.spacingM
+                        text: "Ningún juego coincide."
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeMedium
                     }
                     ListView {
                         id: list
@@ -212,119 +333,66 @@ DashTabComponent {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 2
-                        model: root.shown
+                        model: root.queue
                         boundsBehavior: Flickable.StopAtBounds
                         delegate: Rectangle {
                             id: row
                             required property var modelData
-                            readonly property bool current: root.game && root.game.id === modelData.id
                             width: list.width
                             height: 54
                             radius: Theme.cornerRadius
-                            color: current ? Theme.primaryContainer : (hover.hovered ? Theme.surfaceContainerHigh : "transparent")
-                            Row {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                spacing: Theme.spacingS
-                                Rectangle {
-                                    width: 42; height: 42; radius: 8
-                                    color: Theme.surfaceContainerHighest
-                                    clip: true
-                                    Image { anchors.fill: parent; source: row.modelData.portada || ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 96; sourceSize.height: 96 }
-                                }
-                                Column {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 42 - Theme.spacingS
-                                    StyledText { width: parent.width; text: row.modelData.name; elide: Text.ElideRight; font.pixelSize: Theme.fontSizeMedium; color: row.current ? Theme.onPrimaryContainer : Theme.surfaceText }
-                                    StyledText { width: parent.width; text: row.modelData.src || ""; elide: Text.ElideRight; font.pixelSize: Theme.fontSizeSmall; color: row.current ? Theme.onPrimaryContainer : Theme.surfaceVariantText; opacity: 0.8 }
-                                }
-                            }
+                            color: hover.hovered ? Theme.surfaceContainerHigh : "transparent"
                             HoverHandler { id: hover }
-                            TapHandler { onTapped: root.select(row.modelData.id) }
-                        }
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: Theme.spacingM
-
-                Card {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 250
-                    clip: true
-                    Image {
-                        anchors.fill: parent
-                        source: root.game ? (root.game.fondo || root.game.portada || "") : ""
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                    }
-                    Rectangle {
-                        anchors.fill: parent
-                        gradient: Gradient {
-                            GradientStop { position: 0.35; color: "transparent" }
-                            GradientStop { position: 1.0; color: "#E6000000" }
-                        }
-                    }
-                    Column {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.spacingM }
-                        spacing: Theme.spacingXS
-                        StyledText { width: parent.width; text: root.game ? root.game.name : ""; elide: Text.ElideRight; color: "white"; font.pixelSize: Theme.fontSizeXLarge; font.weight: Font.Bold }
-                        StyledText { width: parent.width; text: root.game ? (root.game.sub || root.game.src || "") : ""; elide: Text.ElideRight; color: "#CCFFFFFF"; font.pixelSize: Theme.fontSizeSmall }
-                        Row {
-                            spacing: Theme.spacingS
-                            DButton { text: root.game && root.game.portAvailable ? "Instalar" : "Jugar"; iconName: root.game && root.game.portAvailable ? "download" : "play_arrow"; enabled: !!root.game; onClicked: root.play() }
-                            DButton { text: ""; iconName: root.game && root.game.fav ? "star" : "star_border"; variant: "tonal"; enabled: !!root.game; tooltipText: "Favorito"; onClicked: root.toggleFav() }
-                            DButton { text: ""; iconName: "grid_view"; variant: "tonal"; enabled: !!root.game; tooltipText: "Ver detalles en la app"; onClicked: root.openApp(root.game.id, "") }
-                            DButton { text: ""; iconName: "folder_open"; variant: "tonal"; enabled: !!(root.game && root.game.folder); tooltipText: "Abrir carpeta"; onClicked: { Quickshell.execDetached(["xdg-open", root.game.folder]); root.closeDash(); } }
-                        }
-                    }
-                }
-
-                StyledText {
-                    visible: root.actionError !== ""
-                    Layout.fillWidth: true
-                    text: root.actionError
-                    wrapMode: Text.WordWrap
-                    color: "#E8B86D"
-                    font.pixelSize: Theme.fontSizeSmall
-                }
-
-                StyledText {
-                    visible: root.recent.length > 0
-                    text: "Jugado recientemente"
-                    color: Theme.surfaceText
-                    font.pixelSize: Theme.fontSizeMedium
-                    font.weight: Font.Medium
-                }
-                RowLayout {
-                    visible: root.recent.length > 0
-                    Layout.fillWidth: true
-                    spacing: Theme.spacingS
-                    Repeater {
-                        model: root.recent
-                        delegate: Card {
-                            id: rc
-                            required property var modelData
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 96
-                            Layout.preferredWidth: 1
-                            clip: true
-                            clickable: true
-                            onClicked: root.select(rc.modelData.id)
-                            Image { anchors.fill: parent; source: rc.modelData.fondo || rc.modelData.portada || ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 400 }
-                            Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position: 0.3; color: "transparent" } GradientStop { position: 1.0; color: "#E6000000" } } }
-                            Column {
-                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.spacingS }
-                                StyledText { width: parent.width; text: rc.modelData.name; elide: Text.ElideRight; color: "white"; font.pixelSize: Theme.fontSizeSmall; font.weight: Font.Medium }
-                                StyledText { width: parent.width; text: root.playedDate(rc.modelData.lastPlayed); color: "#CCFFFFFF"; font.pixelSize: Theme.fontSizeSmall - 1 }
+                            Item {
+                                id: info
+                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: actions.left }
+                                TapHandler { onTapped: root.openApp(row.modelData.id, "") }
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: Theme.spacingS
+                                    Rectangle {
+                                        width: 42; height: 42; radius: 8
+                                        color: Theme.surfaceContainerHighest
+                                        clip: true
+                                        Image { anchors.fill: parent; source: row.modelData.portada || ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 96; sourceSize.height: 96 }
+                                    }
+                                    Column {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 42 - Theme.spacingS
+                                        StyledText { width: parent.width; text: row.modelData.name; elide: Text.ElideRight; font.pixelSize: Theme.fontSizeMedium; color: Theme.surfaceText }
+                                        StyledText {
+                                            width: parent.width
+                                            text: (row.modelData.src || "") + " · " + ((row.modelData.lastPlayed || 0) > 0 ? root.playedDate(row.modelData.lastPlayed) : "Sin jugar")
+                                            elide: Text.ElideRight
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.surfaceVariantText
+                                        }
+                                    }
+                                }
+                            }
+                            Row {
+                                id: actions
+                                anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                                spacing: Theme.spacingXS
+                                DButton { text: ""; iconName: row.modelData.fav ? "star" : "star_border"; variant: "text"; tooltipText: "Favorito"; onClicked: root.toggleFav(row.modelData) }
+                                DButton { text: ""; iconName: row.modelData.portAvailable ? "download" : "play_arrow"; variant: "tonal"; tooltipText: row.modelData.portAvailable ? "Instalar" : "Jugar"; onClicked: root.play(row.modelData) }
                             }
                         }
                     }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.hiddenCount > 0 ? ("y " + root.hiddenCount + " más en tu biblioteca") : ""
+                            color: Theme.surfaceVariantText
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+                        DButton { text: "Big Mode"; iconName: "grid_view"; variant: "tonal"; onClicked: { Quickshell.execDetached(["omnia-ui", "--window"]); root.closeDash(); } }
+                        DButton { text: "App"; iconName: "open_in_new"; variant: "tonal"; onClicked: root.openApp("", "") }
+                    }
                 }
-                Item { Layout.fillHeight: true }
             }
         }
     }
