@@ -67,7 +67,7 @@ PluginComponent {
 
     // El panel es un popout compacto anclado a este botón (OmniaPanel.qml): una columna, con el último jugado anclado y 10 juegos con scroll.
     popoutWidth: 400
-    popoutHeight: 590
+    popoutHeight: 620
     popoutContent: Component {
         OmniaPanel { onCloseRequested: root.closePopout() }
     }

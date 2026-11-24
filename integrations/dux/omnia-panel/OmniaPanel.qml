@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Widgets
 import qs.Common
 import qs.Widgets
 import qs.DCommon.Widgets
@@ -16,7 +17,7 @@ Item {
     signal closeRequested()
     property bool live: visible
     implicitWidth: 400
-    implicitHeight: 590
+    implicitHeight: 620
 
     readonly property string base: "http://127.0.0.1:47831"
     property string token: ""
@@ -197,22 +198,23 @@ Item {
         }
 
         // ---- anclado: lo último que jugaste ----
-        Card {
+        Rectangle {
             visible: root.status === "ok" && !root.searching
             Layout.fillWidth: true
-            implicitHeight: pinCol.implicitHeight + Theme.spacingM * 2
+            Layout.preferredHeight: pinCol.implicitHeight + Theme.spacingM * 2
+            radius: 20
+            color: Theme.surfaceContainerHigh
             border.width: 1.5
             border.color: Theme.withAlpha(Theme.primary, 0.55)
             ColumnLayout {
                 id: pinCol
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.spacingM }
                 spacing: Theme.spacingS
-                Rectangle {
+                ClippingRectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 92
-                    radius: Theme.cornerRadius
+                    Layout.preferredHeight: 104
+                    radius: 14
                     color: Theme.surfaceContainerHighest
-                    clip: true
                     Image {
                         anchors.fill: parent
                         source: root.pinned ? (root.pinned.fondo || root.pinned.portada || "") : ""
@@ -221,10 +223,11 @@ Item {
                     }
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 24
+                        height: 26
                         color: "#99000000"
                         StyledText {
-                            anchors { left: parent.left; leftMargin: Theme.spacingS; verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; leftMargin: Theme.spacingM; right: parent.right; rightMargin: Theme.spacingM; verticalCenter: parent.verticalCenter }
+                            elide: Text.ElideRight
                             text: root.pinned ? ((root.pinned.running ? "En ejecución · " : "") + (root.pinned.sub || root.pinned.src || "") + ((root.pinned.lastPlayed || 0) > 0 ? " · " + root.playedDate(root.pinned.lastPlayed) + " · " + root.playTime(root.pinned.totalSecs) : "")) : ""
                             color: "white"
                             font.pixelSize: Theme.fontSizeSmall
@@ -250,6 +253,7 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.bottomMargin: Theme.spacingXS
                     spacing: Theme.spacingS
                     DButton {
                         text: root.pinned && root.pinned.portAvailable ? "Instalar" : "Jugar"
@@ -294,8 +298,8 @@ Item {
                 id: row
                 required property var modelData
                 width: list.width
-                height: 52
-                radius: Theme.cornerRadius
+                height: 68
+                radius: 18
                 color: hover.hovered ? Theme.surfaceContainerHigh : "transparent"
                 HoverHandler { id: hover }
                 Item {
@@ -304,16 +308,15 @@ Item {
                     Row {
                         anchors.fill: parent
                         anchors.margins: 6
-                        spacing: Theme.spacingS
-                        Rectangle {
-                            width: 38; height: 38; radius: 8
+                        spacing: Theme.spacingM
+                        ClippingRectangle {
+                            width: 56; height: 56; radius: 14
                             color: Theme.surfaceContainerHighest
-                            clip: true
-                            Image { anchors.fill: parent; source: row.modelData.portada || ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 96; sourceSize.height: 96 }
+                            Image { anchors.fill: parent; source: row.modelData.portada || ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 160; sourceSize.height: 160 }
                         }
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 38 - Theme.spacingS
+                            width: parent.width - 56 - Theme.spacingM
                             StyledText { width: parent.width; text: row.modelData.name; elide: Text.ElideRight; font.pixelSize: Theme.fontSizeMedium; color: Theme.surfaceText }
                             StyledText { width: parent.width; text: row.modelData.src || ""; elide: Text.ElideRight; font.pixelSize: Theme.fontSizeSmall; color: Theme.surfaceVariantText }
                         }
