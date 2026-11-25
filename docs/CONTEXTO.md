@@ -7,7 +7,7 @@
 Omnia es una **biblioteca unificada de juegos para Linux** (Arch/CachyOS como objetivo): reúne juegos de Steam, Heroic (Epic, GOG, Amazon), Lutris,
 ports y recompilaciones instalables desde un catálogo, ROMs y ejecutables locales, y los gestiona desde varias superficies que comparten el mismo
 servicio:
-- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio con navegación lateral (Inicio, Biblioteca, Explorar, Estadísticas, Descargas, Ajustes). Explorar reúne ports y juegos de tiendas en una cuadrícula continua, con filtros adhesivos, recomendaciones y los últimos juegos instalados; la gestión de cuentas se abre desde esa página.
+- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio con navegación lateral (Inicio, Biblioteca, Explorar, Estadísticas, Descargas, Ajustes). Explorar reúne ports y juegos de tiendas en una cuadrícula continua, con filtros adhesivos, recomendaciones, instalaciones recientes y orden por año/nombre; la gestión de cuentas se abre desde esa página.
 - **Big Mode (BM)** (`omnia-ui --window`, o desde la app): interfaz de consola para mando/teclado/ratón, con bienvenida animada, estantería, ficha de
   juego, editor de arte, ajustes (sonido, audio, mandos) y sonidos de interfaz.
 - **Panel rápido**: integración opcional con Hyprland (módulo de illogical-impulse, `integrations/hyprland/ii`) y con el shell Dux/DMS
@@ -52,6 +52,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 
 ## 4. Decisiones y hallazgos clave (vigentes)
 - **App independiente**: ninguna integración de escritorio es obligatoria; el panel rápido y los módulos de Plasma son opcionales.
+- **Caché de arte**: `omnia-core` guarda carátulas aprobadas de Omnia, Steam, Epic, GOG y Amazon en `~/.cache/omnia/catalog-art`; la API devuelve `file://` cuando ya están guardadas y encola las faltantes para no repetir descargas al abrir Desktop.
 - **Cero dependencias en el núcleo** (solo biblioteca estándar); lo externo se invoca como proceso (`pactl`, `ffmpeg` solo en herramientas).
 - **Seguridad**: descargas solo por HTTPS a hosts de lista cerrada; arte de terceros solo de CDN conocidos (SteamGridDB, Steam, GOG, Epic) y como imagen;
   rutas validadas contra las raíces permitidas; los ajustes validan tipo y rango; nada de texto del usuario llega a un shell.
@@ -71,7 +72,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
 integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
-**Pendiente (prioridad en `docs/HANDOFF.md`):** validar visualmente la nueva Explorar unificada; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
+**Pendiente (prioridad en `docs/HANDOFF.md`):** instalar y validar visualmente la revisión de Explorar (padding, filtros a ancho completo, logo y orden); probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
 ## 6. Operación
 - **Pruebas:** `PYTHONPATH=core python3 -m unittest discover -s tests`; QML: `/usr/lib/qt6/bin/qmllint <archivo>`; pruebas visuales con arneses `qml6` fuera de pantalla
@@ -83,6 +84,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Pulido de Explorar, caché de imágenes y reconexión del servicio:** el contenido respeta el padding común, la búsqueda comparte fila con el título, las dos recomendaciones y hasta cinco recientes distribuyen todo el ancho, los filtros ocupan seis columnas iguales y los logos blancos/transparentes salen de los SVG de Descargas (y la marca de Omnia). Los instalados abren una ficha local de detalle con botón Jugar; se añadió orden por año reciente/antiguo y nombre A–Z/Z–A. `imageFor` prioriza `localUrl`; las carátulas remotas admitidas de tiendas también se guardan en `catalog-art`. `Api.qml` reintenta mientras el servicio no responde. Diagnóstico: `omnia.service` estaba activo y `/health` y `/library` respondieron; se agregó reintento de interfaz para el fallo transitorio. `qmllint`, compilación Python y `git diff --check` limpios; los cuatro paquetes Arch 0.3.0-99 generados y verificados en `/tmp/omnia-pkg/`.
 
 - **2026-11-24 — Explorar unificada, compacta y sin paginación:** dos recomendaciones de Omnia rotan cada 10 s con fundido; un carrusel horizontal muestra hasta cinco juegos instalados recientemente y lleva a Biblioteca con «Ver más»; filtros adhesivos unifican Todas, Omnia/ports, Steam, Epic, GOG y Amazon; la cuadrícula continua solicita páginas al acercarse al final. Las carátulas incluyen origen, insignia de plataforma/tienda, metadatos y hover; cada tarjeta conserva el destino de detalle, biblioteca o instalación apropiado. `qmllint` limpio para `OmniaManager.qml` y `ManagerPosterCard.qml`; los cuatro paquetes Arch 0.3.0-98 generados y verificados en `/tmp/omnia-pkg/`.
 

@@ -9,6 +9,7 @@ Item {
     property url sourceLogo: ""
     property string platform: ""
     property string info: ""
+    property bool installed: false
     property real scaleFactor: 1
     readonly property bool hovered: posterMouse.containsMouse
     signal activated()
@@ -59,25 +60,17 @@ Item {
                 font.pixelSize: 10 * card.scaleFactor
                 font.weight: Font.Bold
                 elide: Text.ElideRight
-                Rectangle {
+                Image {
                     id: sourceLogoWell
                     visible: card.sourceLogo !== ""
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    width: 18 * card.scaleFactor
+                    width: 16 * card.scaleFactor
                     height: width
-                    radius: width / 2
-                    color: "#DDE6EC"
-                    Image {
-                        id: sourceLogoImage
-                        anchors.centerIn: parent
-                        width: 11 * card.scaleFactor
-                        height: width
-                        source: card.sourceLogo
-                        sourceSize.width: 64
-                        sourceSize.height: 64
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                    }
+                    source: card.sourceLogo
+                    sourceSize.width: 64
+                    sourceSize.height: 64
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
             }
             Text {
@@ -100,6 +93,14 @@ Item {
                 font.pixelSize: 10 * card.scaleFactor
                 elide: Text.ElideRight
             }
+        }
+        Rectangle {
+            visible: card.installed
+            anchors { right: parent.right; top: parent.top; margins: 10 * card.scaleFactor }
+            width: 13 * card.scaleFactor; height: width; radius: width / 2
+            color: "#13E889"
+            border.width: 1 * card.scaleFactor
+            border.color: "#D7FFF0"
         }
         MouseArea {
             id: posterMouse

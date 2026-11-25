@@ -338,13 +338,19 @@ def steam_art_urls(game) -> dict:
 
 # Arte público que Heroic guarda en su caché de la biblioteca (GOG y Epic): solo estas URLs exactas de sus CDN, sin claves ni cuentas.
 _STORE_ART_RE = re.compile(
-    r"https://images\.gog(?:-statics)?\.com/[0-9a-f]{40,80}(?:\.(?:jpg|jpeg|png|webp))?(?:\?namespace=gamesdb)?"
+    r"https://images\.gog(?:-statics)?\.com/[0-9a-f]{8,80}(?:_[A-Za-z0-9_-]{1,100})?(?:\.(?:jpg|jpeg|png|webp))?(?:\?namespace=gamesdb)?"
     r"|https://cdn1\.epicgames\.com/[A-Za-z0-9_./-]{1,200}")
+_AMAZON_ART_RE = re.compile(
+    r"https://[a-z0-9.-]+\.(?:media-amazon|ssl-images-amazon)\.com/[A-Za-z0-9._~%/-]{1,900}(?:\?[A-Za-z0-9._~%=&-]{0,300})?")
 _STORE_ART_KEYS = {"portada": ("art_square", "art_cover"), "fondo": ("art_background", "art_cover")}
 
 
 def _is_steam_art_url(url) -> bool:
     return isinstance(url, str) and (_STEAM_ART_RE.fullmatch(url) is not None or _STORE_ART_RE.fullmatch(url) is not None)
+
+
+def _is_store_art_url(url) -> bool:
+    return _is_steam_art_url(url) or (isinstance(url, str) and _AMAZON_ART_RE.fullmatch(url) is not None)
 
 
 def store_art_from_heroic(entry) -> dict:
@@ -372,16 +378,18 @@ def game_art_urls(game) -> dict:
 
 
 def download_artwork(url: str, *, opener=None) -> tuple[bytes, str]:
-    """Descarga solo una imagen servida por el origen oficial de Omnia, sin reenviar credenciales."""
+    """Descarga una imagen de Omnia o de un CDN oficial de tienda permitido, sin reenviar credenciales."""
     parsed = urllib.parse.urlsplit(url)
-    steam = _is_steam_art_url(url)
-    if not steam and (parsed.scheme != "https" or parsed.netloc != urllib.parse.urlsplit(PUBLIC_ORIGIN).netloc or not parsed.path.startswith("/api/v1/artwork/")):
+    trusted_store_cdn = _is_store_art_url(url)
+    if not trusted_store_cdn and (parsed.scheme != "https" or parsed.netloc != urllib.parse.urlsplit(PUBLIC_ORIGIN).netloc or not parsed.path.startswith("/api/v1/artwork/")):
         raise CatalogError("La URL de imagen no pertenece al backend de Omnia.")
     request = urllib.request.Request(url, headers={"Accept": "image/png,image/jpeg,image/webp", "User-Agent": "Omnia/0.3"})
     try:
         with (opener or urllib.request.urlopen)(request, timeout=TIMEOUT) as response:
             final = urllib.parse.urlsplit(response.geturl())
-            if final.scheme != "https" or not (final.netloc == parsed.netloc or (not steam and _is_art_cdn(final.hostname))):
+            final_url = response.geturl()
+            final_store_cdn = _is_store_art_url(final_url)
+            if final.scheme != "https" or not (final.netloc == parsed.netloc or final_store_cdn or (not trusted_store_cdn and _is_art_cdn(final.hostname))):
                 raise CatalogError("El backend redirigió la imagen a otro origen.")
             raw = response.read(12 * 1024 * 1024 + 1)
             mime = (response.headers.get("Content-Type") or "").split(";", 1)[0].lower()
@@ -469,7 +477,7 @@ def store_artwork(url: str, *, base: Path | None = None, opener=None) -> Path:
 
 
 def _is_art_url(url) -> bool:
-    return (isinstance(url, str) and url.startswith(PUBLIC_ORIGIN + "/api/v1/artwork/")) or _is_steam_art_url(url)
+    return (isinstance(url, str) and url.startswith(PUBLIC_ORIGIN + "/api/v1/artwork/")) or _is_store_art_url(url)
 
 
 def _art_loop():

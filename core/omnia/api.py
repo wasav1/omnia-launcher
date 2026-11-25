@@ -746,6 +746,10 @@ class Api:
             games = store.library()
         except StoreError as e:
             raise ApiError(502, str(e))
+        for game in games:
+            image = game.get("art") if isinstance(game, dict) else None
+            if isinstance(image, str) and image.startswith("https://"):
+                game["art"] = online_catalog.local_or_remote(image)
         mine = {g.get("store_id", {}).get("id") for g in self.store.games()
                 if isinstance(g.get("store_id"), dict) and g["store_id"].get("store") == store.id}
         local_ids = {g.get("id") for g in self.store.games()}

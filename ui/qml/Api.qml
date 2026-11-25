@@ -564,6 +564,13 @@ QtObject {
         })
     }
     property Timer retry: Timer { interval: 2000; onTriggered: { api.padSeq = -1; api.pollPad() } }
+    // Si Desktop abre mientras systemd aún inicia/reinicia omnia-core, vuelve a comprobar
+    // la conexión cada 2 s y recupera también un token regenerado tras un reinicio.
+    property Timer serviceRetry: Timer {
+        interval: 2000; repeat: true
+        running: api.autoStart && !api.ok
+        onTriggered: { if (!api.ok) api.refresh() }
+    }
     property Timer audioPoll: Timer { interval: api.audioActive ? 42 : 1000; repeat: true; running: api.controlsEnabled && api.ok && !api.covered && !api.gameRunning && !api.menuOpen; triggeredOnStart: true; onTriggered: api.pollAudio() }
 
     property Timer systemPoll: Timer { interval: 3000; repeat: true; running: api.systemEnabled && api.ok && !api.gameRunning; triggeredOnStart: true; onTriggered: api.pollSystem() }
