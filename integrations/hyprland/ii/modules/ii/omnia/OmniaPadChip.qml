@@ -17,7 +17,7 @@ Rectangle {
     readonly property bool critical: known && !charging && level <= 10
     readonly property color tone: !on ? OmniaTheme.inkDim : charging ? OmniaTheme.ok : critical ? "#ff8a8a" : low ? "#E8B86D" : OmniaTheme.inkDim
     readonly property string shortName: {
-        if (!on) return "Sin mando";
+        if (!on) return OmniaApi.tr("Sin mando", "No controller");
         const n = String(OmniaApi.padName || "").toLowerCase();
         if (n.indexOf("dualsense") >= 0) return "DualSense";
         if (n.indexOf("dualshock") >= 0) return "DualShock 4";
@@ -26,7 +26,7 @@ Rectangle {
         if (n.indexOf("steam") >= 0 || n.indexOf("deck") >= 0) return "Steam Deck";
         if (n.indexOf("xbox") >= 0) return "Xbox";
         const words = String(OmniaApi.padName || "").split(/\s+/).filter(w => w);
-        return words.length ? words.slice(0, 2).join(" ") : "Mando";
+        return words.length ? words.slice(0, 2).join(" ") : OmniaApi.tr("Mando", "Controller");
     }
 
     implicitHeight: 30

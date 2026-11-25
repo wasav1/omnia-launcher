@@ -36,10 +36,10 @@ Item {
         const day = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
         const today = Date.UTC(dateReference.getFullYear(), dateReference.getMonth(), dateReference.getDate());
         const elapsed = (today - day) / 86400000;
-        if (elapsed <= 0) return "Hoy";
-        if (elapsed === 1) return "Ayer";
-        if (elapsed < 7) return "Hace " + elapsed + " días";
-        return date.toLocaleDateString(Qt.locale("es_CO"), "d MMM yyyy");
+        if (elapsed <= 0) return OmniaApi.tr("Hoy", "Today");
+        if (elapsed === 1) return OmniaApi.tr("Ayer", "Yesterday");
+        if (elapsed < 7) return OmniaApi.tr("Hace %1 días", "%1 days ago").arg(elapsed);
+        return date.toLocaleDateString(Qt.locale(OmniaApi.language === "en" ? "en_US" : "es_CO"), "d MMM yyyy");
     }
     property string screenName: ""
     readonly property bool active: OmniaPanelState.shown && OmniaPanelState.screenName === screenName
@@ -59,13 +59,13 @@ Item {
     readonly property var menuItems: {
         const g = root.game, out = [];
         if (!g) return out;
-        if (g.portAvailable) out.push({ id: "port", label: "Instalar port en la app de escritorio", icon: "download" });
-        if (g.updateAvailable && !g.running) out.push({ id: "update", label: "Actualizar en la app de escritorio (" + (g.updateAvailable.version || "nueva versión") + ")", icon: "download" });
-        out.push({ id: "details", label: "Ver detalles en Big Mode", icon: "layout-grid" });
-        out.push({ id: "fav", label: g.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "star" });
-        if (OmniaWallpaper.canPin(g)) out.push({ id: "pin", label: "Usar su fondo en el escritorio", icon: "image" });
-        if (OmniaWallpaper.pinned) out.push({ id: "unpin", label: "Quitar fondo fijado", icon: "eye-off" });
-        if (g.folder) out.push({ id: "folder", label: "Abrir carpeta del juego", icon: "folder-open" });
+        if (g.portAvailable) out.push({ id: "port", label: OmniaApi.tr("Instalar port en la app de escritorio", "Install port in the desktop app"), icon: "download" });
+        if (g.updateAvailable && !g.running) out.push({ id: "update", label: OmniaApi.tr("Actualizar en la app de escritorio (", "Update in the desktop app (") + (g.updateAvailable.version || OmniaApi.tr("nueva versión", "new version")) + ")", icon: "download" });
+        out.push({ id: "details", label: OmniaApi.tr("Ver detalles en Big Mode", "View details in Big Mode"), icon: "layout-grid" });
+        out.push({ id: "fav", label: g.fav ? OmniaApi.tr("Quitar de favoritos", "Remove from favorites") : OmniaApi.tr("Añadir a favoritos", "Add to favorites"), icon: "star" });
+        if (OmniaWallpaper.canPin(g)) out.push({ id: "pin", label: OmniaApi.tr("Usar su fondo en el escritorio", "Use its artwork as desktop wallpaper"), icon: "image" });
+        if (OmniaWallpaper.pinned) out.push({ id: "unpin", label: OmniaApi.tr("Quitar fondo fijado", "Unpin wallpaper"), icon: "eye-off" });
+        if (g.folder) out.push({ id: "folder", label: OmniaApi.tr("Abrir carpeta del juego", "Open game folder"), icon: "folder-open" });
         return out;
     }
     function openMenu() {
@@ -206,10 +206,10 @@ Item {
             }
             ColumnLayout {
                 spacing: 0
-                StyledText { text: root.view === "main" ? "Omnia" : "Ajustes"; font.pixelSize: Appearance.font.pixelSize.huge; color: OmniaTheme.ink }
+                StyledText { text: root.view === "main" ? "Omnia" : OmniaApi.tr("Ajustes", "Settings"); font.pixelSize: Appearance.font.pixelSize.huge; color: OmniaTheme.ink }
                 StyledText {
                     visible: root.view === "main" && OmniaApi.status !== "ok"
-                    text: OmniaApi.status === "error" ? "Sin conexión" : OmniaApi.status === "empty" ? "Biblioteca vacía" : "Conectando…"
+                    text: OmniaApi.status === "error" ? OmniaApi.tr("Sin conexión", "Offline") : OmniaApi.status === "empty" ? OmniaApi.tr("Biblioteca vacía", "Library empty") : OmniaApi.tr("Conectando…", "Connecting…")
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: OmniaApi.status === "error" ? OmniaTheme.danger : OmniaTheme.inkDim
                 }
@@ -249,7 +249,7 @@ Item {
                 }
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter
-                    text: OmniaApi.status === "error" ? "No se pudo cargar la biblioteca" : OmniaApi.status === "empty" ? "Tu biblioteca está vacía" : "Conectando con Omnia…"
+                    text: OmniaApi.status === "error" ? OmniaApi.tr("No se pudo cargar la biblioteca", "Could not load the library") : OmniaApi.status === "empty" ? OmniaApi.tr("Tu biblioteca está vacía", "Your library is empty") : OmniaApi.tr("Conectando con Omnia…", "Connecting to Omnia…")
                     font.pixelSize: Appearance.font.pixelSize.larger
                     color: OmniaApi.status === "error" ? OmniaTheme.danger : OmniaTheme.ink
                 }
@@ -258,14 +258,14 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
                     visible: OmniaApi.status !== "loading"
-                    text: OmniaApi.status === "error" ? OmniaApi.errorText + ". El fondo del escritorio no se modifica." : "Aún no hay juegos detectados. Abre BigMode para importarlos."
+                    text: OmniaApi.status === "error" ? OmniaApi.errorText + OmniaApi.tr(". El fondo del escritorio no se modifica.", ". Your desktop wallpaper is unchanged.") : OmniaApi.tr("Aún no hay juegos detectados. Abre BigMode para importarlos.", "No games detected yet. Open Big Mode to import them.")
                     color: OmniaTheme.inkDim
                 }
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
                     spacing: 8
-                    OmniaPill { visible: OmniaApi.status === "error"; label: "Reintentar"; icon: "refresh-cw"; primary: true; onClicked: { OmniaApi.refresh(); OmniaApi.pollSelection(); } }
-                    OmniaPill { visible: OmniaApi.status === "error"; label: "Ver registro"; icon: "circle-alert"; onClicked: Quickshell.execDetached(["bash", "-c", Config.options.apps.terminal + " journalctl --user -u omnia -n 60 --no-pager -f"]) }
+                    OmniaPill { visible: OmniaApi.status === "error"; label: OmniaApi.tr("Reintentar", "Retry"); icon: "refresh-cw"; primary: true; onClicked: { OmniaApi.refresh(); OmniaApi.pollSelection(); } }
+                    OmniaPill { visible: OmniaApi.status === "error"; label: OmniaApi.tr("Ver registro", "View log"); icon: "circle-alert"; onClicked: Quickshell.execDetached(["bash", "-c", Config.options.apps.terminal + " journalctl --user -u omnia -n 60 --no-pager -f"]) }
                     OmniaPill { visible: OmniaApi.status === "empty"; label: "Big Mode"; icon: "layout-grid"; primary: true; onClicked: { OmniaApi.openBigMode("", false); root.closeRequested(); } }
                 }
             }
@@ -307,11 +307,11 @@ Item {
                         anchors { left: searchIcon.right; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 6; rightMargin: 6 }
                         height: parent.height
                         text: root.searchText
-                        placeholderText: "Buscar juegos…"
+                        placeholderText: OmniaApi.tr("Buscar juegos…", "Search games…")
                         color: OmniaTheme.ink
                         placeholderTextColor: OmniaTheme.inkDim
                         background: Item {}
-                        Accessible.name: "Buscar juegos"
+                        Accessible.name: OmniaApi.tr("Buscar juegos", "Find games")
                         onTextEdited: root.searchText = text
                         onAccepted: {
                             if (root.games.length) OmniaApi.select(root.games[0].id);
@@ -330,7 +330,7 @@ Item {
                 StyledText {
                     anchors.centerIn: list
                     visible: root.games.length === 0
-                    text: "Ningún juego coincide"
+                    text: OmniaApi.tr("Ningún juego coincide", "No matching games")
                     color: OmniaTheme.inkDim
                 }
                 ListView {
@@ -445,7 +445,7 @@ Item {
                     StyledText {
                         visible: !root.game
                         anchors.centerIn: parent
-                        text: "Elige un juego de la lista"
+                        text: OmniaApi.tr("Elige un juego de la lista", "Choose a game from the list")
                         color: OmniaTheme.inkDim
                         font.pixelSize: Appearance.font.pixelSize.larger
                     }
@@ -495,7 +495,7 @@ Item {
                             spacing: 10
                             OmniaPill {
                                 id: playBtn
-                                label: root.game && root.game.running ? "En ejecución" : (root.game && root.game.portAvailable ? "Instalar port" : "Jugar")
+                                label: root.game && root.game.running ? OmniaApi.tr("En ejecución", "Running") : (root.game && root.game.portAvailable ? OmniaApi.tr("Instalar port", "Install port") : OmniaApi.tr("Jugar", "Play"))
                                 icon: root.game && root.game.portAvailable ? "download" : "play"
                                 primary: true
                                 implicitHeight: 44
@@ -522,7 +522,7 @@ Item {
                     visible: OmniaApi.recent.length > 0
                     Layout.fillWidth: true
                     spacing: 6
-                    StyledText { text: "Jugado recientemente"; font.weight: Font.DemiBold; font.pixelSize: Appearance.font.pixelSize.normal; color: OmniaTheme.ink }
+                    StyledText { text: OmniaApi.tr("Jugado recientemente", "Recently played"); font.weight: Font.DemiBold; font.pixelSize: Appearance.font.pixelSize.normal; color: OmniaTheme.ink }
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10

@@ -14,6 +14,8 @@ Singleton {
 
     readonly property string base: "http://127.0.0.1:" + OmniaSettings.port
     property string token: ""
+    property string language: Qt.locale().name.startsWith("en") ? "en" : "es"
+    function tr(es, en) { return root.language === "en" ? en : es }
     property string status: "loading"
     property string errorText: ""
     property string actionError: ""
@@ -105,7 +107,10 @@ Singleton {
     }
 
     function refresh() {
-        if (root.token === "") { fail("omnia-core no está en marcha (falta el token de sesión)"); return; }
+        if (root.token === "") { fail(root.tr("omnia-core no está en marcha (falta el token de sesión)", "omnia-core is stopped (session token missing)")); return; }
+        request("GET", "/settings", null, (st, data) => {
+            if (st === 200 && data) root.language = data.language === "en" ? "en" : "es";
+        });
         request("GET", "/library", null, (st, d) => {
             if (st === 200 && d && d.games !== undefined) {
                 root.games = d.games;
@@ -113,7 +118,7 @@ Singleton {
                 root.status = d.games.length ? "ok" : "empty";
                 root.errorText = "";
             } else if (st === 0) {
-                fail("omnia-core no responde en 127.0.0.1:" + OmniaSettings.port);
+                fail(root.tr("omnia-core no responde en 127.0.0.1:", "omnia-core is not responding at 127.0.0.1:") + OmniaSettings.port);
             } else {
                 fail((d && d.error) || ("error HTTP " + st));
             }
@@ -134,7 +139,7 @@ Singleton {
                 if (root.status === "error") root.refresh();
                 root.pollSelection();
             } else {
-                if (st === 0 || st >= 500) root.fail("omnia-core no responde en 127.0.0.1:" + OmniaSettings.port);
+                if (st === 0 || st >= 500) root.fail(root.tr("omnia-core no responde en 127.0.0.1:", "omnia-core is not responding at 127.0.0.1:") + OmniaSettings.port);
                 retry.restart();
             }
         });
@@ -146,7 +151,7 @@ Singleton {
         root.selected = Object.assign({}, root.selected, { id: id, name: g ? g.name : "", fondo: g ? (g.fondo || "") : "" });
         root.selectionChanged();
         request("POST", "/selection/set", { id: id, filterKey: root.selected.filterKey || "all" }, (st, d) => {
-            if (st !== 200) root.actionError = (d && d.error) || "No se pudo cambiar la selección.";
+            if (st !== 200) root.actionError = (d && d.error) || root.tr("No se pudo cambiar la selección.", "Could not change the selection.");
         });
     }
 
@@ -154,10 +159,10 @@ Singleton {
         const g = games.find(x => x.id === id);
         if (g && g.portAvailable) { openDesktop(id, "install"); return true; }          // sin port instalado no se puede jugar: se ofrece instalarlo en la app de escritorio
         const port = g && g.ports ? g.ports.find(p => p.canLaunch && !p.running) : null;
-        if (!g || !port) { root.actionError = "El juego ya está en ejecución o no tiene un lanzador disponible."; return false; }
+        if (!g || !port) { root.actionError = root.tr("El juego ya está en ejecución o no tiene un lanzador disponible.", "The game is already running or has no available launcher."); return false; }
         root.actionError = "";
         request("POST", "/launch", { id: id, port: port.id }, (st, d) => {
-            if (st !== 200) root.actionError = (d && d.error) || "No se pudo lanzar el juego.";
+            if (st !== 200) root.actionError = (d && d.error) || root.tr("No se pudo lanzar el juego.", "Could not launch the game.");
         });
         return true;
     }
@@ -205,6 +210,6 @@ Singleton {
             root.refresh();
             root.pollSelection();
         }
-        onLoadFailed: root.fail("omnia-core no está en marcha (falta el token de sesión)")
+        onLoadFailed: root.fail(root.tr("omnia-core no está en marcha (falta el token de sesión)", "omnia-core is stopped (session token missing)"))
     }
 }

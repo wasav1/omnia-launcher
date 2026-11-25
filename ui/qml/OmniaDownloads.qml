@@ -36,13 +36,14 @@ Item {
     function primary() {
         const j = current
         if (!j) return
-        if (isBusy(j)) (j.status === "paused" ? dl.host.api.resumeInstallation : dl.host.api.pauseInstallation)(j.id, dl.after)
+        if (j.external) Qt.openUrlExternally("steam://nav/downloads")
+        else if (isBusy(j)) (j.status === "paused" ? dl.host.api.resumeInstallation : dl.host.api.pauseInstallation)(j.id, dl.after)
         else if (isBad(j)) dl.host.api.retryInstallation(j.id, dl.after)
         else if (j.gameId) { dl.host.selectById(j.gameId); dl.back() }
     }
     function secondary() {
         const j = current
-        if (!j) return
+        if (!j || j.external) return
         if (isBusy(j)) dl.host.api.cancelInstallation(j.id, dl.after)
         else if (isBad(j)) dl.host.api.dismissInstallations(j.id, dl.after)
     }
@@ -68,7 +69,7 @@ Item {
     onVisibleChanged: if (visible) { index = 0; load() }
     Timer { interval: 1200; repeat: true; running: dl.visible; triggeredOnStart: true; onTriggered: dl.load() }
 
-    Rectangle { anchors.fill: parent; color: dl.host.base }
+    Rectangle { anchors.fill: parent; color: dl.host.pageShade }
     Rectangle {
         id: backB
         x: dl.s * 48; y: dl.s * 30
@@ -97,14 +98,14 @@ Item {
             readonly property bool sel: index === dl.index
             readonly property bool bad: dl.isBad(modelData)
             width: ListView.view.width; height: dl.s * 112; radius: dl.s * 20
-            color: sel ? Qt.rgba(0.14, 0.2, 0.28, 0.95) : Qt.rgba(0.082, 0.114, 0.153, 0.92)
+            color: sel ? dl.host.surfaceFocus : dl.host.surface
             border.width: sel ? 2 : 1
             border.color: sel ? dl.host.accent : (bad ? "#6A3F3F" : (modelData.status === "completed" ? "#2E6B4A" : Qt.rgba(1, 1, 1, 0.10)))
             Column {
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: dl.s * 28; rightMargin: dl.s * 28 }
                 spacing: dl.s * 10
                 Text { width: parent.width; elide: Text.ElideRight; color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 25; font.weight: Font.DemiBold
-                       text: card.modelData.name + "  ·  " + dl.statusLabel(card.modelData.status) }
+                       text: card.modelData.name + (card.modelData.external ? "  ·  Steam" : "") + "  ·  " + dl.statusLabel(card.modelData.status) }
                 Rectangle {
                     visible: !card.bad
                     width: parent.width; height: dl.s * 9; radius: height / 2; color: Qt.rgba(1, 1, 1, 0.10)
@@ -128,9 +129,9 @@ Item {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: dl.s * 48; bottomMargin: dl.s * 28 }
         spacing: dl.s * 34
         Text { visible: !!dl.current; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
-               text: !dl.current ? "" : (dl.isBusy(dl.current) ? qsTr("A  %1").arg(dl.current.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"))
+               text: !dl.current ? "" : dl.current.external ? qsTr("A  %1").arg(qsTr("Abrir descargas de Steam")) : (dl.isBusy(dl.current) ? qsTr("A  %1").arg(dl.current.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"))
                      : (dl.isBad(dl.current) ? qsTr("A  Reintentar") : qsTr("A  Abrir ficha"))) }
-        Text { visible: !!dl.current && dl.current.status !== "completed"; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
+        Text { visible: !!dl.current && !dl.current.external && dl.current.status !== "completed"; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
                text: !dl.current ? "" : (dl.isBusy(dl.current) ? qsTr("X  Cancelar") : qsTr("X  Descartar")) }
         Text { visible: dl.failed.length > 0; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21; text: qsTr("Y  Descartar las fallidas (%1)").arg(dl.failed.length) }
         Text { color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21; text: qsTr("B  Volver") }

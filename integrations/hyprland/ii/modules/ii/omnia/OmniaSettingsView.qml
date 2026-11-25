@@ -35,7 +35,7 @@ Flickable {
             Layout.fillWidth: true
             spacing: 6
             StyledText {
-                text: "Imágenes"
+                text: OmniaApi.tr("Imágenes", "Images")
                 font.pixelSize: Appearance.font.pixelSize.normal
                 font.weight: Font.Bold
                 color: OmniaTheme.ink
@@ -53,13 +53,13 @@ Flickable {
                     spacing: 6
                     StyledText {
                         Layout.fillWidth: true
-                        text: "Artwork gestionado por Omnia"
+                        text: OmniaApi.tr("Artwork gestionado por Omnia", "Artwork managed by Omnia")
                         font.weight: Font.DemiBold
                         color: OmniaTheme.ink
                     }
                     StyledText {
                         Layout.fillWidth: true
-                        text: "Las portadas, fondos y logos publicados se cargan desde omnia-backend. No necesitas una clave API de proveedor."
+                        text: OmniaApi.tr("Las portadas, fondos y logos publicados se cargan desde omnia-backend. No necesitas una clave API de proveedor.", "Published covers, backgrounds, and logos come from omnia-backend. No provider API key is required.")
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         color: OmniaTheme.inkDim
                         wrapMode: Text.Wrap
@@ -72,7 +72,7 @@ Flickable {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 6
-            StyledText { text: "Activación"; font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.Bold; color: OmniaTheme.ink }
+            StyledText { text: OmniaApi.tr("Activación", "Activation"); font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.Bold; color: OmniaTheme.ink }
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: actCol.implicitHeight + 28
@@ -88,10 +88,10 @@ Flickable {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 6
-                        StyledText { text: "Abrir el panel desde"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Abrir el panel desde", "Open the panel from"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                         OmniaSegmented {
                             Layout.fillWidth: true
-                            options: [{ label: "Barra superior", value: "bar" }, { label: "Borde de pantalla", value: "edge" }, { label: "Ambos", value: "both" }]
+                            options: [{ label: OmniaApi.tr("Barra superior", "Top bar"), value: "bar" }, { label: OmniaApi.tr("Borde de pantalla", "Screen edge"), value: "edge" }, { label: OmniaApi.tr("Ambos", "Both"), value: "both" }]
                             current: OmniaSettings.activation
                             onPicked: v => OmniaSettings.set("activation", v)
                         }
@@ -100,10 +100,10 @@ Flickable {
                         Layout.fillWidth: true
                         spacing: 6
                         visible: OmniaSettings.edgeEnabled
-                        StyledText { text: "Borde"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Borde", "Edge"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                         OmniaSegmented {
                             Layout.fillWidth: true
-                            options: [{ label: "Izquierdo", value: "left" }, { label: "Derecho", value: "right" }, { label: "Superior", value: "top" }, { label: "Inferior", value: "bottom" }]
+                            options: [{ label: OmniaApi.tr("Izquierdo", "Left"), value: "left" }, { label: OmniaApi.tr("Derecho", "Right"), value: "right" }, { label: OmniaApi.tr("Superior", "Top"), value: "top" }, { label: OmniaApi.tr("Inferior", "Bottom"), value: "bottom" }]
                             current: OmniaSettings.edgeSide
                             onPicked: v => OmniaSettings.set("edgeSide", v)
                         }
@@ -112,10 +112,10 @@ Flickable {
                         Layout.fillWidth: true
                         spacing: 6
                         visible: OmniaSettings.edgeEnabled
-                        StyledText { text: "Posición en el borde"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Posición en el borde", "Position at edge"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                         OmniaSegmented {
                             Layout.fillWidth: true
-                            options: [{ label: "Inicio", value: "start" }, { label: "Centro", value: "center" }, { label: "Fin", value: "end" }]
+                            options: [{ label: OmniaApi.tr("Inicio", "Start"), value: "start" }, { label: OmniaApi.tr("Centro", "Center"), value: "center" }, { label: OmniaApi.tr("Fin", "End"), value: "end" }]
                             current: OmniaSettings.edgePosition
                             onPicked: v => OmniaSettings.set("edgePosition", v)
                         }
@@ -124,7 +124,7 @@ Flickable {
                         Layout.fillWidth: true
                         spacing: 6
                         visible: OmniaSettings.edgeEnabled
-                        StyledText { text: "Retraso al acercar el puntero"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Retraso al acercar el puntero", "Pointer activation delay"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                         OmniaSegmented {
                             Layout.fillWidth: true
                             options: [{ label: "150 ms", value: 150 }, { label: "300 ms", value: 300 }, { label: "500 ms", value: 500 }, { label: "800 ms", value: 800 }]
@@ -138,10 +138,10 @@ Flickable {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 2
-                            StyledText { text: "Desenfoque del escritorio"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                            StyledText { text: OmniaApi.tr("Desenfoque del escritorio", "Desktop blur"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                             StyledText {
                                 Layout.fillWidth: true
-                                text: "Translucidez con desenfoque de Hyprland. Sin él, el panel es casi opaco."
+                                text: OmniaApi.tr("Translucidez con desenfoque de Hyprland. Sin él, el panel es casi opaco.", "Translucency uses Hyprland blur. With blur disabled, the panel is nearly opaque.")
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: OmniaTheme.inkDim
                                 wrapMode: Text.Wrap
@@ -155,10 +155,10 @@ Flickable {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 2
-                            StyledText { text: "Preguntar al conectar un mando"; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+                            StyledText { text: OmniaApi.tr("Preguntar al conectar un mando", "Prompt when a controller connects"); font.weight: Font.DemiBold; color: OmniaTheme.ink }
                             StyledText {
                                 Layout.fillWidth: true
-                                text: "Al conectar un mando aparece «¿Abrir Omnia?»: A abre Big Mode y B lo descarta."
+                                text: OmniaApi.tr("Al conectar un mando aparece «¿Abrir Omnia?»: A abre Big Mode y B lo descarta.", "Connecting a controller shows an Open Omnia prompt. A opens Big Mode and B dismisses it.")
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: OmniaTheme.inkDim
                                 wrapMode: Text.Wrap
@@ -174,7 +174,7 @@ Flickable {
             Layout.fillWidth: true
             Layout.bottomMargin: 4
             horizontalAlignment: Text.AlignHCenter
-            text: "Omnia · núcleo " + (OmniaApi.status === "error" ? "desconectado" : "conectado") + " · ajustes en ~/.config/omnia"
+            text: OmniaApi.tr("Omnia · núcleo ", "Omnia · core ") + (OmniaApi.status === "error" ? OmniaApi.tr("desconectado", "disconnected") : OmniaApi.tr("conectado", "connected")) + OmniaApi.tr(" · ajustes en ~/.config/omnia", " · settings in ~/.config/omnia")
             font.pixelSize: Appearance.font.pixelSize.smaller
             color: OmniaTheme.inkDim
         }

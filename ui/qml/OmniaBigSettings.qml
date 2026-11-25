@@ -304,7 +304,7 @@ Item {
     }
 
     // ---------------- interfaz ----------------
-    Rectangle { anchors.fill: parent; color: set.host.base }
+    Rectangle { anchors.fill: parent; color: set.host.pageShade }
     Rectangle {
         id: backB
         x: set.s * 48; y: set.s * 30
@@ -377,9 +377,9 @@ Item {
                 visible: !row.header
                 anchors.fill: parent
                 radius: set.s * 22
-                color: Qt.rgba(0.082, 0.114, 0.153, row.focusRow ? 0.98 : 0.88)
+                color: row.focusRow ? set.host.surfaceFocus : set.host.surface
                 border.width: row.focusRow ? Math.max(2, set.s * 3) : 1
-                border.color: row.focusRow ? set.host.ring : Qt.rgba(1, 1, 1, 0.10)
+                border.color: row.focusRow ? set.host.ring : set.host.surfaceBorder
                 Image {
                     id: accountLogo
                     visible: row.modelData.id === "store-account"

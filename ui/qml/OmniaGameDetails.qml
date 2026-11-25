@@ -474,7 +474,7 @@ Item {
             width: det.s * 380
             height: mcol.implicitHeight + det.s * 16
             radius: det.s * 18
-            color: Qt.rgba(0.082, 0.114, 0.153, 0.98)
+            color: det.host.surfaceFocus
             border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.14)
             Column {
                 id: mcol

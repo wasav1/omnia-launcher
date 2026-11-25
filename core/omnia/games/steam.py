@@ -36,6 +36,37 @@ def library_dirs(root: Path) -> list:
     return [d for d in dirs if d.is_dir()]
 
 
+def download_jobs(home: Path | None = None) -> list:
+    """Read Steam's active download counters without managing its queue."""
+    jobs = {}
+    for root in steam_roots(home):
+        for library in library_dirs(root):
+            for manifest in library.glob("appmanifest_*.acf"):
+                try:
+                    app = parse_vdf(manifest.read_text(encoding="utf-8", errors="replace")).get("AppState", {})
+                    appid, title = app["appid"], app["name"]
+                    flags = int(app.get("StateFlags", 0))
+                    total = int(app.get("BytesToDownload", 0))
+                    done = int(app.get("BytesDownloaded", 0))
+                    stage_total = int(app.get("BytesToStage", 0))
+                    staged = int(app.get("BytesStaged", 0))
+                except (OSError, KeyError, ValueError, TypeError, AttributeError):
+                    continue
+                if not re.fullmatch(r"[0-9]{1,10}", appid) or SKIP.search(title):
+                    continue
+                # Downloading / preallocating / committing / staging are Steam's active transfer flags.
+                active = flags & (1048576 | 65536 | 131072 | 2097152)
+                if not active:
+                    continue
+                progress = (min(99, max(0, done + staged) * 100 // (total + stage_total))
+                            if total + stage_total > 0 else 0)
+                status = "finalizing" if active & (131072 | 2097152) and done >= total else "downloading"
+                jobs[appid] = {"id": f"steam-transfer-{appid}", "name": title, "status": status,
+                               "progress": progress, "source": "steam", "external": True,
+                               "destination": str(library)}
+    return list(jobs.values())
+
+
 class SteamDetector(Detector):
     name = "steam"
     label = "Steam"

@@ -372,8 +372,9 @@ Item {
                     }
                     Grid {
                         id: installedGrid
-                        width: parent.width
-                        readonly property real gap: ml.s * 16
+                        x: ml.s * 10
+                        width: parent.width - 2 * x
+                        readonly property real gap: ml.s * 17
                         readonly property real cardWidth: (width - gap * (columns - 1)) / columns
                         columns: Math.max(1, Math.floor((width + gap) / (ml.s * 185 + gap)))
                         spacing: gap
@@ -381,6 +382,7 @@ Item {
                             model: ml.installedIds
                             delegate: ManagerPosterCard {
                                 id: installedCard
+                                viewport: summaryScroll.contentItem
                                 required property string modelData
                                 readonly property var game: ml.gameById.get(modelData)
                                 readonly property var origin: game ? manager.sourceForGame(game) : null

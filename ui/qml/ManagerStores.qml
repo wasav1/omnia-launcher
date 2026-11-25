@@ -16,6 +16,17 @@ Item {
     property var stores: []                               // estado que devuelve /stores
     property var remote: ({})                             // id de tienda -> juegos de su biblioteca en línea
     property var loading: ({})
+    property bool checking: false
+    property var refreshAfterCheck: null
+    property bool ready: false
+    property var batch: ({})
+    readonly property bool loadingContent: !ready || checking || Object.keys(loading).length > 0
+    function publishBatch() {
+        if (checking || Object.keys(loading).length) return
+        remote = Object.assign({}, remote, batch)
+        batch = ({})
+        ready = true
+    }
     property string message: ""
     property bool accountsOpen: false
     property string linking: ""                           // tienda cuyo inicio de sesión está en curso
@@ -76,19 +87,34 @@ Item {
     }
     function open() { refreshStores() }
     function refreshStores(done) {
+        if (checking) {
+            if (done) refreshAfterCheck = done
+            return
+        }
+        checking = true
         api.loadStores(function(code, body) {
-            if (code !== 200) { st.message = qsTr("No se pudo consultar las tiendas."); if (done) done(); return }
-            st.stores = body.stores || []
-            if (done) done()                                   // después de actualizar `stores`, para que la fila ya muestre el estado nuevo
-            st.stores.forEach(function(x) { if (x.logged_in && !st.remote[x.id] && !st.loading[x.id]) st.loadLibrary(x.id) })
+            if (code !== 200) st.message = qsTr("No se pudo consultar las tiendas.")
+            else {
+                st.stores = body.stores || []
+                st.stores.forEach(function(x) { if (x.logged_in && !st.remote[x.id] && !st.loading[x.id]) st.loadLibrary(x.id) })
+            }
+            st.checking = false
+            st.publishBatch()
+            if (done) done()
+            if (st.refreshAfterCheck) {
+                const after = st.refreshAfterCheck
+                st.refreshAfterCheck = null
+                st.refreshStores(after)
+            }
         })
     }
     function loadLibrary(sid) {
         const l = Object.assign({}, st.loading); l[sid] = true; st.loading = l
         api.storeLibrary(sid, function(code, body) {
             const l2 = Object.assign({}, st.loading); delete l2[sid]; st.loading = l2
-            if (code === 200) { const r = Object.assign({}, st.remote); r[sid] = body.games || []; st.remote = r }
+            if (code === 200) { const r = Object.assign({}, st.batch); r[sid] = body.games || []; st.batch = r }
             else st.message = body.error || qsTr("No se pudo leer la biblioteca de %1.").arg(st.names[sid])
+            st.publishBatch()
         })
     }
     function webLogin(sid, url) {

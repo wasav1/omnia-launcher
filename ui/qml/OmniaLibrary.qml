@@ -26,7 +26,10 @@ Item {
 
     // ---- paleta Omnia oscuro
     readonly property color base: "#0B0F14"
-    readonly property color surface: "#151D27"
+    readonly property color surface: "#28FFFFFF"
+    readonly property color surfaceBorder: "#35FFFFFF"
+    readonly property color surfaceFocus: "#403A5E85"
+    readonly property color pageShade: "#730A1017"
     readonly property color ink: "#F0F3F7"
     readonly property color ink2: "#B8C3D0"
     readonly property color accent: "#336599"
@@ -1106,11 +1109,12 @@ Item {
             readonly property bool sel: index === lib.index
             width: lib.libraryCoverWidth
             height: shelf.height
+            z: card.sel ? 2 : cardMa.containsMouse ? 1 : 0
             Item {
                 id: face
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: shelf.reflectH + (card.sel ? lib.s * 8 : 0) }
                 height: card.sel ? lib.libraryFocusedCoverHeight : lib.libraryCoverHeight
-                scale: cardMa.containsMouse && !card.sel ? 1.02 : 1
+                scale: card.sel ? 1.038 : cardMa.containsMouse ? 1.025 : 1
                 // rebote al cambiar de selección: la seleccionada sube con sobreimpulso y se asienta
                 Behavior on height { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.6 } }
                 Behavior on anchors.bottomMargin { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 3.2 } }
@@ -1152,10 +1156,10 @@ Item {
                 Rectangle {      // anillo de selección
                     anchors.fill: parent
                     radius: lib.s * 22
-                    color: "transparent"
-                    border.width: card.sel ? Math.max(2, lib.s * 4) : 0
-                    border.color: lib.ring
-                    opacity: card.sel ? 1 : 0
+                    color: "#243DD8D0"
+                    border.width: card.sel ? Math.max(2, lib.s * 4) : Math.max(1, lib.s * 2)
+                    border.color: card.sel ? lib.ring : "#6CE2DC"
+                    opacity: card.sel || cardMa.containsMouse ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 140 } }
                 }
                 Rectangle {      // «en ejecución»

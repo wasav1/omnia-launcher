@@ -45,6 +45,7 @@ from .events import EventBus
 from .games import refresh as games_refresh
 from . import descriptor, mangohud, sounds
 from .games.base import Detector
+from .games.steam import download_jobs as steam_download_jobs
 from .store import load_json
 from .themes import accent_for, normalize_theme
 
@@ -745,7 +746,7 @@ class Api:
             raise ApiError(400, str(e))
 
     def stores_news(self, q):
-        return self.store_news.snapshot(self.store.games())
+        return self.store_news.snapshot(self.store.games(), q.get("lang", "es"))
 
     def stores_library(self, q):
         from .stores.base import StoreError
@@ -775,7 +776,7 @@ class Api:
 
     def installations_snapshot(self, q):
         snap = self.package_installs.snapshot()
-        snap["jobs"] = snap["jobs"] + self._store_installs().jobs()
+        snap["jobs"] = snap["jobs"] + self._store_installs().jobs() + steam_download_jobs()
         return snap
 
     def stores_install(self, q):

@@ -10,9 +10,30 @@ Column {
     property bool active: false
     property bool controllerFocused: false
     property real uiScale: manager.s
-    readonly property bool canOpen: !!current?.url && slide.opacity === 1
+    property real bannerHeight: uiScale * 210
+    property int direction: 1
+    property bool opening: false
+    readonly property bool canOpen: !!current?.url && slide.opacity === 1 && !opening
+    signal openGame(var game)
     function openCurrent() {
-        if (canOpen) Qt.openUrlExternally(current.url)
+        if (!canOpen) return
+        const article = current
+        if (!article.slug) {
+            Qt.openUrlExternally(article.url)
+            return
+        }
+        opening = true
+        api.catalogGame(article.slug, function(status, body) {
+            news.opening = false
+            if (!news.active) return
+            if (status === 200 && body?.data) news.openGame(body.data)
+            else Qt.openUrlExternally(article.url)
+        })
+    }
+    function advance(step) {
+        if (items.length < 2 || transitionSlide.running) return
+        direction = step
+        transitionSlide.start()
     }
     property var items: []
     property var pendingItems: null
@@ -24,11 +45,14 @@ Column {
 
     function refresh() {
         if (!api || busy) return
+        const language = api.language || "es"
         busy = true
-        api.call("GET", "/stores/news", function(status, body) {
+        api.call("GET", "/stores/news?lang=" + language, function(status, body) {
             news.busy = false
+            if (language !== (news.api.language || "es")) { news.refresh(); return }
             news.loading = status === 200 && !!body.loading
             if (status !== 200 || !Array.isArray(body.items)) return
+            if (news.loading && news.items.length) return
             if (news.items.length <= 1) {
                 news.items = body.items
                 news.currentIndex = 0
@@ -40,6 +64,11 @@ Column {
 
     Component.onCompleted: if (active) refresh()
     onActiveChanged: if (active) refresh()
+    Connections {
+        target: news.api
+        ignoreUnknownSignals: true
+        function onLanguageChanged() { if (news.active) news.refresh() }
+    }
     Timer {
         interval: news.loading ? 2000 : 60000
         repeat: true
@@ -49,12 +78,12 @@ Column {
     Timer {
         interval: 10000
         repeat: true
-        running: news.active && news.items.length > 1
-        onTriggered: rotation.start()
+        running: news.active && news.items.length > 1 && !news.controllerFocused
+        onTriggered: news.advance(1)
     }
 
     Text {
-        text: qsTr("Novedades de tiendas")
+        text: qsTr("Novedades")
         color: news.manager.ink
         font.family: "Hanken Grotesk"
         font.pixelSize: news.uiScale * 17
@@ -64,7 +93,7 @@ Column {
     Rectangle {
         id: banner
         width: parent.width
-        height: news.uiScale * 210
+        height: news.bannerHeight
         radius: news.uiScale * 15
         color: "#172938"
         clip: true
@@ -101,8 +130,10 @@ Column {
                 spacing: news.uiScale * 5
                 Text {
                     visible: !!news.current
-                    text: news.current ? ({steam: "Steam", gog: "GOG", epic: "Epic Games Store", amazon: "Amazon Game Studios"})[news.current.source]
-                        + (news.current.game ? " · " + news.current.game : "") : ""
+                    text: news.current ? ({steam: "Steam", gog: "GOG", epic: "Epic Games Store", amazon: "Amazon Game Studios", omnia: "Omnia"})[news.current.source]
+                        + (news.current.game ? " · " + news.current.game : "")
+                        + ((news.api.language === "es" && news.current.originalLanguage === "en")
+                           ? " · " + qsTr("En inglés") : "") : ""
                     textFormat: Text.PlainText
                     color: "#A2E5E2"
                     font.pixelSize: news.uiScale * 13
@@ -119,8 +150,19 @@ Column {
                     wrapMode: Text.Wrap
                     elide: Text.ElideRight
                 }
+                Text {
+                    visible: !!news.current?.summary
+                    width: parent.width * 0.86
+                    text: news.current?.summary || ""
+                    textFormat: Text.PlainText
+                    color: news.manager.ink
+                    font.pixelSize: news.uiScale * 14
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
                 Button {
-                    text: qsTr("Leer noticia")
+                    text: news.current?.slug ? qsTr("Ver ficha") : qsTr("Leer noticia")
                     visible: !!news.current
                     enabled: news.canOpen
                     highlighted: news.controllerFocused
@@ -136,7 +178,7 @@ Column {
             visible: news.controllerFocused
         }
         SequentialAnimation {
-            id: rotation
+            id: transitionSlide
             NumberAnimation { target: slide; property: "opacity"; to: 0; duration: 230 }
             ScriptAction {
                 script: {
@@ -146,7 +188,8 @@ Column {
                         news.pendingItems = null
                     }
                     const index = news.items.findIndex(item => item.url === previous)
-                    news.currentIndex = (index + 1) % Math.max(1, news.items.length)
+                    const size = Math.max(1, news.items.length)
+                    news.currentIndex = (Math.max(0, index) + news.direction + size) % size
                 }
             }
             NumberAnimation { target: slide; property: "opacity"; to: 1; duration: 270 }

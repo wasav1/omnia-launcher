@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Common
 import qs.Widgets
@@ -11,6 +12,17 @@ PluginComponent {
     id: root
 
     readonly property string dir: Qt.resolvedUrl(".").toString().replace("file://", "")
+    property string language: Qt.locale().name.startsWith("en") ? "en" : "es"
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omnia/config.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.language = JSON.parse(text()).language === "en" ? "en" : "es"; }
+            catch (error) {}
+        }
+    }
     property bool padOn: false
     property string padName: ""
     property int padLevel: -1
@@ -28,7 +40,7 @@ PluginComponent {
         if (n.indexOf("steam") >= 0 || n.indexOf("deck") >= 0) return "Steam Deck";
         if (n.indexOf("xbox") >= 0) return "Xbox";
         const words = padName.split(/\s+/).filter(w => w);
-        return words.length ? words.slice(0, 2).join(" ") : "Mando";
+        return words.length ? words.slice(0, 2).join(" ") : root.language === "en" ? "Controller" : "Mando";
     }
     readonly property string batteryIcon: {
         if (padCharging) return "battery_charging_full";

@@ -421,10 +421,40 @@ def game_art_urls(game) -> dict:
     return urls
 
 
-def download_artwork(url: str, *, opener=None, provider=False) -> tuple[bytes, str]:
+_NEWS_ART_HOSTS = {
+    "cdn.cloudflare.steamstatic.com", "clan.cloudflare.steamstatic.com", "clan.akamai.steamstatic.com",
+    "shared.fastly.steamstatic.com", "cdn1.epicgames.com", "cdn2.unrealengine.com",
+    "images.gog.com", "images.gog-statics.com", "images-1.gog-statics.com", "images-2.gog-statics.com",
+    "www.amazongamestudios.com",
+    "images.ctfassets.net", "m.media-amazon.com",
+}
+
+
+def is_news_art(url) -> bool:
+    if not isinstance(url, str) or len(url) > 1600 or any(char.isspace() for char in url):
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        return (parsed.scheme == "https" and parsed.netloc in _NEWS_ART_HOSTS
+                and parsed.path.startswith("/") and not parsed.fragment)
+    except ValueError:
+        return False
+
+
+class _NewsArtRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not is_news_art(newurl):
+            raise CatalogError("La imagen de noticias se redirigió fuera de los orígenes permitidos.")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def download_artwork(url: str, *, opener=None, provider=False, news=False) -> tuple[bytes, str]:
     """Descarga una imagen de Omnia o de un CDN oficial de tienda permitido, sin reenviar credenciales."""
     parsed = urllib.parse.urlsplit(url)
-    trusted_store_cdn = _is_store_art_url(url)
+    trusted_news_cdn = news and is_news_art(url)
+    trusted_store_cdn = _is_store_art_url(url) or trusted_news_cdn
+    if trusted_news_cdn and opener is None:
+        opener = urllib.request.build_opener(_NewsArtRedirect()).open
     trusted_provider = provider and _is_option_url(url)
     if not trusted_store_cdn and not trusted_provider and (parsed.scheme != "https" or parsed.netloc != urllib.parse.urlsplit(PUBLIC_ORIGIN).netloc or not parsed.path.startswith("/api/v1/artwork/")):
         raise CatalogError("La URL de imagen no pertenece al backend de Omnia.")
@@ -433,7 +463,7 @@ def download_artwork(url: str, *, opener=None, provider=False) -> tuple[bytes, s
         with (opener or urllib.request.urlopen)(request, timeout=TIMEOUT) as response:
             final = urllib.parse.urlsplit(response.geturl())
             final_url = response.geturl()
-            final_store_cdn = _is_store_art_url(final_url)
+            final_store_cdn = _is_store_art_url(final_url) or (news and is_news_art(final_url))
             if trusted_provider and not _is_option_url(final_url):
                 raise CatalogError("La imagen se redirigió fuera de SteamGridDB.")
             if final.scheme != "https" or not (final.netloc == parsed.netloc or final_store_cdn or (not trusted_store_cdn and _is_art_cdn(final.hostname))):
@@ -485,7 +515,7 @@ def install_package(slug: str, package_id: str, *, opener=None) -> dict | None:
 # ---- caché local de artwork: las imágenes se descargan una vez y la interfaz las lee como archivos locales
 _EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 _ART_LOCK = threading.Lock()
-_ART_QUEUE: list[str] = []
+_ART_QUEUE: list[tuple[str, bool]] = []
 _ART_SEEN: dict[str, float] = {}       # url -> instante del último intento (evita reintentos inmediatos)
 _ART_WORKER: list[threading.Thread] = []
 
@@ -508,12 +538,11 @@ def cached_artwork_path(url: str, base: Path | None = None) -> Path | None:
     return None
 
 
-def store_artwork(url: str, *, base: Path | None = None, opener=None, provider=False) -> Path:
+def store_artwork(url: str, *, base: Path | None = None, opener=None, provider=False, news=False) -> Path:
     cached = cached_artwork_path(url, base)
     if cached:
         return cached
-    raw, mime = (download_artwork(url, opener=opener, provider=True) if provider
-                 else download_artwork(url, opener=opener))
+    raw, mime = download_artwork(url, opener=opener, provider=provider, news=news)
     folder = art_cache_dir(base)
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / (_art_stem(url) + _EXT[mime])
@@ -524,8 +553,9 @@ def store_artwork(url: str, *, base: Path | None = None, opener=None, provider=F
     return target
 
 
-def _is_art_url(url) -> bool:
-    return (isinstance(url, str) and url.startswith(PUBLIC_ORIGIN + "/api/v1/artwork/")) or _is_store_art_url(url)
+def _is_art_url(url, *, news=False) -> bool:
+    return ((isinstance(url, str) and url.startswith(PUBLIC_ORIGIN + "/api/v1/artwork/"))
+            or _is_store_art_url(url) or (news and is_news_art(url)))
 
 
 def _art_loop():
@@ -534,34 +564,34 @@ def _art_loop():
             if not _ART_QUEUE:
                 _ART_WORKER.clear()
                 return
-            url = _ART_QUEUE.pop(0)
+            url, news = _ART_QUEUE.pop(0)
         try:
-            store_artwork(url)
+            store_artwork(url, news=news)
         except (CatalogError, OSError, KeyError):
             pass
 
 
-def prefetch_artwork(urls) -> None:
+def prefetch_artwork(urls, *, news=False) -> None:
     """Pone en cola, sin bloquear, las imágenes del backend que aún no están en caché (reintento tras 10 min)."""
     now = time.monotonic()
     with _ART_LOCK:
         for url in urls:
-            if _is_art_url(url) and url not in _ART_QUEUE and now - _ART_SEEN.get(url, -1e9) > 600 \
+            if _is_art_url(url, news=news) and (url, news) not in _ART_QUEUE and now - _ART_SEEN.get(url, -1e9) > 600 \
                     and not cached_artwork_path(url):
                 _ART_SEEN[url] = now
-                _ART_QUEUE.append(url)
+                _ART_QUEUE.append((url, news))
         if _ART_QUEUE and not _ART_WORKER:
             worker = threading.Thread(target=_art_loop, name="omnia-art-prefetch", daemon=True)
             _ART_WORKER.append(worker)
             worker.start()
 
 
-def local_or_remote(url: str) -> str:
+def local_or_remote(url: str, *, news=False) -> str:
     """file:// si la imagen ya está en caché; si no, la URL remota y se encola su descarga."""
-    local = cached_artwork_path(url) if _is_art_url(url) else None
+    local = cached_artwork_path(url) if _is_art_url(url, news=news) else None
     if local:
         return "file://" + str(local)
-    prefetch_artwork([url])
+    prefetch_artwork([url], news=news)
     return url
 
 

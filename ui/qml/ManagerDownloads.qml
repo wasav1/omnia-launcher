@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 
 // Descargas e instalaciones de la app de escritorio. Pantalla propia con dos pestañas:
 //  · En curso: lo que se descarga o instala ahora, y lo que falló (con Reintentar y Descartar). Un éxito se quita solo a los pocos segundos.
@@ -75,7 +74,7 @@ Item {
                 anchors { left: parent.left; right: actions.left; verticalCenter: parent.verticalCenter; leftMargin: dl.s * 20; rightMargin: dl.s * 12 }
                 spacing: dl.s * 8
                 Text { width: parent.width; elide: Text.ElideRight; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 15; font.weight: Font.DemiBold
-                       text: card.modelData.name + "  ·  " + dl.statusLabel(card.modelData.status) }
+                       text: card.modelData.name + (card.modelData.external ? "  ·  Steam" : "") + "  ·  " + dl.statusLabel(card.modelData.status) }
                 Rectangle {
                     visible: !card.bad
                     width: parent.width; height: dl.s * 6; radius: height / 2; color: manager.surface2
@@ -93,7 +92,9 @@ Item {
                 Repeater {
                     model: {
                         const m = card.modelData, out = []
-                        if (card.busy) {
+                        if (m.external) {
+                            out.push({ k: "steam", l: qsTr("Abrir descargas de Steam"), c: "s2" })
+                        } else if (card.busy) {
                             out.push({ k: m.status === "paused" ? "resume" : "pause", l: m.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"), c: "s2" })
                             out.push({ k: "cancel", l: qsTr("Cancelar"), c: "danger" })
                         } else if (card.bad) {
@@ -119,6 +120,7 @@ Item {
                                     dl.refresh()
                                 }
                                 switch (btn.modelData.k) {
+                                case "steam": Qt.openUrlExternally("steam://nav/downloads"); break
                                 case "pause": dl.api.pauseInstallation(id, done); break
                                 case "resume": dl.api.resumeInstallation(id, done); break
                                 case "cancel": dl.api.cancelInstallation(id, done); break

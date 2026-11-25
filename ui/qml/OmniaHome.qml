@@ -142,18 +142,9 @@ Item {
     function closeCatalogDetails() { detail = null; detailLoading = false }
     // ---------- carrusel automático, juego actual y mosaico de accesos ----------
     property int zone: 1                    // 0 carrusel, 1 «seguir jugando» + mosaico
-    property int slide: 0                   // diapositiva que toca mostrar
-    property int shown: 0                   // diapositiva visible (cambia a mitad del fundido)
     property int gridRow: 0
     property int gridCol: 0
     readonly property var heroLocal: localFeaturedGame()
-    readonly property var slides: {
-        const items = (catalog || []).slice(0, 6).map(g => ({ kind: "catalog", game: g }))
-        if (items.length) return items
-        // sin catálogo (sin conexión o vacío): los juegos recientes que tengan arte
-        return recentGames().filter(g => g.fondo || g.portada).slice(0, 5).map(g => ({ kind: "local", game: g }))
-    }
-    readonly property var currentSlide: slides.length ? slides[Math.max(0, Math.min(shown, slides.length - 1))] : null
     readonly property var heroActions: heroLocal ? [{ id: "play", label: heroLocal.portAvailable ? qsTr("Instalar port") : qsTr("Jugar") }, { id: "library", label: qsTr("Detalles") }]
                                                  : [{ id: "library", label: qsTr("Abrir biblioteca") }]
     readonly property int favoriteCount: (localGames || []).filter(g => g.fav && !g.hidden).length
@@ -165,43 +156,23 @@ Item {
         { id: "settings", icon: "settings", title: qsTr("Ajustes"), sub: qsTr("Mando, idioma y biblioteca") }
     ]
     readonly property string acceptLabel: {
-        if (zone === 0) return currentSlide && currentSlide.kind === "catalog" ? qsTr("Ver ficha") : (currentSlide && currentSlide.game && currentSlide.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"))
+        if (zone === 0) return carousel.current?.slug ? qsTr("Ver ficha") : qsTr("Leer noticia")
         if (gridCol < 2) return heroActions[Math.min(gridCol, heroActions.length - 1)].label
         return qsTr("Abrir")
-    }
-    // El carrusel avanza solo cada 8 s; se detiene mientras el foco está sobre él o hay una ficha abierta.
-    Timer {
-        id: autoSlide
-        interval: 8000; repeat: true
-        running: home.visible && home.slides.length > 1 && home.zone !== 0 && home.detail === null
-        onTriggered: home.goSlide(home.slide + 1)
-    }
-    SequentialAnimation {
-        id: slideFade
-        NumberAnimation { target: slideView; property: "opacity"; to: 0; duration: 140 }
-        ScriptAction { script: home.shown = home.slide }
-        NumberAnimation { target: slideView; property: "opacity"; to: 1; duration: 220 }
-    }
-    onSlidesChanged: { if (slide >= slides.length) { slide = 0; shown = 0 } }
-    function goSlide(i) {
-        if (slides.length < 2) return
-        slide = (i + slides.length) % slides.length
-        slideFade.restart()
-        autoSlide.restart()
     }
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
     function cellExists(r, c) { return c < 2 ? (r === 0 && c < heroActions.length) : true }
     onZoneChanged: Qt.callLater(function() { page.reveal(zone === 0 ? carousel : bottomRow) })
     function nav(dir) {
         if (zone === 0) {
-            if (dir === "left") goSlide(slide - 1)
-            else if (dir === "right") goSlide(slide + 1)
+            if (dir === "left") carousel.advance(-1)
+            else if (dir === "right") carousel.advance(1)
             else if (dir === "down") { zone = 1; gridRow = 0; gridCol = cellExists(0, 0) ? 0 : 2 }
             return
         }
         if (dir === "up") {
             if (gridRow === 1) gridRow = 0
-            else if (slides.length) zone = 0
+            else if (carousel.current) zone = 0
         } else if (dir === "down") {
             if (gridRow === 0 && cellExists(1, gridCol)) gridRow = 1
         } else {
@@ -213,10 +184,7 @@ Item {
     }
     function accept() {
         if (zone === 0) {
-            const s = currentSlide
-            if (!s) return
-            if (s.kind === "catalog") openCatalogDetails(s.game)
-            else playLocalGame(s.game.id)
+            carousel.openCurrent()
             return
         }
         if (gridCol < 2) {
@@ -259,7 +227,7 @@ Item {
         xbox: "#4aa54a", x360: "#4aa54a", xseries: "#4aa54a", gba: "#8a6bd0", gb: "#8a6bd0", gbc: "#8a6bd0", nds: "#8a6bd0", "3ds": "#8a6bd0",
         gamecube: "#7a6bd0", wii: "#6bb0d0", wiiu: "#6bb0d0", snes: "#b0907a", nes: "#b0907a", genesis: "#4a8fd9", saturn: "#4a8fd9", dreamcast: "#e08a4a" })
     readonly property color effectTint: {
-        const slug = currentSlide ? platformSlug(currentSlide.game) : (heroLocal ? platformSlug(heroLocal) : "")
+        const slug = carousel.current?.slug ? "sw2" : platformSlug(heroLocal)
         return platformTints[slug] || "#336599"
     }
     readonly property var catalogIcons: ({ switch: "sw1", switch2: "sw2", n64: "n64", pc: "pc", ps3: "ps3", ps4: "ps4", ps5: "ps5", sw1: "sw1", sw2: "sw2" })
@@ -287,7 +255,6 @@ Item {
         if (secs >= 60) text += " · " + (secs >= 3600 ? Math.floor(secs / 3600) + " h " + Math.round((secs % 3600) / 60) + " min" : Math.round(secs / 60) + " min")
         return text
     }
-    function slideArt(s, types) { return s ? (s.kind === "catalog" ? artwork(s.game, types) : (types[0] === "hero" ? (s.game.fondo || s.game.portada || "") : (s.game.portada || ""))) : "" }
 
     // El contenido solo se desplaza (rueda o arrastre) cuando no cabe en la pantalla.
     Flickable {
@@ -354,123 +321,22 @@ Item {
                 }
             }
 
-            // ---- carrusel de novedades (automático): sin marco, la imagen se desvanece en el fondo ----
-            Item {
+            ManagerStoreNews {
                 id: carousel
-                width: parent.width; height: home.u * 400
-                Item {
-                    id: slideView
-                    anchors.fill: parent
-                    readonly property var s: home.currentSlide
-                    readonly property string cover: home.slideArt(s, ["grid"])
-                    readonly property string slug: s ? home.platformSlug(s.game) : ""
-                    // banner: ocupa desde el 36 % hasta el final y se disuelve por los cuatro lados
-                    FadedImage {
-                        id: bannerImage
-                        x: parent.width * 0.30; width: parent.width - x; height: parent.height
-                        source: home.slideArt(slideView.s, ["hero", "grid"])
-                        fadeLeft: 0.40; fadeRight: 0.22; fadeTop: 0.22; fadeBottom: 0.30
-                        alignX: 0.5
-                        opacity: 0.6
-                        visible: ready
-                    }
-                    Text {               // sin ninguna imagen: iniciales grandes y tenues
-                        visible: !bannerImage.ready && !coverImage.ready
-                        anchors { right: parent.right; rightMargin: home.u * 90; verticalCenter: parent.verticalCenter }
-                        text: home.initials(slideView.s ? slideView.s.game.name : "")
-                        color: "#FFFFFF"; opacity: 0.07
-                        font.family: "Hanken Grotesk"; font.pixelSize: home.u * 190; font.weight: Font.Bold
-                    }
-                    // carátula: esquinas redondeadas y un halo del color de la consola en lugar de un bloque gris detrás
-                    Item {
-                        id: slideCover
-                        visible: coverImage.ready
-                        anchors { right: parent.right; rightMargin: home.u * 80; top: parent.top; topMargin: home.u * 34 }
-                        height: parent.height - home.u * 34 - home.u * 44; width: height * 2 / 3
-                        SoftShadow { radius: home.u * 14; blur: home.u * 34; offsetY: home.u * 16; shadowColor: "#B3000000" }
-                        FadedImage { id: coverImage; anchors.fill: parent; source: slideView.cover; cornerRadius: home.u * 14 }
-                    }
-                    Column {
-                        x: home.u * 40; y: home.u * 78
-                        width: parent.width * 0.5; spacing: home.u * 12
-                        Text {
-                            visible: !!slideView.s
-                            text: slideView.s && slideView.s.kind === "catalog" ? qsTr("NOVEDAD DEL CATÁLOGO") : qsTr("DE TU BIBLIOTECA")
-                            color: "#9CC8F4"
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 14; font.weight: Font.Bold; font.letterSpacing: home.u * 2
-                        }
-                        Text {
-                            width: parent.width
-                            text: slideView.s ? (slideView.s.game.name || "")
-                                : home.catalogLoading ? qsTr("Cargando novedades…")
-                                : home.offline ? qsTr("El catálogo no está disponible") : qsTr("Aún no hay novedades")
-                            color: home.ink
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 48; font.weight: Font.Bold
-                            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            visible: !!slideView.s
-                            text: slideView.s ? (slideView.s.kind === "catalog"
-                                ? [home.platforms(slideView.s.game), slideView.s.game.releaseYear || "", slideView.s.game.developer || ""].filter(x => x).join(" · ")
-                                : [slideView.s.game.sub || slideView.s.game.platform || "", home.lastPlayedText(slideView.s.game)].filter(x => x).join(" · ")) : ""
-                            color: home.ink2
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 18
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            visible: !!slideView.s && slideView.s.kind === "catalog" && !!slideView.s.game.description
-                            text: slideView.s && slideView.s.kind === "catalog" ? (slideView.s.game.description || "") : ""
-                            color: home.ink; opacity: 0.9
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16
-                            lineHeight: 1.2; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                        }
-                    }
-                    Rectangle {          // la acción principal lleva el foco del carrusel
-                        id: slideButton
-                        visible: !!slideView.s
-                        x: home.u * 40; y: parent.height - home.u * 84
-                        width: home.u * 156; height: home.u * 44; radius: height / 2
-                        readonly property bool focused: home.zone === 0
-                        scale: focused ? 1.05 : 1
-                        color: home.accent
-                        border.width: focused ? home.u * 3 : 0
-                        border.color: "#FFFFFF"
-                        Behavior on scale { NumberAnimation { duration: 120 } }
-                        Text { anchors.centerIn: parent; text: slideView.s && slideView.s.kind === "catalog" ? qsTr("Ver ficha") : (slideView.s && slideView.s.game && slideView.s.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.DemiBold }
-                    }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { home.zone = 0; home.accept() } }
+                width: parent.width
+                manager: QtObject {
+                    readonly property real s: home.u
+                    readonly property color ink: home.ink
+                    readonly property color ring: home.accent
+                    function storeLogo(source) { return Qt.resolvedUrl("images/stores/" + source + ".svg") }
                 }
-                Row {                    // indicador de diapositivas
-                    visible: home.slides.length > 1
-                    anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: home.u * 12 }
-                    spacing: home.u * 8
-                    Repeater {
-                        model: home.slides.length
-                        delegate: Rectangle {
-                            required property int index
-                            width: index === home.slide ? home.u * 26 : home.u * 9; height: home.u * 9; radius: height / 2
-                            color: index === home.slide ? "#FFFFFF" : "#66FFFFFF"
-                            Behavior on width { NumberAnimation { duration: 160 } }
-                            MouseArea { anchors.fill: parent; anchors.margins: -home.u * 6; cursorShape: Qt.PointingHandCursor; onClicked: home.goSlide(index) }
-                        }
-                    }
-                }
-                Repeater {               // flechas discretas cuando el carrusel tiene el foco
-                    model: [{ side: -1, glyph: "‹" }, { side: 1, glyph: "›" }]
-                    delegate: Text {
-                        required property var modelData
-                        visible: home.zone === 0 && home.slides.length > 1
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: modelData.side < 0 ? home.u * 6 : parent.width - width - home.u * 6
-                        text: modelData.glyph; color: "#FFFFFF"; opacity: 0.55
-                        font.family: "Hanken Grotesk"; font.pixelSize: home.u * 54
-                    }
-                }
+                api: home.api
+                active: home.visible
+                bannerHeight: home.u * 326
+                controllerFocused: home.zone === 0
+                onOpenGame: game => home.openCatalogDetails(game)
             }
 
-            // ---- seguir jugando + mosaico de accesos ----
             Row {
                 id: bottomRow
                 width: parent.width; spacing: home.u * 22

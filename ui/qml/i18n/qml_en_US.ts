@@ -388,6 +388,10 @@
         <source>Jugar</source>
         <translation>Play</translation>
     </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
 </context>
 <context>
     <name>ImportPanel</name>
@@ -514,6 +518,422 @@
         <location filename="../OmniaBigSettings.qml" line="68"/>
         <source>No se pudo actualizar la biblioteca.</source>
         <translation>Could not update the library.</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <translation>General</translation>
+    </message>
+    <message>
+        <source>Sonido</source>
+        <translation>Sound</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <translation>Audio</translation>
+    </message>
+    <message>
+        <source>Mandos</source>
+        <translation>Controllers</translation>
+    </message>
+    <message>
+        <source>Discord</source>
+        <translation>Discord</translation>
+    </message>
+    <message>
+        <source>Cuentas de tiendas</source>
+        <translation>Store accounts</translation>
+    </message>
+    <message>
+        <source>Automático</source>
+        <translation>Automatic</translation>
+    </message>
+    <message>
+        <source>Ajuste guardado.</source>
+        <translation>Setting saved.</translation>
+    </message>
+    <message>
+        <source>No se pudo guardar el ajuste.</source>
+        <translation>Could not save the setting.</translation>
+    </message>
+    <message>
+        <source>Fondo animado</source>
+        <translation>Animated background</translation>
+    </message>
+    <message>
+        <source>Puntos y líneas con los colores del juego. Se detiene mientras juegas.</source>
+        <translation>Dots and lines use the game’s colors. The animation pauses during gameplay.</translation>
+    </message>
+    <message>
+        <source>Buscar actualizaciones de ports</source>
+        <translation>Check for port updates</translation>
+    </message>
+    <message>
+        <source>Avisa cuando un port instalado desde el catálogo tiene una versión nueva. Nunca se actualiza sin que lo confirmes.</source>
+        <translation>Shows when a catalog port has an update. Updates require your confirmation.</translation>
+    </message>
+    <message>
+        <source>Monitor de rendimiento en los juegos</source>
+        <translation>In-game performance overlay</translation>
+    </message>
+    <message>
+        <source>Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia.</source>
+        <translation>Shows FPS, GPU, CPU, VRAM, and RAM in one Omnia-style line.</translation>
+    </message>
+    <message>
+        <source>Necesita MangoHud: instálalo desde el gestor de paquetes.</source>
+        <translation>Requires MangoHud. Install it from your package manager.</translation>
+    </message>
+    <message>
+        <source>Carpeta de instalación</source>
+        <translation>Installation folder</translation>
+    </message>
+    <message>
+        <source>Elige una carpeta existente para instalar juegos.</source>
+        <translation>Choose an existing folder to install games.</translation>
+    </message>
+    <message>
+        <source>Cambiar</source>
+        <translation>Change</translation>
+    </message>
+    <message>
+        <source>Sonidos de la interfaz</source>
+        <translation>Interface sounds</translation>
+    </message>
+    <message>
+        <source>Sonidos</source>
+        <translation>Sounds</translation>
+    </message>
+    <message>
+        <source>Al mover la selección, aceptar, volver, cambiar de página y avisos. Nunca suenan mientras juegas.</source>
+        <translation>Plays when you move, confirm, go back, turn a page, or receive a notification. Sounds are muted during gameplay.</translation>
+    </message>
+    <message>
+        <source>Volumen de los sonidos</source>
+        <translation>Sound volume</translation>
+    </message>
+    <message>
+        <source>Es independiente del volumen del sistema.</source>
+        <translation>Independent of the system volume.</translation>
+    </message>
+    <message>
+        <source>Paquete de sonidos</source>
+        <translation>Sound pack</translation>
+    </message>
+    <message>
+        <source>Cada paquete es un conjunto de sonidos distinto; se cambia al instante.</source>
+        <translation>Each pack has a different set of sounds. Changes apply immediately.</translation>
+    </message>
+    <message>
+        <source>Probar los sonidos</source>
+        <translation>Test sounds</translation>
+    </message>
+    <message>
+        <source>Reproduce los de este paquete uno tras otro.</source>
+        <translation>Play sounds from this pack one after another.</translation>
+    </message>
+    <message>
+        <source>Probar</source>
+        <translation>Test</translation>
+    </message>
+    <message>
+        <source>Bienvenida</source>
+        <translation>Welcome screen</translation>
+    </message>
+    <message>
+        <source>Tu nombre en la bienvenida</source>
+        <translation>Your name on the welcome screen</translation>
+    </message>
+    <message>
+        <source>Te saluda como «%1». Déjalo vacío para usar el nombre de tu usuario.</source>
+        <translation>Greets you as “%1”. Leave it blank to use your username.</translation>
+    </message>
+    <message>
+        <source>Ahora te saluda con el nombre de tu usuario (%1).</source>
+        <translation>You’ll now be greeted by your username (%1).</translation>
+    </message>
+    <message>
+        <source>Pantalla de bienvenida</source>
+        <translation>Welcome screen</translation>
+    </message>
+    <message>
+        <source>Animación con sonido al abrir Big Mode. Se salta pulsando cualquier tecla o botón.</source>
+        <translation>Play an animation with sound when Big Mode opens. Press any key or button to skip it.</translation>
+    </message>
+    <message>
+        <source>Ver la bienvenida otra vez</source>
+        <translation>Show the welcome screen again</translation>
+    </message>
+    <message>
+        <source>Reproducir</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>Leyendo los dispositivos de audio…</source>
+        <translation>Reading audio devices…</translation>
+    </message>
+    <message>
+        <source>Salida de audio</source>
+        <translation>Audio output</translation>
+    </message>
+    <message>
+        <source>Dispositivo</source>
+        <translation>Device</translation>
+    </message>
+    <message>
+        <source>Lo que ya suena pasa al nuevo dispositivo.</source>
+        <translation>Current playback switches to the new device.</translation>
+    </message>
+    <message>
+        <source>(ninguno)</source>
+        <translation>(none)</translation>
+    </message>
+    <message>
+        <source>Volumen</source>
+        <translation>Volume</translation>
+    </message>
+    <message>
+        <source>Silenciar la salida</source>
+        <translation>Mute output</translation>
+    </message>
+    <message>
+        <source>Micrófono</source>
+        <translation>Microphone</translation>
+    </message>
+    <message>
+        <source>No hay ningún micrófono conectado.</source>
+        <translation>No microphone connected.</translation>
+    </message>
+    <message>
+        <source>Lo que ya graba pasa al nuevo micrófono.</source>
+        <translation>Ongoing recordings switch to the new microphone.</translation>
+    </message>
+    <message>
+        <source>Volumen de entrada</source>
+        <translation>Input volume</translation>
+    </message>
+    <message>
+        <source>Silenciar el micrófono</source>
+        <translation>Mute microphone</translation>
+    </message>
+    <message>
+        <source>Buscando mandos…</source>
+        <translation>Searching for controllers…</translation>
+    </message>
+    <message>
+        <source>No hay ningún mando conectado</source>
+        <translation>No controller connected</translation>
+    </message>
+    <message>
+        <source>Conecta uno por USB o Bluetooth y aparecerá aquí.</source>
+        <translation>Connect a controller via USB or Bluetooth to see it here.</translation>
+    </message>
+    <message>
+        <source>Probar botones y sticks</source>
+        <translation>Test buttons and sticks</translation>
+    </message>
+    <message>
+        <source>Pantalla en vivo: cada botón, stick y gatillo se ilumina al usarlo.</source>
+        <translation>Live view: buttons, sticks, and triggers light up when used.</translation>
+    </message>
+    <message>
+        <source>Abrir</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <source>Probar la vibración</source>
+        <translation>Test vibration</translation>
+    </message>
+    <message>
+        <source>Si el mando no admite vibración, se avisa.</source>
+        <translation>You’ll see a message if the controller does not support vibration.</translation>
+    </message>
+    <message>
+        <source>Vibrar</source>
+        <translation>Vibrate</translation>
+    </message>
+    <message>
+        <source>Iconos de los botones</source>
+        <translation>Button icons</translation>
+    </message>
+    <message>
+        <source>Detectado: %1. «Automático» usa el del mando.</source>
+        <translation>Detected: %1. Automatic uses the controller’s icons.</translation>
+    </message>
+    <message>
+        <source>Zona muerta del stick</source>
+        <translation>Stick dead zone</translation>
+    </message>
+    <message>
+        <source>Cuánto hay que inclinar el stick para que cuente. Súbela si el cursor se mueve solo.</source>
+        <translation>How far you need to tilt the stick before it registers. Increase it if the cursor moves by itself.</translation>
+    </message>
+    <message>
+        <source>Vibración al navegar</source>
+        <translation>Vibration when navigating</translation>
+    </message>
+    <message>
+        <source>Un toque suave al aceptar y al cambiar de página (si el mando lo admite).</source>
+        <translation>A gentle pulse when you confirm or turn a page, if the controller supports it.</translation>
+    </message>
+    <message>
+        <source>Apodo del mando</source>
+        <translation>Controller nickname</translation>
+    </message>
+    <message>
+        <source>Ahora: %1</source>
+        <translation>Now: %1</translation>
+    </message>
+    <message>
+        <source>Sin apodo: se muestra el nombre del fabricante.</source>
+        <translation>Uses the manufacturer’s name when left blank.</translation>
+    </message>
+    <message>
+        <source>Consultando Discord…</source>
+        <translation>Checking Discord…</translation>
+    </message>
+    <message>
+        <source>Presencia</source>
+        <translation>Presence</translation>
+    </message>
+    <message>
+        <source>Mostrar a qué juego juego</source>
+        <translation>Show what I’m playing</translation>
+    </message>
+    <message>
+        <source>Tus amigos de Discord ven «Jugando a …» con el tiempo de partida mientras juegas desde Omnia. Es opcional y está apagado al instalar.</source>
+        <translation>Discord friends can see what you’re playing and how long you’ve played while you play through Omnia. This is optional and off by default.</translation>
+    </message>
+    <message>
+        <source>Application ID</source>
+        <translation>Application ID</translation>
+    </message>
+    <message>
+        <source>Guardado: %1</source>
+        <translation>Saved: %1</translation>
+    </message>
+    <message>
+        <source>Falta. Créalo gratis en discord.com/developers (Nueva aplicación, nómbrala «Omnia») y copia su Application ID.</source>
+        <translation>Create a free application at discord.com/developers, name it Omnia and copy its Application ID.</translation>
+    </message>
+    <message>
+        <source>Escribir</source>
+        <translation>Type</translation>
+    </message>
+    <message>
+        <source>Apagado.</source>
+        <translation>Off.</translation>
+    </message>
+    <message>
+        <source>Falta el Application ID.</source>
+        <translation>Application ID is missing.</translation>
+    </message>
+    <message>
+        <source>Conectado como %1.</source>
+        <translation>Connected as %1.</translation>
+    </message>
+    <message>
+        <source>Discord está abierto pero no aceptó la conexión; revisa el Application ID.</source>
+        <translation>Discord is open but rejected the connection. Check the Application ID.</translation>
+    </message>
+    <message>
+        <source>Abre Discord en este equipo para conectar.</source>
+        <translation>Open Discord on this computer to connect.</translation>
+    </message>
+    <message>
+        <source>Estado</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>Esperando a la tienda…</source>
+        <translation>Waiting for the store…</translation>
+    </message>
+    <message>
+        <source>Completa el inicio de sesión y copia la dirección de retorno.</source>
+        <translation>Finish signing in and copy the return URL.</translation>
+    </message>
+    <message>
+        <source>Estado sin consultar.</source>
+        <translation>Status not checked.</translation>
+    </message>
+    <message>
+        <source>La tienda no está disponible en este equipo.</source>
+        <translation>The store is unavailable on this computer.</translation>
+    </message>
+    <message>
+        <source>Conectada</source>
+        <translation>Connected</translation>
+    </message>
+    <message>
+        <source>Sin conectar</source>
+        <translation>Disconnected</translation>
+    </message>
+    <message>
+        <source>Confirmar desconexión</source>
+        <translation>Confirm disconnection</translation>
+    </message>
+    <message>
+        <source>Pegar retorno</source>
+        <translation>Paste return URL</translation>
+    </message>
+    <message>
+        <source>Desconectar</source>
+        <translation>Disconnect</translation>
+    </message>
+    <message>
+        <source>Conectar</source>
+        <translation>Connect</translation>
+    </message>
+    <message>
+        <source>Inicio de sesión del navegador</source>
+        <translation>Browser sign-in</translation>
+    </message>
+    <message>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Conectar %1 en el navegador</source>
+        <translation>Connect %1 in your browser</translation>
+    </message>
+    <message>
+        <source>Estado de las cuentas</source>
+        <translation>Account status</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>No hay otros paquetes instalados.</source>
+        <translation>No other packages installed.</translation>
+    </message>
+    <message>
+        <source>Paquete de sonidos cambiado.</source>
+        <translation>Sound pack changed.</translation>
+    </message>
+    <message>
+        <source>Todavía no hay una dirección de retorno válida en el portapapeles.</source>
+        <translation>There is no valid return URL on the clipboard yet.</translation>
+    </message>
+    <message>
+        <source>Nombre guardado.</source>
+        <translation>Name saved.</translation>
+    </message>
+    <message>
+        <source>Application ID guardado.</source>
+        <translation>Application ID saved.</translation>
+    </message>
+    <message>
+        <source>Vibrando…</source>
+        <translation>Vibrating…</translation>
+    </message>
+    <message>
+        <source>No se pudo hacer vibrar el mando.</source>
+        <translation>Could not make the controller vibrate.</translation>
+    </message>
+    <message>
+        <source>↑↓ mover · ◀ ▶ ajustar · A elegir · LB / RB cambiar de categoría · B volver</source>
+        <translation>↑↓ Move · ◀ ▶ Adjust · A Select · LB / RB Change category · B Back</translation>
     </message>
 </context>
 <context>
@@ -675,6 +1095,22 @@
         <location filename="../OmniaGameDetails.qml" line="501"/>
         <source>Volver</source>
         <translation>Back</translation>
+    </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>La última vez, el juego se cerró con este aviso: %1</source>
+        <translation>The game closed with this message last time: %1</translation>
+    </message>
+    <message>
+        <source>Este PC no cumple: %1. El juego puede no arrancar.</source>
+        <translation>This PC does not meet the following requirements: %1. The game may fail to launch.</translation>
+    </message>
+    <message>
+        <source>Tu copia del juego es de otra versión que la que acepta este port.</source>
+        <translation>Your copy of the game is a different version from the one this port supports.</translation>
     </message>
 </context>
 <context>
@@ -894,6 +1330,98 @@
         <source>No se pudo guardar la carpeta de instalación.</source>
         <translation>Could not save the installation folder.</translation>
     </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Detalles</source>
+        <translation>Details</translation>
+    </message>
+    <message>
+        <source>Abrir biblioteca</source>
+        <translation>Open library</translation>
+    </message>
+    <message>
+        <source>Biblioteca</source>
+        <translation>Library</translation>
+    </message>
+    <message>
+        <source>juego</source>
+        <translation>game</translation>
+    </message>
+    <message>
+        <source>juegos</source>
+        <translation>games</translation>
+    </message>
+    <message>
+        <source>Favoritos</source>
+        <translation>Favorites</translation>
+    </message>
+    <message>
+        <source>Aún no hay favoritos</source>
+        <translation>No favorites yet</translation>
+    </message>
+    <message>
+        <source>Sistema</source>
+        <translation>System</translation>
+    </message>
+    <message>
+        <source>Estado del equipo</source>
+        <translation>System status</translation>
+    </message>
+    <message>
+        <source>Ajustes</source>
+        <translation>Settings</translation>
+    </message>
+    <message>
+        <source>Mando, idioma y biblioteca</source>
+        <translation>Controller, language, and library</translation>
+    </message>
+    <message>
+        <source>Leer noticia</source>
+        <translation>Read article</translation>
+    </message>
+    <message>
+        <source>Abrir</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <source>Jugado hoy</source>
+        <translation>Played today</translation>
+    </message>
+    <message>
+        <source>Jugado ayer</source>
+        <translation>Played yesterday</translation>
+    </message>
+    <message>
+        <source>Novedades del catálogo y tus partidas</source>
+        <translation>Catalog news and your play sessions</translation>
+    </message>
+    <message>
+        <source>Catálogo sin conexión · datos guardados</source>
+        <translation>Catalog offline · cached data</translation>
+    </message>
+    <message>
+        <source>Reintentar</source>
+        <translation>Retry</translation>
+    </message>
+    <message>
+        <source>SEGUIR JUGANDO</source>
+        <translation>CONTINUE PLAYING</translation>
+    </message>
+    <message>
+        <source>TU BIBLIOTECA</source>
+        <translation>YOUR LIBRARY</translation>
+    </message>
+    <message>
+        <source>Aún no has jugado</source>
+        <translation>You haven’t played yet</translation>
+    </message>
+    <message>
+        <source>Abre la biblioteca para empezar.</source>
+        <translation>Open the library to get started.</translation>
+    </message>
 </context>
 <context>
     <name>OmniaLibrary</name>
@@ -1106,6 +1634,146 @@
         <location filename="../OmniaLibrary.qml" line="861"/>
         <source>Reintentar</source>
         <translation>Retry</translation>
+    </message>
+    <message>
+        <source>Carpeta de instalación guardada.</source>
+        <translation>Installation folder saved.</translation>
+    </message>
+    <message>
+        <source>No se pudo guardar la carpeta.</source>
+        <translation>Could not save the folder.</translation>
+    </message>
+    <message>
+        <source>Tienda</source>
+        <translation>Store</translation>
+    </message>
+    <message>
+        <source>Actualizado: %1</source>
+        <translation>Updated: %1</translation>
+    </message>
+    <message>
+        <source>Instalado: %1</source>
+        <translation>Installed: %1</translation>
+    </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Quitar de favoritos</source>
+        <translation>Remove from favorites</translation>
+    </message>
+    <message>
+        <source>Añadir a favoritos</source>
+        <translation>Add to favorites</translation>
+    </message>
+    <message>
+        <source>Abrir carpeta de partidas</source>
+        <translation>Open saves folder</translation>
+    </message>
+    <message>
+        <source>Cambiar arte</source>
+        <translation>Change artwork</translation>
+    </message>
+    <message>
+        <source>Ocultar de la biblioteca</source>
+        <translation>Hide from library</translation>
+    </message>
+    <message>
+        <source>Descargas %1%</source>
+        <translation>Downloads %1%</translation>
+    </message>
+    <message>
+        <source>%1 fallida(s)</source>
+        <translation>%1 failed</translation>
+    </message>
+    <message>
+        <source>conectado</source>
+        <translation>connected</translation>
+    </message>
+    <message>
+        <source>Port disponible</source>
+        <translation>Port available</translation>
+    </message>
+    <message>
+        <source>Actualización</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Página anterior</source>
+        <translation>Previous page</translation>
+    </message>
+    <message>
+        <source>Página siguiente</source>
+        <translation>Next page</translation>
+    </message>
+    <message>
+        <source>Elegir</source>
+        <translation>Select</translation>
+    </message>
+    <message>
+        <source>Menú</source>
+        <translation>Menu</translation>
+    </message>
+    <message>
+        <source>Navegar</source>
+        <translation>Navigate</translation>
+    </message>
+    <message>
+        <source>Cambiar juego</source>
+        <translation>Switch game</translation>
+    </message>
+    <message>
+        <source>Consola</source>
+        <translation>Console</translation>
+    </message>
+    <message>
+        <source>Página</source>
+        <translation>Page</translation>
+    </message>
+    <message>
+        <source>Ver todos</source>
+        <translation>View all</translation>
+    </message>
+    <message>
+        <source>Cuadrícula/Lista</source>
+        <translation>Grid/List</translation>
+    </message>
+    <message>
+        <source>Agrupar</source>
+        <translation>Group</translation>
+    </message>
+    <message>
+        <source>Barra superior</source>
+        <translation>Top navigation</translation>
+    </message>
+    <message>
+        <source>Ir a Tienda</source>
+        <translation>Go to Store</translation>
+    </message>
+    <message>
+        <source>Tiendas</source>
+        <translation>Stores</translation>
+    </message>
+    <message>
+        <source>Buscar</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>Descargas</source>
+        <translation>Downloads</translation>
+    </message>
+    <message>
+        <source>Clic para seleccionar · rueda para desplazar</source>
+        <translation>Click to select · scroll wheel to move</translation>
+    </message>
+    <message>
+        <source>Instalación iniciada: %1</source>
+        <translation>Installation started: %1</translation>
     </message>
 </context>
 <context>
@@ -1717,6 +2385,200 @@
         <source>No se pudo retirar el vínculo.</source>
         <translation>Could not remove the catalog link.</translation>
     </message>
+    <message>
+        <source>Todas</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Omnia (ports)</source>
+        <translation>Omnia (ports)</translation>
+    </message>
+    <message>
+        <source>Omnia · ports</source>
+        <translation>Omnia · ports</translation>
+    </message>
+    <message>
+        <source>En biblioteca</source>
+        <translation>In library</translation>
+    </message>
+    <message>
+        <source>Disponible para instalar</source>
+        <translation>Available to install</translation>
+    </message>
+    <message>
+        <source>Actualizado: %1</source>
+        <translation>Updated: %1</translation>
+    </message>
+    <message>
+        <source>Instalado: %1</source>
+        <translation>Installed: %1</translation>
+    </message>
+    <message>
+        <source>DESKTOP SUITE</source>
+        <translation>DESKTOP SUITE</translation>
+    </message>
+    <message>
+        <source>Estadísticas</source>
+        <translation>Statistics</translation>
+    </message>
+    <message>
+        <source>Descargas</source>
+        <translation>Downloads</translation>
+    </message>
+    <message>
+        <source>Descargando: %1 · %2 %</source>
+        <translation>Downloading: %1 · %2%</translation>
+    </message>
+    <message>
+        <source>Omnia independiente · la biblioteca vive en este equipo</source>
+        <translation>Standalone Omnia · your library stays on this computer</translation>
+    </message>
+    <message>
+        <source>Favoritos</source>
+        <translation>Favorites</translation>
+    </message>
+    <message>
+        <source>Descargas en curso</source>
+        <translation>Downloads in progress</translation>
+    </message>
+    <message>
+        <source>Ports de Omnia y juegos de tus tiendas, en un solo lugar.</source>
+        <translation>Omnia ports and games from your stores in one place.</translation>
+    </message>
+    <message>
+        <source>Buscar juegos, tiendas o plataformas</source>
+        <translation>Search games, stores, or platforms</translation>
+    </message>
+    <message>
+        <source>Últimos instalados</source>
+        <translation>Recently installed</translation>
+    </message>
+    <message>
+        <source>Ver más</source>
+        <translation>See more</translation>
+    </message>
+    <message>
+        <source>Tus juegos instalados aparecerán aquí.</source>
+        <translation>Your installed games will appear here.</translation>
+    </message>
+    <message>
+        <source>Todos los juegos</source>
+        <translation>All games</translation>
+    </message>
+    <message>
+        <source>%1 juegos</source>
+        <translation>%1 games</translation>
+    </message>
+    <message>
+        <source>Año · recientes</source>
+        <translation>Year · newest first</translation>
+    </message>
+    <message>
+        <source>Año · antiguos</source>
+        <translation>Year · oldest first</translation>
+    </message>
+    <message>
+        <source>Nombre · A–Z</source>
+        <translation>Name · A–Z</translation>
+    </message>
+    <message>
+        <source>Nombre · Z–A</source>
+        <translation>Name · Z–A</translation>
+    </message>
+    <message>
+        <source>No hay juegos para este filtro.</source>
+        <translation>No games match this filter.</translation>
+    </message>
+    <message>
+        <source>Cargando más juegos…</source>
+        <translation>Loading more games…</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <translation>General</translation>
+    </message>
+    <message>
+        <source>Acerca de</source>
+        <translation>About</translation>
+    </message>
+    <message>
+        <source>Biblioteca de juegos y Big Mode para Linux. </source>
+        <translation>Game library and Big Mode for Linux. </translation>
+    </message>
+    <message>
+        <source>Los juegos y sus archivos viven en este equipo; Omnia no incluye ni descarga ROMs.</source>
+        <translation>Games and their files stay on this computer. Omnia does not include or download ROMs.</translation>
+    </message>
+    <message>
+        <source>Fondo animado</source>
+        <translation>Animated background</translation>
+    </message>
+    <message>
+        <source>Constelación en el Inicio y ondas en la Biblioteca de Big Mode.</source>
+        <translation>Constellation on Home and waves in the Big Mode library.</translation>
+    </message>
+    <message>
+        <source>No se pudo guardar el ajuste.</source>
+        <translation>Could not save the setting.</translation>
+    </message>
+    <message>
+        <source>Abrir Big Mode a pantalla completa</source>
+        <translation>Open Big Mode fullscreen</translation>
+    </message>
+    <message>
+        <source>Abrir</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <source>Buscar actualizaciones de ports</source>
+        <translation>Check for port updates</translation>
+    </message>
+    <message>
+        <source>Avisa cuando un port instalado desde el catálogo tiene una versión nueva. Nunca se actualiza sin confirmar.</source>
+        <translation>Shows when a catalog port has an update. Updates require your confirmation.</translation>
+    </message>
+    <message>
+        <source>Monitor de rendimiento en los juegos</source>
+        <translation>In-game performance overlay</translation>
+    </message>
+    <message>
+        <source>Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia, sobre los juegos que lanzas desde aquí.</source>
+        <translation>Shows FPS, GPU, CPU, VRAM, and RAM in one Omnia-style line for games launched here.</translation>
+    </message>
+    <message>
+        <source>Necesita MangoHud: instálalo desde el gestor de paquetes.</source>
+        <translation>Requires MangoHud. Install it from your package manager.</translation>
+    </message>
+    <message>
+        <source>Añade aquí tus carpetas de juegos y ROMs: Omnia las detecta solas, sin elegir emulador. Retirar una carpeta no elimina los archivos.</source>
+        <translation>Add folders with games and ROMs. Omnia detects them automatically. Removing a folder keeps its files on disk.</translation>
+    </message>
+    <message>
+        <source>Instalar en Steam</source>
+        <translation>Install in Steam</translation>
+    </message>
+    <message>
+        <source>Actualizar port</source>
+        <translation>Update port</translation>
+    </message>
+    <message>
+        <source>%1: %2 → %3 (%4 MB, %5).
+Se verifica su SHA-256 y se superpone sobre la carpeta actual; tus partidas y los archivos que el port preparó se conservan. Algunos ports rehacen su preparación (compilar el juego, shaders) la primera vez que se abren tras actualizar. Cierra el juego antes de actualizar.</source>
+        <translation>%1: %2 → %3 (%4 MB, %5).
+The SHA-256 is verified and the update is applied to the current folder. Your saves and files prepared by the port are kept. Some ports repeat setup, such as compiling the game or shaders, the first time you launch them after an update. Close the game before updating.</translation>
+    </message>
+    <message>
+        <source>Actualización iniciada: %1</source>
+        <translation>Update started: %1</translation>
+    </message>
+    <message>
+        <source>No se pudo iniciar la actualización.</source>
+        <translation>Could not start the update.</translation>
+    </message>
+    <message>
+        <source>Sin emulador: se elige al jugar</source>
+        <translation>No emulator selected. Choose one when you play.</translation>
+    </message>
 </context>
 <context>
     <name>OmniaShell</name>
@@ -2198,6 +3060,58 @@
         <source>EN EJECUCIÓN</source>
         <translation>RUNNING</translation>
     </message>
+    <message>
+        <source>Este juego necesita instalar su port: ábrelo en Big Mode o en la app de escritorio.</source>
+        <translation>This game requires a port. Open it in Big Mode or in the desktop app to install it.</translation>
+    </message>
+    <message>
+        <source>No se pudieron abrir los ajustes de Omnia</source>
+        <translation>Could not open Omnia settings</translation>
+    </message>
+    <message>
+        <source>Mayús</source>
+        <translation>Shift</translation>
+    </message>
+    <message>
+        <source>Portada</source>
+        <translation>Cover</translation>
+    </message>
+    <message>
+        <source>Fondo</source>
+        <translation>Background</translation>
+    </message>
+    <message>
+        <source>Consultando el catálogo de Omnia…</source>
+        <translation>Checking the Omnia catalog…</translation>
+    </message>
+    <message>
+        <source>Sin arte publicado para este juego</source>
+        <translation>No artwork published for this game</translation>
+    </message>
+    <message>
+        <source>A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar</source>
+        <translation>A select · LB/RB type · LT/RT edition · Start apply · B cancel</translation>
+    </message>
+    <message>
+        <source>Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar</source>
+        <translation>Click to select · Tab type · PgUp/PgDn edition · Ctrl+Enter apply</translation>
+    </message>
+    <message>
+        <source>Aplicando…</source>
+        <translation>Applying…</translation>
+    </message>
+    <message>
+        <source>Selecciona una versión</source>
+        <translation>Select a version</translation>
+    </message>
+    <message>
+        <source>Clic en una opción · B cancelar</source>
+        <translation>Click an option · B cancel</translation>
+    </message>
+    <message>
+        <source>Clic en una opción · Esc cancelar</source>
+        <translation>Click an option · Esc cancel</translation>
+    </message>
 </context>
 <context>
     <name>SavesPanel</name>
@@ -2381,6 +3295,10 @@
         <source>Carpeta configurada: %1</source>
         <translation>Folder configured: %1</translation>
     </message>
+    <message>
+        <source>¿Restaurar «%1»?</source>
+        <translation>Restore “%1”?</translation>
+    </message>
 </context>
 <context>
     <name>GameFacts</name>
@@ -2450,6 +3368,1376 @@
     <message>
         <source>Sin instalar</source>
         <translation>Not installed</translation>
+    </message>
+    <message>
+        <source>Todas</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Omnia</source>
+        <translation>Omnia</translation>
+    </message>
+    <message>
+        <source>No se pudo cargar el catálogo. Pulsa A en el filtro actual para reintentar.</source>
+        <translation>Could not load the catalog. Press A on the current filter to retry.</translation>
+    </message>
+    <message>
+        <source>No hay un paquete instalable publicado.</source>
+        <translation>No installable package has been published.</translation>
+    </message>
+    <message>
+        <source>No se pudieron consultar los paquetes publicados.</source>
+        <translation>Could not check published packages.</translation>
+    </message>
+    <message>
+        <source>Jugar</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>Ver en Biblioteca</source>
+        <translation>View in Library</translation>
+    </message>
+    <message>
+        <source>Instalar en Steam</source>
+        <translation>Install in Steam</translation>
+    </message>
+    <message>
+        <source>Elegir carpeta de instalación</source>
+        <translation>Choose installation folder</translation>
+    </message>
+    <message>
+        <source>Instalar</source>
+        <translation>Install</translation>
+    </message>
+    <message>
+        <source>Instalar %1</source>
+        <translation>Install %1</translation>
+    </message>
+    <message>
+        <source>Volver</source>
+        <translation>Back</translation>
+    </message>
+    <message>
+        <source>Añadiendo a la cola…</source>
+        <translation>Adding to the queue…</translation>
+    </message>
+    <message>
+        <source>No se pudo iniciar la instalación.</source>
+        <translation>Could not start installation.</translation>
+    </message>
+    <message>
+        <source>Tienda</source>
+        <translation>Store</translation>
+    </message>
+    <message>
+        <source>Buscar: %1</source>
+        <translation>Search: %1</translation>
+    </message>
+    <message>
+        <source>Buscar</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>Últimos instalados</source>
+        <translation>Recently installed</translation>
+    </message>
+    <message>
+        <source>Ver más</source>
+        <translation>See more</translation>
+    </message>
+    <message>
+        <source>Tus juegos instalados aparecerán aquí.</source>
+        <translation>Your installed games will appear here.</translation>
+    </message>
+    <message>
+        <source>Todos los juegos</source>
+        <translation>All games</translation>
+    </message>
+    <message>
+        <source>Cargando catálogo…</source>
+        <translation>Loading catalog…</translation>
+    </message>
+    <message>
+        <source>No hay juegos para este filtro.</source>
+        <translation>No games match this filter.</translation>
+    </message>
+    <message>
+        <source>Local</source>
+        <translation>Local</translation>
+    </message>
+    <message>
+        <source>Consultando paquetes…</source>
+        <translation>Loading packages…</translation>
+    </message>
+    <message>
+        <source>La confirmación se hace en Steam.</source>
+        <translation>Confirm the installation in Steam.</translation>
+    </message>
+    <message>
+        <source>Destino: %1</source>
+        <translation>Destination: %1</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerAddGame</name>
+    <message>
+        <source>Emulador N64 (Gopher64)</source>
+        <translation>N64 emulator (Gopher64)</translation>
+    </message>
+    <message>
+        <source>Minecraft Bedrock (BedrockOnLinux)</source>
+        <translation>Minecraft Bedrock (BedrockOnLinux)</translation>
+    </message>
+    <message>
+        <source>Longshot (port de The Legend of Zelda: Ocarina of Time)</source>
+        <translation>Longshot (The Legend of Zelda: Ocarina of Time port)</translation>
+    </message>
+    <message>
+        <source>Hookshot (port de The Legend of Zelda: Ocarina of Time)</source>
+        <translation>Hookshot (The Legend of Zelda: Ocarina of Time port)</translation>
+    </message>
+    <message>
+        <source>NX2navi (port de The Legend of Zelda: Ocarina of Time)</source>
+        <translation>NX2navi (The Legend of Zelda: Ocarina of Time port)</translation>
+    </message>
+    <message>
+        <source>Savage Wind (port de The Legend of Zelda: Breath of the Wild)</source>
+        <translation>Savage Wind (The Legend of Zelda: Breath of the Wild port)</translation>
+    </message>
+    <message>
+        <source>TOTK Recomp (port de The Legend of Zelda: Tears of the Kingdom)</source>
+        <translation>TOTK Recomp (The Legend of Zelda: Tears of the Kingdom port)</translation>
+    </message>
+    <message>
+        <source>Añadiendo la carpeta a tu biblioteca…</source>
+        <translation>Adding folder to your library…</translation>
+    </message>
+    <message>
+        <source>No se pudo añadir la carpeta.</source>
+        <translation>Could not add the folder.</translation>
+    </message>
+    <message>
+        <source>Buscando juegos…</source>
+        <translation>Finding games…</translation>
+    </message>
+    <message numerus="yes">
+        <source>Se detectaron %n juego(s) nuevos.</source>
+        <translation>
+            <numerusform>%n new game detected.</numerusform>
+            <numerusform>%n new games detected.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No se encontraron juegos nuevos en esa carpeta. Si acabas de copiarlos, vuelve a actualizar la biblioteca.</source>
+        <translation>No new games were found in that folder. If you just copied them, refresh the library again.</translation>
+    </message>
+    <message>
+        <source>Identificando el archivo…</source>
+        <translation>Identifying the file…</translation>
+    </message>
+    <message>
+        <source>No se pudo identificar el archivo. Revisa el nombre antes de añadirlo.</source>
+        <translation>Could not identify the file. Check its name before adding it.</translation>
+    </message>
+    <message>
+        <source>Reconocido como %1</source>
+        <translation>Recognized as %1</translation>
+    </message>
+    <message>
+        <source>Switch 2</source>
+        <translation>Switch 2</translation>
+    </message>
+    <message>
+        <source>Switch</source>
+        <translation>Switch</translation>
+    </message>
+    <message>
+        <source>Revisa el nombre antes de añadirlo.</source>
+        <translation>Check the name before adding it.</translation>
+    </message>
+    <message>
+        <source>Elige la ROM del juego</source>
+        <translation>Choose the game ROM</translation>
+    </message>
+    <message>
+        <source>Elige el ejecutable del port</source>
+        <translation>Choose the port executable</translation>
+    </message>
+    <message>
+        <source>Juego de Windows (.exe) con Proton</source>
+        <translation>Windows game (.exe) with Proton</translation>
+    </message>
+    <message>
+        <source>Omnia lo ejecuta con umu-launcher</source>
+        <translation>Omnia runs it with umu-launcher</translation>
+    </message>
+    <message>
+        <source>Elige la carpeta de juegos</source>
+        <translation>Choose the games folder</translation>
+    </message>
+    <message>
+        <source>Elige el archivo del juego</source>
+        <translation>Choose the game file</translation>
+    </message>
+    <message>
+        <source>Archivos compatibles (%1)</source>
+        <translation>Compatible files (%1)</translation>
+    </message>
+    <message>
+        <source>Todos los archivos (*)</source>
+        <translation>All files (*)</translation>
+    </message>
+    <message>
+        <source>Añadir juego</source>
+        <translation>Add game</translation>
+    </message>
+    <message>
+        <source>Origen</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>Detección</source>
+        <translation>Detection</translation>
+    </message>
+    <message>
+        <source>Confirmación</source>
+        <translation>Confirmation</translation>
+    </message>
+    <message>
+        <source>¿Qué quieres añadir? Steam, Heroic y Lutris se detectan solos.</source>
+        <translation>What would you like to add? Steam, Heroic, and Lutris are detected automatically.</translation>
+    </message>
+    <message>
+        <source>Carpeta de juegos</source>
+        <translation>Game folder</translation>
+    </message>
+    <message>
+        <source>Omnia detecta solo los juegos y ROMs que haya dentro</source>
+        <translation>Omnia detects games and ROMs in the folder automatically</translation>
+    </message>
+    <message>
+        <source>ROM de consola</source>
+        <translation>Console ROM</translation>
+    </message>
+    <message>
+        <source>Busca ROMs en una carpeta y elige emulador</source>
+        <translation>Scan a folder for ROMs and choose an emulator</translation>
+    </message>
+    <message>
+        <source>Ejecutable o AppImage</source>
+        <translation>Executable or AppImage</translation>
+    </message>
+    <message>
+        <source>Juego nativo, AppImage o .exe de Windows</source>
+        <translation>Native game, AppImage, or Windows .exe</translation>
+    </message>
+    <message>
+        <source>Port o emulador compatible</source>
+        <translation>Compatible port or emulator</translation>
+    </message>
+    <message>
+        <source>Longshot, Gopher64, BedrockOnLinux y más</source>
+        <translation>Longshot, Gopher64, BedrockOnLinux, and more</translation>
+    </message>
+    <message>
+        <source>Importar mi biblioteca anterior</source>
+        <translation>Import my previous library</translation>
+    </message>
+    <message>
+        <source>Vista previa e importación de ports y emuladores</source>
+        <translation>Preview and import ports and emulators</translation>
+    </message>
+    <message>
+        <source>Elige el tipo de juego</source>
+        <translation>Choose a game type</translation>
+    </message>
+    <message>
+        <source>Añadido a la biblioteca.</source>
+        <translation>Added to your library.</translation>
+    </message>
+    <message>
+        <source>Nombre del juego</source>
+        <translation>Game name</translation>
+    </message>
+    <message>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Atrás</source>
+        <translation>Back</translation>
+    </message>
+    <message>
+        <source>Siguiente</source>
+        <translation>Next</translation>
+    </message>
+    <message>
+        <source>Terminar</source>
+        <translation>Finish</translation>
+    </message>
+    <message>
+        <source>Ver en la biblioteca</source>
+        <translation>View in library</translation>
+    </message>
+    <message>
+        <source>Añadir a la biblioteca</source>
+        <translation>Add to library</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerDownloads</name>
+    <message>
+        <source>En cola</source>
+        <translation>Queued</translation>
+    </message>
+    <message>
+        <source>Descargando</source>
+        <translation>Downloading</translation>
+    </message>
+    <message>
+        <source>Verificando</source>
+        <translation>Verifying</translation>
+    </message>
+    <message>
+        <source>Extrayendo</source>
+        <translation>Extracting</translation>
+    </message>
+    <message>
+        <source>Finalizando</source>
+        <translation>Finalizing</translation>
+    </message>
+    <message>
+        <source>En pausa</source>
+        <translation>Paused</translation>
+    </message>
+    <message>
+        <source>Falló</source>
+        <translation>Failed</translation>
+    </message>
+    <message>
+        <source>Cancelada</source>
+        <translation>Canceled</translation>
+    </message>
+    <message>
+        <source>Interrumpida</source>
+        <translation>Interrupted</translation>
+    </message>
+    <message>
+        <source>Instalado</source>
+        <translation>Installed</translation>
+    </message>
+    <message>
+        <source>Descargas</source>
+        <translation>Downloads</translation>
+    </message>
+    <message>
+        <source>Sigue instalaciones y gestiona los juegos de Omnia.</source>
+        <translation>Track installations and manage your Omnia games.</translation>
+    </message>
+    <message>
+        <source>En curso</source>
+        <translation>In progress</translation>
+    </message>
+    <message>
+        <source>Instalados</source>
+        <translation>Installed</translation>
+    </message>
+    <message>
+        <source>Descartar %1 fallidas</source>
+        <translation>Dismiss %1 failed downloads</translation>
+    </message>
+    <message>
+        <source>No terminó.</source>
+        <translation>It did not finish.</translation>
+    </message>
+    <message>
+        <source>Abrir descargas de Steam</source>
+        <translation>Open Steam downloads</translation>
+    </message>
+    <message>
+        <source>Reanudar</source>
+        <translation>Resume</translation>
+    </message>
+    <message>
+        <source>Pausar</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Reintentar</source>
+        <translation>Retry</translation>
+    </message>
+    <message>
+        <source>Descartar</source>
+        <translation>Dismiss</translation>
+    </message>
+    <message>
+        <source>Abrir ficha</source>
+        <translation>Open details</translation>
+    </message>
+    <message>
+        <source>No hay descargas en curso. Lo que instales aparecerá aquí mientras se descarga; al terminar con éxito se quita solo y pasa a «Instalados».</source>
+        <translation>No downloads in progress. Installations appear here while downloading and move to Installed when complete.</translation>
+    </message>
+    <message>
+        <source>Actualización disponible: %1</source>
+        <translation>Update available: %1</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Quitar</source>
+        <translation>Remove</translation>
+    </message>
+    <message>
+        <source>Aún no has instalado ningún port desde el catálogo de Omnia. Búscalo en «Explorar».</source>
+        <translation>You haven’t installed a port from the Omnia catalog yet. Find one in Explore.</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerLibrary</name>
+    <message>
+        <source>Juegos</source>
+        <translation>Games</translation>
+    </message>
+    <message>
+        <source>Jugados recientemente</source>
+        <translation>Recently played</translation>
+    </message>
+    <message>
+        <source>Biblioteca</source>
+        <translation>Library</translation>
+    </message>
+    <message>
+        <source>Buscar en tu biblioteca</source>
+        <translation>Search your library</translation>
+    </message>
+    <message>
+        <source>Todos</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Favoritos</source>
+        <translation>Favorites</translation>
+    </message>
+    <message>
+        <source>Recientes</source>
+        <translation>Recent</translation>
+    </message>
+    <message>
+        <source>Ningún juego coincide.</source>
+        <translation>No matching games.</translation>
+    </message>
+    <message>
+        <source>Aún no tienes favoritos.</source>
+        <translation>You don’t have any favorites yet.</translation>
+    </message>
+    <message>
+        <source>Añade juegos para verlos aquí.</source>
+        <translation>Add games to see them here.</translation>
+    </message>
+    <message>
+        <source>Añadir juego</source>
+        <translation>Add game</translation>
+    </message>
+    <message>
+        <source>Escanear ROMs</source>
+        <translation>Scan ROMs</translation>
+    </message>
+    <message>
+        <source>Actualizar biblioteca</source>
+        <translation>Refresh library</translation>
+    </message>
+    <message>
+        <source>Ocultos incluidos</source>
+        <translation>Hidden games included</translation>
+    </message>
+    <message>
+        <source>Mostrar juegos ocultos</source>
+        <translation>Show hidden games</translation>
+    </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Jugando</source>
+        <translation>Playing</translation>
+    </message>
+    <message>
+        <source>Jugar</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>Última sesión</source>
+        <translation>Last session</translation>
+    </message>
+    <message>
+        <source>Tiempo jugado</source>
+        <translation>Time played</translation>
+    </message>
+    <message>
+        <source>Quitar de favoritos</source>
+        <translation>Remove from favorites</translation>
+    </message>
+    <message>
+        <source>Añadir a favoritos</source>
+        <translation>Add to favorites</translation>
+    </message>
+    <message>
+        <source>Resumen</source>
+        <translation>Overview</translation>
+    </message>
+    <message>
+        <source>Partidas</source>
+        <translation>Saves</translation>
+    </message>
+    <message>
+        <source>Administrar</source>
+        <translation>Manage</translation>
+    </message>
+    <message>
+        <source>Actualización disponible: %1 → %2. Se conservan tus partidas y los datos del juego.</source>
+        <translation>Update available: %1 → %2. Your saves and game data are kept.</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Port disponible: %1 · %2 · licencia %3. Detectamos tu copia del juego; pulsa «Instalar port» para descargarlo y verificarlo.</source>
+        <translation>Port available: %1 · %2 · license: %3. We detected your copy of the game. Select Install port to download and verify it.</translation>
+    </message>
+    <message>
+        <source>Fuente</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>Consola</source>
+        <translation>Console</translation>
+    </message>
+    <message>
+        <source>Carpeta</source>
+        <translation>Folder</translation>
+    </message>
+    <message>
+        <source>Tu copia del juego: %1</source>
+        <translation>Your copy of the game: %1</translation>
+    </message>
+    <message>
+        <source>Es la versión que acepta este port.</source>
+        <translation>This is the version the port supports.</translation>
+    </message>
+    <message>
+        <source>Esta copia es de otra versión (build %1); el port espera %2.</source>
+        <translation>This copy is a different version (build %1). The port expects %2.</translation>
+    </message>
+    <message>
+        <source>No se pudo comprobar la versión de esta copia (un archivo .nup no se lee todavía); el port espera el build %1.</source>
+        <translation>Could not verify this copy’s version because .nup files cannot be read yet. The port expects build %1.</translation>
+    </message>
+    <message>
+        <source>La última vez, el juego se cerró con este aviso: %1</source>
+        <translation>The game closed with this message last time: %1</translation>
+    </message>
+    <message>
+        <source>Requisitos: %1</source>
+        <translation>Requirements: %1</translation>
+    </message>
+    <message>
+        <source>El juego puede no arrancar.</source>
+        <translation>The game may fail to launch.</translation>
+    </message>
+    <message>
+        <source>Juegos instalados</source>
+        <translation>Installed games</translation>
+    </message>
+    <message>
+        <source>Respalda las partidas guardadas o abre su carpeta.</source>
+        <translation>Back up your saves or open their folder.</translation>
+    </message>
+    <message>
+        <source>Respaldar partidas</source>
+        <translation>Back up saves</translation>
+    </message>
+    <message>
+        <source>Abrir carpeta de partidas</source>
+        <translation>Open saves folder</translation>
+    </message>
+    <message>
+        <source>Respaldo creado.</source>
+        <translation>Backup created.</translation>
+    </message>
+    <message>
+        <source>No se pudo respaldar.</source>
+        <translation>Could not create the backup.</translation>
+    </message>
+    <message>
+        <source>No se pudo abrir la carpeta.</source>
+        <translation>Could not open the folder.</translation>
+    </message>
+    <message>
+        <source>Mostrar en biblioteca</source>
+        <translation>Show in library</translation>
+    </message>
+    <message>
+        <source>Ocultar de la biblioteca</source>
+        <translation>Hide from library</translation>
+    </message>
+    <message>
+        <source>Cambiar ficha del catálogo…</source>
+        <translation>Change catalog entry…</translation>
+    </message>
+    <message>
+        <source>Vincular con el catálogo…</source>
+        <translation>Link to catalog…</translation>
+    </message>
+    <message>
+        <source>Quitar vínculo del catálogo</source>
+        <translation>Unlink from catalog</translation>
+    </message>
+    <message>
+        <source>Quitar de Omnia…</source>
+        <translation>Remove from Omnia…</translation>
+    </message>
+    <message>
+        <source>Elige un juego de la lista.</source>
+        <translation>Choose a game from the list.</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerStats</name>
+    <message>
+        <source>%1 h %2 min</source>
+        <translation>%1 h %2 min</translation>
+    </message>
+    <message>
+        <source>%1 min</source>
+        <translation>%1 min</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>0 min</source>
+        <translation>0 min</translation>
+    </message>
+    <message>
+        <source>Estadísticas</source>
+        <translation>Statistics</translation>
+    </message>
+    <message>
+        <source>Tu actividad de juego, resumida.</source>
+        <translation>A summary of your gaming activity.</translation>
+    </message>
+    <message>
+        <source>7 días</source>
+        <translation>7 days</translation>
+    </message>
+    <message>
+        <source>14 días</source>
+        <translation>14 days</translation>
+    </message>
+    <message>
+        <source>30 días</source>
+        <translation>30 days</translation>
+    </message>
+    <message>
+        <source>Tiempo jugado</source>
+        <translation>Time played</translation>
+    </message>
+    <message>
+        <source>en total</source>
+        <translation>total</translation>
+    </message>
+    <message>
+        <source>Partidas</source>
+        <translation>Saves</translation>
+    </message>
+    <message>
+        <source>media de %1</source>
+        <translation>average of %1</translation>
+    </message>
+    <message>
+        <source>Juegos jugados</source>
+        <translation>Games played</translation>
+    </message>
+    <message>
+        <source>Racha</source>
+        <translation>Streak</translation>
+    </message>
+    <message>
+        <source>1 día</source>
+        <translation>1 day</translation>
+    </message>
+    <message>
+        <source>%1 días</source>
+        <translation>%1 days</translation>
+    </message>
+    <message>
+        <source>seguidos jugando</source>
+        <translation>played in a row</translation>
+    </message>
+    <message>
+        <source>Actividad · %1 en los últimos %2 días</source>
+        <translation>Activity · %1 in the last %2 days</translation>
+    </message>
+    <message>
+        <source>Más jugados</source>
+        <translation>Most played</translation>
+    </message>
+    <message>
+        <source>Últimos %1 días</source>
+        <translation>Last %1 days</translation>
+    </message>
+    <message>
+        <source>Todo el tiempo</source>
+        <translation>All time</translation>
+    </message>
+    <message>
+        <source>Todavía no hay partidas en este periodo. Juega algo y vuelve.</source>
+        <translation>No sessions in this period yet. Play a game and come back.</translation>
+    </message>
+    <message>
+        <source>Cargando…</source>
+        <translation>Loading…</translation>
+    </message>
+    <message>
+        <source>%1 partidas</source>
+        <translation>%1 sessions</translation>
+    </message>
+    <message>
+        <source>Partida más larga: %1 en «%2». </source>
+        <translation>Longest session: %1 in “%2”. </translation>
+    </message>
+    <message>
+        <source>Solo cuentan las partidas lanzadas desde Omnia y de más de 10 segundos. Los datos se quedan en este equipo.</source>
+        <translation>Only sessions launched through Omnia and longer than 10 seconds count. The data stays on this device.</translation>
+    </message>
+    <message>
+        <source>El detalle por días usa las últimas 1000 partidas.</source>
+        <translation>Daily details use your last 1,000 sessions.</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerStoreNews</name>
+    <message>
+        <source>Novedades</source>
+        <translation>News</translation>
+    </message>
+    <message>
+        <source>En inglés</source>
+        <translation>In English</translation>
+    </message>
+    <message>
+        <source>Cargando novedades…</source>
+        <translation>Loading new releases…</translation>
+    </message>
+    <message>
+        <source>Por ahora no hay novedades disponibles.</source>
+        <translation>There is no news right now.</translation>
+    </message>
+    <message>
+        <source>Ver ficha</source>
+        <translation>View details</translation>
+    </message>
+    <message>
+        <source>Leer noticia</source>
+        <translation>Read article</translation>
+    </message>
+</context>
+<context>
+    <name>ManagerStores</name>
+    <message>
+        <source>Steam abrió el diálogo para instalar «%1»; confírmalo allí.</source>
+        <translation>Steam opened the installation dialog for “%1”. Confirm there.</translation>
+    </message>
+    <message>
+        <source>Elige dónde instalar %1</source>
+        <translation>Choose where to install %1</translation>
+    </message>
+    <message>
+        <source>No se pudo empezar la instalación.</source>
+        <translation>Could not start installation.</translation>
+    </message>
+    <message>
+        <source>Instalando «%1»: sigue el progreso en Descargas.</source>
+        <translation>Installing “%1”. Follow progress in Downloads.</translation>
+    </message>
+    <message>
+        <source>No se pudo consultar las tiendas.</source>
+        <translation>Could not check the stores.</translation>
+    </message>
+    <message>
+        <source>No se pudo leer la biblioteca de %1.</source>
+        <translation>Could not read the %1 library.</translation>
+    </message>
+    <message>
+        <source>No se pudo abrir el inicio de sesión.</source>
+        <translation>Could not open sign-in.</translation>
+    </message>
+    <message>
+        <source>Conectando con Steam…</source>
+        <translation>Connecting to Steam…</translation>
+    </message>
+    <message>
+        <source>Inicia sesión en la ventana de %1; Omnia te conecta sola.</source>
+        <translation>Sign in in the %1 window to connect Omnia automatically.</translation>
+    </message>
+    <message>
+        <source>Steam necesita el componente qt6-webengine para conectarse desde Omnia.</source>
+        <translation>Steam requires qt6-webengine to connect from Omnia.</translation>
+    </message>
+    <message>
+        <source>No se pudo conectar.</source>
+        <translation>Could not connect.</translation>
+    </message>
+    <message>
+        <source>%1 conectada.</source>
+        <translation>%1 connected.</translation>
+    </message>
+    <message>
+        <source>No se pudo desconectar.</source>
+        <translation>Could not disconnect.</translation>
+    </message>
+    <message>
+        <source>%1 desconectada.</source>
+        <translation>%1 disconnected.</translation>
+    </message>
+    <message>
+        <source>Todas</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Cuentas</source>
+        <translation>Accounts</translation>
+    </message>
+    <message>
+        <source>Conecta %1 para ver aquí todos tus juegos.</source>
+        <translation>Connect %1 to see all your games here.</translation>
+    </message>
+    <message>
+        <source>Conectar</source>
+        <translation>Connect</translation>
+    </message>
+    <message>
+        <source>Cargando tus bibliotecas…</source>
+        <translation>Loading your libraries…</translation>
+    </message>
+    <message>
+        <source>Aún no hay juegos de esta tienda. Conecta tu cuenta en «Cuentas».</source>
+        <translation>No games from this store yet. Connect your account in Accounts.</translation>
+    </message>
+    <message>
+        <source>Cuentas de tiendas</source>
+        <translation>Store accounts</translation>
+    </message>
+    <message>
+        <source>Inicias sesión en el navegador de cada tienda. Omnia nunca ve tu contraseña: solo guarda la sesión en este equipo.</source>
+        <translation>Sign in in each store’s browser window. Omnia saves the session on this device.</translation>
+    </message>
+    <message>
+        <source>Falta la herramienta (instala Heroic)</source>
+        <translation>Tool unavailable. Install Heroic.</translation>
+    </message>
+    <message>
+        <source>Conectada</source>
+        <translation>Connected</translation>
+    </message>
+    <message>
+        <source>Sin conectar</source>
+        <translation>Disconnected</translation>
+    </message>
+    <message>
+        <source>Conectando…</source>
+        <translation>Connecting…</translation>
+    </message>
+    <message>
+        <source>Abrir inicio de sesión</source>
+        <translation>Open sign-in</translation>
+    </message>
+    <message>
+        <source>Usar mi navegador</source>
+        <translation>Use my browser</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Cerrar sesión</source>
+        <translation>Sign out</translation>
+    </message>
+    <message>
+        <source>Inicia sesión; cuando veas el texto con el código, pulsa Ctrl+A y Ctrl+C y vuelve a Omnia: se conecta sola.</source>
+        <translation>Sign in. When the code appears, press Ctrl+A then Ctrl+C and return to Omnia to connect automatically.</translation>
+    </message>
+    <message>
+        <source>Inicia sesión; cuando termines, copia la dirección completa de la barra (Ctrl+L, Ctrl+C) y vuelve a Omnia: se conecta sola.</source>
+        <translation>Sign in, copy the full URL from the address bar (Ctrl+L then Ctrl+C), and return to Omnia to connect automatically.</translation>
+    </message>
+    <message>
+        <source>Pega aquí el código o la dirección</source>
+        <translation>Paste the code or URL here</translation>
+    </message>
+    <message>
+        <source>Las sesiones que abres en las ventanas de las tiendas se guardan en este equipo para no repetirlas. Puedes borrarlas: se aplica al abrir Omnia otra vez y no cierra las conexiones.</source>
+        <translation>Store windows save sign-in sessions on this device. Clearing them takes effect when you reopen Omnia and keeps your store accounts connected.</translation>
+    </message>
+    <message>
+        <source>Borrar sesión web</source>
+        <translation>Clear web session</translation>
+    </message>
+    <message>
+        <source>Listo: la sesión web se borrará al abrir Omnia otra vez.</source>
+        <translation>The web session will be cleared when you reopen Omnia.</translation>
+    </message>
+    <message>
+        <source>No se pudo marcar el borrado.</source>
+        <translation>Could not schedule clearing the session.</translation>
+    </message>
+    <message>
+        <source>Cerrar</source>
+        <translation>Close</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaAllGames</name>
+    <message>
+        <source>Todos</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Favoritos y recientes</source>
+        <translation>Favorites and recent games</translation>
+    </message>
+    <message>
+        <source>Nombre A–Z</source>
+        <translation>Name A–Z</translation>
+    </message>
+    <message>
+        <source>Nombre Z–A</source>
+        <translation>Name Z–A</translation>
+    </message>
+    <message>
+        <source>Consola</source>
+        <translation>Console</translation>
+    </message>
+    <message>
+        <source>Cuadrícula</source>
+        <translation>Grid</translation>
+    </message>
+    <message>
+        <source>Lista</source>
+        <translation>List</translation>
+    </message>
+    <message>
+        <source>Ordenar: </source>
+        <translation>Sort: </translation>
+    </message>
+    <message>
+        <source>Agrupar por consola</source>
+        <translation>Group by console</translation>
+    </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Jugar</source>
+        <translation>Play</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaArtEditor</name>
+    <message>
+        <source>Portada</source>
+        <translation>Cover</translation>
+    </message>
+    <message>
+        <source>Fondo</source>
+        <translation>Background</translation>
+    </message>
+    <message>
+        <source>Logo</source>
+        <translation>Logo</translation>
+    </message>
+    <message>
+        <source>No se pudieron cargar las opciones.</source>
+        <translation>Could not load options.</translation>
+    </message>
+    <message>
+        <source>Guardando…</source>
+        <translation>Saving…</translation>
+    </message>
+    <message>
+        <source>No se pudo guardar el arte.</source>
+        <translation>Could not save the artwork.</translation>
+    </message>
+    <message>
+        <source>Arte actualizado: %1</source>
+        <translation>Artwork updated: %1</translation>
+    </message>
+    <message>
+        <source>No se pudo preparar la imagen.</source>
+        <translation>Could not prepare the image.</translation>
+    </message>
+    <message>
+        <source>Descartar</source>
+        <translation>Dismiss</translation>
+    </message>
+    <message>
+        <source>Cambiar arte</source>
+        <translation>Change artwork</translation>
+    </message>
+    <message>
+        <source>Guardar</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>Así se verá tu biblioteca</source>
+        <translation>This is how your library will look</translation>
+    </message>
+    <message>
+        <source>Opciones de SteamGridDB. La estantería, la ficha y la lista usan estas mismas imágenes; nada cambia hasta que pulses Guardar.</source>
+        <translation>SteamGridDB options. The shelf, details, and list use the same images. Changes apply when you select Save.</translation>
+    </message>
+    <message>
+        <source>Actual</source>
+        <translation>Current</translation>
+    </message>
+    <message>
+        <source>Mi archivo…</source>
+        <translation>My file…</translation>
+    </message>
+    <message>
+        <source>Ajustar</source>
+        <translation>Adjust</translation>
+    </message>
+    <message>
+        <source>Rellenar</source>
+        <translation>Fill</translation>
+    </message>
+    <message>
+        <source>Cargando…</source>
+        <translation>Loading…</translation>
+    </message>
+    <message>
+        <source>Ver más</source>
+        <translation>See more</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>Original</translation>
+    </message>
+    <message>
+        <source>Cargando opciones…</source>
+        <translation>Loading options…</translation>
+    </message>
+    <message>
+        <source>Este juego aún no está enlazado a SteamGridDB: solo está la imagen actual. Puedes usar un archivo tuyo.</source>
+        <translation>This game has no SteamGridDB link yet. The current image is available, and you can choose your own file.</translation>
+    </message>
+    <message>
+        <source>No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.</source>
+        <translation>No more images of this type. You can choose your own file.</translation>
+    </message>
+    <message>
+        <source>←↑↓→  Elegir</source>
+        <translation>←↑↓→  Select</translation>
+    </message>
+    <message>
+        <source>LB RB  Tipo</source>
+        <translation>LB RB  Type</translation>
+    </message>
+    <message>
+        <source>Y  Mi archivo</source>
+        <translation>Y  My file</translation>
+    </message>
+    <message>
+        <source>X  Encuadre</source>
+        <translation>X  Framing</translation>
+    </message>
+    <message>
+        <source>A  Guardar</source>
+        <translation>A  Save</translation>
+    </message>
+    <message>
+        <source>B  Descartar</source>
+        <translation>B  Dismiss</translation>
+    </message>
+    <message>
+        <source>Elige una imagen (%1)</source>
+        <translation>Choose an image (%1)</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaDownloads</name>
+    <message>
+        <source>En cola</source>
+        <translation>Queued</translation>
+    </message>
+    <message>
+        <source>Descargando</source>
+        <translation>Downloading</translation>
+    </message>
+    <message>
+        <source>Verificando</source>
+        <translation>Verifying</translation>
+    </message>
+    <message>
+        <source>Extrayendo</source>
+        <translation>Extracting</translation>
+    </message>
+    <message>
+        <source>Finalizando</source>
+        <translation>Finalizing</translation>
+    </message>
+    <message>
+        <source>En pausa</source>
+        <translation>Paused</translation>
+    </message>
+    <message>
+        <source>Falló</source>
+        <translation>Failed</translation>
+    </message>
+    <message>
+        <source>Cancelada</source>
+        <translation>Canceled</translation>
+    </message>
+    <message>
+        <source>Interrumpida</source>
+        <translation>Interrupted</translation>
+    </message>
+    <message>
+        <source>Instalado</source>
+        <translation>Installed</translation>
+    </message>
+    <message>
+        <source>Volver</source>
+        <translation>Back</translation>
+    </message>
+    <message>
+        <source>Descargas</source>
+        <translation>Downloads</translation>
+    </message>
+    <message>
+        <source>No terminó.</source>
+        <translation>It did not finish.</translation>
+    </message>
+    <message>
+        <source>No hay descargas en curso. Lo que instales aparecerá aquí; al terminar con éxito se quita solo.</source>
+        <translation>No downloads in progress. Installations appear here and clear automatically on success.</translation>
+    </message>
+    <message>
+        <source>A  %1</source>
+        <translation>A  %1</translation>
+    </message>
+    <message>
+        <source>Abrir descargas de Steam</source>
+        <translation>Open Steam downloads</translation>
+    </message>
+    <message>
+        <source>Reanudar</source>
+        <translation>Resume</translation>
+    </message>
+    <message>
+        <source>Pausar</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <source>A  Reintentar</source>
+        <translation>A  Retry</translation>
+    </message>
+    <message>
+        <source>A  Abrir ficha</source>
+        <translation>A  Open details</translation>
+    </message>
+    <message>
+        <source>X  Cancelar</source>
+        <translation>X  Cancel</translation>
+    </message>
+    <message>
+        <source>X  Descartar</source>
+        <translation>X  Dismiss</translation>
+    </message>
+    <message>
+        <source>Y  Descartar las fallidas (%1)</source>
+        <translation>Y  Dismiss failed downloads (%1)</translation>
+    </message>
+    <message>
+        <source>B  Volver</source>
+        <translation>B  Back</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaIntro</name>
+    <message>
+        <source>Bienvenido de nuevo, %1</source>
+        <translation>Welcome back, %1</translation>
+    </message>
+    <message>
+        <source>Bienvenido de nuevo</source>
+        <translation>Welcome back</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n juego(s)</source>
+        <translation>
+            <numerusform>%n game</numerusform>
+            <numerusform>%n games</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n actualización(es)</source>
+        <translation>
+            <numerusform>%n update</numerusform>
+            <numerusform>%n updates</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Mando</source>
+        <translation>Controller</translation>
+    </message>
+    <message>
+        <source>al %1 %</source>
+        <translation>at %1%</translation>
+    </message>
+    <message>
+        <source>TU BIBLIOTECA UNIFICADA</source>
+        <translation>YOUR UNIFIED LIBRARY</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaPadTest</name>
+    <message>
+        <source>Prueba · %1</source>
+        <translation>Test · %1</translation>
+    </message>
+    <message>
+        <source>El mando se desconectó</source>
+        <translation>Controller disconnected</translation>
+    </message>
+    <message>
+        <source>Mantén B 1 s para salir · Esc · clic aquí</source>
+        <translation>Hold B for 1 s to exit · Esc · click here</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaPortInstall</name>
+    <message>
+        <source>No se pudo iniciar la actualización.</source>
+        <translation>Could not start the update.</translation>
+    </message>
+    <message>
+        <source>No se pudo iniciar la instalación.</source>
+        <translation>Could not start installation.</translation>
+    </message>
+    <message>
+        <source>Actualización disponible</source>
+        <translation>Update available</translation>
+    </message>
+    <message>
+        <source>Port disponible</source>
+        <translation>Port available</translation>
+    </message>
+    <message>
+        <source>Se descarga la versión nueva, se verifica su SHA-256 y se superpone sobre la carpeta actual. Tus partidas y los archivos que el port preparó se conservan; algunos ports rehacen su preparación (compilar el juego, shaders) la primera vez que se abren. Cierra el juego antes de actualizar.</source>
+        <translation>Omnia downloads and verifies the new version, then applies it to the current folder. Your saves and prepared files are kept. Some ports repeat setup, such as compiling the game or shaders, on first launch after an update. Close the game before updating.</translation>
+    </message>
+    <message>
+        <source>Se descarga de la release del desarrollador y se verifica su SHA-256 antes de instalarlo. Necesitas tu propia copia del juego: el port te la pedirá al abrirlo.</source>
+        <translation>Omnia downloads the developer’s release and verifies its SHA-256 before installing. The port will ask for your own copy of the game when it opens.</translation>
+    </message>
+    <message>
+        <source>Destino: %1</source>
+        <translation>Destination: %1</translation>
+    </message>
+    <message>
+        <source>Elige una carpeta de instalación en la app de escritorio (Ajustes → General).</source>
+        <translation>Choose an installation folder in the desktop app under Settings → General.</translation>
+    </message>
+    <message>
+        <source>Acepto la licencia (%1) y la descarga desde la fuente indicada</source>
+        <translation>I accept the license (%1) and agree to download from the listed source</translation>
+    </message>
+    <message>
+        <source>Iniciando…</source>
+        <translation>Starting…</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaVirtualKeyboard</name>
+    <message>
+        <source>Ruta de la carpeta…</source>
+        <translation>Folder path…</translation>
+    </message>
+    <message>
+        <source>Buscar juego…</source>
+        <translation>Search games…</translation>
+    </message>
+    <message>
+        <source>Espacio</source>
+        <translation>Space</translation>
+    </message>
+    <message>
+        <source>Borrar</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>Limpiar</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>Guardar</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>Buscar</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>A escribir · LB mayúsculas · START guardar · B cancelar</source>
+        <translation>A type · LB uppercase · START save · B cancel</translation>
+    </message>
+    <message>
+        <source>A escribir · X borrar · Y espacio · START buscar · B cerrar</source>
+        <translation>A type · X delete · Y space · START search · B close</translation>
+    </message>
+</context>
+<context>
+    <name>PadBattery</name>
+    <message>
+        <source>Mando</source>
+        <translation>Controller</translation>
+    </message>
+    <message>
+        <source>Cargando · </source>
+        <translation>Loading · </translation>
+    </message>
+</context>
+<context>
+    <name>StoreLoading</name>
+    <message>
+        <source>Cargando juegos de las tiendas…</source>
+        <translation>Loading store games…</translation>
     </message>
 </context>
 </TS>

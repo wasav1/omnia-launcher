@@ -87,6 +87,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 
 ## 7. Registro de cambios
 
+- **2026-11-25 — Novedades, foco e idioma.** Inicio, Explorar e Inicio/Tienda de Big Mode reutilizan el carrusel de novedades. La selección alterna Omnia, Steam, GOG, Epic y Amazon. Longshot obtiene la versión publicada en Forgejo y su arte del catálogo. Noticias de Epic y Amazon con datos localizados, GOG descomprime el RSS y recoge imágenes del artículo, y Steam prefiere el arte publicado por el autor. El texto original en inglés se identifica cuando no hay versión localizada. El arte de noticias tiene su propia lista de CDN permitidos y comparte la caché de imágenes. Escritorio muestra Favoritos y Descargas en curso en Inicio, limita el zoom dentro de cada área visible y refuerza la lectura de filtros. Las tiendas publican sus bibliotecas juntas al terminar la primera carga. Big Mode comparte superficies translúcidas y resalta la selección en la estantería. Se completaron los textos QML extraídos y se localizaron los paneles de Hyprland y Dux. Steam sigue gestionando sus transferencias y Omnia muestra el progreso que publica el cliente en sus manifiestos. Paquetes 0.3.0-107.
+
 - **2026-11-25 — Recuperación de arte después del despliegue.** Se confirmó que el backend responde con portada y fondo para LIMBO y Tomb Raider: The Last Revelation. Las instalaciones manuales ya estaban asociadas a Epic y GOG, respectivamente. La resolución permite usar sus AppID verificados cuando coincide el identificador de tienda. El servicio prioriza juegos manuales sin portada y conserva la cola durante las actualizaciones de estado y los escaneos que devuelven la misma biblioteca. Paquetes locales 0.3.0-106.
 
 

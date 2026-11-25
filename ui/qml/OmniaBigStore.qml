@@ -290,7 +290,8 @@ Item {
         }
         if (key !== "l" && key !== "r") return
         const step = key === "r" ? 1 : -1
-        if (zone === 1) recentIndex = Math.max(0, Math.min(recentGames.length, recentIndex + step))
+        if (zone === 0) grid.headerItem?.newsPanel.advance(step)
+        else if (zone === 1) recentIndex = Math.max(0, Math.min(recentGames.length, recentIndex + step))
         else if (zone === 2) setFilter(filter + step)
         else if (zone === 3 && Math.floor((gridIndex + step) / columns) === Math.floor(gridIndex / columns))
             selectGrid(gridIndex + step)
@@ -316,7 +317,7 @@ Item {
         signal choose()
         width: labelRow.implicitWidth + bigStore.s * 30
         height: bigStore.s * 38; radius: height / 2
-        color: selected ? bigStore.host.accent : "#223141"
+        color: selected ? bigStore.host.accent : bigStore.host.surface
         border { width: focused ? 3 : 1; color: focused ? bigStore.host.ring : "#46586A" }
         Row {
             id: labelRow
@@ -354,7 +355,7 @@ Item {
         keyNavigationEnabled: false
         cellWidth: Math.max(1, Math.floor(width / bigStore.columns))
         cellHeight: bigStore.cardHeight + bigStore.cardGap
-        model: bigStore.gridGames
+        model: bigStore.accounts.ready ? bigStore.gridGames : []
         currentIndex: bigStore.gridIndex
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         onMovementEnded: {
@@ -392,6 +393,7 @@ Item {
                 api: bigStore.api
                 uiScale: bigStore.s * 1.15
                 active: bigStore.visible
+                onOpenGame: game => bigStore.openDetail(bigStore.catalogEntry(game))
                 controllerFocused: bigStore.zone === 0 && bigStore.host.mainNavIndex < 0 && bigStore.host.padOn
             }
             Column {
@@ -441,11 +443,17 @@ Item {
                 color: bigStore.host.ink; font.family: bigStore.host.uiFont
                 font.pixelSize: bigStore.s * 23; font.weight: Font.DemiBold
             }
+            StoreLoading {
+                width: parent.width
+                visible: bigStore.accounts.loadingContent
+                ink: bigStore.host.ink2
+                uiScale: bigStore.s * 1.24
+            }
             Text {
                 width: parent.width; wrapMode: Text.WordWrap; visible: !!text
                 color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 16
                 text: bigStore.catalogLoading && !bigStore.gridGames.length ? qsTr("Cargando catálogo…")
-                    : bigStore.catalogMessage || (!bigStore.gridGames.length ? qsTr("No hay juegos para este filtro.") : "")
+                    : bigStore.catalogMessage || (!bigStore.gridGames.length && !bigStore.accounts.loadingContent ? qsTr("No hay juegos para este filtro.") : "")
             }
         }
         delegate: Item {
@@ -472,7 +480,7 @@ Item {
         anchors { left: parent.left; right: parent.right; top: parent.top }
         visible: bigStore.filtersPinned
         height: bigStore.s * 54
-        color: bigStore.host.base
+        color: "#BF111C27"
         FilterBar { width: parent.width; anchors.verticalCenter: parent.verticalCenter }
     }
 
@@ -485,6 +493,8 @@ Item {
         ManagerPosterCard {
             anchors.fill: parent
             scaleFactor: bigStore.s * 1.15
+            selected: cover.focused
+            highlightColor: bigStore.host.ring
             title: cover.game.name || ""
             artwork: (cover.preferHero && cover.game.hero) || cover.game.art || ""
             store: cover.game.store === "omnia" ? "Omnia" : bigStore.accounts.names[cover.game.store] || qsTr("Local")
@@ -493,12 +503,7 @@ Item {
             platform: cover.game.local ? bigStore.host.platformLabel(cover.game.local) : ""
             onActivated: cover.choose()
         }
-        Rectangle {
-            anchors.fill: parent
-            visible: cover.focused
-            radius: bigStore.s * 13; color: "transparent"
-            border.width: Math.max(2, bigStore.s * 4); border.color: bigStore.host.ring
-        }
+
     }
 
     Rectangle {
@@ -510,7 +515,7 @@ Item {
             width: Math.min(parent.width - bigStore.s * 42, bigStore.s * 1120)
             height: Math.min(parent.height * 0.78, bigStore.s * 478)
             radius: bigStore.s * 22
-            color: "#111D2A"
+            color: "#B8111D2A"
             clip: true
             MouseArea { anchors.fill: parent }
             FadedImage {

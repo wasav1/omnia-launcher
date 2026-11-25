@@ -139,7 +139,7 @@ Singleton {
 
     property GlobalShortcut shortcut: GlobalShortcut {
         name: "omniaToggle"
-        description: "Abrir o cerrar el panel de Omnia"
+        description: OmniaApi.tr("Abrir o cerrar el panel de Omnia", "Open or close the Omnia panel")
         onPressed: root.toggleShortcut()
     }
 

@@ -745,7 +745,7 @@ Rectangle {
     }
     function openSettings() {
         api.call("POST", "/settings/open", function(status, body) {
-            if (status !== 200) api.notify(body.error || "No se pudieron abrir los ajustes de Omnia")
+            if (status !== 200) api.notify(body.error || qsTr("No se pudieron abrir los ajustes de Omnia"))
         })
     }
     function activateHead(i) {
@@ -1293,7 +1293,7 @@ Rectangle {
                             } }
                     } }
                 Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:28
-                    Repeater { model:[["A","Escribir"],["B","Borrar"],["X","Mayús"],["Y","Espacio"]]
+                    Repeater { model:[["A","Escribir"],["B","Borrar"],["X",qsTr("Mayús")],["Y","Espacio"]]
                         delegate: Row { required property var modelData; spacing:8
                             Rectangle { width:32; height:32; radius:16; color:"transparent"; border.width:1; border.color:"#8091a9c2"
                                 Text { anchors.centerIn:parent; text:parent.parent.modelData[0]; color:canvas.brand; font.family:canvas.hud; font.bold:true; font.pixelSize:14 } }
@@ -1464,7 +1464,7 @@ Rectangle {
                 Repeater { model:shell.artKinds
                     delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
                         height:36;width:kindText.implicitWidth+32;radius:18;color:active?canvas.brand:"#25303d"
-                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
+                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?qsTr("Portada"):(parent.modelData==="fondo"?qsTr("Fondo"):"Logo");color:parent.active?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
                         MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
                     }
                 }
@@ -1510,7 +1510,7 @@ Rectangle {
                     }
                 }
             }
-            Text { x:artGrid.x;y:artGrid.y+artGrid.height/2-14;width:artGrid.width;horizontalAlignment:Text.AlignHCenter;visible:shell.artItems.length===0;text:shell.artBusy?"Consultando el catálogo de Omnia…":(shell.artError||"Sin arte publicado para este juego");color:canvas.ink2;font.family:canvas.body;font.pixelSize:18 }
+            Text { x:artGrid.x;y:artGrid.y+artGrid.height/2-14;width:artGrid.width;horizontalAlignment:Text.AlignHCenter;visible:shell.artItems.length===0;text:shell.artBusy?qsTr("Consultando el catálogo de Omnia…"):(shell.artError||qsTr("Sin arte publicado para este juego"));color:canvas.ink2;font.family:canvas.body;font.pixelSize:18 }
             Rectangle { x:384;y:640;width:1152;height:108;radius:16;color:"#202833";border.width:1;border.color:"#394656"
                     Text { x:18;y:8;text:qsTr("PREVISUALIZACIÓN ACTUAL / SELECCIONADA");color:canvas.brand;font.family:canvas.hud;font.pixelSize:12;font.letterSpacing:1.4;font.weight:Font.DemiBold }
                 Row { x:18;y:29;spacing:14
@@ -1524,13 +1524,13 @@ Rectangle {
                     }
                 }
             }
-            Text { x:384;y:770;text:api.padOn?"A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar":"Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:12;verticalAlignment:Text.AlignVCenter }
+            Text { x:384;y:770;text:api.padOn?qsTr("A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar"):qsTr("Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar");color:canvas.ink3;font.family:canvas.body;font.pixelSize:12;verticalAlignment:Text.AlignVCenter }
             Rectangle { x:artPanel.x+artPanel.width-300;y:766;width:130;height:42;radius:21;color:"#283342";opacity:shell.artApplying?0.55:1
                 Text { anchors.centerIn:parent;text:qsTr("Cancelar");color:canvas.ink;font.family:canvas.body;font.pixelSize:15 }
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying;cursorShape:Qt.PointingHandCursor;onClicked:shell.closeArt() }
             }
             Rectangle { x:artPanel.x+artPanel.width-160;y:766;width:160;height:42;radius:21;color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brand:"#303846";opacity:shell.artApplying?0.55:1
-                Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brandInk:canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
+                Text { anchors.centerIn:parent;text:shell.artApplying?qsTr("Aplicando…"):"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brandInk:canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&!!(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
             }
             Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
@@ -1629,7 +1629,7 @@ Rectangle {
             }
             Text {
                 width: parent.width; horizontalAlignment: Text.AlignHCenter
-                text: shell.current ? shell.current.name : "Selecciona una versión"
+                text: shell.current ? shell.current.name : qsTr("Selecciona una versión")
                 color: canvas.ink; font.family: canvas.hud; font.pixelSize: 22; font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
@@ -1673,7 +1673,7 @@ Rectangle {
                 }
                 Text {
                     width:parent.width-152; anchors.verticalCenter:parent.verticalCenter
-                    text: api.padOn ? "Clic en una opción · B cancelar" : "Clic en una opción · Esc cancelar"
+                    text: api.padOn ? qsTr("Clic en una opción · B cancelar") : qsTr("Clic en una opción · Esc cancelar")
                     color: canvas.ink2; font.family: canvas.body; font.pixelSize: 14; wrapMode:Text.WordWrap
                 }
             }

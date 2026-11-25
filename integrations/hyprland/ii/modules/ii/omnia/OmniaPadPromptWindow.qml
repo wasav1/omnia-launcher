@@ -36,7 +36,7 @@ PanelWindow {
         if (n.indexOf("dualshock") >= 0) return "DualShock 4";
         if (n.indexOf("pro controller") >= 0) return "Pro Controller";
         if (n.indexOf("steam") >= 0 || n.indexOf("deck") >= 0) return "Steam Deck";
-        return pp.name || "Mando";
+        return pp.name || OmniaApi.tr("Mando", "Controller");
     }
     readonly property string batteryText: pp.battery && pp.battery.level !== undefined ? " · " + Math.round(Number(pp.battery.level)) + " %" : ""
 
@@ -65,9 +65,9 @@ PanelWindow {
                 color: "#0b0f14"; border.width: 3; border.color: "#5b9be0"
                 OmniaLucide { anchors.centerIn: parent; name: "gamepad-2"; width: 30; height: 30; color: OmniaTheme.ink }
             }
-            StyledText { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 6; text: "Mando conectado"; font.pixelSize: Appearance.font.pixelSize.larger; font.weight: Font.DemiBold; color: OmniaTheme.ink }
+            StyledText { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 6; text: OmniaApi.tr("Mando conectado", "Controller connected"); font.pixelSize: Appearance.font.pixelSize.larger; font.weight: Font.DemiBold; color: OmniaTheme.ink }
             StyledText { Layout.alignment: Qt.AlignHCenter; text: win.shortName + win.batteryText; font.pixelSize: Appearance.font.pixelSize.smaller; color: OmniaTheme.inkDim }
-            StyledText { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8; text: "¿Abrir Omnia?"; font.pixelSize: Appearance.font.pixelSize.normal; color: OmniaTheme.ink }
+            StyledText { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8; text: OmniaApi.tr("¿Abrir Omnia?", "Open Omnia?"); font.pixelSize: Appearance.font.pixelSize.normal; color: OmniaTheme.ink }
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 6
@@ -81,7 +81,7 @@ PanelWindow {
                         spacing: 8
                         Rectangle { implicitWidth: 22; implicitHeight: 22; radius: 11; color: "#4caf50"
                             StyledText { anchors.centerIn: parent; text: win.ps ? "✕" : "A"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "white" } }
-                        StyledText { text: "Abrir Big Mode"; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Abrir Big Mode", "Open Big Mode"); color: OmniaTheme.ink }
                     }
                     MouseArea { id: yesMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.pp.accept() }
                 }
@@ -95,7 +95,7 @@ PanelWindow {
                         spacing: 8
                         Rectangle { implicitWidth: 22; implicitHeight: 22; radius: 11; color: "#e0524a"
                             StyledText { anchors.centerIn: parent; text: win.ps ? "○" : "B"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "white" } }
-                        StyledText { text: "Ahora no"; color: OmniaTheme.ink }
+                        StyledText { text: OmniaApi.tr("Ahora no", "Not now"); color: OmniaTheme.ink }
                     }
                     MouseArea { id: noMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.pp.decline() }
                 }

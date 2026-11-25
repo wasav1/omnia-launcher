@@ -167,7 +167,7 @@ Item {
         property string fit: "fill"
         readonly property bool ready: shot.status === Image.Ready
         readonly property Item item: frame
-        Rectangle { id: frame; anchors.fill: parent; color: "#0b1016"
+        Rectangle { id: frame; anchors.fill: parent; color: ed.host.surface
             Image { id: shot; anchors.fill: parent; source: renderP.src; fillMode: renderP.fit === "fit" ? Image.PreserveAspectFit : Image.PreserveAspectCrop; smooth: true } }
     }
     Item {
@@ -177,7 +177,7 @@ Item {
         property string fit: "fill"
         readonly property bool ready: shotF.status === Image.Ready
         readonly property Item item: frameF
-        Rectangle { id: frameF; anchors.fill: parent; color: "#0b1016"
+        Rectangle { id: frameF; anchors.fill: parent; color: ed.host.surface
             Image { id: shotF; anchors.fill: parent; source: renderF.src; fillMode: renderF.fit === "fit" ? Image.PreserveAspectFit : Image.PreserveAspectCrop; smooth: true } }
     }
 
@@ -215,7 +215,7 @@ Item {
     Keys.onPressed: function(e) { e.accepted = ed.key(e) }
 
     // ================= interfaz =================
-    Rectangle { anchors.fill: parent; color: ed.host.base }
+    Rectangle { anchors.fill: parent; color: ed.host.pageShade }
     Rectangle {
         id: backB
         x: ed.s * 48; y: ed.s * 30

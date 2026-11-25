@@ -87,7 +87,7 @@ Item {
     Api { id: api; controlsEnabled: false; systemEnabled: true }
     Component.onCompleted: loadOnline(1)
     Timer { interval: 6000; repeat: true; running: manager.visible; onTriggered: api.refresh() }
-    Timer { interval: 1200; repeat: true; running: manager.visible && (manager.page === "installs" || manager.activeInstalls.length > 0); triggeredOnStart: true; onTriggered: manager.loadInstallations() }
+    Timer { interval: manager.page === "installs" ? 1500 : 5000; repeat: true; running: manager.visible && (manager.page === "home" || manager.page === "installs" || manager.activeInstalls.length > 0); triggeredOnStart: true; onTriggered: manager.loadInstallations() }
 
     function loadOnline(page, append) {
         const requestedPage = page !== undefined ? Math.max(1, Number(page) || 1) : onlinePage
@@ -280,7 +280,6 @@ Item {
             }
             manager.installJobs = jobs
             manager.installedPackages = body.installed || []
-            api.refresh()
         })
     }
     function installationStatusLabel(status) {
@@ -467,60 +466,114 @@ Item {
         anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: statusbar.top }
         property real pad: manager.s * 34
         readonly property real top0: manager.s * 30
-        // Inicio: novedades de tiendas y juegos recientes.
-        Item {
+        Flickable {
             id: homePage
             anchors.fill: parent
             visible: manager.page === "home"
-            ManagerStoreNews {
-                id: banner
-                anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: content.pad; rightMargin: content.pad; topMargin: content.top0 }
-                manager: explorePage.newsTheme
-                api: explorePage.newsApi
-                active: homePage.visible
-            }
-            Row {
-                id: stats
-                anchors { left: parent.left; leftMargin: content.pad; top: banner.bottom; topMargin: manager.s * 18 }
-                spacing: manager.s * 12
-                Repeater {
-                    model: [
-                        {value: api.games.length, label: qsTr("JUEGOS")},
-                        {value: manager.recentGames.length, label: qsTr("RECIENTES")},
-                        {value: api.gameRunning ? 1 : 0, label: qsTr("EN JUEGO")}
-                    ]
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: manager.s * 150; height: manager.s * 46; radius: manager.s * 12; color: manager.surface
-                        Row { anchors.centerIn: parent; spacing: manager.s * 8
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.value; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 20; font.weight: Font.Bold }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.label; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; font.weight: Font.DemiBold; font.letterSpacing: 1 } }
+            clip: true
+            contentWidth: width
+            contentHeight: homeContent.height + 2 * content.top0
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+                id: homeContent
+                x: content.pad
+                y: content.top0
+                width: homePage.width - 2 * x
+                spacing: manager.s * 18
+                ManagerStoreNews {
+                    width: parent.width
+                    manager: explorePage.newsTheme
+                    api: explorePage.newsApi
+                    active: homePage.visible
+                    onOpenGame: game => manager.openCatalogDetail(game)
+                }
+                Row {
+                    spacing: manager.s * 12
+                    Repeater {
+                        model: [
+                            {count: api.games.filter(g => !g.hidden).length, label: qsTr("JUEGOS")},
+                            {count: manager.recentGames.length, label: qsTr("RECIENTES")},
+                            {count: api.gameRunning ? 1 : 0, label: qsTr("EN JUEGO")}
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: manager.s * 150; height: manager.s * 40; radius: manager.s * 12
+                            color: manager.surface
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.count + "  " + modelData.label
+                                color: manager.ink; font.family: "Hanken Grotesk"
+                                font.pixelSize: manager.s * 13; font.weight: Font.DemiBold
+                            }
+                        }
                     }
                 }
-            }
-            Text { id: continueTitle; x: content.pad; anchors.top: stats.bottom; anchors.topMargin: manager.s * 24; text: qsTr("Seguir jugando"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 21; font.weight: Font.DemiBold }
-            ListView {
-                id: recentList
-                x: content.pad; anchors.top: continueTitle.bottom; anchors.topMargin: manager.s * 12
-                width: parent.width - content.pad * 2; height: manager.s * 198
-                orientation: ListView.Horizontal; spacing: manager.s * 14; clip: true
-                leftMargin: manager.s * 8; rightMargin: manager.s * 8
-                model: manager.recentGames
-                delegate: ManagerPosterCard {
-                    required property var modelData
-                    width: manager.s * 250; height: manager.s * 180
-                    y: manager.s * 9
-                    scaleFactor: manager.s
-                    artwork: modelData.fondo || modelData.portada || ""
-                    title: modelData.name
-                    sourceLogo: manager.sourceForGame(modelData).logo
-                    info: modelData.lastPlayed
-                        ? new Date(modelData.lastPlayed * 1000).toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), "d MMM")
-                        : qsTr("En tu biblioteca")
-                    onActivated: manager.openGameInLibrary(modelData)
-                    onDoubleActivated: manager.launch(modelData)
+                HomeShelf {
+                    heading: qsTr("Seguir jugando")
+                    games: manager.recentGames
                 }
-                Text { visible: manager.recentGames.length === 0; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
+                HomeShelf {
+                    visible: games.length > 0
+                    heading: qsTr("Favoritos")
+                    games: api.games.filter(g => g.fav && !g.hidden).slice(0, 5)
+                }
+                Rectangle {
+                    visible: manager.activeInstalls.length > 0
+                    width: parent.width; height: manager.s * 64
+                    radius: manager.s * 14
+                    color: manager.surface
+                    LucideIcon {
+                        anchors { left: parent.left; leftMargin: manager.s * 16; verticalCenter: parent.verticalCenter }
+                        width: manager.s * 24; height: width; name: "download"; color: manager.ink
+                    }
+                    Text {
+                        x: manager.s * 55; anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Descargas en curso") + " · " + manager.activeInstalls.length
+                        color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage("installs") }
+                }
+            }
+        }
+
+        component HomeShelf: Column {
+            id: homeShelf
+            property string heading
+            property var games: []
+            width: parent ? parent.width : 0
+            spacing: manager.s * 4
+            Text { text: homeShelf.heading; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 21; font.weight: Font.DemiBold }
+            Flickable {
+                id: homeRow
+                width: parent.width; height: manager.s * 197
+                contentWidth: homeCards.implicitWidth + 2 * homeCards.x
+                contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                Row {
+                    id: homeCards
+                    x: manager.s * 10; y: manager.s * 9
+                    spacing: manager.s * 16
+                    Repeater {
+                        model: homeShelf.games
+                        delegate: ManagerPosterCard {
+                            required property var modelData
+                            width: manager.s * 250; height: manager.s * 179
+                            viewport: homeRow
+                            scaleFactor: manager.s
+                            artwork: modelData.fondo || modelData.portada || ""
+                            title: modelData.name
+                            sourceLogo: manager.sourceForGame(modelData).logo
+                            info: modelData.lastPlayed
+                                ? new Date(modelData.lastPlayed * 1000).toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), "d MMM")
+                                : qsTr("En tu biblioteca")
+                            onActivated: manager.openGameInLibrary(modelData)
+                            onDoubleActivated: manager.launch(modelData)
+                        }
+                    }
+                }
+                Text { visible: !homeShelf.games.length; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
             }
         }
 
@@ -599,6 +652,7 @@ Item {
                         manager: explorePage.newsTheme
                         api: explorePage.newsApi
                         active: explorePage.visible
+                        onOpenGame: game => manager.openCatalogDetail(game)
                     }
 
                     Column {
@@ -644,6 +698,7 @@ Item {
                                         visible: !!game
                                         width: installedList.cardWidth; height: installedList.cardHeight
                                         scaleFactor: manager.s
+                                        viewport: installedList
                                         title: game?.name || ""
                                         artwork: game?.fondo || game?.portada || ""
                                         store: game ? manager.sourceForGame(game).label : ""
@@ -686,8 +741,9 @@ Item {
                                     border.color: selected ? "#45CFC9" : "#30414E"
                                     Row {
                                         anchors.centerIn: parent; spacing: manager.s * 6
+                                        LucideIcon { visible: inlineChip.modelData.k === "all"; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 19; height: width; name: "layout-grid"; color: inlineChip.selected ? "#72E0DA" : manager.muted }
                                         Image { visible: !!inlineChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 26; height: width; source: inlineChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
-                                        Text { anchors.verticalCenter: parent.verticalCenter; text: inlineChip.modelData.label; color: inlineChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: inlineChip.selected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: inlineChip.modelData.label; color: inlineChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = inlineChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
                                 }
@@ -726,7 +782,7 @@ Item {
                             height: exploreGridRepeater.count ? Math.ceil(exploreGridRepeater.count / columns) * (cardHeight + rowSpacing) - rowSpacing : 0
                             Repeater {
                                 id: exploreGridRepeater
-                                model: manager.exploreItems
+                                model: storesView.ready ? manager.exploreItems : []
                                 delegate: Item {
                                     id: exploreCell
                                     required property var modelData
@@ -736,13 +792,8 @@ Item {
                                         id: explorePoster
                                         anchors.fill: parent
                                         scaleFactor: manager.s
-                                        hoverScale: {
-                                            if (!hovered) return 1
-                                            const y = exploreCell.mapToItem(exploreContent, 0, 0).y - exploreFlick.contentY
-                                            const top = pinnedExploreFilters.visible ? pinnedExploreFilters.height : 0
-                                            const room = Math.min(y - top, exploreFlick.height - y - height)
-                                            return Math.min(1.045, 1 + Math.max(0, room) * 2 / height)
-                                        }
+                                        viewport: exploreFlick
+                                        viewportTop: pinnedExploreFilters.visible ? pinnedExploreFilters.height : 0
                                         title: exploreCell.modelData.name
                                         artwork: exploreCell.modelData.art
                                         store: exploreCell.modelData.store
@@ -764,7 +815,13 @@ Item {
                                 }
                             }
                         }
-                        Text { visible: exploreGridRepeater.count === 0 && !manager.onlineBusy; text: qsTr("No hay juegos para este filtro."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                        StoreLoading {
+                            width: parent.width
+                            visible: storesView.loadingContent
+                            ink: manager.muted
+                            uiScale: manager.s
+                        }
+                        Text { visible: exploreGridRepeater.count === 0 && !manager.onlineBusy && !storesView.loadingContent; text: qsTr("No hay juegos para este filtro."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
                         Text { visible: manager.onlineBusy; text: qsTr("Cargando más juegos…"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11 }
                     }
                     Item { width: 1; height: manager.s * 22 }
@@ -795,8 +852,9 @@ Item {
                             border.color: selected ? "#45CFC9" : "#30414E"
                             Row {
                                 anchors.centerIn: parent; spacing: manager.s * 6
+                                LucideIcon { visible: pinnedChip.modelData.k === "all"; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 19; height: width; name: "layout-grid"; color: pinnedChip.selected ? "#72E0DA" : manager.muted }
                                 Image { visible: !!pinnedChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 26; height: width; source: pinnedChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: pinnedChip.modelData.label; color: pinnedChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: pinnedChip.selected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: pinnedChip.modelData.label; color: pinnedChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = pinnedChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
                         }

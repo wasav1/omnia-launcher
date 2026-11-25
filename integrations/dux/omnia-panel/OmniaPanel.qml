@@ -21,6 +21,8 @@ Item {
 
     readonly property string base: "http://127.0.0.1:47831"
     property string token: ""
+    property string language: Qt.locale().name.startsWith("en") ? "en" : "es"
+    function tr(es, en) { return root.language === "en" ? en : es }
     property string status: "loading"          // loading | ok | empty | error
     property string errorText: ""
     property string actionError: ""
@@ -67,7 +69,7 @@ Item {
         if (n.indexOf("steam") >= 0 || n.indexOf("deck") >= 0) return "Steam Deck";
         if (n.indexOf("xbox") >= 0) return "Xbox";
         const words = padName.split(/\s+/).filter(w => w);
-        return words.length ? words.slice(0, 2).join(" ") : "Mando";
+        return words.length ? words.slice(0, 2).join(" ") : root.tr("Mando", "Controller");
     }
 
     // ---------------- cliente del núcleo ----------------
@@ -85,7 +87,10 @@ Item {
         xhr.send(body ? JSON.stringify(body) : undefined);
     }
     function refresh() {
-        if (token === "") { status = "error"; errorText = "omnia-core no está en marcha (falta el token de sesión)."; return; }
+        if (token !== "") request("GET", "/settings", null, (st, data) => {
+            if (st === 200 && data) root.language = data.language === "en" ? "en" : "es";
+        });
+        if (token === "") { status = "error"; errorText = root.tr("omnia-core no está en marcha (falta el token de sesión).", "omnia-core is stopped (session token missing)."); return; }
         request("GET", "/library", null, (st, d) => {
             if (st === 200 && d && d.games !== undefined) {
                 games = d.games;
@@ -93,7 +98,7 @@ Item {
                 errorText = "";
             } else {
                 status = "error";
-                errorText = st === 0 ? "omnia-core no responde." : ((d && d.error) || ("Error HTTP " + st));
+                errorText = st === 0 ? root.tr("omnia-core no responde.", "omnia-core is not responding.") : ((d && d.error) || (root.tr("Error HTTP ", "HTTP error ") + st));
             }
         });
         request("GET", "/pad", null, (st, d) => {
@@ -117,9 +122,9 @@ Item {
         if (!g) return;
         if (g.portAvailable) { openApp(g.id, "--install-port"); return; }      // sin port instalado se ofrece instalarlo en la app de escritorio
         const port = g.ports ? g.ports.find(p => p.canLaunch && !p.running) : null;
-        if (!port) { actionError = "El juego ya está en ejecución o no tiene un lanzador disponible."; return; }
+        if (!port) { actionError = root.tr("El juego ya está en ejecución o no tiene un lanzador disponible.", "The game is already running or has no available launcher."); return; }
         request("POST", "/launch", { id: g.id, port: port.id }, (st, d) => {
-            if (st !== 200) actionError = (d && d.error) || "No se pudo lanzar el juego.";
+            if (st !== 200) actionError = root.language === "en" ? "Could not launch the game." : ((d && d.error) || "No se pudo lanzar el juego.");
             else closeDash();
         });
     }
@@ -128,7 +133,7 @@ Item {
     }
     function playTime(seconds) {
         const total = Math.floor(Number(seconds) || 0);
-        if (total < 60) return "Sin tiempo registrado";
+        if (total < 60) return root.tr("Sin tiempo registrado", "No playtime recorded");
         const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60);
         return h > 0 ? h + " h " + m + " min" : m + " min";
     }
@@ -138,10 +143,10 @@ Item {
         const day = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
         const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
         const elapsed = Math.round((today - day) / 86400000);
-        if (elapsed <= 0) return "Hoy";
-        if (elapsed === 1) return "Ayer";
-        if (elapsed < 7) return "Hace " + elapsed + " días";
-        return date.toLocaleDateString(Qt.locale("es_CO"), "d MMM yyyy");
+        if (elapsed <= 0) return root.tr("Hoy", "Today");
+        if (elapsed === 1) return root.tr("Ayer", "Yesterday");
+        if (elapsed < 7) return root.tr("Hace %1 días", "%1 days ago").arg(elapsed);
+        return date.toLocaleDateString(Qt.locale(root.language === "en" ? "en_US" : "es_CO"), "d MMM yyyy");
     }
 
     onLiveChanged: if (live) refresh()
@@ -153,7 +158,7 @@ Item {
         printErrors: false
         onFileChanged: reload()
         onLoaded: { root.token = text().trim(); root.refresh(); }
-        onLoadFailed: { root.status = "error"; root.errorText = "omnia-core no está en marcha (falta el token de sesión)."; }
+        onLoadFailed: { root.status = "error"; root.errorText = root.tr("omnia-core no está en marcha (falta el token de sesión).", "omnia-core is stopped (session token missing)."); }
     }
 
     // ---------------- interfaz (compacto, una columna) ----------------
@@ -166,7 +171,7 @@ Item {
             spacing: Theme.spacingS
             DTextField {
                 Layout.fillWidth: true
-                placeholderText: "Buscar en toda tu biblioteca…"
+                placeholderText: root.tr("Buscar en toda tu biblioteca…", "Search your entire library…")
                 leftIconName: "search"
                 showClearButton: true
                 onTextChanged: root.search = text
@@ -192,7 +197,7 @@ Item {
             visible: root.status === "error" || root.status === "empty"
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: root.status === "empty" ? "Aún no hay juegos en tu biblioteca de Omnia." : root.errorText
+            text: root.status === "empty" ? root.tr("Aún no hay juegos en tu biblioteca de Omnia.", "Your Omnia library is empty.") : root.errorText
             color: Theme.surfaceVariantText
             font.pixelSize: Theme.fontSizeMedium
         }
@@ -228,7 +233,7 @@ Item {
                         StyledText {
                             anchors { left: parent.left; leftMargin: Theme.spacingM; right: parent.right; rightMargin: Theme.spacingM; verticalCenter: parent.verticalCenter }
                             elide: Text.ElideRight
-                            text: root.pinned ? ((root.pinned.running ? "En ejecución · " : "") + (root.pinned.sub || root.pinned.src || "") + ((root.pinned.lastPlayed || 0) > 0 ? " · " + root.playedDate(root.pinned.lastPlayed) + " · " + root.playTime(root.pinned.totalSecs) : "")) : ""
+                            text: root.pinned ? ((root.pinned.running ? root.tr("En ejecución · ", "Running · ") : "") + (root.pinned.sub || root.pinned.src || "") + ((root.pinned.lastPlayed || 0) > 0 ? " · " + root.playedDate(root.pinned.lastPlayed) + " · " + root.playTime(root.pinned.totalSecs) : "")) : ""
                             color: "white"
                             font.pixelSize: Theme.fontSizeSmall
                         }
@@ -256,14 +261,14 @@ Item {
                     Layout.bottomMargin: Theme.spacingXS
                     spacing: Theme.spacingS
                     DButton {
-                        text: root.pinned && root.pinned.portAvailable ? "Instalar" : "Jugar"
+                        text: root.pinned && root.pinned.portAvailable ? root.tr("Instalar", "Install") : root.tr("Jugar", "Play")
                         iconName: root.pinned && root.pinned.portAvailable ? "download" : "play_arrow"
                         enabled: !!root.pinned
                         onClicked: root.play(root.pinned)
                     }
-                    DButton { text: ""; iconName: root.pinned && root.pinned.fav ? "star" : "star_border"; variant: "tonal"; tooltipText: "Favorito"; enabled: !!root.pinned; onClicked: root.toggleFav(root.pinned) }
-                    DButton { text: ""; iconName: "grid_view"; variant: "tonal"; tooltipText: "Ver detalles"; enabled: !!root.pinned; onClicked: root.openApp(root.pinned.id, "") }
-                    DButton { text: ""; iconName: "folder_open"; variant: "tonal"; tooltipText: "Abrir carpeta"; enabled: !!(root.pinned && root.pinned.folder); onClicked: { Quickshell.execDetached(["xdg-open", root.pinned.folder]); root.closeDash(); } }
+                    DButton { text: ""; iconName: root.pinned && root.pinned.fav ? "star" : "star_border"; variant: "tonal"; tooltipText: root.tr("Favorito", "Favorite"); enabled: !!root.pinned; onClicked: root.toggleFav(root.pinned) }
+                    DButton { text: ""; iconName: "grid_view"; variant: "tonal"; tooltipText: root.tr("Ver detalles", "View details"); enabled: !!root.pinned; onClicked: root.openApp(root.pinned.id, "") }
+                    DButton { text: ""; iconName: "folder_open"; variant: "tonal"; tooltipText: root.tr("Abrir carpeta", "Open folder"); enabled: !!(root.pinned && root.pinned.folder); onClicked: { Quickshell.execDetached(["xdg-open", root.pinned.folder]); root.closeDash(); } }
                     Item { Layout.fillWidth: true }
                 }
             }
@@ -272,14 +277,14 @@ Item {
         StyledText {
             visible: root.status === "ok" && root.searching
             Layout.leftMargin: Theme.spacingXS
-            text: root.matches.length + (root.matches.length === 1 ? " resultado" : " resultados")
+            text: root.matches.length + (root.matches.length === 1 ? root.tr(" resultado", " result") : root.tr(" resultados", " results"))
             color: Theme.surfaceVariantText
             font.pixelSize: Theme.fontSizeSmall
         }
         StyledText {
             visible: root.searching && root.matches.length === 0
             Layout.margins: Theme.spacingM
-            text: "Ningún juego coincide."
+            text: root.tr("Ningún juego coincide.", "No matching games.")
             color: Theme.surfaceVariantText
             font.pixelSize: Theme.fontSizeMedium
         }
@@ -327,7 +332,7 @@ Item {
                     anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
                     spacing: Theme.spacingXS
                     DIcon { visible: !!row.modelData.fav; name: "star"; size: 16; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
-                    DButton { text: ""; iconName: row.modelData.portAvailable ? "download" : "play_arrow"; variant: "tonal"; tooltipText: row.modelData.portAvailable ? "Instalar" : "Jugar"; onClicked: root.play(row.modelData) }
+                    DButton { text: ""; iconName: row.modelData.portAvailable ? "download" : "play_arrow"; variant: "tonal"; tooltipText: row.modelData.portAvailable ? root.tr("Instalar", "Install") : root.tr("Jugar", "Play"); onClicked: root.play(row.modelData) }
                 }
             }
         }
@@ -335,7 +340,7 @@ Item {
         StyledText {
             visible: root.status === "ok" && root.hiddenCount > 0
             Layout.leftMargin: Theme.spacingXS
-            text: "y " + root.hiddenCount + " más en tu biblioteca"
+            text: root.tr("y %1 más en tu biblioteca", "and %1 more in your library").arg(root.hiddenCount)
             color: Theme.surfaceVariantText
             font.pixelSize: Theme.fontSizeSmall
         }
@@ -344,7 +349,7 @@ Item {
             Layout.fillWidth: true
             spacing: Theme.spacingS
             DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: "Big Mode"; iconName: "grid_view"; variant: "tonal"; onClicked: { Quickshell.execDetached(["omnia-ui", "--window"]); root.closeDash(); } }
-            DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: "Descargas"; iconName: "download"; variant: "tonal"; onClicked: root.openApp("", "--downloads") }
+            DButton { Layout.fillWidth: true; Layout.preferredWidth: 1; text: root.tr("Descargas", "Downloads"); iconName: "download"; variant: "tonal"; onClicked: root.openApp("", "--downloads") }
         }
     }
 }
