@@ -11,6 +11,7 @@ Item {
     // En Explorar el contenido de las tiendas se presenta como una sección integrada.
     // Este modo conserva sus datos y el diálogo de cuentas, pero oculta la pantalla independiente.
     property bool compactHost: false
+    property bool controllerHost: false   // Ajustes de Big Mode dibuja sus propias filas
     property string filter: "all"                         // all | steam | epic | gog | amazon
     property var stores: []                               // estado que devuelve /stores
     property var remote: ({})                             // id de tienda -> juegos de su biblioteca en línea
@@ -20,6 +21,7 @@ Item {
     property string linking: ""                           // tienda cuyo inicio de sesión está en curso
     property string pasted: ""
     property bool busy: false
+    property string requesting: ""
     property string connecting: ""                        // tienda que se está conectando (muestra el indicador)
     readonly property var loginWindow: webLoader.item
     readonly property real s: manager ? manager.s : 1
@@ -97,8 +99,11 @@ Item {
         return true
     }
     function startLink(sid, external) {
+        if (requesting || connecting || busy) return
         st.message = ""
+        st.requesting = sid
         api.storeLoginUrl(sid, function(code, body) {
+            st.requesting = ""
             if (code !== 200) { st.message = body.error || qsTr("No se pudo abrir el inicio de sesión."); return }
             st.pasted = ""
             if (!external && st.webLogin(sid, body.url)) {
@@ -122,15 +127,21 @@ Item {
         if (sid === "amazon") return t.indexOf("openid.oa2.authorization_code=") >= 0
         return false
     }
+    function pasteLink() {
+        if (!st.linking || st.busy) return false
+        clip.text = ""
+        clip.paste()
+        const value = clip.text
+        clip.text = ""
+        if (!st.clipboardLooksRight(st.linking, value)) return false
+        st.pasted = value
+        st.finishLink()
+        return true
+    }
     Timer {
         interval: 1000; repeat: true
         running: st.accountsOpen && st.linking !== "" && !st.busy
-        onTriggered: {
-            clip.text = ""
-            clip.paste()
-            const t = clip.text
-            if (st.clipboardLooksRight(st.linking, t)) { st.pasted = t; st.finishLink() }
-        }
+        onTriggered: st.pasteLink()
     }
     Loader {
         id: webLoader
@@ -156,7 +167,12 @@ Item {
         })
     }
     function unlink(sid) {
+        if (requesting || connecting || busy) return
+        st.requesting = sid
         api.storeLogout(sid, function(code, body) {
+            st.requesting = ""
+            if (code !== 200) { st.message = body.error || qsTr("No se pudo desconectar."); return }
+            st.message = qsTr("%1 desconectada.").arg(st.names[sid])
             const r = Object.assign({}, st.remote); delete r[sid]; st.remote = r
             st.refreshStores()
         })
@@ -251,7 +267,7 @@ Item {
 
     // ---- cuentas
     Rectangle {
-        visible: st.accountsOpen
+        visible: st.accountsOpen && !st.controllerHost
         anchors.fill: parent; color: "#B0000000"; z: 20
         MouseArea { anchors.fill: parent; onClicked: { st.accountsOpen = false; st.linking = "" } }
         Rectangle {

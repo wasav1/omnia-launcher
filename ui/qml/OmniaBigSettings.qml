@@ -3,13 +3,15 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 /**
- * Ajustes de Big Mode, navegables con mando, teclado y ratón. Cuatro categorías (LB/RB o Tab para cambiar):
+ * Ajustes de Big Mode, navegables con mando, teclado y ratón. Categorías (LB/RB o Tab para cambiar):
  *   General · Sonido y bienvenida · Audio (salida y micrófono) · Mandos (iconos, zona muerta, vibración, apodo y prueba en vivo).
  * Filas: interruptor, selector (◀ ▶), deslizador (◀ ▶) y acción. ↑↓ mueve, ←→ ajusta, A/Enter activa, B/Esc vuelve.
  */
 Item {
     id: set
     required property var host
+    required property var storeAccounts
+    property string pendingDisconnect: ""
     signal back()
     readonly property real s: set.host.s
     readonly property var api: set.host.api
@@ -24,7 +26,7 @@ Item {
     property bool testOpen: false
     property string testId: ""
     property real backHeld: 0
-    readonly property var tabNames: [qsTr("General"), qsTr("Sonido"), qsTr("Audio"), qsTr("Mandos"), qsTr("Discord")]
+    readonly property var tabNames: [qsTr("General"), qsTr("Sonido"), qsTr("Audio"), qsTr("Mandos"), qsTr("Discord"), qsTr("Cuentas de tiendas")]
     readonly property var familyNames: [qsTr("Automático"), "Xbox", "PlayStation", "Nintendo Switch", "Steam Deck"]
     readonly property var familyIds: ["auto", "xbox", "ps", "switch", "deck"]
 
@@ -48,6 +50,8 @@ Item {
                 ? { id: "mango", kind: "toggle", label: qsTr("Monitor de rendimiento en los juegos"), desc: qsTr("Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia."), on: a.mangohud }
                 : { id: "mangoinfo", kind: "info", label: qsTr("Monitor de rendimiento en los juegos"), desc: qsTr("Necesita MangoHud: instálalo desde el gestor de paquetes.") })
             H(qsTr("Biblioteca"))
+            out.push({ id:"store-root", kind:"action", label:qsTr("Carpeta de instalación"),
+                       desc:a.installRoot || qsTr("Elige una carpeta existente para instalar juegos."), text:qsTr("Cambiar") })
             out.push({ id: "scan", kind: "action", label: qsTr("Sincronizar juegos"), desc: qsTr("El catálogo y las imágenes publicados se consultan desde Omnia Backend."), text: qsTr("Buscar juegos") })
         } else if (set.tab === 1) {
             H(qsTr("Sonidos de la interfaz"))
@@ -95,7 +99,7 @@ Item {
                 out.push({ id: "phap", pad: p.id, kind: "toggle", label: qsTr("Vibración al navegar"), desc: qsTr("Un toque suave al aceptar y al cambiar de página (si el mando lo admite)."), on: p.haptics })
                 out.push({ id: "pname", pad: p.id, kind: "action", label: qsTr("Apodo del mando"), desc: p.nickname ? qsTr("Ahora: %1").arg(p.nickname) : qsTr("Sin apodo: se muestra el nombre del fabricante."), text: qsTr("Cambiar") })
             }
-        } else {
+        } else if (set.tab === 4) {
             const d = set.discord
             if (!set.discordLoaded) { out.push({ id: "loading", kind: "info", label: qsTr("Consultando Discord…"), desc: "" }); return out }
             H(qsTr("Presencia"))
@@ -107,6 +111,29 @@ Item {
                 : d.socket ? qsTr("Discord está abierto pero no aceptó la conexión; revisa el Application ID.")
                 : qsTr("Abre Discord en este equipo para conectar.")
             out.push({ id: "dcstate", kind: "info", label: qsTr("Estado"), desc: state })
+        } else {
+            const accounts = set.storeAccounts
+            H(qsTr("Cuentas de tiendas"))
+            for (const id of ["steam", "epic", "gog", "amazon"]) {
+                const account = accounts.status(id)
+                const pending = accounts.requesting === id || accounts.connecting === id
+                const confirm = set.pendingDisconnect === id
+                const browser = accounts.linking === id
+                const desc = pending ? qsTr("Esperando a la tienda…")
+                    : browser ? qsTr("Completa el inicio de sesión y copia la dirección de retorno.")
+                    : !account ? qsTr("Estado sin consultar.")
+                    : !account.available ? qsTr("La tienda no está disponible en este equipo.")
+                    : account.logged_in ? (account.account || qsTr("Conectada")) : qsTr("Sin conectar")
+                out.push({ id:"store-account", store:id, kind:pending || !account?.available ? "info" : "action",
+                    label:accounts.names[id], desc:desc,
+                    text:confirm ? qsTr("Confirmar desconexión") : browser ? qsTr("Pegar retorno")
+                         : account?.logged_in ? qsTr("Desconectar") : qsTr("Conectar") })
+                if (browser) out.push({id:"store-cancel", kind:"action", label:qsTr("Inicio de sesión del navegador"), text:qsTr("Cancelar")})
+                else if (id !== "steam" && account?.available && !account.logged_in && !pending)
+                    out.push({id:"store-browser", store:id, kind:"action", label:qsTr("Conectar %1 en el navegador").arg(accounts.names[id]), text:qsTr("Abrir")})
+            }
+            out.push({id:"store-refresh", kind:"action", label:qsTr("Estado de las cuentas"), text:qsTr("Actualizar")})
+            if (accounts.message) out.push({id:"store-message", kind:"info", label:accounts.message})
         }
         return out
     }
@@ -123,18 +150,20 @@ Item {
     }
     onRowsChanged: if (!set.selectable(set.cur)) set.cur = set.firstSelectable()
     function setTab(t) {
+        set.pendingDisconnect = ""
         set.tab = (t + set.tabNames.length) % set.tabNames.length
         set.cur = set.firstSelectable()
         set.play("page")
         if (set.tab === 2) set.refreshAudio()
         if (set.tab === 3) set.refreshPads()
         if (set.tab === 4) set.refreshDiscord()
+        if (set.tab === 5) set.storeAccounts.refreshStores()
     }
     function refreshAudio() { set.api.loadAudioDevices(function(status, body) { if (status === 200) set.audio = body }) }
     function refreshDiscord() { set.api.call("GET", "/discord", function(status, body) { if (status === 200) { set.discord = body; set.discordLoaded = true } }) }
     function refreshPads() { set.api.loadPads(function(status, body) { if (status === 200) { set.pads = body.pads || []; set.padsLoaded = true } }) }
-    onVisibleChanged: if (visible) { set.msg = ""; set.testOpen = false; set.audio = ({}); set.padsLoaded = false; set.discordLoaded = false; set.setTabQuiet() }
-    function setTabQuiet() { set.cur = set.firstSelectable(); if (set.tab === 2) set.refreshAudio(); if (set.tab === 3) set.refreshPads(); if (set.tab === 4) set.refreshDiscord() }
+    onVisibleChanged: if (visible) { set.pendingDisconnect = ""; set.msg = ""; set.testOpen = false; set.audio = ({}); set.padsLoaded = false; set.discordLoaded = false; set.setTabQuiet() }
+    function setTabQuiet() { set.cur = set.firstSelectable(); if (set.tab === 2) set.refreshAudio(); if (set.tab === 3) set.refreshPads(); if (set.tab === 4) set.refreshDiscord(); if (set.tab === 5) set.storeAccounts.refreshStores() }
 
     // ---------------- acciones ----------------
     function clampStep(r, dir) { return Math.max(r.min, Math.min(r.max, r.value + dir * r.step)) }
@@ -183,6 +212,24 @@ Item {
     function activate(r) {
         const a = set.api
         switch (r.id) {
+        case "store-root": set.host.chooseStoreInstallRoot(message => set.note(message)); break
+        case "store-refresh": set.storeAccounts.refreshStores(); break
+        case "store-browser": set.storeAccounts.startLink(r.store, true); break
+        case "store-cancel": set.storeAccounts.linking = ""; set.storeAccounts.pasted = ""; break
+        case "store-account": {
+            const accounts = set.storeAccounts
+            if (accounts.requesting || accounts.connecting || accounts.busy) break
+            if (accounts.linking === r.store) {
+                if (!accounts.pasteLink()) set.note(qsTr("Todavía no hay una dirección de retorno válida en el portapapeles."))
+            } else if (accounts.status(r.store)?.logged_in) {
+                if (set.pendingDisconnect === r.store) { set.pendingDisconnect = ""; accounts.unlink(r.store) }
+                else set.pendingDisconnect = r.store
+            } else {
+                set.pendingDisconnect = ""
+                accounts.startLink(r.store, false)
+            }
+            break
+        }
         case "anim": a.setAnimatedBackground(!r.on, function(st, b) { set.saved(st, b) }); set.play("toggle"); break
         case "upd": a.setUpdateCheck(!r.on, function(st, b) { set.saved(st, b) }); set.play("toggle"); break
         case "mango": a.setMangohud(!r.on, function(st, b) { set.saved(st, b) }); set.play("toggle"); break
@@ -236,7 +283,7 @@ Item {
         else if (k === "l" && r) set.adjust(r, -1)
         else if (k === "r" && r) set.adjust(r, 1)
         else if (k === "A" && r) { if (r.kind === "slider") set.adjust(r, 1); else set.activate(r) }
-        else if (k === "B") { set.play("back"); set.back() }
+        else if (k === "B") { set.play("back"); if (set.pendingDisconnect) set.pendingDisconnect = ""; else set.back() }
         else if (k === "LB") set.setTab(set.tab - 1)
         else if (k === "RB") set.setTab(set.tab + 1)
     }
@@ -251,7 +298,7 @@ Item {
         else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) && r) { if (r.kind === "slider") set.adjust(r, 1); else set.activate(r) }
         else if (e.key === Qt.Key_Tab) set.setTab(set.tab + 1)
         else if (e.key === Qt.Key_Backtab) set.setTab(set.tab - 1)
-        else if (e.key === Qt.Key_Escape) { set.play("back"); set.back() }
+        else if (e.key === Qt.Key_Escape) set.pad("B")
         else { e.accepted = false; return }
         e.accepted = true
     }

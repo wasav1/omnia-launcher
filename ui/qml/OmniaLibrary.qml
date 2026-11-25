@@ -46,7 +46,20 @@ Item {
     function playIntro() { intro.start() }
     function lastFocus() { lib.forceActiveFocus() }
     // Teclado virtual para otros usos (apodo de un mando): el texto va a `onText` en vivo y `onDone` se llama al cerrar.
-    function openKeyboardFor(initial, onText, onDone) { kbCallback = onText; kbClosed = onDone; searchFocus = false; vkb.show(initial || "") }
+    function openKeyboardFor(initial, onText, onDone, mode) {
+        kbCallback = onText; kbClosed = onDone; searchFocus = false
+        vkb.show(initial || "", mode)
+    }
+    function chooseStoreInstallRoot(done) {
+        let pending = api.installRoot
+        openKeyboardFor(pending, value => pending = value, function(accepted) {
+            if (!accepted || pending.trim() === api.installRoot) return
+            api.setInstallRoot(pending.trim(), function(status, body) {
+                done(status === 200 ? qsTr("Carpeta de instalación guardada.") : body.error || qsTr("No se pudo guardar la carpeta."))
+            })
+        }, "path")
+    }
+    function openStorePort(title, offer) { portDialog.show(offer, title) }
     function maybeIntro() {
         if (introShown || !api.prefsLoaded) return
         introShown = true
@@ -71,6 +84,36 @@ Item {
     property bool searchOpen: false
     property bool searchFocus: false          // con mando: el foco está en la lupa de la barra superior
     function lastPlayedOf(g) { return Number(g && (g.lastPlayed || (g.played || {}).last) || 0) }
+    property int mainNavIndex: -1
+    property string settingsFrom: "library"
+    property string downloadsFrom: "library"
+    readonly property bool mainNavVisible: page === "home" || page === "library" || page === "all" || page === "store"
+    readonly property var mainNavTabs: [
+        {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Tienda")}
+    ]
+    onPageChanged: { mainNavIndex = -1; searchFocus = false; searchOpen = false }
+    function focusMainNav() {
+        searchFocus = false
+        mainNavIndex = page === "home" ? 0 : page === "store" ? 2 : 1
+        lib.forceActiveFocus()
+    }
+    function activateMainNav(i) {
+        mainNavIndex = -1
+        if (i === 0) openHome()
+        else if (i === 1) openLibrary()
+        else if (i === 2) openStore()
+        else openSettings()
+    }
+    function handleMainNav(key) {
+        if (mainNavIndex < 0) return false
+        if (key === "l" || key === "r") mainNavIndex = (mainNavIndex + (key === "l" ? 3 : 1)) % 4
+        else if (key === "A") activateMainNav(mainNavIndex)
+        else if (key === "B" || key === "d" || key === "SELECT") {
+            mainNavIndex = -1
+            if (page === "store") bigStoreView.forceActiveFocus()
+        }
+        return true
+    }
     property string page: "home"               // home | library | all | details | settings | downloads | art
     readonly property bool detailsOpen: page === "details"
     readonly property bool padOn: api.padOn
@@ -103,11 +146,26 @@ Item {
     }
     function openArt(g) { g = g || current; if (!g) return; artEditor.start(g); page = "art"; artEditor.forceActiveFocus() }
     function closeArt() { page = "library"; lib.forceActiveFocus() }
-    function openDownloads() { page = "downloads"; downloads.forceActiveFocus() }
-    function closeDownloads() { page = "library"; lib.forceActiveFocus(); pollDownloads() }
+    function openDownloads() {
+        if (page !== "downloads") downloadsFrom = page
+        page = "downloads"; downloads.forceActiveFocus()
+    }
+    function restorePage(from) {
+        page = from
+        if (from === "store") bigStoreView.forceActiveFocus()
+        else if (from === "details") details.forceActiveFocus()
+        else if (from === "downloads") downloads.forceActiveFocus()
+        else if (from === "art") artEditor.forceActiveFocus()
+        else if (from === "settings") settings.forceActiveFocus()
+        else lib.forceActiveFocus()
+    }
+    function closeDownloads() { restorePage(downloadsFrom); pollDownloads() }
     Timer { interval: 2000; repeat: true; running: api.ok && lib.visible && lib.page !== "downloads"; triggeredOnStart: true; onTriggered: lib.pollDownloads() }
-    function openSettings() { page = "settings"; settings.forceActiveFocus() }
-    function closeSettings() { page = "library"; lib.forceActiveFocus() }
+    function openSettings() {
+        if (page !== "settings") settingsFrom = page
+        page = "settings"; settings.forceActiveFocus()
+    }
+    function closeSettings() { restorePage(settingsFrom) }
     function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
     // ---- menú contextual del juego (X / clic derecho / M)
     function menuItems(g) {
@@ -158,6 +216,7 @@ Item {
     function openKeyboard() { searchFocus = false; searchOpen = false; vkb.show(searchText) }
     function openLibrary() { page = "library"; lib.forceActiveFocus() }
     function openHome() { page = "home"; lib.forceActiveFocus() }
+    function openStore() { page = "store"; bigStoreView.open(); bigStoreView.forceActiveFocus() }
     function openLocalFromHome(id, thenPlay) {
         const at = api.games.findIndex(g => g.id === id)
         if (at < 0) return
@@ -375,8 +434,12 @@ Item {
             if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
             if (ctxMenu.open) { ctxMenu.pad(k); return }
+            if (lib.handleMainNav(k)) return
+            if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(); return }
+            if (lib.page === "store") { bigStoreView.pad(k); return }
             if (lib.searchFocus) {
                 if (k === "A") lib.openKeyboard()
+                else if (k === "u") lib.focusMainNav()
                 else if (k === "d" || k === "B") lib.searchFocus = false
                 return
             }
@@ -418,7 +481,17 @@ Item {
         lib.keySound(e)
         if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
-        if (vkb.open) { if (e.key === Qt.Key_Escape) vkb.close(); e.accepted = true; return }
+        if (vkb.open) { e.accepted = vkb.key(e); return }
+        if (page === "store" && mainNavIndex < 0 && !(e.modifiers & Qt.ControlModifier)) { e.accepted = bigStoreView.key(e); return }
+        if (mainNavIndex >= 0) {
+            const navKeys = { [Qt.Key_Left]:"l", [Qt.Key_Right]:"r", [Qt.Key_Down]:"d", [Qt.Key_Escape]:"B", [Qt.Key_Return]:"A", [Qt.Key_Enter]:"A" }
+            e.accepted = !!navKeys[e.key] && handleMainNav(navKeys[e.key])
+            return
+        }
+        if (mainNavVisible && (e.modifiers & Qt.ControlModifier)) {
+            const i = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4].indexOf(e.key)
+            if (i >= 0) { activateMainNav(i); e.accepted = true; return }
+        }
         if (searchOpen) return                              // el campo de texto maneja el teclado
         if (detailsOpen || page === "settings" || page === "downloads" || page === "art") return           // la ficha, los ajustes y las descargas manejan su propio teclado
         if (page === "all") { e.accepted = allGames.key(e); return }
@@ -461,7 +534,7 @@ Item {
     Item {
         id: gameBackdrop
         anchors.fill: parent
-        opacity: lib.page === "home" || (lib.page === "all" && allGames.viewMode === "list") ? 0 : 1   // en la lista cada fila lleva su propio hero
+        opacity: (lib.page === "home" || lib.page === "store") || (lib.page === "all" && allGames.viewMode === "list") ? 0 : 1   // en la lista cada fila lleva su propio hero
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.InOutQuad } }
         OmniaBackdrop {
@@ -546,7 +619,7 @@ Item {
         anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: lib.s * 48; rightMargin: lib.s * 40; topMargin: lib.s * 22 }
         height: lib.s * 54
         z: 2
-        visible: lib.page === "library" || lib.page === "home" || lib.page === "all"
+        visible: lib.mainNavVisible
 
         Row {
             id: brand
@@ -570,16 +643,18 @@ Item {
             anchors { left: sep1.right; leftMargin: lib.s * 22; verticalCenter: parent.verticalCenter }
             spacing: lib.s * 6
             Repeater {
-                model: [{ key: "home", label: qsTr("Inicio") }, { key: "library", label: qsTr("Biblioteca") }]
+                model: lib.mainNavTabs
                 delegate: Rectangle {
                     required property var modelData
+                    required property int index
                     readonly property bool active: lib.page === modelData.key
                     height: lib.s * 38
                     width: navLabel.implicitWidth + lib.s * 28
                     radius: height / 2
                     color: active ? lib.accent : navMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                    border.width: lib.mainNavIndex === index ? 3 : 0; border.color: lib.ring
                     Text { id: navLabel; anchors.centerIn: parent; text: modelData.label; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 17; font.weight: active ? Font.DemiBold : Font.Medium }
-                    MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: modelData.key === "home" ? lib.openHome() : lib.openLibrary() }
+                    MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.activateMainNav(index) }
                 }
             }
         }
@@ -603,7 +678,7 @@ Item {
         // búsqueda (no se muestra en el Inicio)
         Rectangle {
             id: searchBox
-            visible: lib.page !== "home"
+            visible: lib.page === "library" || lib.page === "all"
             anchors { left: sep2.right; leftMargin: lib.page === "library" ? lib.s * 18 : lib.s * 12; verticalCenter: parent.verticalCenter }
             height: lib.s * 42
             width: lib.searchOpen || lib.searchText ? lib.s * 300 : lib.s * 46
@@ -655,7 +730,7 @@ Item {
             anchors { right: closeBtn.visible ? closeBtn.left : parent.right; rightMargin: closeBtn.visible ? lib.s * 12 : 0; verticalCenter: parent.verticalCenter }
             width: lib.s * 42; height: lib.s * 42; radius: width / 2
             color: gearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-            border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.20)
+            border.width: lib.mainNavIndex === 3 ? 3 : 1; border.color: lib.mainNavIndex === 3 ? lib.ring : Qt.rgba(1, 1, 1, 0.20)
             LucideIcon { anchors.centerIn: parent; width: lib.s * 20; height: lib.s * 20; name: "settings"; color: lib.ink }
             MouseArea { id: gearMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openSettings() }
         }
@@ -1168,7 +1243,7 @@ Item {
     // ================= pie con la guía de botones =================
     Item {
         id: footer
-        visible: lib.page === "library" || lib.page === "home" || lib.page === "all"
+        visible: lib.mainNavVisible
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: lib.s * 48; rightMargin: lib.s * 48; bottomMargin: lib.s * 34 }
         height: lib.s * 42
         Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: -lib.s * 18 } height: 1; color: Qt.rgba(1, 1, 1, 0.12) }
@@ -1193,16 +1268,20 @@ Item {
                 color: lib.ink2
             }
             // Con mando se dibujan los iconos reales de su familia (Xbox, PlayStation, Switch, Deck); sin mando, teclas.
-            Hint { padKeys: lib.padOn ? ["A"] : []; glyph: "Enter"; label: lib.page === "home" ? home.acceptLabel : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")) }
+            Hint { padKeys: lib.padOn ? ["A"] : []; glyph: "Enter"; label: lib.page === "store" ? qsTr("Elegir") : lib.page === "home" ? home.acceptLabel : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")) }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["X"] : []; glyph: "M"; label: qsTr("Menú") }
-            Hint { padKeys: lib.padOn ? (lib.page === "home" ? ["DPAD"] : ["l"]) : []; glyph: lib.page === "home" ? "← ↑ ↓ →" : "← / →"
-                label: lib.page === "home" ? qsTr("Navegar") : qsTr("Cambiar juego") }
+            Hint { padKeys: lib.padOn ? (lib.page === "home" || lib.page === "store" ? ["DPAD"] : ["l"]) : []; glyph: lib.page === "home" || lib.page === "store" ? "← ↑ ↓ →" : "← / →"
+                label: lib.page === "home" || lib.page === "store" ? qsTr("Navegar") : qsTr("Cambiar juego") }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: lib.page === "all" ? qsTr("Consola") : qsTr("Filtrar") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["LT", "RT"] : []; glyph: "Re Pág / Av Pág"; label: qsTr("Página") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["Y"] : []; glyph: "V"; label: qsTr("Ver todos") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
-            Hint { visible: !lib.padOn; icon: "mouse"; label: lib.page === "library" ? qsTr("Clic para seleccionar · rueda para desplazar") : qsTr("Clic para seleccionar") }
+            Hint { visible: lib.padOn; padKeys: ["SELECT"]; label: qsTr("Barra superior") }
+            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
+            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
+            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
+            Hint { visible: !lib.padOn && lib.page !== "store"; icon: "mouse"; label: lib.page === "library" ? qsTr("Clic para seleccionar · rueda para desplazar") : qsTr("Clic para seleccionar") }
         }
         Row {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -1243,7 +1322,11 @@ Item {
         z: 58
         api: lib.api
         uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
-        onStarted: function(name) { lib.api.notify(qsTr("Instalación iniciada: %1").arg(name)); lib.pollDownloads() }
+        onStarted: function(name) {
+            lib.api.notify(qsTr("Instalación iniciada: %1").arg(name))
+            lib.pollDownloads()
+            if (lib.page === "store") { bigStoreView.closeDetail(); lib.openDownloads() }
+        }
     }
     OmniaVirtualKeyboard {
         id: vkb
@@ -1254,10 +1337,13 @@ Item {
             if (lib.kbCallback) { lib.kbCallback(v); return }
             lib.searchText = v; Qt.callLater(function() { lib.select(0) })
         }
-        onClosed: {
+        onClosed: function(accepted) {
             const done = lib.kbClosed
             lib.kbCallback = null; lib.kbClosed = null
-            if (done) done()
+            if (lib.page === "settings") settings.forceActiveFocus()
+            else if (lib.page === "store") bigStoreView.forceActiveFocus()
+            else lib.forceActiveFocus()
+            if (done) done(accepted)
         }
     }
 
@@ -1336,11 +1422,36 @@ Item {
         onBack: lib.closeArt()
     }
 
+    ManagerStores {
+        id: bigStoreAccounts
+        visible: false
+        compactHost: true
+        controllerHost: true
+        manager: QtObject {
+            readonly property real s: lib.s
+            readonly property color ink: lib.ink
+            readonly property color muted: lib.ink2
+            readonly property color surface: lib.surface
+            readonly property color surface2: Qt.lighter(lib.surface, 1.15)
+        }
+        api: lib.api
+        accountsOpen: settings.visible && settings.tab === 5
+    }
+    OmniaBigStore {
+        id: bigStoreView
+        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: footer.top
+                  leftMargin: lib.s * 66; rightMargin: lib.s * 66; topMargin: lib.s * 18; bottomMargin: lib.s * 22 }
+        host: lib
+        accounts: bigStoreAccounts
+        visible: lib.page === "store"
+    }
+
     // ================= ajustes de BigMode =================
     OmniaBigSettings {
         id: settings
         anchors.fill: parent
         host: lib
+        storeAccounts: bigStoreAccounts
         visible: lib.page === "settings"
         onBack: lib.closeSettings()
     }

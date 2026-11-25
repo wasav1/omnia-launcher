@@ -72,7 +72,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
 integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
-**Pendiente (prioridad en `docs/HANDOFF.md`):** instalar y revisar la cuadrícula y fichas de Biblioteca; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
+**Pendiente (prioridad en `docs/HANDOFF.md`):** revisar Tienda y cuentas de Big Mode con un mando físico y cuentas reales; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
 ## 6. Operación
 - **Pruebas:** `PYTHONPATH=core python3 -m unittest discover -s tests`; QML: `/usr/lib/qt6/bin/qmllint <archivo>`; pruebas visuales con arneses `qml6` fuera de pantalla
@@ -84,6 +84,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Tienda en Big Mode.** Pestaña junto a Biblioteca con destacado de Omnia, estanterías de catálogo y juegos instalados, filtros por tienda y búsqueda con teclado virtual. La ficha permite lanzar juegos locales, abrir la instalación en Steam o iniciar un trabajo de instalación en Omnia y seguirlo en Descargas. El engranaje existente abre Ajustes, donde «Cuentas de tiendas» se añade después de Discord. SELECT abre la navegación superior; LB/RB cambian tienda o categoría según la pantalla, y B recupera la página anterior al salir de Ajustes o Descargas. Las cuentas reutilizan el inicio de sesión y la biblioteca de tiendas del servicio. QML validado y flujo de mando simulado comprobado fuera de pantalla (navegación, ficha, Ajustes, búsqueda y Descargas). Paquetes 0.3.0-103 verificados. Pasaron 671 de 672 pruebas, con el fallo ya conocido de DesktopSurface.
 
 - **2026-11-24 — Conexión de Big Mode desde Desktop.** El servicio local estaba activo. La propiedad `backend` de la ventana resolvía `api` en el ámbito de Big Mode y podía dejar la vista sin conexión. Ahora se inyecta explícitamente el cliente de Desktop. El sondeo del mando empieza al abrir Big Mode y deja de renovarse al cerrarlo. La apertura contra el servicio local falló con el código anterior y pasó con el arreglo. La ventana independiente también pasó. Paquetes 0.3.0-102 verificados, con 671 de 672 pruebas aprobadas y el fallo conocido de DesktopSurface.
 
