@@ -825,8 +825,8 @@ Item {
             width: Math.max(lib.s * 340, clockPill.x + clockPill.width - sysPill.x)       // al menos tan ancho como los botones Sistema y reloj
             height: sysCol.implicitHeight + lib.s * 36
             radius: lib.s * 20
-            color: lib.surface
-            border.color: "#30ffffff"
+            color: "#141D27"
+            border.color: lib.surfaceBorder
             readonly property var sys: api.system || ({})
             function tempColor(t) { return t === undefined ? lib.ink2 : (t <= 70 ? "#7fd69f" : (t <= 85 ? "#E8B86D" : "#E86D6D")) }
             function tempText(t) { return t === undefined ? "" : Math.round(t) + " °C" }
