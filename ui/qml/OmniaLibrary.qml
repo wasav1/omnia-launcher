@@ -1274,16 +1274,17 @@ Item {
             Hint { padKeys: lib.padOn ? ["A"] : []; glyph: "Enter"; label: lib.page === "store" ? qsTr("Elegir") : lib.page === "home" ? home.acceptLabel : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")) }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["X"] : []; glyph: "M"; label: qsTr("Menú") }
             Hint { padKeys: lib.padOn ? (lib.page === "home" || lib.page === "store" ? ["DPAD"] : ["l"]) : []; glyph: lib.page === "home" || lib.page === "store" ? "← ↑ ↓ →" : "← / →"
-                label: lib.page === "home" || lib.page === "store" ? qsTr("Navegar") : qsTr("Cambiar juego") }
+                label: lib.page === "store" && bigStoreView.detail ? qsTr("Desplazar ficha · Cambiar acción")
+                    : lib.page === "home" || lib.page === "store" ? qsTr("Navegar") : qsTr("Cambiar juego") }
             Hint { visible: lib.page === "library" || lib.page === "all"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: lib.page === "all" ? qsTr("Consola") : qsTr("Filtrar") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["LT", "RT"] : []; glyph: "Re Pág / Av Pág"; label: qsTr("Página") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["Y"] : []; glyph: "V"; label: qsTr("Ver todos") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
-            Hint { visible: lib.padOn; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
-            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
-            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
-            Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
+            Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
+            Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
+            Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
+            Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
             Hint { visible: !lib.padOn && lib.page !== "store"; icon: "mouse"; label: lib.page === "library" ? qsTr("Clic para seleccionar · rueda para desplazar") : qsTr("Clic para seleccionar") }
         }
         Row {

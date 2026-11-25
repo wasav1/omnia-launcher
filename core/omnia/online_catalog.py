@@ -289,9 +289,32 @@ def fetch_art_options(slug: str, kind: str, page: int = 0, *, base: Path | None 
             "offline": bool(response.get("offline")), "stale": bool(response.get("stale"))}
 
 
+def lookup_pc_artwork(title: str, year=None, steam_id: str = "") -> dict:
+    """Consulta sin mutaciones para un juego PC ausente del catálogo."""
+    params = {"title": title.strip()[:140]}
+    if isinstance(year, int) and 1900 <= year <= 2100:
+        params["year"] = str(year)
+    if steam_id:
+        params["steamId"] = steam_id
+    response = _get("/artwork/lookup", params)
+    if response.get("offline"):
+        raise CatalogError("El catálogo de arte no está disponible.")
+    data = response.get("data")
+    assets = data.get("assets") if isinstance(data, dict) else None
+    if not isinstance(assets, dict):
+        return {}
+    aliases = {"grid": "portada", "hero": "fondo", "logo": "logo"}
+    return {aliases[kind]: url for kind, url in assets.items()
+            if kind in aliases and _is_option_url(url)}
+
+
 def _is_option_url(url) -> bool:
-    parsed = urllib.parse.urlsplit(url) if isinstance(url, str) else None
-    return bool(parsed and parsed.scheme == "https" and not parsed.username and not parsed.fragment and parsed.port in (None, 443) and _is_art_cdn(parsed.hostname))
+    try:
+        parsed = urllib.parse.urlsplit(url) if isinstance(url, str) else None
+        return bool(parsed and parsed.scheme == "https" and not parsed.username and not parsed.fragment
+                    and parsed.port in (None, 443) and _is_art_cdn(parsed.hostname))
+    except ValueError:
+        return False
 
 
 def download_option_image(url: str, *, opener=None, limit: int = 25 * 1024 * 1024) -> bytes:
@@ -328,6 +351,17 @@ def steam_appid(game) -> str:
     """AppID de un juego detectado en Steam (su id local es «steam-<appid>»); '' si no es de Steam."""
     match = re.fullmatch(r"steam-([0-9]{1,10})", str((game or {}).get("id", "")))
     return match.group(1) if match else ""
+
+
+# AppIDs de las ediciones PC originales, comprobados con el catálogo de Steam.
+_MANUAL_STEAM = {"limbo": "48000", "tomb raider the last revelation": "224980"}
+
+
+def manual_steam_appid(game) -> str:
+    if game.get("src") != "Manual" or game.get("platform") != "pc" or game.get("store_id") or game.get("catalogSlug"):
+        return ""
+    title = " ".join(re.findall(r"[a-z0-9]+", str(game.get("name") or "").casefold()))
+    return _MANUAL_STEAM.get(title, "")
 
 
 def steam_art_urls(game) -> dict:
@@ -377,11 +411,12 @@ def game_art_urls(game) -> dict:
     return urls
 
 
-def download_artwork(url: str, *, opener=None) -> tuple[bytes, str]:
+def download_artwork(url: str, *, opener=None, provider=False) -> tuple[bytes, str]:
     """Descarga una imagen de Omnia o de un CDN oficial de tienda permitido, sin reenviar credenciales."""
     parsed = urllib.parse.urlsplit(url)
     trusted_store_cdn = _is_store_art_url(url)
-    if not trusted_store_cdn and (parsed.scheme != "https" or parsed.netloc != urllib.parse.urlsplit(PUBLIC_ORIGIN).netloc or not parsed.path.startswith("/api/v1/artwork/")):
+    trusted_provider = provider and _is_option_url(url)
+    if not trusted_store_cdn and not trusted_provider and (parsed.scheme != "https" or parsed.netloc != urllib.parse.urlsplit(PUBLIC_ORIGIN).netloc or not parsed.path.startswith("/api/v1/artwork/")):
         raise CatalogError("La URL de imagen no pertenece al backend de Omnia.")
     request = urllib.request.Request(url, headers={"Accept": "image/png,image/jpeg,image/webp", "User-Agent": "Omnia/0.3"})
     try:
@@ -389,6 +424,8 @@ def download_artwork(url: str, *, opener=None) -> tuple[bytes, str]:
             final = urllib.parse.urlsplit(response.geturl())
             final_url = response.geturl()
             final_store_cdn = _is_store_art_url(final_url)
+            if trusted_provider and not _is_option_url(final_url):
+                raise CatalogError("La imagen se redirigió fuera de SteamGridDB.")
             if final.scheme != "https" or not (final.netloc == parsed.netloc or final_store_cdn or (not trusted_store_cdn and _is_art_cdn(final.hostname))):
                 raise CatalogError("El backend redirigió la imagen a otro origen.")
             raw = response.read(12 * 1024 * 1024 + 1)
@@ -461,11 +498,12 @@ def cached_artwork_path(url: str, base: Path | None = None) -> Path | None:
     return None
 
 
-def store_artwork(url: str, *, base: Path | None = None, opener=None) -> Path:
+def store_artwork(url: str, *, base: Path | None = None, opener=None, provider=False) -> Path:
     cached = cached_artwork_path(url, base)
     if cached:
         return cached
-    raw, mime = download_artwork(url, opener=opener)
+    raw, mime = (download_artwork(url, opener=opener, provider=True) if provider
+                 else download_artwork(url, opener=opener))
     folder = art_cache_dir(base)
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / (_art_stem(url) + _EXT[mime])

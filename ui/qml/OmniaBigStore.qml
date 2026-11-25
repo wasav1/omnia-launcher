@@ -94,7 +94,7 @@ Item {
         function storeLogo(source) { return bigStore.storeLogo(source) }
     }
     function storeLogo(id) {
-        return id === "local" || id === "all" ? "" : Qt.resolvedUrl("images/stores/" + id + ".svg")
+        return !id || id === "local" || id === "all" ? "" : Qt.resolvedUrl("images/stores/" + id + ".svg")
     }
 
     function loadCatalog(next) {
@@ -254,7 +254,9 @@ Item {
     function pad(key) {
         if (detail) {
             if (key === "B") closeDetail()
-            else if (key === "u" || key === "d") detailIndex = Math.max(0, Math.min(detailActions.length - 1, detailIndex + (key === "u" ? -1 : 1)))
+            else if (key === "l" || key === "r") detailIndex = Math.max(0, Math.min(detailActions.length - 1, detailIndex + (key === "l" ? -1 : 1)))
+            else if (key === "u" || key === "d") detailsList.contentY = Math.max(0, Math.min(
+                detailsList.contentHeight - detailsList.height, detailsList.contentY + bigStore.s * (key === "u" ? -96 : 96)))
             else if (key === "A") action(detailActions[detailIndex])
             return
         }
@@ -503,38 +505,96 @@ Item {
         anchors.fill: parent; visible: !!bigStore.detail; z: 4; color: "#D50B111A"
         MouseArea { anchors.fill: parent; onClicked: bigStore.closeDetail() }
         Rectangle {
-            anchors.centerIn: parent; width: Math.min(parent.width - bigStore.s * 28, bigStore.s * 720)
-            height: Math.min(parent.height, detailsList.contentHeight + bigStore.s * 36)
-            radius: bigStore.s * 18; color: "#193049"; clip: true
+            id: detailPanel
+            anchors.centerIn: parent
+            width: Math.min(parent.width - bigStore.s * 42, bigStore.s * 1120)
+            height: Math.min(parent.height * 0.78, bigStore.s * 478)
+            radius: bigStore.s * 22
+            color: "#111D2A"
+            clip: true
             MouseArea { anchors.fill: parent }
-            Flickable {
-                id: detailsList
-                anchors { fill: parent; margins: bigStore.s * 18 }
-                contentWidth: width; contentHeight: detailBody.implicitHeight; clip: true
-                Column {
-                    id: detailBody
-                    width: detailsList.width; spacing: bigStore.s * 10
-                    Text { width: parent.width; text: bigStore.detail?.name || ""; wrapMode: Text.WordWrap; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 30; font.weight: Font.Bold }
-                    Text {
-                        width: parent.width; wrapMode: Text.WordWrap; maximumLineCount: 4; elide: Text.ElideRight
-                        textFormat: Text.PlainText; visible: !!text
-                        text: bigStore.detail?.game?.description || bigStore.detail?.local?.description || ""
-                        color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18
+            FadedImage {
+                anchors.fill: parent
+                source: bigStore.detail?.hero || (bigStore.detail?.game
+                    ? bigStore.art(bigStore.detail.game, ["hero", "grid"]) : bigStore.detail?.art || "")
+                cornerRadius: detailPanel.radius
+                fadeBottom: 0.78
+                opacity: 0.55
+            }
+            Rectangle {
+                anchors.fill: parent
+                radius: detailPanel.radius
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "#EC0E1925" }
+                    GradientStop { position: 0.57; color: "#AD0E1925" }
+                    GradientStop { position: 1; color: "#47101D2B" }
+                }
+                border.color: "#526678"
+            }
+            Column {
+                id: detailHeading
+                anchors { top: parent.top; left: parent.left; right: parent.right; margins: bigStore.s * 26 }
+                spacing: bigStore.s * 7
+                Row {
+                    spacing: bigStore.s * 10
+                    Image {
+                        visible: !!source.toString()
+                        width: bigStore.s * 32; height: width
+                        fillMode: Image.PreserveAspectFit
+                        source: bigStore.storeLogo(bigStore.detail?.store || "")
                     }
                     Text {
-                        width: parent.width; wrapMode: Text.WordWrap; visible: !!text
-                        text: bigStore.detailLoading ? qsTr("Consultando paquetes…") : bigStore.detailMessage ||
-                              (bigStore.detail?.store === "steam" && !bigStore.detail.local ? qsTr("La confirmación se hace en Steam.") :
-                               bigStore.api.installRoot && !bigStore.detail?.local ? qsTr("Destino: %1").arg(bigStore.api.installRoot) : "")
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: bigStore.detail?.local ? qsTr("En tu biblioteca") : qsTr("Sin instalar")
                         color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 16
                     }
+                }
+                Text {
+                    width: parent.width
+                    text: bigStore.detail?.name || ""
+                    color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 34
+                    font.weight: Font.Bold; maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap
+                }
+            }
+            Flickable {
+                id: detailsList
+                anchors { top: detailHeading.bottom; bottom: detailFooter.top; left: parent.left; right: parent.right; margins: bigStore.s * 26; topMargin: bigStore.s * 12; bottomMargin: bigStore.s * 12 }
+                contentWidth: width; contentHeight: detailFacts.height
+                clip: true; boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { }
+                GameFacts {
+                    id: detailFacts
+                    width: detailsList.width - bigStore.s * 17
+                    api: bigStore.api; uiScale: bigStore.s; uiFont: bigStore.host.uiFont
+                    ink: bigStore.host.ink; muted: bigStore.host.ink2
+                    game: bigStore.detail?.local || null
+                    catalog: bigStore.detail?.game || null
+                    offer: bigStore.detail
+                    downloadBytes: bigStore.detailActions[bigStore.detailIndex]?.pkg?.sizeBytes ||
+                        (bigStore.packages.length === 1 ? (bigStore.packages[0].sizeBytes || 0) : 0)
+                }
+            }
+            Column {
+                id: detailFooter
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: bigStore.s * 26 }
+                spacing: bigStore.s * 8
+                Text {
+                    width: parent.width; wrapMode: Text.Wrap
+                    visible: !!text
+                    text: bigStore.detailLoading ? qsTr("Consultando paquetes…") : bigStore.detailMessage ||
+                          (bigStore.detail?.store === "steam" && !bigStore.detail?.local ? qsTr("La confirmación se hace en Steam.") :
+                           bigStore.api.installRoot && !bigStore.detail?.local ? qsTr("Destino: %1").arg(bigStore.api.installRoot) : "")
+                    color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 14
+                }
+                Flow {
+                    width: parent.width; spacing: bigStore.s * 10
                     Repeater {
-                        id: actions
                         model: bigStore.detailActions
                         delegate: Action {
                             required property int index
                             required property var modelData
-                            label: modelData.label; focused: bigStore.detailIndex === index
+                            label: modelData.label; selected: index === 0; focused: bigStore.detailIndex === index
                             onChoose: { bigStore.detailIndex = index; bigStore.action(modelData) }
                         }
                     }
@@ -543,10 +603,4 @@ Item {
         }
     }
     onDetailChanged: detailsList.contentY = 0
-    onDetailIndexChanged: {
-        const item = actions.itemAt(detailIndex)
-        if (item && item.y + item.height > detailsList.contentY + detailsList.height)
-            detailsList.contentY = item.y + item.height - detailsList.height
-        else if (item && item.y < detailsList.contentY) detailsList.contentY = item.y
-    }
 }

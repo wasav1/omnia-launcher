@@ -329,12 +329,11 @@ Item {
                 id: leftCol
                 width: parent.width * 0.55
                 spacing: det.s * 16
-                Text {
-                    id: dText
+                GameFacts {
                     width: parent.width
-                    text: det.game && det.game.description ? det.game.description : "Este juego no tiene descripción."
-                    color: det.game && det.game.description ? det.ink : det.ink2
-                    font.family: det.host.uiFont; font.pixelSize: det.s * 25; lineHeight: 1.3; wrapMode: Text.WordWrap
+                    api: det.host.api; game: det.game
+                    uiScale: det.s * 1.22; uiFont: det.host.uiFont
+                    ink: det.ink; muted: det.ink2
                 }
                 Text {      // el port cerró con un código que él mismo explica (exit_codes de su descriptor)
                     visible: !!det.game && !!det.game.lastExit

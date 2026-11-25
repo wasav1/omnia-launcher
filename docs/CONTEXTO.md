@@ -69,7 +69,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 
 - **Iconografía**: usar Lucide Icons para controles y navegación de Omnia. Los logos de tienda y de Omnia son SVG de marca blancos y sin fondo.
 
-## 5. Estado actual (2026-11-24)
+## 5. Estado actual (2026-11-25)
 **Hecho y probado:** instalación de ports desde Explorar (≈58 paquetes publicados), Descargas independientes (tanda 5 publicada o por publicar: ver HANDOFF),
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
@@ -86,6 +86,9 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+
+- **2026-11-25 — Fichas, novedades y arte faltante.** Escritorio y Big Mode comparten la ficha de descripción y datos por juego. Steam aporta datos localizados y requisitos por sistema, GOG aporta los datos por producto y los requisitos de su ficha, Epic usa los datos disponibles en Legendary y los tamaños del manifiesto, y Omnia usa los datos de sus ports y el tamaño del paquete publicado. La ficha de Tienda en BM es horizontal, con fondo difuminado, navegación por el contenido y foco separado para las acciones. Inicio comparte las novedades de tiendas con Explorar y el hover de sus tarjetas. Explorar reserva espacio para el zoom en los bordes. Se verificaron la navegación con mando simulado y el zoom con ratón simulado. En la biblioteca local, 21 de 23 juegos tenían portada y fondo. Los dos restantes, LIMBO y Tomb Raider: The Last Revelation, están registrados manualmente y no figuran en el catálogo público. De 1666 fichas públicas, 1518 tenían portada y 1473 fondo. La recuperación de arte de juegos PC vía SteamGridDB y caché local requiere desplegar primero la ruta pública `/artwork/lookup` del backend. Los casos ambiguos no se asignan automáticamente. Se prepararon los paquetes 0.3.0-105.
 
 - **2026-11-24 — Tienda de Big Mode con la distribución de Explorar.** Reutiliza el banner de novedades de Desktop, muestra cinco instalaciones recientes y reúne el catálogo y las tiendas en una cuadrícula vertical virtualizada. Los filtros se anclan al desplazarse. Las carátulas comparten las medidas base de Biblioteca. La cruceta mueve el foco entre secciones y filas; B conserva la tarjeta al salir del detalle. SELECT enfoca Tienda desde Inicio y Biblioteca. Los logos de las cuentas aparecen a la izquierda de sus filas y los controles usan Lucide Icons. Se comprobó la distribución y el recorrido con mando simulado, incluida la carga de otra página y el anclaje de filtros. Paquetes 0.3.0-104 verificados. Pasaron 671 de 672 pruebas, con el fallo conocido de DesktopSurface.
 

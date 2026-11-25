@@ -755,9 +755,10 @@ class Api:
         except StoreError as e:
             raise ApiError(502, str(e))
         for game in games:
-            image = game.get("art") if isinstance(game, dict) else None
-            if isinstance(image, str) and image.startswith("https://"):
-                game["art"] = online_catalog.local_or_remote(image)
+            for key in ("art", "hero"):
+                image = game.get(key) if isinstance(game, dict) else None
+                if isinstance(image, str) and image.startswith("https://"):
+                    game[key] = online_catalog.local_or_remote(image)
         mine = {g.get("store_id", {}).get("id") for g in self.store.games()
                 if isinstance(g.get("store_id"), dict) and g["store_id"].get("store") == store.id}
         local_ids = {g.get("id") for g in self.store.games()}
@@ -1133,11 +1134,32 @@ class Api:
         return ""
 
     def game_metadata(self, q):
-        game = self.store.find_game(str(q.get("id", "")))
-        if not game:
-            raise ApiError(404, "juego desconocido")
+        game_id, slug = str(q.get("id", "")), str(q.get("slug", ""))
+        source, product = str(q.get("store", "")), str(q.get("product", ""))
+        if game_id:
+            game = self.store.find_game(game_id)
+            if not game:
+                raise ApiError(404, "juego desconocido")
+        elif re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", slug):
+            game = {"catalogSlug": slug}
+        elif (source in {"steam", "gog"} and re.fullmatch(r"[0-9]{1,10}", product)
+              or source == "epic" and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,119}", product)):
+            game = {"id": f"{source}-{product}", "store_id": {"store": source, "id": product}}
+        else:
+            return {"metadata": {}}
         locale = "en" if q.get("lang") == "en" else "es"
-        return {"metadata": library_metadata.game_metadata(game, locale)}
+        metadata = library_metadata.game_metadata(game, locale)
+        store_info = library_metadata.store_identity(game)
+        if store_info.get("store") == "epic":
+            epic = self._stores().get("epic")
+            if epic:
+                metadata = {**metadata, **epic.game_metadata(str(store_info.get("id") or ""))}
+        if game.get("installPackageId") and game.get("catalogSlug"):
+            rows = (self.store.state.get("catalog_packages") or {}).get(game["catalogSlug"]) or []
+            package = next((p for p in rows if p.get("id") == game["installPackageId"]), None)
+            if package and package.get("sizeBytes"):
+                metadata = {**metadata, "downloadBytes": package["sizeBytes"]}
+        return {"metadata": metadata}
 
     def game_activity(self, q):
         """Historial reciente de un juego (últimas sesiones, más nuevas primero) y sus totales."""
@@ -1163,6 +1185,7 @@ class Api:
         out = {}
         selected = ((state or {}).get("art") or {}).get(g["id"], {})
         custom = ((state or {}).get("art_custom") or {}).get(g["id"], {})
+        fallback = ((state or {}).get("lookup_art") or {}).get(g["id"]) or {}
         for kind in art.KINDS:
             mine = (custom.get(kind) or {}).get("file", "")
             if mine and os.path.isfile(mine):                  # arte elegido a mano por el usuario: manda sobre el del catálogo
@@ -1191,6 +1214,12 @@ class Api:
             mine = ((g.get("art") or {}).get("local") or {}).get(kind) if isinstance((g.get("art") or {}).get("local"), dict) else None
             if isinstance(mine, str) and os.path.isfile(mine) and not os.path.islink(mine):      # Lutris: su propia carátula en disco
                 out[kind] = "file://" + mine
+                continue
+            if fallback.get("title") == g.get("name"):
+                url = (fallback.get("assets") or {}).get(kind)
+                cached = online_catalog.cached_artwork_path(url) if url else None
+                if cached:
+                    out[kind] = cached.as_uri()
         return out
 
     def refresh(self, q):

@@ -169,6 +169,38 @@ def sync_steam_art(game, retry_at: dict) -> bool:
     return downloaded
 
 
+def sync_unlinked_art(store, game, retry_at) -> bool:
+    """Recupera arte de PC por título cuando la ficha o la portada aún faltan."""
+    if game.get("platform") != "pc" or not game.get("name"):
+        return False
+    game_id = game["id"]
+    title = game["name"]
+    if time.monotonic() < retry_at.get((game_id, title), 0) or Api._art(game, store.state).get("portada"):
+        return False
+    retry_at[(game_id, title)] = time.monotonic() + 3600
+    try:
+        steam_id = online_catalog.steam_appid(game) or online_catalog.manual_steam_appid(game)
+        assets = online_catalog.lookup_pc_artwork(title, game.get("releaseYear"), steam_id)
+    except online_catalog.CatalogError:
+        return False
+    found = {}
+    for kind, url in assets.items():
+        try:
+            online_catalog.store_artwork(url, provider=True)
+            found[kind] = url
+        except (online_catalog.CatalogError, OSError):
+            log.debug("No se pudo guardar %s de %s", kind, title)
+    if not found:
+        return False
+    with store.lock:
+        current = store.find_game(game_id)
+        if not current or current.get("name") != title:
+            return False
+        store.state.setdefault("lookup_art", {})[game_id] = {"title": title, "assets": found}
+        store.save_state()
+    return True
+
+
 def art_priority(games: list, state: dict) -> list:
     """Orden en que el vigilante de arte revisa los juegos: primero los que aún no tienen su arte.
 
@@ -203,6 +235,7 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
     catalog_retry_at = {}
     steam_retry_at = {}
     package_retry_at = {}
+    lookup_retry_at = {}
     link_at = 0.0
     while not stop.is_set():
         now = time.monotonic()
@@ -228,7 +261,7 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
                 link_at = now + 5 * 60
         if seen_revision != store.revision:
             link_at = min(link_at, now + 10)        # juegos nuevos (p. ej. ROMs recién detectadas): enlazarlos pronto
-        if now >= scan_at or seen_revision != store.revision:
+        if (not pending and now >= scan_at) or seen_revision != store.revision:
             pending = art_priority(list(store.games()), store.state)
             scan_at, seen_revision = now + 60, store.revision
         if pending and not stop.is_set():
@@ -264,6 +297,8 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
                     except online_catalog.CatalogError as e:
                         log.debug("arte del catálogo para %s: %s", g.get("name"), e)
                         catalog_retry_at[catalog_slug] = time.time() + 60 * 60
+            if sync_unlinked_art(store, g, lookup_retry_at) and bus:
+                bus.games_changed()
             if catalog_slug:
                 refresh_packages(store, catalog_slug, package_retry_at, bus)
             stop.wait(pause)

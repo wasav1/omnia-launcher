@@ -43,7 +43,7 @@ Item {
         localGames.forEach(function(g) { out.push({ id: g.id, name: g.name, store: storeOf(g), art: g.portada || "", installed: true, local: g }) })
         Object.keys(remote).forEach(function(sid) {
             (remote[sid] || []).forEach(function(r) {
-                if (!r.installed && !localNames[sid + "|" + String(r.title).toLowerCase()]) out.push({ id: sid + "-" + r.id, rawId: r.id, name: r.title, store: sid, art: r.art || "", installed: false, local: null })
+                if (!r.installed && !localNames[sid + "|" + String(r.title).toLowerCase()]) out.push({ id: sid + "-" + r.id, rawId: r.id, name: r.title, store: sid, art: r.art || "", hero: r.hero || "", metadata: r.metadata || {}, installed: false, local: null })
             })
         })
         out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1 })

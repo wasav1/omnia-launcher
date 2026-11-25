@@ -25,9 +25,6 @@ Item {
     property string selId: ""
     property string tab: "summary"           // summary | saves | manage
     property var activity: null
-    property var metadata: ({})
-    readonly property string metadataKey: current && visible
-        ? JSON.stringify([current.id, current.catalogSlug || "", api.language]) : ""
     readonly property real s: manager ? manager.s : 1
     readonly property string font: "Hanken Grotesk"
 
@@ -73,24 +70,6 @@ Item {
         activity = null
         tab = "summary"
         actDelay.restart()
-    }
-    onMetadataKeyChanged: {
-        metadata = {}
-        if (metadataKey) metadataDelay.restart()
-        else metadataDelay.stop()
-    }
-    Timer {
-        id: metadataDelay
-        interval: 250
-        onTriggered: {
-            const key = ml.metadataKey
-            if (!key) return
-            const [id, , lang] = JSON.parse(key)
-            ml.api.call("GET", "/game/metadata?id=" + encodeURIComponent(id) + "&lang=" + encodeURIComponent(lang),
-                function(status, data) {
-                    if (status === 200 && ml.metadataKey === key) ml.metadata = data.metadata || {}
-                })
-        }
     }
     Timer {
         id: actDelay
@@ -332,33 +311,10 @@ Item {
                             wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
                             text: page.g && page.g.portAvailable ? qsTr("Port disponible: %1 · %2 · licencia %3. Detectamos tu copia del juego; pulsa «Instalar port» para descargarlo y verificarlo.").arg(page.g.portAvailable.title).arg(page.g.portAvailable.version).arg(page.g.portAvailable.licenseName) : "" }
                     }
-                    Text { width: parent.width; text: ml.metadata.description || page.g?.description || qsTr("Sin descripción disponible."); textFormat: Text.PlainText; wrapMode: Text.WordWrap; color: manager.muted
-                        font.family: ml.font; font.pixelSize: ml.s * 16; lineHeight: 1.25; maximumLineCount: 6; elide: Text.ElideRight }
-                    Flow {
-                        width: parent.width; spacing: ml.s * 8
-                        Repeater {
-                            model: [
-                                [qsTr("Lanzamiento"), ml.metadata.release],
-                                [qsTr("Géneros"), ml.metadata.genres],
-                                [qsTr("Desarrolladora"), ml.metadata.developer],
-                                [qsTr("Editora"), ml.metadata.publisher]
-                            ].filter(field => !!field[1])
-                            delegate: Rectangle {
-                                id: fieldCard
-                                required property var modelData
-                                width: Math.min(parent.width, fact.implicitWidth + ml.s * 24)
-                                height: fact.implicitHeight + ml.s * 14
-                                radius: ml.s * 8; color: manager.surface
-                                Text {
-                                    id: fact
-                                    anchors { fill: parent; margins: ml.s * 7 }
-                                    text: fieldCard.modelData[0] + " · " + fieldCard.modelData[1]
-                                    textFormat: Text.PlainText
-                                    elide: Text.ElideRight
-                                    color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14
-                                }
-                            }
-                        }
+                    GameFacts {
+                        width: parent.width
+                        api: ml.api; game: page.g; uiScale: ml.s; uiFont: ml.font
+                        ink: manager.ink; muted: manager.muted
                     }
                     Row {
                         spacing: ml.s * 12

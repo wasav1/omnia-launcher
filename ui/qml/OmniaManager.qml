@@ -467,36 +467,17 @@ Item {
         anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: statusbar.top }
         property real pad: manager.s * 34
         readonly property real top0: manager.s * 30
-        // Inicio: novedad del catálogo y «Seguir jugando»
+        // Inicio: novedades de tiendas y juegos recientes.
         Item {
+            id: homePage
             anchors.fill: parent
             visible: manager.page === "home"
-            readonly property var news: manager.onlineGames.length ? manager.onlineGames[0] : null
-            Rectangle {
+            ManagerStoreNews {
                 id: banner
                 anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: content.pad; rightMargin: content.pad; topMargin: content.top0 }
-                height: manager.s * 230; radius: manager.s * 22; color: manager.surface; clip: true
-                gradient: Gradient { GradientStop { position: 0; color: "#203C5C" } GradientStop { position: 1; color: manager.surface } }
-                FadedImage {
-                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                    width: parent.width * 0.7
-                    source: parent.parent.news ? manager.imageFor(parent.parent.news, ["hero", "grid"]) : ""
-                    fadeLeft: 0.6; cornerRadius: manager.s * 22
-                }
-                Column {
-                    anchors { left: parent.left; leftMargin: manager.s * 34; verticalCenter: parent.verticalCenter }
-                    width: parent.width * 0.42; spacing: manager.s * 8
-                    Text { text: banner.parent.news ? qsTr("NOVEDAD DEL CATÁLOGO") : qsTr("BIENVENIDO A OMNIA"); color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.Bold; font.letterSpacing: 2 }
-                    Text { width: parent.width; text: banner.parent.news ? (banner.parent.news.name || "") : qsTr("Tu espacio de juegos"); color: manager.ink; elide: Text.ElideRight
-                        font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 34; font.weight: Font.DemiBold }
-                    Text { width: parent.width; text: banner.parent.news ? (banner.parent.news.platforms || []).map(p => p.name || p.slug).join(" · ") : qsTr("Tu biblioteca, tus plataformas y tus instalaciones."); color: manager.muted; elide: Text.ElideRight
-                        font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16 }
-                    Rectangle {
-                        width: bannerBtn.implicitWidth + manager.s * 44; height: manager.s * 40; radius: height / 2; color: manager.accent
-                        Text { id: bannerBtn; anchors.centerIn: parent; text: banner.parent.news ? qsTr("Ver ficha") : qsTr("Explorar el catálogo"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15; font.weight: Font.DemiBold }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: banner.parent.news ? manager.openCatalogDetail(banner.parent.news) : manager.selectPage("catalog") }
-                    }
-                }
+                manager: explorePage.newsTheme
+                api: explorePage.newsApi
+                active: homePage.visible
             }
             Row {
                 id: stats
@@ -521,16 +502,23 @@ Item {
             ListView {
                 id: recentList
                 x: content.pad; anchors.top: continueTitle.bottom; anchors.topMargin: manager.s * 12
-                width: parent.width - content.pad * 2; height: manager.s * 180
+                width: parent.width - content.pad * 2; height: manager.s * 198
                 orientation: ListView.Horizontal; spacing: manager.s * 14; clip: true
+                leftMargin: manager.s * 8; rightMargin: manager.s * 8
                 model: manager.recentGames
-                delegate: Rectangle {
+                delegate: ManagerPosterCard {
                     required property var modelData
-                    width: manager.s * 250; height: recentList.height; radius: manager.s * 16; color: manager.surface; clip: true
-                    FadedImage { anchors.fill: parent; source: modelData.fondo || modelData.portada || ""; cornerRadius: manager.s * 16 }
-                    Rectangle { anchors.fill: parent; radius: manager.s * 16; gradient: Gradient { GradientStop { position: 0.42; color: "#00151D27" } GradientStop { position: 1; color: "#E6101720" } } }
-                    Column { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: manager.s * 12 } Text { width: parent.width; text: modelData.name; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; font.weight: Font.DemiBold; elide: Text.ElideRight } Text { text: modelData.lastPlayed ? new Date(modelData.lastPlayed * 1000).toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), "d MMM") : qsTr("En tu biblioteca"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 } }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.openGameInLibrary(modelData); onDoubleClicked: manager.launch(modelData) }
+                    width: manager.s * 250; height: manager.s * 180
+                    y: manager.s * 9
+                    scaleFactor: manager.s
+                    artwork: modelData.fondo || modelData.portada || ""
+                    title: modelData.name
+                    sourceLogo: manager.sourceForGame(modelData).logo
+                    info: modelData.lastPlayed
+                        ? new Date(modelData.lastPlayed * 1000).toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), "d MMM")
+                        : qsTr("En tu biblioteca")
+                    onActivated: manager.openGameInLibrary(modelData)
+                    onDoubleActivated: manager.launch(modelData)
                 }
                 Text { visible: manager.recentGames.length === 0; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
             }
@@ -727,11 +715,13 @@ Item {
                         }
                         Grid {
                             id: exploreGrid
-                            width: parent.width
-                            readonly property real gap: manager.s * 12
+                            x: zoomInset
+                            width: parent.width - 2 * zoomInset
+                            readonly property real gap: manager.s * 16
+                            readonly property real zoomInset: Math.ceil(parent.width / columns * 0.023) + 2
                             readonly property real cardWidth: Math.max(manager.s * 112, Math.floor((width - gap * (columns - 1)) / columns))
                             readonly property real cardHeight: cardWidth * 1.42
-                            columns: Math.max(2, Math.floor((width + gap) / (manager.s * 185 + gap)))
+                            columns: Math.max(2, Math.floor((parent.width + gap) / (manager.s * 185 + gap)))
                             columnSpacing: gap; rowSpacing: gap
                             height: exploreGridRepeater.count ? Math.ceil(exploreGridRepeater.count / columns) * (cardHeight + rowSpacing) - rowSpacing : 0
                             Repeater {
@@ -741,9 +731,18 @@ Item {
                                     id: exploreCell
                                     required property var modelData
                                     width: exploreGrid.cardWidth; height: exploreGrid.cardHeight
+                                    z: explorePoster.hovered ? 1 : 0
                                     ManagerPosterCard {
+                                        id: explorePoster
                                         anchors.fill: parent
                                         scaleFactor: manager.s
+                                        hoverScale: {
+                                            if (!hovered) return 1
+                                            const y = exploreCell.mapToItem(exploreContent, 0, 0).y - exploreFlick.contentY
+                                            const top = pinnedExploreFilters.visible ? pinnedExploreFilters.height : 0
+                                            const room = Math.min(y - top, exploreFlick.height - y - height)
+                                            return Math.min(1.045, 1 + Math.max(0, room) * 2 / height)
+                                        }
                                         title: exploreCell.modelData.name
                                         artwork: exploreCell.modelData.art
                                         store: exploreCell.modelData.store
@@ -825,6 +824,7 @@ Item {
                     }
                     Rectangle { anchors.fill: parent; radius: manager.s * 18; color: "#A90B1118" }
                     Column {
+                        id: localDetailHeading
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: manager.s * 28 }
                         spacing: manager.s * 10
                         Row {
@@ -833,9 +833,19 @@ Item {
                             Text { anchors.verticalCenter: parent.verticalCenter; text: manager.exploreDetailGame ? (manager.sourceForGame(manager.exploreDetailGame).label + "  ·  " + (manager.exploreDetailGame.platform || manager.exploreDetailGame.sub || "PC")) : ""; color: "#70E0D9"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.DemiBold }
                         }
                         Text { width: parent.width; text: manager.exploreDetailGame ? manager.exploreDetailGame.name || "" : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap }
-                        Text { width: parent.width; height: manager.s * 180; text: manager.exploreDetailGame ? manager.exploreDetailGame.description || manager.exploreDetailGame.s || qsTr("Sin descripción disponible.") : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; wrapMode: Text.WordWrap; maximumLineCount: 7; elide: Text.ElideRight; verticalAlignment: Text.AlignTop }
+                    }
+                    ScrollView {
+                        id: localFactsScroll
+                        anchors { left: parent.left; right: parent.right; top: localDetailHeading.bottom; bottom: localDetailActions.top; margins: manager.s * 28; topMargin: manager.s * 10; bottomMargin: manager.s * 12 }
+                        clip: true; contentWidth: availableWidth
+                        GameFacts {
+                            width: localFactsScroll.availableWidth
+                            api: manager.desktopBackend; game: manager.exploreDetailGame; uiScale: manager.s
+                            ink: manager.ink; muted: manager.muted
+                        }
                     }
                     Row {
+                        id: localDetailActions
                         anchors { left: parent.left; bottom: parent.bottom; margins: manager.s * 28 }
                         spacing: manager.s * 10
                         Rectangle {
@@ -1028,13 +1038,37 @@ Item {
             MouseArea { anchors.fill: parent; onClicked: function(mouse) { mouse.accepted = true } }
             FadedImage { anchors.fill: parent; source: manager.imageFor(manager.detailGame, ["hero", "grid"]); cornerRadius: manager.s * 24; opacity: 0.3 }
             Rectangle { anchors.fill: parent; radius: manager.s * 24; gradient: Gradient { GradientStop { position: 0; color: "#B3151D27" } GradientStop { position: 1; color: "#F0151D27" } } }
-            Column { anchors { left: parent.left; right: parent.right; top: parent.top; margins: manager.s * 30 } spacing: manager.s * 12; Text { width: parent.width; text: manager.detailGame ? manager.detailGame.name || "" : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap } Text { text: manager.detailGame ? manager.detailGame.description || qsTr("Sin descripción disponible.") : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; wrapMode: Text.WordWrap; width: parent.width; maximumLineCount: 6; elide: Text.ElideRight } }
-            Row { anchors { left: parent.left; bottom: parent.bottom; margins: manager.s * 30 } spacing: manager.s * 12
+            Text {
+                id: catalogDetailTitle
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: manager.s * 30 }
+                text: manager.detailGame?.name || ""; color: manager.ink; font.family: "Hanken Grotesk"
+                font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.Wrap
+            }
+            ScrollView {
+                id: catalogFactsScroll
+                anchors {
+                    left: catalogDetailTitle.left; right: catalogDetailTitle.right; top: catalogDetailTitle.bottom
+                    bottom: catalogPackageOptions.visible ? catalogPackageOptions.top : catalogDetailActions.top
+                    topMargin: manager.s * 12; bottomMargin: manager.s * 12
+                }
+                clip: true; contentWidth: availableWidth
+                GameFacts {
+                    width: catalogFactsScroll.availableWidth
+                    api: manager.desktopBackend; catalog: manager.detailGame; uiScale: manager.s
+                    ink: manager.ink; muted: manager.muted
+                    downloadBytes: manager.selectedPackage?.sizeBytes || 0
+                }
+            }
+            Row {
+                id: catalogDetailActions
+                anchors { left: parent.left; bottom: parent.bottom; margins: manager.s * 30 }
+                spacing: manager.s * 12
                 Rectangle { visible: !!manager.localMatch(manager.detailGame) || manager.packageOptions.length === 0; width: manager.s * 180; height: manager.s * 44; radius: height/2; color: manager.localMatch(manager.detailGame) ? manager.accent : manager.surface2; Text { anchors.centerIn: parent; width: parent.width - manager.s * 10; horizontalAlignment: Text.AlignHCenter; text: manager.localMatch(manager.detailGame) ? qsTr("Jugar") : qsTr("Sin paquete publicado"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; elide: Text.ElideRight } MouseArea { anchors.fill: parent; enabled: !!manager.localMatch(manager.detailGame); cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.launch(manager.localMatch(manager.detailGame)) } }
                 Rectangle { visible: !manager.localMatch(manager.detailGame) && manager.packageOptions.length > 0; width: manager.s * 150; height: manager.s * 44; radius: height/2; color: manager.acceptLicense && api.installRoot ? manager.accent : manager.surface2; opacity: manager.acceptLicense && api.installRoot ? 1 : 0.55; Text { anchors.centerIn: parent; text: qsTr("Instalar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; enabled: manager.acceptLicense && api.installRoot && !!manager.selectedPackage; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.startPackageInstall() } }
                 Rectangle { width: manager.s * 110; height: manager.s * 44; radius: height/2; color: "#33434F5C"; Text { anchors.centerIn: parent; text: qsTr("Cerrar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.detailGame = null } }
             }
             Column {
+                id: catalogPackageOptions
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: manager.s * 92; leftMargin: manager.s * 30; rightMargin: manager.s * 30 }
                 visible: manager.detailGame && !manager.localMatch(manager.detailGame); spacing: manager.s * 7
                 Text { visible: manager.packagesBusy; text: qsTr("Consultando paquetes…"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
@@ -1070,7 +1104,7 @@ Item {
             FadedImage {
                 anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
                 width: parent.width * 0.38
-                source: manager.storeDetailItem ? manager.storeDetailItem.art : ""
+                source: manager.storeDetailItem ? manager.storeDetailItem.hero || manager.storeDetailItem.art : ""
                 cornerRadius: manager.s * 22
             }
             Rectangle {
@@ -1090,6 +1124,7 @@ Item {
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.storeDetailItem = null }
             }
             Column {
+                id: storeDetailHeading
                 anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.width * 0.43; rightMargin: manager.s * 34; topMargin: manager.s * 54 }
                 spacing: manager.s * 12
                 Row {
@@ -1104,9 +1139,19 @@ Item {
                 }
                 Text { width: parent.width; text: manager.storeDetailItem ? manager.storeDetailItem.name : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
                 Text { width: parent.width; text: manager.storeDetailItem ? ((manager.storeDetailItem.local && manager.storeDetailItem.local.platform) || "PC") + "  ·  " + (storesView.names[manager.storeDetailItem.store] || "") : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
-                Text { width: parent.width; text: manager.storeDetailItem && manager.storeDetailItem.store === "steam" ? qsTr("Se abrirá Steam para que confirmes la instalación.") : qsTr("El juego se instalará usando la cuenta conectada de esta tienda."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; wrapMode: Text.WordWrap }
+            }
+            ScrollView {
+                id: storeFactsScroll
+                anchors { left: storeDetailHeading.left; right: storeDetailHeading.right; top: storeDetailHeading.bottom; bottom: storeDetailActions.top; topMargin: manager.s * 12; bottomMargin: manager.s * 12 }
+                clip: true; contentWidth: availableWidth
+                GameFacts {
+                    width: storeFactsScroll.availableWidth
+                    api: manager.desktopBackend; offer: manager.storeDetailItem; uiScale: manager.s
+                    ink: manager.ink; muted: manager.muted
+                }
             }
             Row {
+                id: storeDetailActions
                 anchors { left: parent.left; bottom: parent.bottom; leftMargin: parent.width * 0.43; bottomMargin: manager.s * 30 }
                 spacing: manager.s * 10
                 Rectangle {

@@ -898,6 +898,10 @@
 <context>
     <name>OmniaLibrary</name>
     <message>
+        <source>Desplazar ficha · Cambiar acción</source>
+        <translation>Scroll details · Change action</translation>
+    </message>
+    <message>
         <location filename="../OmniaLibrary.qml" line="97"/>
         <source>Nintendo 64</source>
         <translation>Nintendo 64</translation>
@@ -2376,6 +2380,76 @@
         <location filename="../SavesPanel.qml" line="130"/>
         <source>Carpeta configurada: %1</source>
         <translation>Folder configured: %1</translation>
+    </message>
+</context>
+<context>
+    <name>GameFacts</name>
+    <message>
+        <source>Lanzamiento en Steam</source>
+        <translation>Steam release</translation>
+    </message>
+    <message>
+        <source>Lanzamiento en GOG</source>
+        <translation>GOG release</translation>
+    </message>
+    <message>
+        <source>Lanzamiento</source>
+        <translation>Release</translation>
+    </message>
+    <message>
+        <source>Géneros</source>
+        <translation>Genres</translation>
+    </message>
+    <message>
+        <source>Desarrolladora</source>
+        <translation>Developer</translation>
+    </message>
+    <message>
+        <source>Editora</source>
+        <translation>Publisher</translation>
+    </message>
+    <message>
+        <source>Descarga completa</source>
+        <translation>Full download</translation>
+    </message>
+    <message>
+        <source>Descarga</source>
+        <translation>Download</translation>
+    </message>
+    <message>
+        <source>Tamaño en disco · instalación completa</source>
+        <translation>On disk · full installation</translation>
+    </message>
+    <message>
+        <source>Tamaño en disco</source>
+        <translation>On disk</translation>
+    </message>
+    <message>
+        <source>Requisitos del port</source>
+        <translation>Port requirements</translation>
+    </message>
+    <message>
+        <source>Mínimos · %1</source>
+        <translation>Minimum · %1</translation>
+    </message>
+    <message>
+        <source>Recomendados · %1</source>
+        <translation>Recommended · %1</translation>
+    </message>
+    <message>
+        <source>Sin descripción disponible.</source>
+        <translation>No description available.</translation>
+    </message>
+</context>
+<context>
+    <name>OmniaBigStore</name>
+    <message>
+        <source>En tu biblioteca</source>
+        <translation>In your library</translation>
+    </message>
+    <message>
+        <source>Sin instalar</source>
+        <translation>Not installed</translation>
     </message>
 </context>
 </TS>

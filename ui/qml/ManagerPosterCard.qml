@@ -11,6 +11,8 @@ Item {
     property string info: ""
     property bool installed: false
     property real scaleFactor: 1
+    property real hoverScale: 1.045
+    signal doubleActivated()
     readonly property bool hovered: posterMouse.containsMouse
     signal activated()
     z: hovered ? 2 : 0
@@ -21,7 +23,7 @@ Item {
         radius: 13 * card.scaleFactor
         color: "#18232D"
         clip: true
-        scale: posterMouse.containsMouse ? 1.045 : 1
+        scale: posterMouse.containsMouse ? card.hoverScale : 1
         z: posterMouse.containsMouse ? 2 : 0
         Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
@@ -112,6 +114,7 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: card.activated()
+            onDoubleClicked: card.doubleActivated()
         }
     }
 }
