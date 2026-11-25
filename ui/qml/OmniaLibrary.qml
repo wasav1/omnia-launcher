@@ -31,6 +31,9 @@ Item {
     readonly property color ink2: "#B8C3D0"
     readonly property color accent: "#336599"
     readonly property color ring: "#5b9be0"
+    readonly property real libraryCoverWidth: s * 210
+    readonly property real libraryCoverHeight: s * 298
+    readonly property real libraryFocusedCoverHeight: s * 310
     readonly property real s: Math.max(0.4, Math.min(width / 1920, height / 1080))
     readonly property string uiFont: "Hanken Grotesk"
 
@@ -92,9 +95,9 @@ Item {
         {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Tienda")}
     ]
     onPageChanged: { mainNavIndex = -1; searchFocus = false; searchOpen = false }
-    function focusMainNav() {
+    function focusMainNav(preferStore) {
         searchFocus = false
-        mainNavIndex = page === "home" ? 0 : page === "store" ? 2 : 1
+        mainNavIndex = preferStore === true || page === "store" ? 2 : page === "home" ? 0 : 1
         lib.forceActiveFocus()
     }
     function activateMainNav(i) {
@@ -435,7 +438,7 @@ Item {
             if (vkb.open) { vkb.pad(k); return }
             if (ctxMenu.open) { ctxMenu.pad(k); return }
             if (lib.handleMainNav(k)) return
-            if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(); return }
+            if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(true); return }
             if (lib.page === "store") { bigStoreView.pad(k); return }
             if (lib.searchFocus) {
                 if (k === "A") lib.openKeyboard()
@@ -1023,7 +1026,7 @@ Item {
         highlightRangeMode: ListView.NoHighlightRange
         boundsBehavior: Flickable.StopAtBounds
         interactive: false          // sin arrastre: la estantería avanza con la rueda, las flechas, los gatillos o la navegación
-        readonly property real cardStep: lib.s * 210 + spacing                 // ancho de una tarjeta más su separación
+        readonly property real cardStep: lib.libraryCoverWidth + spacing                 // ancho de una tarjeta más su separación
         readonly property real hlBegin: fadeOk ? fadeWidth + lib.s * 6 : 0     // la tarjeta seleccionada queda entre estos dos bordes
         readonly property real hlEnd: width * 0.62
         readonly property real maxX: Math.max(0, contentWidth - width)
@@ -1101,12 +1104,12 @@ Item {
             required property var modelData
             required property int index
             readonly property bool sel: index === lib.index
-            width: lib.s * 210
+            width: lib.libraryCoverWidth
             height: shelf.height
             Item {
                 id: face
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: shelf.reflectH + (card.sel ? lib.s * 8 : 0) }
-                height: card.sel ? lib.s * 310 : lib.s * 298
+                height: card.sel ? lib.libraryFocusedCoverHeight : lib.libraryCoverHeight
                 scale: cardMa.containsMouse && !card.sel ? 1.02 : 1
                 // rebote al cambiar de selección: la seleccionada sube con sobreimpulso y se asienta
                 Behavior on height { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.6 } }
@@ -1277,7 +1280,7 @@ Item {
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["Y"] : []; glyph: "V"; label: qsTr("Ver todos") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
-            Hint { visible: lib.padOn; padKeys: ["SELECT"]; label: qsTr("Barra superior") }
+            Hint { visible: lib.padOn; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
             Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
             Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
             Hint { visible: lib.page === "store"; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }

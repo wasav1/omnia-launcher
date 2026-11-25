@@ -1,8 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 
-/** Tienda de Big Mode. El foco se conserva por estantería al volver de una ficha. */
+/** Tienda de Big Mode. El foco se conserva por tarjeta al volver de una ficha. */
 Item {
     id: bigStore
     required property var host
@@ -15,9 +16,14 @@ Item {
     ]
     property int filter: 0
     property string query: ""
-    property int zone: 0                 // filtros, destacado, catálogo, instalados
-    property int availableIndex: 0
-    property int installedIndex: 0
+    property int zone: 0                 // novedades, recientes, filtros, cuadrícula
+    property int gridIndex: 0
+    property string gridSelection: ""
+    property int recentIndex: 0
+    readonly property real cardWidth: host.libraryCoverWidth
+    readonly property real cardHeight: host.libraryCoverHeight
+    readonly property real cardGap: s * 20
+    readonly property int columns: Math.max(1, Math.floor((width + cardGap) / (cardWidth + cardGap)))
     property var catalog: []
     property int catalogPage: 0
     property int totalPages: 1
@@ -31,8 +37,6 @@ Item {
     property string detailMessage: ""
     property int detailIndex: 0
     property int detailRequest: 0
-    readonly property bool showFeatured: filter === 0 && !query && !!featured
-    readonly property var featured: catalog[0] || null
     readonly property string activeSource: sources[filter].id
 
     function matchLocal(game) {
@@ -49,7 +53,7 @@ Item {
     function catalogEntry(game) {
         return {
             id: "catalog:" + game.slug, name: game.name, store: "omnia", game: game,
-            art: art(game, ["grid", "hero"]), hero: art(game, ["hero", "grid"]), local: matchLocal(game)
+            art: art(game, ["grid", "hero"]), local: matchLocal(game)
         }
     }
     function matches(item) {
@@ -77,7 +81,21 @@ Item {
         .sort((a, b) => Number(b.added || 0) - Number(a.added || 0) || a.name.localeCompare(b.name))
         .map(game => ({ id: game.id, name: game.name, store: installedSource(game),
                          art: game.portada || game.fondo || "", hero: game.fondo || "", local: game }))
-        .filter(matches)
+
+    readonly property var recentGames: installed.slice(0, 5)
+    readonly property var gridGames: available.concat(installed.filter(matches))
+    readonly property bool hasOmnia: activeSource === "all" || activeSource === "omnia"
+    readonly property bool filtersPinned: !!grid.headerItem
+        && grid.contentY >= grid.headerItem.y + grid.headerItem.filterRow.y
+    readonly property var newsTheme: QtObject {
+        readonly property real s: bigStore.s
+        readonly property color ink: bigStore.host.ink
+        readonly property color ring: bigStore.host.ring
+        function storeLogo(source) { return bigStore.storeLogo(source) }
+    }
+    function storeLogo(id) {
+        return id === "local" || id === "all" ? "" : Qt.resolvedUrl("images/stores/" + id + ".svg")
+    }
 
     function loadCatalog(next) {
         if (next && (catalogLoading || catalogPage >= totalPages)) return
@@ -105,10 +123,11 @@ Item {
         accounts.refreshStores()
     }
     function setFilter(index) {
+        gridSelection = ""
+        gridIndex = 0
         filter = (index + sources.length) % sources.length
-        availableIndex = 0
-        installedIndex = 0
-        zone = 0
+        zone = 2
+        revealFocus()
     }
     function search() {
         let pending = query
@@ -116,18 +135,52 @@ Item {
             if (!accepted) return
             const value = pending.trim()
             if (value === bigStore.query) return
+            bigStore.gridSelection = ""
+            bigStore.gridIndex = 0
             bigStore.query = value
             bigStore.catalog = []
             bigStore.catalogPage = 0
-            bigStore.availableIndex = 0
-            bigStore.installedIndex = 0
-            bigStore.zone = 0
+            bigStore.focusZone(2)
             bigStore.loadCatalog(false)
         })
     }
-    onAvailableChanged: availableIndex = Math.min(availableIndex, Math.max(0, available.length - 1))
-    onInstalledChanged: installedIndex = Math.min(installedIndex, Math.max(0, installed.length - 1))
+    onGridGamesChanged: {
+        const index = gridGames.findIndex(item => item.id === gridSelection)
+        gridIndex = index < 0 ? Math.min(gridIndex, Math.max(0, gridGames.length - 1)) : index
+        if (gridSelection) gridSelection = gridGames[gridIndex]?.id || ""
+        if (zone === 3 && !detail) revealFocus()
+    }
+    onRecentGamesChanged: recentIndex = Math.min(recentIndex, recentGames.length)
 
+    function focusZone(value) {
+        zone = value
+        revealFocus()
+    }
+    function revealFocus() {
+        Qt.callLater(function() {
+            if (!bigStore.visible || bigStore.detail || !grid.headerItem) return
+            if (bigStore.zone === 3 && bigStore.gridGames.length) {
+                grid.positionViewAtIndex(bigStore.gridIndex, GridView.Contain)
+                const card = grid.itemAtIndex(bigStore.gridIndex)
+                if (card && bigStore.filtersPinned && card.y < grid.contentY + stickyFilters.height)
+                    grid.contentY = card.y - stickyFilters.height
+                return
+            }
+            const header = grid.headerItem
+            if (bigStore.zone === 0) grid.positionViewAtBeginning()
+            else if (bigStore.zone === 1) grid.contentY = header.y + header.recentRow.y
+            else if (bigStore.zone === 2 && !bigStore.filtersPinned)
+                grid.contentY = header.y + header.filterRow.y
+            grid.returnToBounds()
+        })
+    }
+    function selectGrid(index) {
+        if (index < 0 || index >= gridGames.length) return
+        gridIndex = index
+        gridSelection = gridGames[index].id
+        focusZone(3)
+        if (hasOmnia && index >= gridGames.length - columns * 2) loadCatalog(true)
+    }
     function openDetail(item) {
         if (!item) return
         detail = item
@@ -210,31 +263,35 @@ Item {
         if (key === "Y" || key === "START") { host.openDownloads(); return }
         if (key === "B") { host.openLibrary(); return }
         if (key === "u" || key === "d") {
-            const zones = [0]
-            if (showFeatured) zones.push(1)
-            if (available.length) zones.push(2)
-            if (installed.length) zones.push(3)
-            if (zone === 0 && key === "u") { host.focusMainNav(); return }
-            const next = zones.indexOf(zone) + (key === "u" ? -1 : 1)
-            zone = zones[Math.max(0, Math.min(zones.length - 1, next))]
+            if (zone === 3) {
+                const next = gridIndex + (key === "u" ? -columns : columns)
+                if (next < 0) focusZone(2)
+                else if (next < gridGames.length) selectGrid(next)
+                else if (key === "d" && Math.floor(gridIndex / columns) < Math.floor((gridGames.length - 1) / columns))
+                    selectGrid(gridGames.length - 1)
+                else if (key === "d" && hasOmnia) loadCatalog(true)
+            } else if (key === "u" && zone === 0) host.focusMainNav()
+            else if (key === "d" && zone === 2) selectGrid(gridIndex)
+            else focusZone(zone + (key === "u" ? -1 : 1))
             return
         }
         if (key === "A") {
-            if (zone === 0 && catalogMessage && !catalog.length) loadCatalog(false)
-            else if (zone === 0) pad("d")
-            else if (zone === 1 && featured) openDetail(catalogEntry(featured))
-            else if (zone === 2) openDetail(available[availableIndex])
-            else if (zone === 3) openDetail(installed[installedIndex])
+            if (zone === 0) grid.headerItem?.newsPanel.openCurrent()
+            else if (zone === 1) {
+                if (recentIndex === recentGames.length) host.openLibrary()
+                else openDetail(recentGames[recentIndex])
+            } else if (zone === 2) {
+                if (catalogMessage && !catalog.length && hasOmnia) loadCatalog(false)
+                else if (gridGames.length) selectGrid(gridIndex)
+            } else openDetail(gridGames[gridIndex])
             return
         }
         if (key !== "l" && key !== "r") return
         const step = key === "r" ? 1 : -1
-        if (zone === 0) setFilter(filter + step)
-        else if (zone === 2) {
-            availableIndex = Math.max(0, Math.min(available.length - 1, availableIndex + step))
-            if (step > 0 && availableIndex >= available.length - 3 && (activeSource === "all" || activeSource === "omnia"))
-                loadCatalog(true)
-        } else if (zone === 3) installedIndex = Math.max(0, Math.min(installed.length - 1, installedIndex + step))
+        if (zone === 1) recentIndex = Math.max(0, Math.min(recentGames.length, recentIndex + step))
+        else if (zone === 2) setFilter(filter + step)
+        else if (zone === 3 && Math.floor((gridIndex + step) / columns) === Math.floor(gridIndex / columns))
+            selectGrid(gridIndex + step)
     }
     function key(event) {
         const mapping = {
@@ -252,130 +309,196 @@ Item {
         property string label: ""
         property bool selected: false
         property bool focused: false
+        property string icon: ""
+        property url logo: ""
         signal choose()
-        width: text.implicitWidth + bigStore.s * 30
+        width: labelRow.implicitWidth + bigStore.s * 30
         height: bigStore.s * 38; radius: height / 2
         color: selected ? bigStore.host.accent : "#223141"
         border { width: focused ? 3 : 1; color: focused ? bigStore.host.ring : "#46586A" }
-        Text { id: text; anchors.centerIn: parent; text: button.label; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18 }
+        Row {
+            id: labelRow
+            anchors.centerIn: parent
+            spacing: bigStore.s * 7
+            LucideIcon { visible: !!button.icon; name: button.icon; width: bigStore.s * 19; height: width; color: bigStore.host.ink; anchors.verticalCenter: parent.verticalCenter }
+            Image { visible: !!button.logo.toString(); source: button.logo; width: bigStore.s * 25; height: width; fillMode: Image.PreserveAspectFit; anchors.verticalCenter: parent.verticalCenter }
+            Text { text: button.label; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18; anchors.verticalCenter: parent.verticalCenter }
+        }
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: button.choose() }
     }
-    component Shelf: Column {
-        id: shelf
-        required property string label
-        required property var games
-        required property int selected
-        required property bool focused
-        signal picked(int at)
-        signal reachEnd()
-        property real tileHeight: bigStore.s * 152
-        spacing: bigStore.s * 7
-        visible: games.length > 0
-        Text { text: shelf.label; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 23; font.weight: Font.DemiBold }
-        ListView {
-            id: strip
-            width: parent.width; height: shelf.tileHeight + bigStore.s * 12
-            orientation: ListView.Horizontal; spacing: bigStore.s * 12
-            model: shelf.games
-            currentIndex: shelf.selected
-            boundsBehavior: Flickable.StopAtBounds
-            clip: true
-            onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
-            onMovementEnded: if (atXEnd) shelf.reachEnd()
-            delegate: Item {
-                id: tile
+    component FilterBar: Row {
+        spacing: bigStore.s * 12
+        Repeater {
+            model: bigStore.sources
+            delegate: Action {
+                id: chip
                 required property int index
                 required property var modelData
-                width: bigStore.s * 192; height: strip.height
-                ManagerPosterCard {
-                    anchors.fill: parent
-                    anchors.margins: bigStore.s * 5
-                    scaleFactor: bigStore.s * 1.1
-                    title: tile.modelData.name || ""
-                    artwork: tile.modelData.art || ""
-                    store: tile.modelData.store === "omnia" ? "Omnia" : bigStore.accounts.names[tile.modelData.store] || qsTr("Local")
-                    sourceLogo: tile.modelData.store === "local" ? "" : "images/stores/" + tile.modelData.store + ".svg"
-                    installed: !!tile.modelData.local
-                    onActivated: shelf.picked(tile.index)
-                }
-                Rectangle {
-                    anchors.fill: parent; radius: bigStore.s * 14; color: "transparent"
-                    border.width: 3; border.color: bigStore.host.ring
-                    visible: shelf.focused && tile.index === shelf.selected
-                }
+                width: (parent.width - bigStore.s * 60) / bigStore.sources.length
+                label: modelData.name
+                selected: bigStore.filter === index
+                focused: bigStore.zone === 2 && selected && bigStore.host.mainNavIndex < 0
+                logo: bigStore.storeLogo(modelData.id)
+                onChoose: bigStore.setFilter(index)
             }
         }
     }
-    Flickable {
-        id: contentView
+
+    GridView {
+        id: grid
         anchors.fill: parent
-        contentWidth: width
-        contentHeight: body.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        Column {
-            id: body
-            width: contentView.width
+        keyNavigationEnabled: false
+        cellWidth: Math.max(1, Math.floor(width / bigStore.columns))
+        cellHeight: bigStore.cardHeight + bigStore.cardGap
+        model: bigStore.gridGames
+        currentIndex: bigStore.gridIndex
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        onMovementEnded: {
+            if (bigStore.hasOmnia && contentY + height >= contentHeight - cellHeight * 2)
+                bigStore.loadCatalog(true)
+        }
+        header: Column {
+            id: header
+            width: grid.width
             spacing: bigStore.s * 16
-            Row {
-                spacing: bigStore.s * 10
-                Repeater {
-                    model: bigStore.sources
-                    delegate: Action {
-                        required property int index
-                        required property var modelData
-                        label: modelData.name
-                        selected: bigStore.filter === index
-                        focused: bigStore.zone === 0 && selected && bigStore.host.mainNavIndex < 0
-                        onChoose: bigStore.setFilter(index)
+            topPadding: bigStore.s * 6
+            bottomPadding: bigStore.s * 12
+            property alias filterRow: filters
+            property alias recentRow: recentSection
+            property alias newsPanel: news
+
+            Item {
+                width: parent.width; height: bigStore.s * 43
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Tienda"); color: bigStore.host.ink; font.family: bigStore.host.uiFont
+                    font.pixelSize: bigStore.s * 32; font.weight: Font.DemiBold
+                }
+                Action {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    label: bigStore.query ? qsTr("Buscar: %1").arg(bigStore.query.slice(0, 20)) : qsTr("Buscar")
+                    icon: "search"
+                    onChoose: bigStore.search()
+                }
+            }
+            ManagerStoreNews {
+                id: news
+                width: parent.width
+                manager: bigStore.newsTheme
+                api: bigStore.api
+                uiScale: bigStore.s * 1.15
+                active: bigStore.visible
+                controllerFocused: bigStore.zone === 0 && bigStore.host.mainNavIndex < 0 && bigStore.host.padOn
+            }
+            Column {
+                id: recentSection
+                width: parent.width
+                spacing: bigStore.s * 8
+                Item {
+                    width: parent.width; height: bigStore.s * 42
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Últimos instalados"); color: bigStore.host.ink; font.family: bigStore.host.uiFont
+                        font.pixelSize: bigStore.s * 23; font.weight: Font.DemiBold
+                    }
+                    Action {
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        label: qsTr("Ver más"); icon: "arrow-right"
+                        focused: bigStore.host.mainNavIndex < 0 && bigStore.zone === 1 && bigStore.recentIndex === bigStore.recentGames.length
+                        onChoose: bigStore.host.openLibrary()
                     }
                 }
-                Action { label: bigStore.query ? qsTr("Buscar: %1").arg(bigStore.query.slice(0, 18)) : qsTr("Buscar"); onChoose: bigStore.search() }
-            }
-            Rectangle {
-                visible: bigStore.showFeatured
-                width: parent.width; height: bigStore.s * 205; radius: bigStore.s * 18
-                color: "#202D3C"
-                FadedImage { anchors.fill: parent; source: bigStore.featured ? bigStore.art(bigStore.featured, ["hero","grid"]) : ""; cornerRadius: parent.radius; fadeLeft: 0.8; opacity: 0.65 }
-                Column {
-                    anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: bigStore.s * 25 }
-                    width: parent.width * 0.68; spacing: bigStore.s * 12
-                    Text { text: qsTr("Destacado de Omnia"); color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 17 }
-                    Text { width: parent.width; text: bigStore.featured?.name || ""; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 32; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                    Action { label: qsTr("Ver ficha"); selected: true; focused: bigStore.zone === 1 && bigStore.host.mainNavIndex < 0; onChoose: { bigStore.zone = 1; bigStore.pad("A") } }
+                Row {
+                    id: recentCards
+                    width: parent.width
+                    spacing: bigStore.s * 16
+                    Repeater {
+                        model: bigStore.recentGames
+                        delegate: Cover {
+                            required property int index
+                            required property var modelData
+                            width: (recentCards.width - (bigStore.recentGames.length - 1) * recentCards.spacing) / bigStore.recentGames.length
+                            height: bigStore.s * 168
+                            game: modelData; preferHero: true
+                            focused: bigStore.host.mainNavIndex < 0 && bigStore.zone === 1 && bigStore.recentIndex === index
+                            onChoose: { bigStore.recentIndex = index; bigStore.zone = 1; bigStore.openDetail(game) }
+                        }
+                    }
+                }
+                Text {
+                    visible: !bigStore.recentGames.length
+                    text: qsTr("Tus juegos instalados aparecerán aquí.")
+                    color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18
                 }
             }
-            Shelf {
-                id: availableShelf
-                width: parent.width; label: qsTr("Para descubrir")
-                games: bigStore.available; selected: bigStore.availableIndex
-                focused: bigStore.zone === 2 && bigStore.host.mainNavIndex < 0
-                onPicked: function(at) { bigStore.zone = 2; bigStore.availableIndex = at; bigStore.pad("A") }
-                onReachEnd: if (bigStore.activeSource === "all" || bigStore.activeSource === "omnia") bigStore.loadCatalog(true)
-            }
-            Shelf {
-                id: installedShelf
-                width: parent.width; label: qsTr("En tu biblioteca")
-                games: bigStore.installed; selected: bigStore.installedIndex
-                focused: bigStore.zone === 3 && bigStore.host.mainNavIndex < 0
-                onPicked: function(at) { bigStore.zone = 3; bigStore.installedIndex = at; bigStore.pad("A") }
+            FilterBar { id: filters; width: parent.width; opacity: bigStore.filtersPinned ? 0 : 1; enabled: !bigStore.filtersPinned }
+            Text {
+                text: qsTr("Todos los juegos")
+                color: bigStore.host.ink; font.family: bigStore.host.uiFont
+                font.pixelSize: bigStore.s * 23; font.weight: Font.DemiBold
             }
             Text {
-                width: parent.width; wrapMode: Text.WordWrap
-                visible: !!text; color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 16
-                text: bigStore.catalogLoading && !bigStore.available.length ? qsTr("Cargando catálogo…")
-                    : bigStore.catalogMessage || (!bigStore.available.length && !bigStore.installed.length
-                        ? qsTr("No hay juegos para este filtro. Las cuentas se gestionan en Ajustes.") : "")
+                width: parent.width; wrapMode: Text.WordWrap; visible: !!text
+                color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 16
+                text: bigStore.catalogLoading && !bigStore.gridGames.length ? qsTr("Cargando catálogo…")
+                    : bigStore.catalogMessage || (!bigStore.gridGames.length ? qsTr("No hay juegos para este filtro.") : "")
+            }
+        }
+        delegate: Item {
+            id: cell
+            required property var modelData
+            required property int index
+            width: grid.cellWidth; height: grid.cellHeight
+            Cover {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: bigStore.cardWidth; height: bigStore.cardHeight
+                game: cell.modelData
+                focused: bigStore.host.mainNavIndex < 0 && bigStore.zone === 3 && bigStore.gridIndex === cell.index
+                onChoose: {
+                    bigStore.gridIndex = cell.index
+                    bigStore.gridSelection = game.id
+                    bigStore.zone = 3
+                    bigStore.openDetail(game)
+                }
             }
         }
     }
-    onZoneChanged: {
-        const shelf = zone === 2 ? availableShelf : zone === 3 ? installedShelf : null
-        if (!shelf) contentView.contentY = 0
-        else if (shelf.y + shelf.height > contentView.contentY + contentView.height)
-            contentView.contentY = Math.min(contentView.contentHeight - contentView.height, shelf.y + shelf.height - contentView.height)
-        else if (shelf.y < contentView.contentY) contentView.contentY = shelf.y
+    Rectangle {
+        id: stickyFilters
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        visible: bigStore.filtersPinned
+        height: bigStore.s * 54
+        color: bigStore.host.base
+        FilterBar { width: parent.width; anchors.verticalCenter: parent.verticalCenter }
     }
+
+    component Cover: Item {
+        id: cover
+        required property var game
+        property bool focused: false
+        property bool preferHero: false
+        signal choose()
+        ManagerPosterCard {
+            anchors.fill: parent
+            scaleFactor: bigStore.s * 1.15
+            title: cover.game.name || ""
+            artwork: (cover.preferHero && cover.game.hero) || cover.game.art || ""
+            store: cover.game.store === "omnia" ? "Omnia" : bigStore.accounts.names[cover.game.store] || qsTr("Local")
+            sourceLogo: bigStore.storeLogo(cover.game.store)
+            installed: !!cover.game.local
+            platform: cover.game.local ? bigStore.host.platformLabel(cover.game.local) : ""
+            onActivated: cover.choose()
+        }
+        Rectangle {
+            anchors.fill: parent
+            visible: cover.focused
+            radius: bigStore.s * 13; color: "transparent"
+            border.width: Math.max(2, bigStore.s * 4); border.color: bigStore.host.ring
+        }
+    }
+
     Rectangle {
         anchors.fill: parent; visible: !!bigStore.detail; z: 4; color: "#D50B111A"
         MouseArea { anchors.fill: parent; onClicked: bigStore.closeDetail() }

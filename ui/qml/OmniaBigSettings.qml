@@ -380,8 +380,18 @@ Item {
                 color: Qt.rgba(0.082, 0.114, 0.153, row.focusRow ? 0.98 : 0.88)
                 border.width: row.focusRow ? Math.max(2, set.s * 3) : 1
                 border.color: row.focusRow ? set.host.ring : Qt.rgba(1, 1, 1, 0.10)
+                Image {
+                    id: accountLogo
+                    visible: row.modelData.id === "store-account"
+                    anchors { left: parent.left; leftMargin: set.s * 24; verticalCenter: parent.verticalCenter }
+                    width: visible ? set.s * 75 : 0
+                    height: width
+                    source: visible ? Qt.resolvedUrl("images/stores/" + row.modelData.store + ".svg") : ""
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize: Qt.size(160, 160)
+                }
                 Column {
-                    anchors { left: parent.left; right: ctrl.left; verticalCenter: parent.verticalCenter; leftMargin: set.s * 24; rightMargin: set.s * 16 }
+                    anchors { left: accountLogo.right; right: ctrl.left; verticalCenter: parent.verticalCenter; leftMargin: accountLogo.visible ? set.s * 22 : 0; rightMargin: set.s * 16 }
                     spacing: set.s * 2
                     Text { width: parent.width; text: row.modelData.label; elide: Text.ElideRight; color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 26; font.weight: Font.DemiBold }
                     Text { visible: !!row.modelData.desc; width: parent.width; text: row.modelData.desc || ""; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 19 }

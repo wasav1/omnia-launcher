@@ -548,6 +548,8 @@ Item {
         // Explorar: novedades, instalaciones recientes y cuadrícula unificada sin paginación.
         Item {
             id: explorePage
+            readonly property var newsTheme: manager
+            readonly property var newsApi: api
             anchors.fill: parent
             visible: manager.page === "catalog"
             Column {
@@ -606,8 +608,8 @@ Item {
 
                     ManagerStoreNews {
                         width: parent.width
-                        manager: manager
-                        api: api
+                        manager: explorePage.newsTheme
+                        api: explorePage.newsApi
                         active: explorePage.visible
                     }
 

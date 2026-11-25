@@ -8,13 +8,19 @@ Column {
     required property var api
     required property var manager
     property bool active: false
+    property bool controllerFocused: false
+    property real uiScale: manager.s
+    readonly property bool canOpen: !!current?.url && slide.opacity === 1
+    function openCurrent() {
+        if (canOpen) Qt.openUrlExternally(current.url)
+    }
     property var items: []
     property var pendingItems: null
     property int currentIndex: 0
     property bool busy: false
     property bool loading: true
     readonly property var current: items[currentIndex] || null
-    spacing: manager.s * 8
+    spacing: uiScale * 8
 
     function refresh() {
         if (!api || busy) return
@@ -51,15 +57,15 @@ Column {
         text: qsTr("Novedades de tiendas")
         color: news.manager.ink
         font.family: "Hanken Grotesk"
-        font.pixelSize: news.manager.s * 17
+        font.pixelSize: news.uiScale * 17
         font.weight: Font.DemiBold
     }
 
     Rectangle {
         id: banner
         width: parent.width
-        height: news.manager.s * 210
-        radius: news.manager.s * 15
+        height: news.uiScale * 210
+        radius: news.uiScale * 15
         color: "#172938"
         clip: true
 
@@ -83,23 +89,23 @@ Column {
                 }
             }
             Image {
-                anchors { top: parent.top; left: parent.left; margins: news.manager.s * 18 }
-                width: news.manager.s * 39
+                anchors { top: parent.top; left: parent.left; margins: news.uiScale * 18 }
+                width: news.uiScale * 39
                 height: width
                 source: news.current ? news.manager.storeLogo(news.current.source) : ""
                 sourceSize: Qt.size(128, 128)
                 fillMode: Image.PreserveAspectFit
             }
             Column {
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: news.manager.s * 18 }
-                spacing: news.manager.s * 5
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: news.uiScale * 18 }
+                spacing: news.uiScale * 5
                 Text {
                     visible: !!news.current
                     text: news.current ? ({steam: "Steam", gog: "GOG", epic: "Epic Games Store", amazon: "Amazon Game Studios"})[news.current.source]
                         + (news.current.game ? " · " + news.current.game : "") : ""
                     textFormat: Text.PlainText
                     color: "#A2E5E2"
-                    font.pixelSize: news.manager.s * 13
+                    font.pixelSize: news.uiScale * 13
                 }
                 Text {
                     width: parent.width
@@ -108,7 +114,7 @@ Column {
                     color: news.manager.ink
                     font.family: "Hanken Grotesk"
                     font.weight: Font.Bold
-                    font.pixelSize: news.manager.s * 27
+                    font.pixelSize: news.uiScale * 27
                     maximumLineCount: 2
                     wrapMode: Text.Wrap
                     elide: Text.ElideRight
@@ -116,10 +122,18 @@ Column {
                 Button {
                     text: qsTr("Leer noticia")
                     visible: !!news.current
-                    enabled: slide.opacity === 1
-                    onClicked: Qt.openUrlExternally(news.current.url)
+                    enabled: news.canOpen
+                    highlighted: news.controllerFocused
+                    onClicked: news.openCurrent()
                 }
             }
+        }
+        Rectangle {
+            anchors.fill: parent
+            radius: banner.radius
+            color: "transparent"
+            border { width: Math.max(2, news.uiScale * 2); color: news.manager.ring || "#5b9be0" }
+            visible: news.controllerFocused
         }
         SequentialAnimation {
             id: rotation
