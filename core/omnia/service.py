@@ -183,7 +183,9 @@ def sync_unlinked_art(store, game, retry_at) -> bool:
     retry_at[(game_id, title)] = time.monotonic() + 3600
     try:
         steam_id = online_catalog.steam_appid(game) or online_catalog.manual_steam_appid(game)
-        art_title = (game.get("art") or {}).get("sgdb") if identified else title
+        # Manual imports keep the executable's ProductName/Desktop Entry title
+        # as an art search alias, even if the visible library title was edited.
+        art_title = (game.get("art") or {}).get("sgdb") if identified or game.get("src") == "Manual" else title
         assets = online_catalog.lookup_pc_artwork(art_title or title, game.get("releaseYear"), steam_id)
     except online_catalog.CatalogError:
         return False

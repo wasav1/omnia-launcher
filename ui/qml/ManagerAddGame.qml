@@ -34,6 +34,9 @@ FocusScope {
     property string matchedQuery: ""
     property string catalogSlug: ""
     property bool matching: false
+    property string folderPath: ""
+    property var folderCandidates: []
+    property bool scanLimited: false
 
     function findMatches() {
         const query = name.trim()
@@ -64,7 +67,7 @@ FocusScope {
 
     // ---- paso 1 → 2
     function chooseFolder(path) {
-        folderFlow = true; step = 2; busy = true; error = ""
+        folderFlow = true; folderPath = path; folderCandidates = []; scanLimited = false; step = 2; busy = true; error = ""
         note = qsTr("Añadiendo la carpeta a tu biblioteca…")
         const before = api.games.length
         api.setLibraryRoot("add", path, function(st, body) {
@@ -84,10 +87,24 @@ FocusScope {
         interval: 2200
         onTriggered: {
             const n = api.games.length - before
-            wz.busy = false
             wz.recognized = n > 0
-            wz.note = n > 0 ? qsTr("Se detectaron %n juego(s) nuevos.", "", n) : qsTr("No se encontraron juegos nuevos en esa carpeta. Si acabas de copiarlos, vuelve a actualizar la biblioteca.")
-            wz.step = 3
+            wz.note = qsTr("Buscando ejecutables en la carpeta…")
+            wz.api.scanGameFolder(wz.folderPath, function(st, body) {
+                if (wz.step !== 2 || !wz.folderFlow) return
+                wz.busy = false
+                if (st === 200) {
+                    wz.folderCandidates = body.candidates || []
+                    wz.scanLimited = !!body.limited
+                } else {
+                    wz.folderCandidates = []
+                    wz.error = body.error || qsTr("No se pudieron revisar los ejecutables de la carpeta.")
+                }
+                const found = wz.folderCandidates.length
+                wz.note = found ? qsTr("Se encontraron %n ejecutable(s). Elige uno para añadirlo.", "", found)
+                    : (n > 0 ? qsTr("Se detectaron %n juego(s) nuevos. No hay ejecutables sueltos para importar.", "", n)
+                             : qsTr("No se encontraron juegos ni ejecutables compatibles en esa carpeta."))
+                wz.step = 3
+            })
         }
     }
     function chooseFile(path) {
@@ -334,6 +351,29 @@ FocusScope {
                     }
                 }
                 Text { visible: !wz.folderFlow && !wz.done; width: parent.width; text: wz.file; elide: Text.ElideMiddle; color: "#8495A8"; font.family: wz.font; font.pixelSize: wz.s * 12 }
+                Text { visible: wz.folderFlow && wz.scanLimited; width: parent.width; wrapMode: Text.WordWrap
+                    text: qsTr("Se muestran los primeros 80 ejecutables. Elige una subcarpeta para revisar más."); color: manager.muted; font.family: wz.font; font.pixelSize: wz.s * 12 }
+                ListView {
+                    visible: wz.folderFlow && wz.folderCandidates.length > 0
+                    width: parent.width; height: Math.min(contentHeight, wz.s * 210)
+                    model: wz.folderCandidates; clip: true; spacing: wz.s * 5
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: ListView.view.width; height: wz.s * 44; radius: wz.s * 9
+                        color: candidateMouse.containsMouse ? "#263E5268" : manager.surface2
+                        border.color: candidateMouse.containsMouse ? manager.accent : "#202E3A"
+                        Row {
+                            anchors.fill: parent; anchors.leftMargin: wz.s * 12; anchors.rightMargin: wz.s * 12; spacing: wz.s * 8
+                            LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: wz.s * 18; height: width; name: "gamepad-2"; color: "#9CC8F4" }
+                            Column { anchors.verticalCenter: parent.verticalCenter; width: parent.width - wz.s * 44; spacing: wz.s * 1
+                                Text { width: parent.width; text: modelData.name; elide: Text.ElideRight; color: manager.ink; font.family: wz.font; font.pixelSize: wz.s * 13 }
+                                Text { width: parent.width; text: modelData.path; elide: Text.ElideMiddle; color: manager.muted; font.family: wz.font; font.pixelSize: wz.s * 10 }
+                            }
+                        }
+                        MouseArea { id: candidateMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { wz.sel = {kind: modelData.kind, needs: "exe", ext: []}; wz.chooseFile(modelData.path) } }
+                    }
+                }
                 Text { visible: wz.error !== ""; width: parent.width; wrapMode: Text.WordWrap; text: wz.error; color: "#E8B86D"; font.family: wz.font; font.pixelSize: wz.s * 14 }
             }
         }

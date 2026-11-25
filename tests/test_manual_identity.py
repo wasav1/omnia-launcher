@@ -128,3 +128,28 @@ class ManualIdentityTests(unittest.TestCase):
         with patch("omnia.online_catalog.lookup_pc_artwork", return_value={}) as lookup:
             sync_unlinked_art(self.store, game, {})
         lookup.assert_called_once_with("Game Anniversary", None, "42")
+
+    def test_folder_scan_lists_valid_executables_without_running_them(self):
+        exe = self.root / "folder-game.exe"
+        write_pe(exe, "Folder Game")
+        linux = self.root / "native-game"
+        linux.write_bytes(b"#!/bin/sh\nexit 0\n")
+        linux.chmod(0o755)
+        installer = self.root / "setup.exe"
+        write_pe(installer, "Game Setup")
+        result = self.api.game_scan_folder({"path": str(self.root)})["candidates"]
+        by_path = {row["path"]: row for row in result}
+        self.assertEqual(by_path[str(exe)]["name"], "Folder Game")
+        self.assertEqual(by_path[str(exe)]["kind"], "windows")
+        self.assertEqual(by_path[str(linux)]["kind"], "native")
+        self.assertNotIn(str(installer), by_path)
+
+    def test_art_search_uses_executable_title_after_user_edits_display_name(self):
+        from omnia.service import sync_unlinked_art
+
+        game = {"id": "manual-custom-name", "name": "My renamed game", "src": "Manual", "platform": "pc",
+                "art": {"slug": "manual-custom-name", "sgdb": "Original Executable Product"}, "ports": [{}]}
+        self.store.set_games([game])
+        with patch("omnia.online_catalog.lookup_pc_artwork", return_value={}) as lookup:
+            sync_unlinked_art(self.store, game, {})
+        lookup.assert_called_once_with("Original Executable Product", None, "")

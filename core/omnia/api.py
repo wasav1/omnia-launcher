@@ -148,6 +148,7 @@ class Api:
             "/game/add": ("POST", True, self.game_add),
             "/game/catalog-link": ("POST", True, self.game_catalog_link),
             "/game/suggest": ("GET", True, self.game_suggest),
+            "/game/scan-folder": ("GET", True, self.game_scan_folder),
             "/rom/scan": ("GET", True, self.rom_scan),
             "/rom/add": ("POST", True, self.rom_add),
             "/game/remove": ("POST", True, self.game_remove),
@@ -1587,8 +1588,9 @@ class Api:
             if suggested.get("existingId"):
                 return {"ok": True, "id": suggested["existingId"], "existing": True}
             identity = suggested.get("identity")
-            if identity:
-                art_title = suggested.get("name", "")
+            # Keep the executable's identified title for artwork lookup even if
+            # the user edits the display name in the import dialog.
+            art_title = suggested.get("name", "")
             if body.get("catalogSlug"):
                 slug = str(body["catalogSlug"])
                 if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", slug):
@@ -1662,6 +1664,24 @@ class Api:
             return {"name": recognized["game"], "kind": "port", "template": recognized["template"],
                     "platform": recognized["platform"], "recognized": recognized["port"]}
         return result
+
+    def game_scan_folder(self, q):
+        raw = q.get("path")
+        if not isinstance(raw, str) or not raw or len(raw) > 4096 or "\0" in raw or not os.path.isabs(raw):
+            raise ApiError(400, "Elige una carpeta de juegos.")
+        try:
+            folder = Path(raw).resolve(strict=True)
+            if not folder.is_dir() or not self._allowed(str(folder)):
+                raise ApiError(403, "Esa carpeta está fuera de las bibliotecas permitidas.")
+            scan = executable_identity.scan_folder(folder, self._roots(), self.store.games(),
+                                                    lambda: self._stores()["steam"].library())
+        except ApiError:
+            raise
+        except ValueError as exc:
+            raise ApiError(400, str(exc)) from exc
+        except (OSError, RuntimeError) as exc:
+            raise ApiError(400, "No se pudo revisar esa carpeta.") from exc
+        return scan
 
     def rom_scan(self, q):
         try:

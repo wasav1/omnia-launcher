@@ -469,6 +469,7 @@ QtObject {
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
     function suggestGame(path, done) { call("GET", "/game/suggest?path=" + encodeURIComponent(path), done) }
+    function scanGameFolder(path, done) { call("GET", "/game/scan-folder?path=" + encodeURIComponent(path), done) }
     function manualMatches(name, done) {
         catalogGames({q: name.trim(), page: 1, pageSize: 12}, function(status, body) {
             done(status === 200 ? (body.items || []).filter(item => item.slug && item.name) : null)

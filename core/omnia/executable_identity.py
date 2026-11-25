@@ -257,3 +257,42 @@ def inspect(path, games, steam_library=None):
     if game:
         result["existingId"] = game["id"]
     return result
+
+
+def scan_folder(folder, roots, games, steam_library=None, *, max_files=3000, max_results=80, max_depth=6):
+    """Encuentra ejecutables seleccionables dentro de una carpeta sin iniciarlos.
+
+    No sigue enlaces simbólicos. Limita profundidad, archivos y resultados para que
+    elegir una biblioteca grande no bloquee el servicio ni inspeccione todo el disco.
+    """
+    root = Path(folder).resolve(strict=True)
+    if not root.is_dir() or not any(root == Path(value).resolve() or root.is_relative_to(Path(value).resolve()) for value in roots):
+        raise ValueError("Elige una carpeta dentro de las bibliotecas permitidas.")
+    candidates = []
+    visited = 0
+    limited = False
+    for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current)
+        depth = len(current_path.relative_to(root).parts)
+        dirs[:] = sorted(name for name in dirs if not name.startswith(".") and not (current_path / name).is_symlink()) if depth < max_depth else []
+        for filename in sorted(files):
+            visited += 1
+            if visited > max_files or len(candidates) >= max_results:
+                break
+            path = current_path / filename
+            try:
+                if path.is_symlink() or not path.is_file() or path.stat().st_size > 512 * 1024 * 1024:
+                    continue
+            except OSError:
+                continue
+            if path.suffix.casefold() != ".exe" and not os.access(path, os.X_OK):
+                continue
+            try:
+                result = inspect(path, games, steam_library)
+            except (OSError, RuntimeError, ValueError):
+                continue
+            candidates.append({"path": str(path), **result})
+        if visited > max_files or len(candidates) >= max_results:
+            limited = True
+            break
+    return {"candidates": candidates, "limited": limited}

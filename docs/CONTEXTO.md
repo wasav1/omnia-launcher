@@ -28,7 +28,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 | `plasma/`, `kwin/` | Integración opcional con KDE Plasma 6 (wallpaper, widget, scripts de KWin) |
 | `packaging/arch/` | PKGBUILD de 4 paquetes (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh`, preparación del AUR |
 | `tools/` | `sound/` (generadores de sonidos, vista previa de la bienvenida), `release.sh`, `dev-service.sh` |
-| `tests/` | `unittest` (690 pruebas). `PYTHONPATH=core python3 -m unittest discover -s tests` (sin `PYTHONPATH=core` importa el paquete instalado, más antiguo) |
+| `tests/` | `unittest` (692 pruebas). `PYTHONPATH=core python3 -m unittest discover -s tests` (sin `PYTHONPATH=core` importa el paquete instalado, más antiguo) |
 | `docs/` | `HANDOFF.md` (arranque), este documento, `HISTORICO-KDE.md`, y planes por tema (`PLAN-*`, `ESTANDARES-PORTS`, `PUBLICAR-AUR`, `MODO-JUEGO`, `PARTIDAS`…) |
 
 ## 3. Arquitectura
@@ -68,8 +68,10 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
   `build-gerudo` e instala solo en su `install/`; sus reglas están en su `AGENTS.md` (sin commits ni `sudo`).
 
 - **Iconografía**: usar Lucide Icons para controles y navegación de Omnia. Los logos de tienda y de Omnia son SVG de marca blancos y sin fondo.
+- **Importación manual y arte**: lee metadatos PE y `.desktop` sin iniciar el juego, y conserva el título identificado para buscar arte aunque el nombre visible se edite. Escritorio y Big Mode permiten revisar una carpeta y elegir ejecutables Linux/Windows; no siguen enlaces simbólicos y limitan profundidad, archivos y resultados.
 
 ## 5. Estado actual (2026-11-25)
+**Importación manual:** Escritorio y Big Mode pueden escanear una carpeta y ofrecer ejecutables candidatos para selección explícita. El núcleo extrae título PE/`.desktop` sin lanzar el archivo, lo conserva como alias de búsqueda de arte y sirve imágenes desde la caché local. El escaneo no sigue symlinks y limita profundidad, volumen de archivos y resultados.
 **Hecho y probado:** instalación de ports desde Explorar (≈58 paquetes publicados), Descargas independientes (tanda 5 publicada o por publicar: ver HANDOFF),
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), alta manual de ejecutables y desinstalación por registro de tienda desde Escritorio y Big Mode, bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
@@ -86,6 +88,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-25 — Arte y detección desde carpeta para juegos manuales.** La búsqueda automática de arte conserva el título leído del ejecutable (ProductName, FileDescription o nombre de `.desktop`) aunque el usuario cambie el nombre visible. Los asistentes de Escritorio y Big Mode permiten elegir una carpeta, inspeccionan ejecutables PE y Linux sin ejecutarlos y dejan que el usuario elija cuál importar; excluyen instaladores/desinstaladores, no siguen enlaces simbólicos y limitan profundidad, archivos y 80 resultados. La selección vuelve a pasar por la validación del ejecutable y de las raíces autorizadas; el arte se descarga a la caché habitual de SteamGridDB vía backend o se enlaza con una ficha curada del catálogo. Se añadieron dos pruebas y traducciones. Pasaron 692 pruebas; la prueba de dos ventanas Qt pasó con el entorno fuera de pantalla documentado. QML verificado con qmllint. Paquetes locales 0.3.0-111.
 
 - **2026-11-25 — Desinstalación y alta manual de juegos.** Escritorio y Big Mode confirman la ruta verificada antes de retirar un port o una instalación registrada de Steam, Epic, GOG o Amazon. Steam y Heroic deben estar cerrados para sincronizar su registro local. Una instalación de origen desconocido puede retirarse de la biblioteca conservando sus archivos. El asistente inspecciona recursos PE y lanzadores Linux, reutiliza registros de instalación y sugiere fichas del catálogo. El App ID de Steam se consulta directamente para el arte y las otras fichas se recuperan mediante el título identificado o el vínculo de catálogo. Se probaron registros de tienda temporales, casos de rutas compartidas e inválidas y ambos asistentes en Qt fuera de pantalla con mando simulado. Se verificaron en modo lectura las rutas de 10 instalaciones locales. Pasaron las 690 pruebas. Paquetes locales 0.3.0-110.
 

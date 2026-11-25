@@ -233,6 +233,46 @@
         <source>Elegir ficha del catálogo</source>
         <translation>Choose catalog entry</translation>
     </message>
+    <message>
+        <source>Buscar ejecutables en una carpeta</source>
+        <translation>Scan a folder for executables</translation>
+    </message>
+    <message>
+        <source>Omnia detecta ejecutables sin iniciarlos</source>
+        <translation>Omnia detects executables without running them</translation>
+    </message>
+    <message>
+        <source>Buscando ejecutables…</source>
+        <translation>Scanning for executables…</translation>
+    </message>
+    <message>
+        <source>Volver a elegir origen</source>
+        <translation>Choose source again</translation>
+    </message>
+    <message>
+        <source>No se pudieron revisar los ejecutables de la carpeta.</source>
+        <translation>Could not scan executables in the folder.</translation>
+    </message>
+    <message>
+        <source>Ejecutables encontrados</source>
+        <translation>Executables found</translation>
+    </message>
+    <message>
+        <source>Revisando archivos compatibles…</source>
+        <translation>Checking compatible files…</translation>
+    </message>
+    <message>
+        <source>Elige qué ejecutable quieres añadir. Omnia no lo iniciará durante la detección.</source>
+        <translation>Choose which executable to add. Omnia will not run it during detection.</translation>
+    </message>
+    <message>
+        <source>No se encontraron ejecutables compatibles en la carpeta.</source>
+        <translation>No compatible executables were found in this folder.</translation>
+    </message>
+    <message>
+        <source>Elige la carpeta que quieres revisar</source>
+        <translation>Choose a folder to scan</translation>
+    </message>
 </context>
 <context>
     <name>Api</name>
@@ -3801,6 +3841,36 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <location filename="../ManagerAddGame.qml" line="331"/>
         <source>Añadir sin vincular</source>
         <translation>Add without linking</translation>
+    </message>
+    <message>
+        <source>Se muestran los primeros 80 ejecutables. Elige una subcarpeta para revisar más.</source>
+        <translation>Showing the first 80 executables. Choose a subfolder to scan more.</translation>
+    </message>
+    <message>
+        <source>Buscando ejecutables en la carpeta…</source>
+        <translation>Scanning the folder for executables…</translation>
+    </message>
+    <message>
+        <source>No se pudieron revisar los ejecutables de la carpeta.</source>
+        <translation>Could not scan executables in the folder.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Se encontraron %n ejecutable(s). Elige uno para añadirlo.</source>
+        <translation>
+            <numerusform>Found %n executable. Choose one to add.</numerusform>
+            <numerusform>Found %n executables. Choose one to add.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Se detectaron %n juego(s) nuevos. No hay ejecutables sueltos para importar.</source>
+        <translation>
+            <numerusform>Detected %n new game. No standalone executables are available to import.</numerusform>
+            <numerusform>Detected %n new games. No standalone executables are available to import.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No se encontraron juegos ni ejecutables compatibles en esa carpeta.</source>
+        <translation>No games or compatible executables were found in this folder.</translation>
     </message>
 </context>
 <context>
