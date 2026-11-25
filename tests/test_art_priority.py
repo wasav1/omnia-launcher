@@ -1,10 +1,21 @@
 import unittest
 from unittest import mock
 
+from omnia import online_catalog
 from omnia.service import art_priority
 
 
 class ArtPriorityTests(unittest.TestCase):
+    def test_manual_pc_games_without_cover_are_prioritized(self):
+        games = [{"id": "existing"}, {"id": "manual-limbo", "name": "Limbo", "src": "Manual", "platform": "pc"}]
+        with mock.patch("omnia.service.Api._art", return_value={}):
+            self.assertEqual([g["id"] for g in art_priority(games, {})], ["manual-limbo", "existing"])
+
+    def test_manual_store_link_preserves_only_verified_pc_editions(self):
+        game = {"name": "Limbo", "src": "Manual", "platform": "pc", "store_id": {"store": "epic", "id": "Hazelnut"}}
+        self.assertEqual(online_catalog.manual_steam_appid(game), "48000")
+        self.assertEqual(online_catalog.manual_steam_appid({**game, "store_id": {"store": "epic", "id": "OtraEdicion"}}), "")
+
     def test_unchecked_catalog_games_go_first_and_order_is_otherwise_stable(self):
         games = [{"id": "a", "catalogSlug": "old"}, {"id": "b"}, {"id": "c", "catalogSlug": "new"}, {"id": "d", "catalogSlug": "old2"}]
         state = {"catalog_art_checked": {"old": 100, "old2": 5}}

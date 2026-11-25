@@ -212,6 +212,8 @@ def art_priority(games: list, state: dict) -> list:
     def missing(game) -> bool:
         if game.get("catalogSlug") and not int(checked.get(game["catalogSlug"], 0) or 0):
             return True
+        if game.get("src") == "Manual" and game.get("platform") == "pc" and not Api._art(game, state).get("portada"):
+            return True
         urls = online_catalog.game_art_urls(game)
         return any(not online_catalog.cached_artwork_path(url) for url in urls.values())
 
@@ -231,7 +233,7 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
         for known in [k for k in pk_checked if not cached.get(k) or any("createdAt" not in row for row in cached[k])]:
             pk_checked.pop(known, None)      # (las filas antiguas sin fecha de publicación se renuevan para poder avisar de actualizaciones)
     scan_at = 0.0
-    seen_revision = -1
+    games_key = None
     catalog_retry_at = {}
     steam_retry_at = {}
     package_retry_at = {}
@@ -259,11 +261,16 @@ def art_worker(store, stop: threading.Event, pause: float = 1.5, bus=None):
             except Exception as e:      # el enlace automático nunca debe tumbar el servicio
                 log.debug("enlace automático con el catálogo: %s", e)
                 link_at = now + 5 * 60
-        if seen_revision != store.revision:
+        games = store.games()
+        current_key = tuple(sorted(
+            (g["id"], str(g.get("name") or ""), str(g.get("platform") or ""), str(g.get("catalogSlug") or ""))
+            for g in games
+        ))
+        if current_key != games_key:
             link_at = min(link_at, now + 10)        # juegos nuevos (p. ej. ROMs recién detectadas): enlazarlos pronto
-        if (not pending and now >= scan_at) or seen_revision != store.revision:
-            pending = art_priority(list(store.games()), store.state)
-            scan_at, seen_revision = now + 60, store.revision
+        if (not pending and now >= scan_at) or current_key != games_key:
+            pending = art_priority(games, store.state)
+            scan_at, games_key = now + 60, current_key
         if pending and not stop.is_set():
             g = pending.pop(0)
             if sync_steam_art(g, steam_retry_at):

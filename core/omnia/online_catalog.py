@@ -354,14 +354,24 @@ def steam_appid(game) -> str:
 
 
 # AppIDs de las ediciones PC originales, comprobados con el catálogo de Steam.
-_MANUAL_STEAM = {"limbo": "48000", "tomb raider the last revelation": "224980"}
+_MANUAL_STEAM = {
+    "limbo": ("48000", ("epic", "Hazelnut")),
+    "tomb raider the last revelation": ("224980", ("gog", "1207663513")),
+}
 
 
 def manual_steam_appid(game) -> str:
-    if game.get("src") != "Manual" or game.get("platform") != "pc" or game.get("store_id") or game.get("catalogSlug"):
+    if game.get("src") != "Manual" or game.get("platform") != "pc" or game.get("catalogSlug"):
         return ""
     title = " ".join(re.findall(r"[a-z0-9]+", str(game.get("name") or "").casefold()))
-    return _MANUAL_STEAM.get(title, "")
+    entry = _MANUAL_STEAM.get(title)
+    if not entry:
+        return ""
+    appid, alternate = entry
+    store = game.get("store_id") or {}
+    if not store:
+        return appid
+    return appid if isinstance(store, dict) and (store.get("store"), str(store.get("id"))) == alternate else ""
 
 
 def steam_art_urls(game) -> dict:
