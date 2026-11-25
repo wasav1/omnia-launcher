@@ -12,7 +12,11 @@ Item {
     property var onlineMeta: ({})
     property int onlinePage: 1
     property int onlinePageSize: 30
+    property string exploreFilter: "all"
+    property int recommendationOffset: 0
+    property bool recommendationsVisible: true
     property var detailGame: null
+    property var storeDetailItem: null
     property var packageOptions: []
     property var selectedPackage: null
     property var installJobs: []
@@ -40,17 +44,41 @@ Item {
     property string catalogLinkTargetId: ""
     property var bigModeWindow: null
     readonly property color bg: "#0B0F14"
-    readonly property color surface: "#151D27"
-    readonly property color surface2: "#1D2936"
+    readonly property color surface: "#111C27"
+    readonly property color surface2: "#192837"
     readonly property color ink: "#F0F3F7"
     readonly property color muted: "#B8C3D0"
-    readonly property color accent: "#3978B8"
-    readonly property real s: Math.max(0.72, Math.min(width / 1440, height / 900))
+    readonly property color accent: "#167E87"
+    readonly property real s: Math.max(0.72, Math.min(1, width / 1440, height / 900))
     readonly property real cs: Math.min(s, 1)      // escala de los menús (barras): no crece con la ventana
     readonly property var recentGames: {
-        const games = (api.games || []).filter(g => !g.hidden && g.ports && g.ports.length)
-        games.sort((a,b) => Number(b.lastPlayed || 0) - Number(a.lastPlayed || 0))
+        const games = (api.games || []).filter(g => !g.hidden)
+        games.sort((a,b) => Number(b.added || 0) - Number(a.added || 0))
         return games.slice(0, 5)
+    }
+    readonly property var exploreSources: [
+        { k: "all", label: qsTr("Todas"), logo: "" },
+        { k: "omnia", label: qsTr("Omnia · ports"), logo: "images/plat/pc.svg" },
+        { k: "steam", label: "Steam", logo: "images/plat/steam.svg" },
+        { k: "epic", label: "Epic", logo: "images/plat/heroic.svg" },
+        { k: "gog", label: "GOG", logo: "images/plat/heroic.svg" },
+        { k: "amazon", label: "Amazon", logo: "images/plat/heroic.svg" }
+    ]
+    readonly property var exploreItems: {
+        const q = String(query || "").trim().toLowerCase()
+        const source = []
+        if (exploreFilter === "all" || exploreFilter === "omnia") onlineGames.forEach(function(g) {
+            source.push({ kind: "omnia", game: g, name: g.name || "", art: manager.imageFor(g, ["grid", "hero"]), store: qsTr("Omnia · ports"), logo: "images/plat/pc.svg", platform: (g.platforms || []).map(p => p.name || p.slug).join(" · "), info: [g.year || g.releaseYear || "", (g.genres || []).slice(0, 2).join(" · ")].filter(Boolean).join(" · ") })
+        })
+        if (exploreFilter !== "omnia") storesView.allItems.forEach(function(i) {
+            if (exploreFilter === "all" || i.store === exploreFilter) source.push({ kind: "store", item: i, name: i.name || "", art: i.art || "", store: storesView.names[i.store] || "", logo: i.store === "steam" ? "images/plat/steam.svg" : "images/plat/heroic.svg", platform: i.local ? (i.local.platform || i.local.sub || "PC") : "PC", info: i.installed ? qsTr("En biblioteca") : qsTr("Disponible para instalar") })
+        })
+        return source.filter(function(i) { return !q || (i.name + " " + i.store + " " + i.platform).toLowerCase().indexOf(q) >= 0 })
+    }
+    readonly property var recommendationPair: {
+        if (!onlineGames.length) return []
+        const count = Math.min(10, onlineGames.length)
+        return [onlineGames[recommendationOffset % count], onlineGames[(recommendationOffset + 1) % count]].filter(Boolean)
     }
 
     Api { id: api; controlsEnabled: false; systemEnabled: true }
@@ -58,21 +86,27 @@ Item {
     Timer { interval: 6000; repeat: true; running: manager.visible; onTriggered: api.refresh() }
     Timer { interval: 1200; repeat: true; running: manager.visible && (manager.page === "installs" || manager.activeInstalls.length > 0); triggeredOnStart: true; onTriggered: manager.loadInstallations() }
 
-    function loadOnline(page) {
-        if (page !== undefined) onlinePage = Math.max(1, Number(page) || 1)
+    function loadOnline(page, append) {
+        const requestedPage = page !== undefined ? Math.max(1, Number(page) || 1) : onlinePage
+        if (requestedPage !== onlinePage || !append) onlinePage = requestedPage
         onlineBusy = true
-        api.catalogGames({page: onlinePage, pageSize: onlinePageSize, sort: "updatedAt", order: "desc", q: query}, function(status, body) {
+        api.catalogGames({page: requestedPage, pageSize: onlinePageSize, sort: "updatedAt", order: "desc", q: query}, function(status, body) {
             manager.onlineBusy = false
             if (status === 200 && body) {
-                manager.onlineGames = body.items || []
+                const received = body.items || []
+                manager.onlineGames = append ? manager.onlineGames.concat(received.filter(function(g) { return !manager.onlineGames.some(x => x.id === g.id) })) : received
                 manager.onlineMeta = body.meta || {}
-                if (manager.onlineMeta.page) manager.onlinePage = Number(manager.onlineMeta.page)
+                manager.onlinePage = Number(manager.onlineMeta.page) || requestedPage
                 const catalogNotice = body.warning ? (api.language === "en" ? api.localizeNotice(body.warning) : body.warning) : ""
                 manager.onlineWarning = manager.catalogLinkTargetId
                     ? qsTr("Elige una ficha para vincularla con el juego seleccionado.") + (catalogNotice ? " · " + catalogNotice : "")
                     : catalogNotice
             } else manager.onlineWarning = (body && body.error) || qsTr("No se pudo cargar el catálogo.")
         })
+    }
+    function loadNextOnline() {
+        const total = Number(onlineMeta.totalPages) || 1
+        if (!onlineBusy && onlinePage < total) loadOnline(onlinePage + 1, true)
     }
     function goOnlinePage(n) {
         const pages = Math.max(1, Number(onlineMeta.totalPages) || 1)
@@ -89,6 +123,7 @@ Item {
         query = ""
         page = "catalog"
         loadOnline(1)
+        storesView.open()
     }
     function cancelCatalogLink() {
         catalogLinkTargetId = ""
@@ -147,6 +182,18 @@ Item {
         if (!game || !game.portAvailable) return
         openCatalogDetail({slug: game.portAvailable.slug, name: game.name, description: game.description})
     }
+    function openStoreDetail(item) {
+        if (!item) return
+        if (item.local) { openGameInLibrary(item.local); return }
+        storeDetailItem = item
+    }
+    function installStoreDetail() {
+        const item = storeDetailItem
+        if (!item) return
+        storeDetailItem = null
+        if (item.store === "steam") storesView.installSteam(item)
+        else storesView.askInstall(item)
+    }
     function gameById(id) { return api.games.find(g => g.id === id) || null }
     function localMatch(remote) {
         if (!remote) return null
@@ -179,11 +226,21 @@ Item {
         }
         return ""
     }
+    function sourceForGame(game) {
+        if (game && game.src === "Steam") return { label: "Steam", logo: "images/plat/steam.svg" }
+        const sub = String(game && game.sub || "")
+        if (sub.indexOf("Epic") >= 0) return { label: "Epic", logo: "images/plat/heroic.svg" }
+        if (sub.indexOf("GOG") >= 0) return { label: "GOG", logo: "images/plat/heroic.svg" }
+        if (sub.indexOf("Amazon") >= 0) return { label: "Amazon", logo: "images/plat/heroic.svg" }
+        return { label: qsTr("Omnia · ports"), logo: "images/plat/pc.svg" }
+    }
     function selectPage(key) {
+        if (key === "stores") key = "catalog"
         if (key === "home" && onlineGames.length === 0 && !onlineBusy) loadOnline(1)
         if (key !== "catalog" && catalogLinkTargetId) catalogLinkTargetId = ""
         page = key
         if (key === "catalog") loadOnline()
+        if (key === "catalog") storesView.open()
         if (key === "installs") loadInstallations()
         if (key === "stores") storesView.open()
         if (key === "stats") statsView.open()
@@ -317,57 +374,65 @@ Item {
 
     Rectangle { anchors.fill: parent; color: manager.bg }
 
-    // ---------------- barra superior (menú principal)
+    // ---------------- navegación persistente
     Rectangle {
         id: topbar
-        anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: manager.cs * 46
-        color: "#0E141B"
-        Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 1; color: "#1c2733" }
-        Row {
+        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+        width: manager.cs * 220
+        color: "#0A121B"
+        Rectangle { anchors { top: parent.top; bottom: parent.bottom; right: parent.right } width: 1; color: "#203140" }
+        Column {
             id: brandRow
-            anchors { left: parent.left; leftMargin: manager.cs * 18; verticalCenter: parent.verticalCenter }
-            spacing: manager.cs * 8
-            Image { width: manager.cs * 24; height: manager.cs * 24; anchors.verticalCenter: parent.verticalCenter; source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg"); fillMode: Image.PreserveAspectFit; sourceSize.height: 96 }
-            Text { anchors.verticalCenter: parent.verticalCenter; text: "Omnia Desktop Suite"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 18; font.weight: Font.DemiBold }
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: manager.cs * 22; topMargin: manager.cs * 24 }
+            spacing: manager.cs * 5
+            Row {
+                spacing: manager.cs * 9
+                Image { width: manager.cs * 30; height: manager.cs * 30; anchors.verticalCenter: parent.verticalCenter; source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg"); fillMode: Image.PreserveAspectFit; sourceSize.height: 96 }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { text: "Omnia"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 19; font.weight: Font.Bold }
+                    Text { text: qsTr("DESKTOP SUITE"); color: "#8496A8"; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 9; font.weight: Font.DemiBold; font.letterSpacing: 1.5 }
+                }
+            }
         }
-        Row {
-            anchors { left: brandRow.right; leftMargin: manager.cs * 26; verticalCenter: parent.verticalCenter }
-            spacing: manager.cs * 20
+        Column {
+            anchors { left: parent.left; right: parent.right; top: brandRow.bottom; topMargin: manager.cs * 42; leftMargin: manager.cs * 10; rightMargin: manager.cs * 10 }
+            spacing: manager.cs * 7
             Repeater {
                 model: [
-                    {key:"home",label:qsTr("Inicio")},
-                    {key:"library",label:qsTr("Biblioteca")},
-                    {key:"catalog",label:qsTr("Explorar")},
-                    {key:"stores",label:qsTr("Tiendas")},
-                    {key:"stats",label:qsTr("Estadísticas")},
-                    {key:"installs",label:qsTr("Descargas")}
+                    {key:"home",label:qsTr("Inicio"),icon:"layout-grid"},
+                    {key:"library",label:qsTr("Biblioteca"),icon:"folder-open"},
+                    {key:"catalog",label:qsTr("Explorar"),icon:"search"},
+                    {key:"stats",label:qsTr("Estadísticas"),icon:"activity"},
+                    {key:"installs",label:qsTr("Descargas"),icon:"download"}
                 ]
-                delegate: Item {
+                delegate: Rectangle {
                     id: menuItem
                     required property var modelData
                     readonly property bool on: manager.page === modelData.key
-                    width: menuLabel.implicitWidth; height: manager.cs * 46
-                    Text { id: menuLabel; anchors.verticalCenter: parent.verticalCenter; text: menuItem.modelData.label; color: menuItem.on || navMouse.containsMouse ? manager.ink : manager.muted
-                        font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 14; font.weight: menuItem.on ? Font.DemiBold : Font.Normal }
-                    Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 3; color: "#5B9BE0"; visible: menuItem.on }
+                    width: parent.width; height: manager.cs * 44; radius: manager.cs * 11
+                    color: on ? "#153E4A" : (navMouse.containsMouse ? "#142330" : "transparent")
+                    Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: manager.cs * 3; radius: width / 2; color: "#20C4C2"; visible: menuItem.on }
+                    LucideIcon { x: manager.cs * 13; anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 18; height: width; name: menuItem.modelData.icon; color: menuItem.on ? "#43D4CF" : (navMouse.containsMouse ? manager.ink : "#91A1B1") }
+                    Text { id: menuLabel; anchors { left: parent.left; leftMargin: manager.cs * 43; verticalCenter: parent.verticalCenter } text: menuItem.modelData.label; color: menuItem.on || navMouse.containsMouse ? manager.ink : "#AAB6C2"
+                        font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 14; font.weight: menuItem.on ? Font.DemiBold : Font.Medium }
                     MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage(menuItem.modelData.key) }
                 }
             }
         }
-        Row {
-            anchors { right: parent.right; rightMargin: manager.cs * 22; verticalCenter: parent.verticalCenter }
-            spacing: manager.cs * 10
+        Column {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: manager.cs * 12; rightMargin: manager.cs * 12; bottomMargin: manager.cs * 28 }
+            spacing: manager.cs * 9
             Rectangle {
-                height: manager.cs * 30; width: bigModeLabel.implicitWidth + manager.cs * 44; radius: height / 2; color: manager.accent
-                Row { anchors.centerIn: parent; spacing: manager.cs * 8; LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 15; height: width; name: "gamepad-2"; color: manager.ink } Text { id: bigModeLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Big Mode"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 13; font.weight: Font.DemiBold } }
+                width: parent.width; height: manager.cs * 40; radius: height / 2; color: "#103A42"; border.color: "#247B80"
+                Row { anchors.centerIn: parent; spacing: manager.cs * 8; LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 16; height: width; name: "gamepad-2"; color: "#4DD5D0" } Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Big Mode"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 13; font.weight: Font.DemiBold } }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.openBigMode() }
             }
             Rectangle {
-                width: manager.cs * 30; height: width; radius: width / 2
-                color: manager.page === "settings" ? "#2A4770" : (gearMouse.containsMouse ? "#26FFFFFF" : "transparent")
-                LucideIcon { anchors.centerIn: parent; width: manager.cs * 17; height: width; name: "settings"; color: manager.page === "settings" ? "#9CC8F4" : manager.muted }
-                ToolTip.visible: gearMouse.containsMouse; ToolTip.text: qsTr("Ajustes"); ToolTip.delay: 400
+                width: parent.width; height: manager.cs * 40; radius: manager.cs * 10
+                color: manager.page === "settings" ? "#153E4A" : (gearMouse.containsMouse ? "#142330" : "transparent")
+                LucideIcon { x: manager.cs * 13; anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 18; height: width; name: "settings"; color: manager.page === "settings" ? "#43D4CF" : manager.muted }
+                Text { anchors { left: parent.left; leftMargin: manager.cs * 43; verticalCenter: parent.verticalCenter } text: qsTr("Ajustes"); color: manager.page === "settings" || gearMouse.containsMouse ? manager.ink : "#AAB6C2"; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 14 }
                 MouseArea { id: gearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage("settings") }
             }
         }
@@ -376,9 +441,9 @@ Item {
     // ---------------- barra inferior (añadir juego, descargas y estado)
     Rectangle {
         id: statusbar
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        anchors { left: topbar.right; right: parent.right; bottom: parent.bottom }
         height: manager.cs * 26
-        color: "#0E141B"
+        color: "#0A121B"
         Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top } height: 1; color: "#1c2733" }
         Text { visible: manager.activeInstalls.length > 0; anchors { left: parent.left; leftMargin: manager.cs * 18; verticalCenter: parent.verticalCenter }
             text: manager.activeInstalls.length > 0 ? qsTr("Descargando: %1 · %2 %").arg(manager.activeInstalls[0].name).arg(Math.round(Number(manager.activeInstalls[0].progress || 0))) : ""
@@ -392,8 +457,8 @@ Item {
 
     Item {
         id: content
-        anchors { left: parent.left; right: parent.right; top: topbar.bottom; bottom: statusbar.top }
-        property real pad: manager.s * 42
+        anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: statusbar.top }
+        property real pad: manager.s * 34
         readonly property real top0: manager.s * 30
         // Inicio: novedad del catálogo y «Seguir jugando»
         Item {
@@ -414,7 +479,7 @@ Item {
                 Column {
                     anchors { left: parent.left; leftMargin: manager.s * 34; verticalCenter: parent.verticalCenter }
                     width: parent.width * 0.42; spacing: manager.s * 8
-                    Text { text: banner.parent.news ? qsTr("NOVEDAD DEL CATÁLOGO") : qsTr("BIENVENIDO A OMNIA"); color: "#9CC8F4"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.Bold; font.letterSpacing: 2 }
+                    Text { text: banner.parent.news ? qsTr("NOVEDAD DEL CATÁLOGO") : qsTr("BIENVENIDO A OMNIA"); color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.Bold; font.letterSpacing: 2 }
                     Text { width: parent.width; text: banner.parent.news ? (banner.parent.news.name || "") : qsTr("Tu espacio de juegos"); color: manager.ink; elide: Text.ElideRight
                         font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 34; font.weight: Font.DemiBold }
                     Text { width: parent.width; text: banner.parent.news ? (banner.parent.news.platforms || []).map(p => p.name || p.slug).join(" · ") : qsTr("Tu biblioteca, tus plataformas y tus instalaciones."); color: manager.muted; elide: Text.ElideRight
@@ -473,98 +538,246 @@ Item {
             api: api
         }
 
-        // Catálogo en línea
+        // Explorar: recomendaciones, instalaciones recientes y cuadrícula unificada sin paginación.
         Item {
-            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom }
+            id: explorePage
+            anchors.fill: parent
             visible: manager.page === "catalog"
+            Text {
+                x: content.pad; y: content.top0
+                text: qsTr("Explorar"); color: manager.ink
+                font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 28; font.weight: Font.Bold
+            }
+            Text {
+                x: content.pad; y: content.top0 + manager.s * 34
+                text: qsTr("Ports de Omnia y juegos de tus tiendas, en un solo lugar.")
+                color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12
+            }
             TextField {
                 id: remoteSearch
-                x: content.pad; y: content.top0; width: manager.s * 520; height: manager.s * 44
-                placeholderText: manager.catalogLinkTargetId ? qsTr("Buscar una ficha para vincular") : qsTr("Buscar en el catálogo Omnia")
-                color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16
-                onAccepted: { manager.query = text; manager.loadOnline(1) }
-                background: Rectangle { radius: manager.s * 13; color: manager.surface2; border.color: remoteSearch.activeFocus ? "#5B9BE0" : "#24FFFFFF" }
-            }
-            Text { x: remoteSearch.x; y: remoteSearch.y + remoteSearch.height + manager.s * 10; text: manager.onlineWarning; visible: !!text; color: "#E8B86D"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
-            GridView {
-                anchors { left: parent.left; right: parent.right; top: remoteSearch.bottom; bottom: catalogPagination.top; leftMargin: content.pad; rightMargin: content.pad; topMargin: manager.s * 40; bottomMargin: manager.s * 10 }
-                cellWidth: manager.s * 250; cellHeight: manager.s * 300; clip: true
-                model: manager.onlineGames
-                delegate: Rectangle {
-                    required property var modelData
-                    width: manager.s * 232; height: manager.s * 280; radius: manager.s * 18; color: manager.surface; clip: true
-                    FadedImage { anchors.fill: parent; source: manager.imageFor(modelData, ["grid", "hero"]); cornerRadius: manager.s * 18 }
-                    Rectangle { anchors.fill: parent; radius: manager.s * 18; gradient: Gradient { GradientStop { position: 0.4; color: "#00151D27" } GradientStop { position: 1; color: "#ED0B0F14" } } }
-                    Column { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: manager.s * 14 } spacing: manager.s * 4; Text { width: parent.width; text: modelData.name || ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold; elide: Text.ElideRight } Text { width: parent.width; text: (modelData.platforms || []).map(p => p.name || p.slug).join(" · "); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; elide: Text.ElideRight } }
-                    Rectangle {
-                        visible: !!manager.catalogLinkTargetId
-                        anchors { right: parent.right; top: parent.top; margins: manager.s * 10 }
-                        width: manager.s * 88; height: manager.s * 30; radius: height / 2; color: manager.accent
-                        Text { anchors.centerIn: parent; text: qsTr("Vincular"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.DemiBold }
-                    }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.catalogLinkTargetId ? manager.linkCatalogGame(modelData) : manager.openCatalogDetail(modelData) }
-                }
-                Text { visible: manager.onlineBusy || manager.onlineGames.length === 0; anchors.centerIn: parent; text: manager.onlineBusy ? qsTr("Cargando catálogo…") : qsTr("No hay resultados disponibles."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16 }
+                x: content.pad; y: content.top0 + manager.s * 56
+                width: Math.min(parent.width - content.pad * 2, manager.s * 520); height: manager.s * 36
+                placeholderText: manager.catalogLinkTargetId ? qsTr("Buscar una ficha para vincular") : qsTr("Buscar juegos, tiendas o plataformas")
+                color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14
+                onAccepted: { manager.query = text; manager.loadOnline(1); exploreFlick.contentY = 0 }
+                background: Rectangle { radius: manager.s * 11; color: manager.surface2; border.color: remoteSearch.activeFocus ? "#45CFC9" : "#24FFFFFF" }
             }
             Rectangle {
                 visible: !!manager.catalogLinkTargetId
-                anchors { right: parent.right; top: parent.top; rightMargin: content.pad; topMargin: content.top0 }
-                width: manager.s * 110; height: manager.s * 44; radius: manager.s * 13; color: manager.surface2
-                Text { anchors.centerIn: parent; text: qsTr("Cancelar vínculo"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                anchors { right: parent.right; verticalCenter: remoteSearch.verticalCenter; rightMargin: content.pad }
+                width: manager.s * 112; height: manager.s * 34; radius: manager.s * 11; color: manager.surface2
+                Text { anchors.centerIn: parent; text: qsTr("Cancelar vínculo"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.cancelCatalogLink() }
             }
-            Row {
-                id: catalogPagination
-                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: manager.s * 16 }
-                height: manager.s * 40
-                spacing: manager.s * 6
-                readonly property int total: Math.max(1, Number(manager.onlineMeta.totalPages) || 1)
-                readonly property var pages: {
-                    const cur = manager.onlinePage, t = total, out = []
-                    const add = function(n) { if (n >= 1 && n <= t && out.indexOf(n) < 0) out.push(n) }
-                    add(1); add(cur - 1); add(cur); add(cur + 1); add(t)
-                    out.sort(function(a, b) { return a - b })
-                    const res = []
-                    out.forEach(function(n, i) { if (i > 0 && n - out[i - 1] > 1) res.push(0); res.push(n) })
-                    return res
+            Text {
+                id: exploreWarning
+                x: content.pad; y: remoteSearch.y + remoteSearch.height + manager.s * 3
+                width: parent.width - content.pad * 2
+                text: manager.onlineWarning; visible: !!text
+                color: "#E8B86D"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideRight
+            }
+            Flickable {
+                id: exploreFlick
+                anchors { left: parent.left; right: parent.right; top: exploreWarning.visible ? exploreWarning.bottom : remoteSearch.bottom; bottom: parent.bottom }
+                anchors.topMargin: manager.s * 7
+                clip: true
+                contentWidth: width
+                contentHeight: exploreContent.height
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: exploreContent
+                    width: exploreFlick.width
+                    spacing: manager.s * 15
+
+                    Column {
+                        width: parent.width
+                        spacing: manager.s * 7
+                        Text { text: qsTr("Recomendados"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold }
+                        Row {
+                            width: parent.width; height: manager.s * 190; spacing: manager.s * 10
+                            opacity: manager.recommendationsVisible ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
+                            Repeater {
+                                model: manager.recommendationPair
+                                delegate: ManagerPosterCard {
+                                    required property var modelData
+                                    width: manager.s * 138; height: parent.height
+                                    scaleFactor: manager.s
+                                    title: modelData.name || ""
+                                    artwork: manager.imageFor(modelData, ["grid", "hero"])
+                                    store: qsTr("Omnia · ports")
+                                    sourceLogo: "images/plat/pc.svg"
+                                    platform: (modelData.platforms || []).map(function(p) { return p.name || p.slug }).join(" · ")
+                                    info: [modelData.year || modelData.releaseYear || "", (modelData.genres || []).slice(0, 2).join(" · ")].filter(Boolean).join(" · ")
+                                    onActivated: manager.openCatalogDetail(modelData)
+                                }
+                            }
+                            Text { visible: manager.recommendationPair.length === 0; anchors.centerIn: parent; text: manager.onlineBusy ? qsTr("Cargando recomendaciones…") : qsTr("Aún no hay recomendaciones."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                        }
+                    }
+
+                    Column {
+                        width: parent.width
+                        spacing: manager.s * 7
+                        Row {
+                            width: parent.width; height: manager.s * 24
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Últimos instalados"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold }
+                            Rectangle {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                width: moreInstalled.implicitWidth + manager.s * 22; height: manager.s * 25; radius: height / 2
+                                color: moreInstalledMouse.containsMouse ? "#16434E" : manager.surface2
+                                Text { id: moreInstalled; anchors.centerIn: parent; text: qsTr("Ver más"); color: "#72E0DA"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: Font.DemiBold }
+                                MouseArea { id: moreInstalledMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage("library") }
+                            }
+                        }
+                        ListView {
+                            id: installedList
+                            width: parent.width; height: manager.s * 180
+                            orientation: ListView.Horizontal; spacing: manager.s * 9; clip: true
+                            model: manager.recentGames
+                            delegate: ManagerPosterCard {
+                                required property var modelData
+                                width: manager.s * 136; height: installedList.height
+                                scaleFactor: manager.s * 0.92
+                                title: modelData.name || ""
+                                artwork: modelData.portada || modelData.fondo || ""
+                                store: manager.sourceForGame(modelData).label
+                                sourceLogo: manager.sourceForGame(modelData).logo
+                                platform: modelData.platform || modelData.sub || "PC"
+                                info: qsTr("Instalado recientemente")
+                                onActivated: manager.openGameInLibrary(modelData)
+                            }
+                            Text { visible: installedList.count === 0; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Tus juegos instalados aparecerán aquí."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                        }
+                    }
+
+                    Item {
+                        id: inlineExploreFilters
+                        width: parent.width; height: manager.s * 41
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: manager.s * 6
+                            Repeater {
+                                model: manager.exploreSources
+                                delegate: Rectangle {
+                                    id: inlineChip
+                                    required property var modelData
+                                    readonly property bool selected: manager.exploreFilter === modelData.k
+                                    width: inlineChipRow.implicitWidth + manager.s * 22; height: manager.s * 31; radius: height / 2
+                                    color: selected ? "#16434E" : "#101C27"
+                                    border.color: selected ? "#45CFC9" : "#30414E"
+                                    Row {
+                                        id: inlineChipRow; anchors.centerIn: parent; spacing: manager.s * 5
+                                        Rectangle {
+                                            visible: !!inlineChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter
+                                            width: manager.s * 16; height: width; radius: width / 2; color: "#DDE6EC"
+                                            Image { anchors.centerIn: parent; width: manager.s * 10; height: width; source: inlineChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
+                                        }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: inlineChip.modelData.label; color: inlineChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: inlineChip.selected ? Font.DemiBold : Font.Normal }
+                                    }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = inlineChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        width: parent.width
+                        spacing: manager.s * 9
+                        Row {
+                            width: parent.width; height: manager.s * 25; spacing: manager.s * 8
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: manager.exploreFilter === "all" ? qsTr("Todos los juegos") : manager.exploreSources.find(function(s) { return s.k === manager.exploreFilter }).label; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("%1 juegos").arg(exploreGridRepeater.count); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10 }
+                        }
+                        Grid {
+                            id: exploreGrid
+                            width: parent.width
+                            readonly property real gap: manager.s * 12
+                            readonly property real cardWidth: Math.max(manager.s * 112, Math.floor((width - gap * (columns - 1)) / columns))
+                            readonly property real cardHeight: cardWidth * 1.42
+                            columns: Math.max(2, Math.floor((width + gap) / (manager.s * 160 + gap)))
+                            columnSpacing: gap; rowSpacing: gap
+                            height: exploreGridRepeater.count ? Math.ceil(exploreGridRepeater.count / columns) * (cardHeight + rowSpacing) - rowSpacing : 0
+                            Repeater {
+                                id: exploreGridRepeater
+                                model: manager.exploreItems
+                                delegate: Item {
+                                    id: exploreCell
+                                    required property var modelData
+                                    width: exploreGrid.cardWidth; height: exploreGrid.cardHeight
+                                    ManagerPosterCard {
+                                        anchors.fill: parent
+                                        scaleFactor: manager.s
+                                        title: exploreCell.modelData.name
+                                        artwork: exploreCell.modelData.art
+                                        store: exploreCell.modelData.store
+                                        sourceLogo: exploreCell.modelData.logo
+                                        platform: exploreCell.modelData.platform
+                                        info: exploreCell.modelData.info
+                                        onActivated: {
+                                            if (exploreCell.modelData.kind === "omnia") manager.catalogLinkTargetId ? manager.linkCatalogGame(exploreCell.modelData.game) : manager.openCatalogDetail(exploreCell.modelData.game)
+                                            else if (exploreCell.modelData.item.local) manager.openGameInLibrary(exploreCell.modelData.item.local)
+                                            else manager.openStoreDetail(exploreCell.modelData.item)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Text { visible: exploreGridRepeater.count === 0 && !manager.onlineBusy; text: qsTr("No hay juegos para este filtro."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                        Text { visible: manager.onlineBusy; text: qsTr("Cargando más juegos…"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11 }
+                    }
+                    Item { width: 1; height: manager.s * 22 }
                 }
-                component PageButton: Rectangle {
-                    id: pb
-                    property string icon: ""
-                    property string label: ""
-                    property bool current: false
-                    property bool enabledBtn: true
-                    signal activated()
-                    width: label !== "" ? Math.max(manager.s * 40, lbl.implicitWidth + manager.s * 20) : manager.s * 40
-                    height: manager.s * 40; radius: manager.s * 12
-                    color: current ? manager.accent : (enabledBtn && pbMa.containsMouse ? "#2E3F52" : "transparent")
-                    border.color: current ? "#5B9BE0" : (enabledBtn && pbMa.containsMouse ? "#3B516A" : "transparent")
-                    scale: enabledBtn && pbMa.containsMouse && !current ? 1.08 : (pbMa.pressed && enabledBtn ? 0.95 : 1)
-                    opacity: enabledBtn ? 1 : 0.35
-                    Behavior on color { ColorAnimation { duration: 140 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    LucideIcon { visible: pb.icon !== ""; anchors.centerIn: parent; width: manager.s * 18; height: width; name: pb.icon; color: pb.current || pbMa.containsMouse ? manager.ink : manager.muted }
-                    Text { id: lbl; visible: pb.label !== ""; anchors.centerIn: parent; text: pb.label; color: pb.current || pbMa.containsMouse ? manager.ink : manager.muted
-                        font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15; font.weight: pb.current ? Font.DemiBold : Font.Normal }
-                    MouseArea { id: pbMa; anchors.fill: parent; hoverEnabled: true; enabled: pb.enabledBtn; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: pb.activated() }
+                onContentYChanged: {
+                    if (contentY + height >= contentHeight - manager.s * 420) manager.loadNextOnline()
                 }
-                PageButton { icon: "chevrons-left"; enabledBtn: manager.onlinePage > 1 && !manager.onlineBusy; onActivated: manager.goOnlinePage(1) }
-                PageButton { icon: "chevron-left"; enabledBtn: manager.onlinePage > 1 && !manager.onlineBusy; onActivated: manager.changeOnlinePage(-1) }
-                Repeater {
-                    model: catalogPagination.pages
-                    delegate: Loader {
-                        id: pgLoader
-                        required property int modelData
-                        sourceComponent: modelData === 0 ? gap : numberBtn
-                        Component { id: gap; Item { width: manager.s * 26; height: manager.s * 40; Text { anchors.centerIn: parent; text: "…"; color: manager.muted; font.pixelSize: manager.s * 16 } } }
-                        Component { id: numberBtn; PageButton { label: String(pgLoader.modelData); current: pgLoader.modelData === manager.onlinePage; enabledBtn: !manager.onlineBusy; onActivated: manager.goOnlinePage(pgLoader.modelData) } }
+            }
+            Rectangle {
+                id: pinnedExploreFilters
+                visible: exploreFlick.contentY >= inlineExploreFilters.y && exploreFlick.contentHeight > exploreFlick.height
+                z: 10
+                anchors { left: exploreFlick.left; right: exploreFlick.right; top: exploreFlick.top }
+                height: manager.s * 41; color: "#F20B1118"
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: manager.s * 6
+                    Repeater {
+                        model: manager.exploreSources
+                        delegate: Rectangle {
+                            id: pinnedChip
+                            required property var modelData
+                            readonly property bool selected: manager.exploreFilter === modelData.k
+                            width: pinnedChipRow.implicitWidth + manager.s * 22; height: manager.s * 31; radius: height / 2
+                            color: selected ? "#16434E" : "#101C27"
+                            border.color: selected ? "#45CFC9" : "#30414E"
+                            Row {
+                                id: pinnedChipRow; anchors.centerIn: parent; spacing: manager.s * 5
+                                Rectangle {
+                                    visible: !!pinnedChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter
+                                    width: manager.s * 16; height: width; radius: width / 2; color: "#DDE6EC"
+                                    Image { anchors.centerIn: parent; width: manager.s * 10; height: width; source: pinnedChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
+                                }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: pinnedChip.modelData.label; color: pinnedChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: pinnedChip.selected ? Font.DemiBold : Font.Normal }
+                            }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = pinnedChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
+                        }
                     }
                 }
-                PageButton { icon: "chevron-right"; enabledBtn: manager.onlinePage < catalogPagination.total && !manager.onlineBusy; onActivated: manager.changeOnlinePage(1) }
-                PageButton { icon: "chevrons-right"; enabledBtn: manager.onlinePage < catalogPagination.total && !manager.onlineBusy; onActivated: manager.goOnlinePage(catalogPagination.total) }
-                Text { anchors.verticalCenter: parent.verticalCenter; leftPadding: manager.s * 12
-                    text: qsTr("%1 juegos").arg(Number(manager.onlineMeta.total) || manager.onlineGames.length)
-                    color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
+            }
+            Timer {
+                id: recommendationTimer
+                interval: 10000; repeat: true
+                running: manager.page === "catalog" && manager.onlineGames.length > 2
+                onTriggered: { manager.recommendationsVisible = false; recommendationSwap.restart() }
+            }
+            Timer {
+                id: recommendationSwap
+                interval: 280; repeat: false
+                onTriggered: {
+                    const count = Math.min(10, manager.onlineGames.length)
+                    manager.recommendationOffset = count > 0 ? (manager.recommendationOffset + 2) % count : 0
+                    manager.recommendationsVisible = true
+                }
             }
         }
 
@@ -581,7 +794,8 @@ Item {
         ManagerStores {
             id: storesView
             anchors.fill: parent
-            visible: manager.page === "stores"
+            visible: manager.page === "catalog"
+            compactHost: true
             manager: manager
             api: api
         }
@@ -598,8 +812,9 @@ Item {
         Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom }
             visible: manager.page === "settings"
+            Text { x: content.pad; y: content.top0; text: qsTr("Ajustes"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 28; font.weight: Font.Bold }
             Column {
-                x: content.pad; y: content.top0; width: manager.s * 190; spacing: manager.s * 4
+                x: content.pad; y: content.top0 + manager.s * 48; width: manager.s * 190; spacing: manager.s * 4
                 Repeater {
                     model: [{ k: "general", l: qsTr("General") }, { k: "library", l: qsTr("Biblioteca") }, { k: "bigmode", l: qsTr("Big Mode") }, { k: "about", l: qsTr("Acerca de") }]
                     delegate: Rectangle {
@@ -607,14 +822,14 @@ Item {
                         required property var modelData
                         readonly property bool on: manager.settingsSection === modelData.k
                         width: parent.width; height: manager.s * 42; radius: manager.s * 10
-                        color: on ? "#2A4770" : (setMa.containsMouse ? "#14FFFFFF" : "transparent")
+                        color: on ? "#16434E" : (setMa.containsMouse ? "#14FFFFFF" : "transparent")
                         Text { anchors { left: parent.left; leftMargin: manager.s * 14; verticalCenter: parent.verticalCenter } text: setTab.modelData.l; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; font.weight: setTab.on ? Font.DemiBold : Font.Normal }
                         MouseArea { id: setMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.settingsSection = setTab.modelData.k }
                     }
                 }
             }
             Column {
-                x: content.pad + manager.s * 214; y: content.top0; width: parent.width - content.pad * 2 - manager.s * 214; spacing: manager.s * 14
+                x: content.pad + manager.s * 214; y: content.top0 + manager.s * 48; width: parent.width - content.pad * 2 - manager.s * 214; spacing: manager.s * 14
                 Rectangle {
                     visible: manager.settingsSection === "about"
                     width: parent.width; height: manager.s * 150; radius: manager.s * 16; color: manager.surface
@@ -703,7 +918,7 @@ Item {
                     }
                     Row {
                         anchors { right: parent.right; bottom: parent.bottom; margins: manager.s * 14 } spacing: manager.s * 8
-                        TextField { id: rootInput; width: manager.s * 420; height: manager.s * 40; placeholderText: qsTr("Ruta, por ejemplo /mnt/JUEGOS/Ports"); text: manager.rootPath; onTextEdited: manager.rootPath = text; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; background: Rectangle { radius: manager.s * 10; color: manager.surface2; border.color: rootInput.activeFocus ? "#5B9BE0" : "#24FFFFFF" } }
+                        TextField { id: rootInput; width: manager.s * 420; height: manager.s * 40; placeholderText: qsTr("Ruta, por ejemplo /mnt/JUEGOS/Ports"); text: manager.rootPath; onTextEdited: manager.rootPath = text; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; background: Rectangle { radius: manager.s * 10; color: manager.surface2; border.color: rootInput.activeFocus ? "#45CFC9" : "#24FFFFFF" } }
                         Rectangle { width: manager.s * 40; height: manager.s * 40; radius: manager.s * 10; color: manager.surface2; LucideIcon { anchors.centerIn: parent; width: manager.s * 17; height: width; name: "folder-open"; color: manager.muted } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: libraryFolderDialog.open() } }
                         Rectangle { width: manager.s * 126; height: manager.s * 40; radius: manager.s * 10; color: manager.accent; Text { anchors.centerIn: parent; text: qsTr("Añadir carpeta"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; enabled: manager.rootPath.trim().length > 0; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: manager.changeRoot("add", manager.rootPath.trim()) } }
                     }
@@ -714,7 +929,7 @@ Item {
                     delegate: Rectangle {
                         required property string modelData
                         width: parent.width; height: manager.s * 58; radius: manager.s * 13; color: manager.surface
-                        LucideIcon { x: manager.s * 16; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 20; height: width; name: "folder-open"; color: "#9CC8F4" }
+                        LucideIcon { x: manager.s * 16; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 20; height: width; name: "folder-open"; color: "#66D5D0" }
                         Text { anchors { left: parent.left; leftMargin: manager.s * 48; right: removeRoot.left; verticalCenter: parent.verticalCenter } text: modelData; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; elide: Text.ElideMiddle }
                         Rectangle { id: removeRoot; anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: manager.s * 12 } width: manager.s * 90; height: manager.s * 34; radius: height / 2; color: "#27343F"; Text { anchors.centerIn: parent; text: qsTr("Retirar"); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.changeRoot("remove", modelData) } }
                     }
@@ -764,6 +979,68 @@ Item {
             }
         }
     }
+    Rectangle {
+        visible: manager.storeDetailItem !== null
+        anchors.fill: parent
+        z: 12
+        color: "#B9000000"
+        MouseArea { anchors.fill: parent; onClicked: manager.storeDetailItem = null }
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width * 0.84, manager.s * 980)
+            height: Math.min(parent.height * 0.78, manager.s * 560)
+            radius: manager.s * 22
+            color: manager.surface
+            border.color: "#294253"
+            clip: true
+            MouseArea { anchors.fill: parent; onClicked: function(mouse) { mouse.accepted = true } }
+            FadedImage {
+                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                width: parent.width * 0.38
+                source: manager.storeDetailItem ? manager.storeDetailItem.art : ""
+                cornerRadius: manager.s * 22
+            }
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom }
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "#00111C27" }
+                    GradientStop { position: 0.35; color: "#A8111C27" }
+                    GradientStop { position: 0.48; color: manager.surface }
+                    GradientStop { position: 1; color: manager.surface }
+                }
+            }
+            Rectangle {
+                anchors { top: parent.top; right: parent.right; margins: manager.s * 16 }
+                width: manager.s * 38; height: width; radius: width / 2; color: "#253642"
+                Text { anchors.centerIn: parent; text: "×"; color: manager.ink; font.pixelSize: manager.s * 24 }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.storeDetailItem = null }
+            }
+            Column {
+                anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.width * 0.43; rightMargin: manager.s * 34; topMargin: manager.s * 54 }
+                spacing: manager.s * 12
+                Text { text: manager.storeDetailItem ? (storesView.names[manager.storeDetailItem.store] || "") : ""; color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                Text { width: parent.width; text: manager.storeDetailItem ? manager.storeDetailItem.name : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
+                Text { width: parent.width; text: manager.storeDetailItem ? ((manager.storeDetailItem.local && manager.storeDetailItem.local.platform) || "PC") + "  ·  " + (storesView.names[manager.storeDetailItem.store] || "") : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
+                Text { width: parent.width; text: manager.storeDetailItem && manager.storeDetailItem.store === "steam" ? qsTr("Se abrirá Steam para que confirmes la instalación.") : qsTr("El juego se instalará usando la cuenta conectada de esta tienda."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; wrapMode: Text.WordWrap }
+            }
+            Row {
+                anchors { left: parent.left; bottom: parent.bottom; leftMargin: parent.width * 0.43; bottomMargin: manager.s * 30 }
+                spacing: manager.s * 10
+                Rectangle {
+                    width: manager.s * 176; height: manager.s * 42; radius: height / 2; color: manager.accent
+                    Text { anchors.centerIn: parent; text: manager.storeDetailItem && manager.storeDetailItem.store === "steam" ? qsTr("Instalar en Steam") : qsTr("Instalar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13; font.weight: Font.DemiBold }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.installStoreDetail() }
+                }
+                Rectangle {
+                    width: manager.s * 110; height: manager.s * 42; radius: height / 2; color: "#283844"
+                    Text { anchors.centerIn: parent; text: qsTr("Cerrar"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13 }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: manager.storeDetailItem = null }
+                }
+            }
+        }
+    }
+
     FolderDialog {
         id: romScanFolderDialog
         title: qsTr("Elige la carpeta donde buscar ROMs")

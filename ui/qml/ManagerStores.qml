@@ -8,6 +8,9 @@ Item {
     id: st
     property var manager
     property var api
+    // En Explorar el contenido de las tiendas se presenta como una sección integrada.
+    // Este modo conserva sus datos y el diálogo de cuentas, pero oculta la pantalla independiente.
+    property bool compactHost: false
     property string filter: "all"                         // all | steam | epic | gog | amazon
     property var stores: []                               // estado que devuelve /stores
     property var remote: ({})                             // id de tienda -> juegos de su biblioteca en línea
@@ -52,7 +55,7 @@ Item {
     property var installTarget: null
     function installSteam(item) {
         Qt.openUrlExternally("steam://install/" + item.rawId)
-        st.message = qsTr("Steam abrió el diálogo para instalar «%1»; confírmalo allí.").arg(item.name)
+        st.api.notify(qsTr("Steam abrió el diálogo para instalar «%1»; confírmalo allí.").arg(item.name))
     }
     function askInstall(item) { st.installTarget = item; installFolder.open() }
     FolderDialog {
@@ -162,6 +165,7 @@ Item {
     // ---- filtros por tienda
     Flow {
         id: chips
+        visible: !st.compactHost
         anchors { left: parent.left; right: accountsBtn.left; top: parent.top; leftMargin: st.s * 32; rightMargin: st.s * 16; topMargin: st.s * 22 }
         spacing: st.s * 10
         Repeater {
@@ -172,7 +176,7 @@ Item {
                 readonly property bool on: st.filter === modelData.k
                 readonly property int n: modelData.k === "all" ? st.allItems.length : st.count(modelData.k)
                 width: chipText.implicitWidth + st.s * 34; height: st.s * 38; radius: height / 2
-                color: on ? "#5B9BE0" : (chipMa.containsMouse ? st.manager.surface2 : st.manager.surface)
+                color: on ? "#45CFC9" : (chipMa.containsMouse ? st.manager.surface2 : st.manager.surface)
                 Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l + (chip.n > 0 ? "  " + chip.n : "")
                        color: chip.on ? "#0B0F14" : st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 14; font.weight: Font.DemiBold }
                 MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: st.filter = chip.modelData.k }
@@ -181,6 +185,7 @@ Item {
     }
     Rectangle {
         id: accountsBtn
+        visible: !st.compactHost
         anchors { right: parent.right; top: parent.top; rightMargin: st.s * 32; topMargin: st.s * 22 }
         width: accText.implicitWidth + st.s * 34; height: st.s * 38; radius: height / 2
         color: accMa.containsMouse ? st.manager.surface2 : st.manager.surface
@@ -191,7 +196,7 @@ Item {
     // ---- aviso de tiendas sin conectar
     Rectangle {
         id: banner
-        visible: st.disconnected.length > 0
+        visible: !st.compactHost && st.disconnected.length > 0
         anchors { left: parent.left; right: parent.right; top: chips.bottom; leftMargin: st.s * 32; rightMargin: st.s * 32; topMargin: st.s * 14 }
         height: visible ? st.s * 42 : 0; radius: st.s * 10; color: "#2A2415"
         Text { anchors { left: parent.left; leftMargin: st.s * 14; verticalCenter: parent.verticalCenter }
@@ -202,7 +207,7 @@ Item {
                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: st.accountsOpen = true } }
     }
     Text {
-        visible: st.message !== ""
+        visible: !st.compactHost && st.message !== ""
         anchors { left: parent.left; right: parent.right; top: banner.visible ? banner.bottom : chips.bottom; leftMargin: st.s * 32; topMargin: st.s * 8 }
         text: st.message; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13; wrapMode: Text.Wrap
     }
@@ -210,6 +215,7 @@ Item {
     // ---- cuadrícula
     GridView {
         id: grid
+        visible: !st.compactHost
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: parent.top; topMargin: st.s * 110 + (banner.visible ? st.s * 56 : 0); leftMargin: st.s * 32; rightMargin: st.s * 16 }
         clip: true
         cellWidth: Math.floor(width / Math.max(3, Math.floor(width / (st.s * 190)))); cellHeight: cellWidth * 1.5 + st.s * 34
@@ -237,7 +243,7 @@ Item {
         }
     }
     Text {
-        visible: st.items.length === 0
+        visible: !st.compactHost && st.items.length === 0
         anchors.centerIn: parent
         text: Object.keys(st.loading).length > 0 ? qsTr("Cargando tus bibliotecas…") : qsTr("Aún no hay juegos de esta tienda. Conecta tu cuenta en «Cuentas».")
         color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 15

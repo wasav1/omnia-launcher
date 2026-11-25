@@ -42,9 +42,12 @@ Item {
         ScrollBar.vertical: ScrollBar {}
         Column {
             id: col
-            x: st.s * 32; y: st.s * 22
+            x: st.s * 32; y: st.s * 24
             width: parent.width - st.s * 64
             spacing: st.s * 18
+
+            Text { text: qsTr("Estadísticas"); color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 28; font.weight: Font.Bold }
+            Text { text: qsTr("Tu actividad de juego, resumida."); color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13 }
 
             Row {
                 spacing: st.s * 10
@@ -55,7 +58,7 @@ Item {
                         required property var modelData
                         readonly property bool on: st.days === modelData.d
                         width: chipText.implicitWidth + st.s * 34; height: st.s * 38; radius: height / 2
-                        color: on ? "#5B9BE0" : (ma.containsMouse ? st.manager.surface2 : st.manager.surface)
+                        color: on ? "#45CFC9" : (ma.containsMouse ? st.manager.surface2 : st.manager.surface)
                         Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l; color: chip.on ? "#0B0F14" : st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 14; font.weight: Font.DemiBold }
                         MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: st.days = chip.modelData.d }
                     }
@@ -103,7 +106,7 @@ Item {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                 height: Math.max(bar.modelData.secs > 0 ? st.s * 4 : st.s * 2, bars.height * bar.modelData.secs / st.maxDay)
                                 radius: st.s * 4
-                                color: bar.modelData.secs <= 0 ? "#26FFFFFF" : (bar.index === (st.info.days || []).length - 1 ? "#5B9BE0" : "#3978B8")
+                                color: bar.modelData.secs <= 0 ? "#26FFFFFF" : (bar.index === (st.info.days || []).length - 1 ? "#45CFC9" : "#178C96")
                             }
                             Text { anchors { horizontalCenter: parent.horizontalCenter; top: parent.bottom; topMargin: st.s * 6 } visible: st.days <= 14
                                    text: st.dayLabel(bar.modelData.start); color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 11 }
@@ -126,7 +129,7 @@ Item {
                             required property var modelData
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.l; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13; font.underline: st.allTime === modelData.a
-                            color: st.allTime === modelData.a ? "#5B9BE0" : st.manager.muted
+                            color: st.allTime === modelData.a ? "#45CFC9" : st.manager.muted
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: st.allTime = modelData.a }
                         }
                     }
@@ -150,7 +153,7 @@ Item {
                             Text { x: st.s * 68; width: parent.width * 0.3; anchors.verticalCenter: parent.verticalCenter; elide: Text.ElideRight; text: row.modelData.name; color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 14 }
                             Rectangle {
                                 x: parent.width * 0.36 + st.s * 40; anchors.verticalCenter: parent.verticalCenter
-                                width: (parent.width * 0.64 - st.s * 190) * row.modelData.secs / st.maxRow; height: st.s * 10; radius: height / 2; color: "#3978B8"
+                                width: (parent.width * 0.64 - st.s * 190) * row.modelData.secs / st.maxRow; height: st.s * 10; radius: height / 2; color: "#178C96"
                             }
                             Text { anchors { right: parent.right; verticalCenter: parent.verticalCenter } text: st.fmt(row.modelData.secs) + "  ·  " + qsTr("%1 partidas").arg(row.modelData.plays); color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13 }
                         }

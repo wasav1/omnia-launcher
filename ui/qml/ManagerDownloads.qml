@@ -26,10 +26,13 @@ Item {
     function gameOf(id) { return (api.games || []).find(function(g) { return g.id === id }) || null }
     function refresh() { manager.loadInstallations() }
 
+    Text { x: dl.s * 32; y: dl.s * 22; text: qsTr("Descargas"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 28; font.weight: Font.Bold }
+    Text { x: dl.s * 32; y: dl.s * 58; text: qsTr("Sigue instalaciones y gestiona los juegos de Omnia."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 13 }
+
     // ---- pestañas
     Row {
         id: tabs
-        anchors { left: parent.left; top: parent.top; leftMargin: dl.s * 32; topMargin: dl.s * 22 }
+        anchors { left: parent.left; top: parent.top; leftMargin: dl.s * 32; topMargin: dl.s * 88 }
         spacing: dl.s * 10
         Repeater {
             model: [{ key: "active", label: qsTr("En curso"), n: dl.running.length + dl.failed.length },
@@ -39,7 +42,7 @@ Item {
                 required property var modelData
                 readonly property bool on: dl.tab === modelData.key
                 width: chipText.implicitWidth + dl.s * 34; height: dl.s * 38; radius: height / 2
-                color: on ? "#5B9BE0" : (chipMa.containsMouse ? manager.surface2 : manager.surface)
+                color: on ? "#45CFC9" : (chipMa.containsMouse ? manager.surface2 : manager.surface)
                 Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.label + (chip.modelData.n > 0 ? "  " + chip.modelData.n : "")
                        color: chip.on ? "#0B0F14" : manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 14; font.weight: Font.DemiBold }
                 MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dl.tab = chip.modelData.key }
@@ -77,7 +80,7 @@ Item {
                     visible: !card.bad
                     width: parent.width; height: dl.s * 6; radius: height / 2; color: manager.surface2
                     Rectangle { width: parent.width * Math.max(0, Math.min(1, Number(card.modelData.progress || 0) / 100)); height: parent.height; radius: height / 2
-                                color: card.modelData.status === "completed" ? "#4FBF86" : "#5B9BE0"; Behavior on width { NumberAnimation { duration: 200 } } }
+                                color: card.modelData.status === "completed" ? "#4FBF86" : "#45CFC9"; Behavior on width { NumberAnimation { duration: 200 } } }
                 }
                 Text { width: parent.width; elide: Text.ElideMiddle; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 12
                        color: card.bad ? "#E8B86D" : manager.muted
@@ -105,7 +108,7 @@ Item {
                         id: btn
                         required property var modelData
                         width: btnText.implicitWidth + dl.s * 30; height: dl.s * 36; radius: height / 2
-                        color: modelData.c === "accent" ? "#3D6FA8" : (modelData.c === "danger" ? "#50343A" : manager.surface2)
+                        color: modelData.c === "accent" ? "#197781" : (modelData.c === "danger" ? "#50343A" : manager.surface2)
                         opacity: btnMa.containsMouse ? 0.88 : 1
                         Text { id: btnText; anchors.centerIn: parent; text: btn.modelData.l; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 12 }
                         MouseArea {

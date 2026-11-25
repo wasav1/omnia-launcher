@@ -7,7 +7,7 @@
 Omnia es una **biblioteca unificada de juegos para Linux** (Arch/CachyOS como objetivo): reúne juegos de Steam, Heroic (Epic, GOG, Amazon), Lutris,
 ports y recompilaciones instalables desde un catálogo, ROMs y ejecutables locales, y los gestiona desde varias superficies que comparten el mismo
 servicio:
-- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio (Inicio, Biblioteca, Explorar el catálogo, Descargas, Ajustes).
+- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio con navegación lateral (Inicio, Biblioteca, Explorar, Estadísticas, Descargas, Ajustes). Explorar reúne ports y juegos de tiendas en una cuadrícula continua, con filtros adhesivos, recomendaciones y los últimos juegos instalados; la gestión de cuentas se abre desde esa página.
 - **Big Mode (BM)** (`omnia-ui --window`, o desde la app): interfaz de consola para mando/teclado/ratón, con bienvenida animada, estantería, ficha de
   juego, editor de arte, ajustes (sonido, audio, mandos) y sonidos de interfaz.
 - **Panel rápido**: integración opcional con Hyprland (módulo de illogical-impulse, `integrations/hyprland/ii`) y con el shell Dux/DMS
@@ -71,8 +71,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
 integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
-**Pendiente (prioridad en `docs/HANDOFF.md`):** integración con Discord (presencia y voz), integración con tiendas (Steam, Epic, GOG, Amazon…), mejoras de Big Mode y de la
-app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
+**Pendiente (prioridad en `docs/HANDOFF.md`):** validar visualmente la nueva Explorar unificada; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
 ## 6. Operación
 - **Pruebas:** `PYTHONPATH=core python3 -m unittest discover -s tests`; QML: `/usr/lib/qt6/bin/qmllint <archivo>`; pruebas visuales con arneses `qml6` fuera de pantalla
@@ -84,6 +83,12 @@ app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando 
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Explorar unificada, compacta y sin paginación:** dos recomendaciones de Omnia rotan cada 10 s con fundido; un carrusel horizontal muestra hasta cinco juegos instalados recientemente y lleva a Biblioteca con «Ver más»; filtros adhesivos unifican Todas, Omnia/ports, Steam, Epic, GOG y Amazon; la cuadrícula continua solicita páginas al acercarse al final. Las carátulas incluyen origen, insignia de plataforma/tienda, metadatos y hover; cada tarjeta conserva el destino de detalle, biblioteca o instalación apropiado. `qmllint` limpio para `OmniaManager.qml` y `ManagerPosterCard.qml`; los cuatro paquetes Arch 0.3.0-98 generados y verificados en `/tmp/omnia-pkg/`.
+
+- **2026-11-24 — Tarjetas y navegación por tienda en Explorar:** los juegos del catálogo y las tiendas se muestran en carruseles horizontales de carátulas verticales; el degradado inferior contiene nombre, origen, plataforma y datos básicos. `ManagerPosterCard.qml` aplica zoom suave al hover. Las fichas del catálogo abren su detalle existente; las fichas de tienda abren un detalle propio antes de instalar, y las ya instaladas llevan a la ficha de Biblioteca. Filtros Todas/Steam/Epic/GOG/Amazon permiten cambiar el carrusel de tiendas. `qmllint` limpio en los QML modificados; paquetes Arch 0.3.0-97 preparados en `/tmp/omnia-pkg/` para revisión.
+
+- **2026-11-24 — Reorganización visual de la app de escritorio:** la navegación superior pasa a una barra lateral persistente con Inicio, Biblioteca, Explorar, Estadísticas y Descargas; Ajustes queda al pie y Big Mode como acción fija. Explorar ahora reúne el destacado del catálogo, una sección diferenciada de ports/catálogo Omnia y otra con juegos de Steam/Epic/GOG/Amazon del usuario; búsqueda, cuentas e instalación aprovechan los flujos existentes. Biblioteca, Estadísticas, Descargas y Ajustes reciben títulos y el mismo lenguaje visual azul petróleo/turquesa. Tras la revisión gráfica del usuario, se corrigen las coordenadas del encabezado que solapaban la cuadrícula, se compactan banner/tarjetas y se limita el escalado máximo de la app a 1. Paquetes Arch 0.3.0-96 generados para revisión; sin verificación gráfica en esta sesión.
 
 - **2026-11-24 — Estadísticas de juego (mejora de escritorio 1):** nuevo `core/omnia/stats.py` (función pura `compute`: tiempo total, partidas, juegos jugados, media, partida más larga, racha de días, segundos por día local con reparto de sesiones que cruzan la medianoche, top de todos los tiempos y del periodo; cuenta la sesión en curso) y `GET /stats?days=7|14|30`. `sessions.HISTORY_MAX` sube de 200 a 1000 para que 30 días no se quede corto. UI: `ui/qml/ManagerStats.qml` y pestaña «Estadísticas» en la barra de la app de escritorio (tarjetas, gráfico de barras por día, más jugados con carátula, selector de periodo). Cuidado QML: no llamar `data` a una propiedad de un Item (pisa la propiedad por defecto y no se pinta nada). Verificado con un arnés fuera de pantalla con datos de ejemplo. 6 pruebas de `stats.py` y 1 de la API.
 

@@ -73,16 +73,17 @@ Item {
         width: ml.s * 310
         color: "#0E141B"
         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: "#1c2733" }
+        Text { x: ml.s * 16; y: ml.s * 14; text: qsTr("Biblioteca"); color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 21; font.weight: Font.Bold }
         TextField {
             id: searchField
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: ml.s * 14 }
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: ml.s * 14; rightMargin: ml.s * 14; topMargin: ml.s * 48 }
             height: ml.s * 40
             placeholderText: qsTr("Buscar en tu biblioteca")
             text: ml.search
             onTextChanged: ml.search = text
             color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
             leftPadding: ml.s * 38
-            background: Rectangle { radius: ml.s * 12; color: manager.surface2; border.color: searchField.activeFocus ? "#5B9BE0" : "#24FFFFFF"
+            background: Rectangle { radius: ml.s * 12; color: manager.surface2; border.color: searchField.activeFocus ? "#45CFC9" : "#24FFFFFF"
                 LucideIcon { x: ml.s * 12; anchors.verticalCenter: parent.verticalCenter; width: ml.s * 17; height: width; name: "search"; color: manager.muted } }
         }
         Row {
@@ -96,8 +97,8 @@ Item {
                     required property var modelData
                     readonly property bool on: ml.collection === modelData.k
                     height: ml.s * 32; width: chipText.implicitWidth + ml.s * 26; radius: height / 2
-                    color: on ? "#2A4770" : (chipMa.containsMouse ? "#1AFFFFFF" : "transparent")
-                    border.color: on ? "#5B9BE0" : "#334352"
+                    color: on ? "#16434E" : (chipMa.containsMouse ? "#1AFFFFFF" : "transparent")
+                    border.color: on ? "#45CFC9" : "#334352"
                     Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14 }
                     MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.collection = chip.modelData.k }
                 }
@@ -128,7 +129,7 @@ Item {
                 readonly property var g: modelData.game
                 readonly property bool on: g.id === ml.selId
                 width: gameList.width; height: ml.s * 40
-                color: on ? "#2A4770" : (rowMa.containsMouse ? "#14FFFFFF" : "transparent")
+                color: on ? "#16434E" : (rowMa.containsMouse ? "#14FFFFFF" : "transparent")
                 Row {
                     anchors { left: parent.left; leftMargin: ml.s * 14; right: parent.right; rightMargin: ml.s * 10; verticalCenter: parent.verticalCenter }
                     spacing: ml.s * 10
@@ -247,7 +248,7 @@ Item {
                     readonly property bool on: ml.tab === modelData.k
                     width: tbText.implicitWidth; height: ml.s * 32
                     Text { id: tbText; text: tb.modelData.l; color: tb.on ? manager.ink : manager.muted; font.family: ml.font; font.pixelSize: ml.s * 17; font.weight: tb.on ? Font.DemiBold : Font.Normal }
-                    Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 2; color: "#5B9BE0"; visible: tb.on }
+                    Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 2; color: "#45CFC9"; visible: tb.on }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ml.tab = tb.modelData.k }
                 }
             }
