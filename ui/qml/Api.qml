@@ -11,6 +11,12 @@ QtObject {
     // A native QML singleton may provide it; the standalone UI keeps using its private token file.
     property string providedToken: ""
     property bool controlsEnabled: true
+    property bool _started: false
+    property bool _pollingPad: false
+    onControlsEnabledChanged: {
+        if (!controlsEnabled) retry.stop()
+        else if (_started) pollPad()
+    }
     property bool systemEnabled: false
     property bool autoStart: true
     property bool ok: false
@@ -542,7 +548,11 @@ QtObject {
 
     // Mando: petición larga a /events (el servidor responde en cuanto hay un botón nuevo o a los 20 s)
     function pollPad() {
+        if (!controlsEnabled || _pollingPad) return
+        _pollingPad = true
         call("GET", "/events?since=" + padSeq + "&gameSince=" + gameRevision + "&padSince=" + padRevision + "&wait=20", function (status, body) {
+            api._pollingPad = false
+            if (!api.controlsEnabled) return
             if (status === 200) {
                 const first = api.padSeq < 0
                 api.padSeq = body.seq
@@ -582,6 +592,7 @@ QtObject {
         tokenPath = arg("--token", "")
         loadPreferences()
         refresh()
+        _started = true
         if (controlsEnabled) pollPad()
     }
 }

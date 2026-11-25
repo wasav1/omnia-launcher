@@ -43,6 +43,7 @@ Item {
     property string unlinkGameId: ""
     property string catalogLinkTargetId: ""
     property var bigModeWindow: null
+    readonly property alias desktopBackend: api
     readonly property color bg: "#0B0F14"
     readonly property color surface: "#111C27"
     readonly property color surface2: "#192837"
@@ -1255,7 +1256,7 @@ Item {
         id: bigModeComponent
         Window {
             width: Screen.width; height: Screen.height; visibility: Window.FullScreen; color: manager.bg; title: "Omnia Big Mode"
-            OmniaLibrary { anchors.fill: parent; backend: api; sharedBackend: true; onCloseRequested: manager.closeBigMode() }
+            OmniaLibrary { anchors.fill: parent; backend: manager.desktopBackend; sharedBackend: true; onCloseRequested: manager.closeBigMode() }
             onClosing: { manager.bigModeWindow = null; api.controlsEnabled = false }
         }
     }
