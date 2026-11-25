@@ -1775,6 +1775,18 @@
         <source>Instalación iniciada: %1</source>
         <translation>Installation started: %1</translation>
     </message>
+    <message>
+        <source>Desinstalar juego</source>
+        <translation>Uninstall game</translation>
+    </message>
+    <message>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>No se pudo desinstalar el juego.</source>
+        <translation>Could not uninstall the game.</translation>
+    </message>
 </context>
 <context>
     <name>OmniaManager</name>
@@ -2578,6 +2590,14 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Sin emulador: se elige al jugar</source>
         <translation>No emulator selected. Choose one when you play.</translation>
+    </message>
+    <message>
+        <source>Ver opciones de instalación</source>
+        <translation>View installation options</translation>
+    </message>
+    <message>
+        <source>Cuentas de tiendas</source>
+        <translation>Store accounts</translation>
     </message>
 </context>
 <context>
@@ -3477,6 +3497,10 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <source>Destino: %1</source>
         <translation>Destination: %1</translation>
     </message>
+    <message>
+        <source>Todas las consolas</source>
+        <translation>All consoles</translation>
+    </message>
 </context>
 <context>
     <name>ManagerAddGame</name>
@@ -3797,6 +3821,14 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Aún no has instalado ningún port desde el catálogo de Omnia. Búscalo en «Explorar».</source>
         <translation>You haven’t installed a port from the Omnia catalog yet. Find one in Explore.</translation>
+    </message>
+    <message>
+        <source>Cola de descargas e instalaciones</source>
+        <translation>Download and installation queue</translation>
+    </message>
+    <message>
+        <source>Abrir tienda</source>
+        <translation>Open store</translation>
     </message>
 </context>
 <context>
@@ -4575,6 +4607,18 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <source>B  Volver</source>
         <translation>B  Back</translation>
     </message>
+    <message>
+        <source>Cola de descargas e instalaciones</source>
+        <translation>Download and installation queue</translation>
+    </message>
+    <message>
+        <source>Abrir tienda</source>
+        <translation>Open store</translation>
+    </message>
+    <message>
+        <source>Reintentar</source>
+        <translation>Retry</translation>
+    </message>
 </context>
 <context>
     <name>OmniaIntro</name>
@@ -4738,6 +4782,167 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Cargando juegos de las tiendas…</source>
         <translation>Loading store games…</translation>
+    </message>
+</context>
+<context>
+    <name>GameActions</name>
+    <message>
+        <source>Instalar port</source>
+        <translation>Install port</translation>
+    </message>
+    <message>
+        <source>Jugar</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>Actualizar</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Detalles</source>
+        <translation>Details</translation>
+    </message>
+    <message>
+        <source>Quitar de favoritos</source>
+        <translation>Remove from favorites</translation>
+    </message>
+    <message>
+        <source>Añadir a favoritos</source>
+        <translation>Add to favorites</translation>
+    </message>
+    <message>
+        <source>Abrir carpeta de partidas</source>
+        <translation>Open saves folder</translation>
+    </message>
+    <message>
+        <source>Cambiar arte</source>
+        <translation>Change artwork</translation>
+    </message>
+    <message>
+        <source>Mostrar en la biblioteca</source>
+        <translation>Show in library</translation>
+    </message>
+    <message>
+        <source>Ocultar de la biblioteca</source>
+        <translation>Hide from library</translation>
+    </message>
+    <message>
+        <source>Abrir carpeta de instalación</source>
+        <translation>Open installation folder</translation>
+    </message>
+    <message>
+        <source>Desinstalar juego</source>
+        <translation>Uninstall game</translation>
+    </message>
+    <message>
+        <source>Gestionar en la tienda</source>
+        <translation>Manage in store</translation>
+    </message>
+    <message>
+        <source>Omnia borrará la carpeta %1 y su contenido, incluidas las partidas guardadas dentro de ella.</source>
+        <translation>Omnia will delete the folder %1 and its contents, including any saves stored inside it.</translation>
+    </message>
+    <message>
+        <source>Omnia borrará la carpeta de instalación y su contenido, incluidas las partidas guardadas dentro de ella.</source>
+        <translation>Omnia will delete the installation folder and its contents, including any saves stored inside it.</translation>
+    </message>
+</context>
+<context>
+    <name>TransferMonitor</name>
+    <message>
+        <source>En cola</source>
+        <translation>Queued</translation>
+    </message>
+    <message>
+        <source>Descargando</source>
+        <translation>Downloading</translation>
+    </message>
+    <message>
+        <source>Verificando</source>
+        <translation>Verifying</translation>
+    </message>
+    <message>
+        <source>Extrayendo</source>
+        <translation>Extracting</translation>
+    </message>
+    <message>
+        <source>Finalizando</source>
+        <translation>Finalizing</translation>
+    </message>
+    <message>
+        <source>En pausa</source>
+        <translation>Paused</translation>
+    </message>
+    <message>
+        <source>Falló</source>
+        <translation>Failed</translation>
+    </message>
+    <message>
+        <source>Cancelada</source>
+        <translation>Canceled</translation>
+    </message>
+    <message>
+        <source>Interrumpida</source>
+        <translation>Interrupted</translation>
+    </message>
+    <message>
+        <source>Instalado</source>
+        <translation>Installed</translation>
+    </message>
+    <message>
+        <source>Tiempo restante: %1</source>
+        <translation>Time remaining: %1</translation>
+    </message>
+    <message>
+        <source>Datos descargados</source>
+        <translation>Downloaded data</translation>
+    </message>
+    <message>
+        <source>Instalación de archivos</source>
+        <translation>Installing files</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Network</translation>
+    </message>
+    <message>
+        <source>Pico de velocidad</source>
+        <translation>Peak speed</translation>
+    </message>
+    <message>
+        <source>Escritura en disco</source>
+        <translation>Disk write rate</translation>
+    </message>
+</context>
+<context>
+    <name>TransferStrip</name>
+    <message>
+        <source>En cola</source>
+        <translation>Queued</translation>
+    </message>
+    <message>
+        <source>Descargando</source>
+        <translation>Downloading</translation>
+    </message>
+    <message>
+        <source>Verificando</source>
+        <translation>Verifying</translation>
+    </message>
+    <message>
+        <source>Extrayendo</source>
+        <translation>Extracting</translation>
+    </message>
+    <message>
+        <source>Finalizando</source>
+        <translation>Finalizing</translation>
+    </message>
+    <message>
+        <source>Abrir descargas</source>
+        <translation>Open downloads</translation>
+    </message>
+    <message>
+        <source>En cola: %1</source>
+        <translation>Queued: %1</translation>
     </message>
 </context>
 </TS>

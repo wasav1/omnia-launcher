@@ -29,6 +29,8 @@ Item {
     }
     property string message: ""
     property bool accountsOpen: false
+    property Item accountsContainer: null
+    readonly property real accountsHeight: accCol.implicitHeight + s * 44
     property string linking: ""                           // tienda cuyo inicio de sesión está en curso
     property string pasted: ""
     property bool busy: false
@@ -293,15 +295,18 @@ Item {
 
     // ---- cuentas
     Rectangle {
-        visible: st.accountsOpen && !st.controllerHost
+        visible: st.accountsOpen && !st.controllerHost && !st.accountsContainer
         anchors.fill: parent; color: "#B0000000"; z: 20
         MouseArea { anchors.fill: parent; onClicked: { st.accountsOpen = false; st.linking = "" } }
         Rectangle {
-            anchors.centerIn: parent; width: Math.min(parent.width - st.s * 60, st.s * 640); height: accCol.implicitHeight + st.s * 44
+            id: accountSheet
+            anchors.centerIn: parent; width: Math.min(parent.width - st.s * 60, st.s * 640); height: st.accountsHeight
             radius: st.s * 16; color: st.manager.surface
             MouseArea { anchors.fill: parent }
             Column {
                 id: accCol
+                parent: st.accountsContainer || accountSheet
+                visible: st.accountsOpen
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: st.s * 22 }
                 spacing: st.s * 12
                 Text { text: qsTr("Cuentas de tiendas"); color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 20; font.weight: Font.DemiBold }
@@ -320,6 +325,12 @@ Item {
                             spacing: st.s * 8
                             Row {
                                 width: parent.width; spacing: st.s * 10
+                                Image {
+                                    source: "images/stores/" + acc.modelData + ".svg"
+                                    width: st.s * 34; height: width
+                                    fillMode: Image.PreserveAspectFit
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
                                 Text { text: st.names[acc.modelData]; color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 16; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                 Text { anchors.verticalCenter: parent.verticalCenter; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13
                                        text: !acc.info ? "…" : (!acc.info.available ? qsTr("Falta la herramienta (instala Heroic)") : (acc.info.logged_in ? qsTr("Conectada") + (acc.info.account ? " · " + acc.info.account : "") : qsTr("Sin conectar"))) }
@@ -355,10 +366,12 @@ Item {
                 }
                 Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 12
                        text: qsTr("Las sesiones que abres en las ventanas de las tiendas se guardan en este equipo para no repetirlas. Puedes borrarlas: se aplica al abrir Omnia otra vez y no cierra las conexiones.") }
+                Text { visible: !!st.message; width: parent.width; text: st.message; wrapMode: Text.Wrap; color: st.manager.ink }
                 Row {
                     spacing: st.s * 8
+                    Button { text: qsTr("Actualizar"); onClicked: st.refreshStores() }
                     Button { text: qsTr("Borrar sesión web"); onClicked: api.clearStoresWebSession(function(code, body) { st.message = code === 200 ? qsTr("Listo: la sesión web se borrará al abrir Omnia otra vez.") : qsTr("No se pudo marcar el borrado.") }) }
-                    Button { text: qsTr("Cerrar"); onClicked: { st.accountsOpen = false; st.linking = "" } }
+                    Button { visible: !st.accountsContainer; text: qsTr("Cerrar"); onClicked: { st.accountsOpen = false; st.linking = "" } }
                 }
             }
         }

@@ -32,6 +32,7 @@ Canvas {
     onImageLoaded: { ready = resolved.toString() !== "" && isImageLoaded(resolved); requestPaint() }
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
+    onCornerRadiusChanged: requestPaint()
     onFadeLeftChanged: requestPaint()
     onFadeRightChanged: requestPaint()
     onFadeTopChanged: requestPaint()

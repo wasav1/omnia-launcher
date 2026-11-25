@@ -13,7 +13,9 @@ Item {
     readonly property var running: jobs.filter(function(j) { return ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(j.status) >= 0 })
     readonly property var failed: jobs.filter(function(j) { return ["failed", "cancelled", "interrupted"].indexOf(j.status) >= 0 })
     readonly property var done: jobs.filter(function(j) { return j.status === "completed" })
-    readonly property var activeList: running.concat(failed).concat(done)
+    readonly property var activeList: running.filter(j => j.status !== "queued").concat(running.filter(j => j.status === "queued"), failed, done)
+    property string highlightedJobId: ""
+    readonly property var monitoredJob: activeList.find(j => j.id === highlightedJobId) || activeList[0] || null
     readonly property var installedList: manager ? manager.installedPackages : []
 
     function statusLabel(status) {
@@ -56,11 +58,31 @@ Item {
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: dl.api.dismissInstallations(true, function() { dl.refresh() }) }
     }
 
+    TransferMonitor {
+        id: monitor
+        visible: dl.tab === "active" && !!job
+        anchors { left: parent.left; right: parent.right; top: tabs.bottom; margins: dl.s * 32; topMargin: dl.s * 12 }
+        job: dl.monitoredJob
+        uiScale: dl.s
+        ink: manager.ink; muted: manager.muted
+        api: dl.api
+        readonly property var game: dl.gameOf(job?.gameId)
+        artwork: game?.fondo || game?.portada || ""
+    }
+    Text {
+        id: queueTitle
+        visible: monitor.visible
+        anchors { left: monitor.left; top: monitor.bottom; topMargin: dl.s * 10 }
+        height: visible ? dl.s * 24 : 0
+        text: qsTr("Cola de descargas e instalaciones") + " · " + dl.running.filter(j => j.status === "queued").length
+        color: manager.ink; font.pixelSize: dl.s * 15; font.weight: Font.DemiBold
+    }
+
     // ---- En curso
     ListView {
         id: activeView
         visible: dl.tab === "active"
-        anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: parent.bottom; margins: dl.s * 32; topMargin: dl.s * 20 }
+        anchors { left: parent.left; right: parent.right; top: queueTitle.visible ? queueTitle.bottom : tabs.bottom; bottom: parent.bottom; margins: dl.s * 32; topMargin: dl.s * 10 }
         clip: true; spacing: dl.s * 10
         model: dl.activeList
         delegate: Rectangle {
@@ -69,7 +91,8 @@ Item {
             readonly property bool bad: ["failed", "cancelled", "interrupted"].indexOf(modelData.status) >= 0
             readonly property bool busy: ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(modelData.status) >= 0
             width: ListView.view.width; height: dl.s * 96; radius: dl.s * 15; color: manager.surface
-            border.color: bad ? "#6A3F3F" : (modelData.status === "completed" ? "#2E6B4A" : "transparent")
+            border.color: modelData.id === dl.monitoredJob?.id ? "#5CBBB7" : bad ? "#6A3F3F" : (modelData.status === "completed" ? "#2E6B4A" : "transparent")
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: dl.highlightedJobId = card.modelData.id }
             Column {
                 anchors { left: parent.left; right: actions.left; verticalCenter: parent.verticalCenter; leftMargin: dl.s * 20; rightMargin: dl.s * 12 }
                 spacing: dl.s * 8
@@ -95,10 +118,12 @@ Item {
                         if (m.external) {
                             out.push({ k: "steam", l: qsTr("Abrir descargas de Steam"), c: "s2" })
                         } else if (card.busy) {
-                            out.push({ k: m.status === "paused" ? "resume" : "pause", l: m.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"), c: "s2" })
-                            out.push({ k: "cancel", l: qsTr("Cancelar"), c: "danger" })
+                            if (m.kind !== "store" && ["queued", "paused", "downloading", "extracting"].includes(m.status))
+                                out.push({ k: m.status === "paused" ? "resume" : "pause", l: m.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"), c: "s2" })
+                            if (m.status !== "finalizing") out.push({ k: "cancel", l: qsTr("Cancelar"), c: "danger" })
                         } else if (card.bad) {
-                            out.push({ k: "retry", l: qsTr("Reintentar"), c: "accent" })
+                            out.push(m.kind === "store" ? {k: "store", l: qsTr("Abrir tienda"), c: "accent"}
+                                : {k: "retry", l: qsTr("Reintentar"), c: "accent"})
                             out.push({ k: "dismiss", l: qsTr("Descartar"), c: "s2" })
                         } else if (m.status === "completed" && m.gameId) {
                             out.push({ k: "open", l: qsTr("Abrir ficha"), c: "accent" })
@@ -124,6 +149,7 @@ Item {
                                 case "pause": dl.api.pauseInstallation(id, done); break
                                 case "resume": dl.api.resumeInstallation(id, done); break
                                 case "cancel": dl.api.cancelInstallation(id, done); break
+                                case "store": dl.manager.selectPage("catalog"); break
                                 case "retry": dl.api.retryInstallation(id, done); break
                                 case "dismiss": dl.api.dismissInstallations(id, done); break
                                 case "open": dl.manager.openGameInLibrary(dl.gameOf(card.modelData.gameId)); break

@@ -174,19 +174,8 @@ Item {
     function closeSettings() { restorePage(settingsFrom) }
     function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
     // ---- menú contextual del juego (X / clic derecho / M)
-    function menuItems(g) {
-        if (!g) return []
-        const out = []
-        if (g.portAvailable) out.push({ key: "port", label: qsTr("Instalar port"), icon: "download" })
-        else if (!g.running) out.push({ key: "play", label: qsTr("Jugar"), icon: "play" })
-        if (g.updateAvailable && !g.running) out.push({ key: "update", label: qsTr("Actualizar"), icon: "download" })
-        out.push({ key: "details", label: qsTr("Detalles"), icon: "info" })
-        out.push({ key: "fav", label: g.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos"), icon: "star" })
-        out.push({ key: "saves", label: qsTr("Abrir carpeta de partidas"), icon: "folder-open" })
-        out.push({ key: "art", label: qsTr("Cambiar arte"), icon: "image" })
-        out.push({ key: "hide", label: qsTr("Ocultar de la biblioteca"), icon: "eye-off" })
-        return out
-    }
+    GameActions { id: gameActions }
+    function menuItems(g) { return gameActions.entries(g) }
     property var menuGame: null
     function openMenu(g) {
         g = g || current
@@ -194,6 +183,7 @@ Item {
         menuGame = g
         ctxMenu.items = menuItems(g)
         ctxMenu.title = g.name
+        ctxMenu.subtitle = ""
         ctxMenu.show()
     }
     function menuAction(key) {
@@ -206,6 +196,23 @@ Item {
         else if (key === "fav") api.toggleFav(g)
         else if (key === "saves") api.savesOpen(g, function() { })
         else if (key === "art") openArt(g)
+        else if (key === "folder") api.openInstallationFolder(g.id, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
+        else if (key === "external") gameActions.openExternal(g)
+        else if (key === "uninstall") {
+            ctxMenu.title = qsTr("Desinstalar juego")
+            ctxMenu.subtitle = gameActions.uninstallText(g.installPath || g.folder || "")
+            ctxMenu.items = [
+                {key: "backInstall", label: qsTr("Cancelar"), icon: "chevron-left"},
+                {key: "confirmUninstall", label: qsTr("Desinstalar juego"), icon: "trash-2"}
+            ]
+            ctxMenu.show()
+            return
+        }
+        else if (key === "backInstall") { openMenu(g); return }
+        else if (key === "confirmUninstall") api.removeInstallation(g.id, (status, body) => {
+            if (status === 200) { api.refresh(); pollDownloads() }
+            else api.notify(body.error || qsTr("No se pudo desinstalar el juego."))
+        })
         else if (key === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(g.id), function() { api.refresh() })
         menuGame = null
     }
@@ -440,6 +447,7 @@ Item {
             if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
             if (ctxMenu.open) { ctxMenu.pad(k); return }
+            if (k === "START" && transferBar.visible && lib.page !== "downloads") { lib.openDownloads(); return }
             if (lib.handleMainNav(k)) return
             if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(true); return }
             if (lib.page === "store") { bigStoreView.pad(k); return }
@@ -952,7 +960,7 @@ Item {
             id: sessionSummary
             anchors { top: blurb.bottom; topMargin: visible ? lib.s * 8 : 0 }
             visible: text.length > 0
-            height: visible ? implicitHeight : 0
+            height: text.length > 0 ? implicitHeight : 0
             text: {
                 const data = lib.gameActivity
                 const parts = lib.current ? [lib.subtitle(lib.current)] : []
@@ -1013,9 +1021,13 @@ Item {
     ListView {
         id: shelf
         visible: lib.page === "library"
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: lib.s * 108 }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: lib.s * 108 + (transferBar.visible ? transferBar.height + lib.s * 15 : 0) }
         anchors.leftMargin: lib.contentInset
         anchors.rightMargin: lib.contentInset
+        readonly property real zoomGutter: Math.ceil(lib.libraryCoverWidth * 0.024) + lib.s * 3
+        leftMargin: zoomGutter
+        rightMargin: zoomGutter
+        readonly property real minX: originX - leftMargin
         readonly property real reflectH: lib.s * 68
         readonly property real headroom: lib.s * 30      // hueco superior para que el rebote no se recorte
         height: lib.s * 310 + reflectH + headroom
@@ -1030,12 +1042,12 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
         interactive: false          // sin arrastre: la estantería avanza con la rueda, las flechas, los gatillos o la navegación
         readonly property real cardStep: lib.libraryCoverWidth + spacing                 // ancho de una tarjeta más su separación
-        readonly property real hlBegin: fadeOk ? fadeWidth + lib.s * 6 : 0     // la tarjeta seleccionada queda entre estos dos bordes
+        readonly property real hlBegin: fadeOk ? fadeWidth + zoomGutter : zoomGutter     // la tarjeta seleccionada queda entre estos dos bordes
         readonly property real hlEnd: width * 0.62
-        readonly property real maxX: Math.max(0, contentWidth - width)
+        readonly property real maxX: Math.max(minX, originX + contentWidth - width + rightMargin)
         readonly property int perPage: Math.max(2, Math.floor((width + spacing) / cardStep))   // tarjetas completas que caben
         property bool paging: false
-        function clampX(x) { return Math.max(0, Math.min(maxX, x)) }
+        function clampX(x) { return Math.max(minX, Math.min(maxX, x)) }
         function scrollTo(x, animate, ms) {
             x = clampX(x)
             scrollAnim.stop()
@@ -1047,7 +1059,9 @@ Item {
         function scrollBy(dx) { scrollTo((scrollAnim.running ? scrollAnim.to : contentX) + dx, true, 160) }
         // Lo mismo que hacía highlightRangeMode: ApplyRange: la tarjeta seleccionada queda dentro de [hlBegin, hlEnd].
         function revealIndex(i, animate) {
-            const left = i * cardStep, right = left + lib.s * 210
+            if (count <= 0 || contentWidth + leftMargin + rightMargin <= width || i <= 0) { scrollTo(minX, animate); return }
+            if (i >= count - 1) { scrollTo(maxX, animate); return }
+            const left = originX + i * cardStep, right = left + lib.libraryCoverWidth
             if (left < contentX + hlBegin) scrollTo(left - hlBegin, animate)
             else if (right > contentX + hlEnd) scrollTo(right - hlEnd, animate)
         }
@@ -1056,12 +1070,12 @@ Item {
             const n = lib.visibleGames.length
             if (n === 0) return
             const jump = Math.max(1, perPage - 1)
-            const from = Math.max(0, Math.min(n - 1, Math.round(((scrollAnim.running ? scrollAnim.to : contentX) + hlBegin) / cardStep)))
+            const from = Math.max(0, Math.min(n - 1, Math.round(((scrollAnim.running ? scrollAnim.to : contentX) + hlBegin - originX) / cardStep)))
             const first = Math.max(0, Math.min(n - 1, from + dir * jump))
             paging = true
             lib.select(first)
             paging = false
-            scrollTo(first * cardStep - hlBegin, true)
+            revealIndex(first, true)
             sfx.play("page")
         }
         NumberAnimation { id: scrollAnim; target: shelf; property: "contentX"; duration: 260; easing.type: Easing.OutCubic }
@@ -1155,7 +1169,7 @@ Item {
                 OpacityMask { anchors.fill: parent; source: cover; maskSource: coverMask; visible: cover.status === Image.Ready }
                 Rectangle {      // anillo de selección
                     anchors.fill: parent
-                    radius: lib.s * 22
+                    radius: coverMask.radius
                     color: "#243DD8D0"
                     border.width: card.sel ? Math.max(2, lib.s * 4) : Math.max(1, lib.s * 2)
                     border.color: card.sel ? lib.ring : "#6CE2DC"
@@ -1224,7 +1238,7 @@ Item {
             id: shelfArrow
             required property int modelData
             readonly property bool previous: modelData < 0
-            visible: lib.page === "library" && shelf.contentWidth > shelf.width
+            visible: lib.page === "library" && shelf.contentWidth + shelf.leftMargin + shelf.rightMargin > shelf.width
                 && (previous ? !shelf.atXBeginning : !shelf.atXEnd)
             x: previous ? shelf.x - width - lib.s * 12 : shelf.x + shelf.width + lib.s * 12
             y: shelf.y + shelf.headroom + (shelf.height - shelf.headroom - shelf.reflectH - height) / 2
@@ -1245,6 +1259,28 @@ Item {
                 onClicked: shelf.page(shelfArrow.modelData)
             }
         }
+    }
+
+    TransferStrip {
+        id: transferBar
+        z: 15
+        anchors {
+            left: parent.left; right: parent.right
+            bottom: lib.mainNavVisible ? footer.top : parent.bottom
+            margins: lib.s * 48; bottomMargin: lib.mainNavVisible ? lib.s * 23 : lib.s * 12
+        }
+        visible: !!current && !intro.active && !ctxMenu.open && !vkb.open && !portDialog.open
+        jobs: lib.dlJobs
+        uiScale: lib.s * 1.30
+        ink: lib.ink
+        accent: lib.ring
+        shortcutHint: lib.padOn ? "START" : "F8"
+        onClicked: if (lib.page !== "downloads") lib.openDownloads()
+    }
+    Shortcut {
+        sequence: "F8"
+        enabled: transferBar.visible && lib.page !== "downloads"
+        onActivated: lib.openDownloads()
     }
 
     // ================= pie con la guía de botones =================
@@ -1288,7 +1324,8 @@ Item {
             Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
-            Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
+            Hint { visible: lib.page === "store" && !bigStoreView.detail && !bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
+            Hint { visible: lib.page === "store" && !!bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "M"; label: qsTr("Menú") }
             Hint { visible: !lib.padOn && lib.page !== "store"; icon: "mouse"; label: lib.page === "library" ? qsTr("Clic para seleccionar · rueda para desplazar") : qsTr("Clic para seleccionar") }
         }
         Row {
@@ -1306,7 +1343,7 @@ Item {
         games: lib.api.games
         x: lib.contentInset - lib.s * 48; y: lib.s * 92
         width: lib.width - x - lib.s * 40
-        height: lib.height - y - lib.s * 112
+        height: lib.height - y - lib.s * 112 - (transferBar.visible ? transferBar.height + lib.s * 15 : 0)
         onCloseRequested: lib.openLibrary()
         onPlayRequested: function(g) { lib.play(g) }
         onDetailsRequested: function(g) { lib.selectById(g.id); lib.openDetails() }
@@ -1362,6 +1399,7 @@ Item {
         visible: lib.page === "home"
         api: lib.api            // «api: api» se resolvía a la propiedad del propio Inicio (nula)
         localGames: lib.api.games
+        footerSpace: transferBar.visible ? transferBar.height + lib.s * 18 : 0
         searchText: lib.searchText
         uiScale: lib.s
         ink: lib.ink
@@ -1415,7 +1453,8 @@ Item {
     // ================= descargas e instalaciones =================
     OmniaDownloads {
         id: downloads
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; top: parent.top
+            bottom: transferBar.visible ? transferBar.top : parent.bottom }
         host: lib
         visible: lib.page === "downloads"
         onBack: lib.closeDownloads()
@@ -1424,7 +1463,8 @@ Item {
     // ================= editor de arte (menú contextual → Cambiar arte) =================
     OmniaArtEditor {
         id: artEditor
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; top: parent.top
+            bottom: transferBar.visible ? transferBar.top : parent.bottom }
         host: lib
         visible: lib.page === "art"
         onBack: lib.closeArt()
@@ -1447,7 +1487,7 @@ Item {
     }
     OmniaBigStore {
         id: bigStoreView
-        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: footer.top
+        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: transferBar.visible ? transferBar.top : footer.top
                   leftMargin: lib.s * 66; rightMargin: lib.s * 66; topMargin: lib.s * 18; bottomMargin: lib.s * 22 }
         host: lib
         accounts: bigStoreAccounts
@@ -1457,7 +1497,8 @@ Item {
     // ================= ajustes de BigMode =================
     OmniaBigSettings {
         id: settings
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; top: parent.top
+            bottom: transferBar.visible ? transferBar.top : parent.bottom }
         host: lib
         storeAccounts: bigStoreAccounts
         visible: lib.page === "settings"
@@ -1467,7 +1508,8 @@ Item {
     // ================= ficha de detalles (pantalla completa) =================
     OmniaGameDetails {
         id: details
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; top: parent.top
+            bottom: transferBar.visible ? transferBar.top : parent.bottom }
         host: lib
         game: lib.current
         visible: lib.page === "details" && lib.current !== null

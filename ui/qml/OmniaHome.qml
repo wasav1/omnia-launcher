@@ -10,6 +10,7 @@ Item {
     property var localGames: []
     property string searchText: ""
     property real uiScale: 1
+    property real footerSpace: 0
     property color ink: "#F0F3F7"
     property color ink2: "#B8C3D0"
     property color surface: "#151D27"
@@ -259,7 +260,7 @@ Item {
     // El contenido solo se desplaza (rueda o arrastre) cuando no cabe en la pantalla.
     Flickable {
         id: page
-        anchors { fill: parent; topMargin: home.u * 100; bottomMargin: home.u * 96 }
+        anchors { fill: parent; topMargin: home.u * 100; bottomMargin: home.u * 96 + home.footerSpace }
         contentWidth: width
         contentHeight: stack.height
         interactive: contentHeight > height + 1

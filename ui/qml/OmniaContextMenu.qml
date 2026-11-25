@@ -6,6 +6,7 @@ Item {
     property var items: []              // [{ key, label, icon }]
     property int index: 0
     property string title: ""
+    property string subtitle: ""
     property real uiScale: 1
     property color ink: "#F0F3F7"
     property color ink2: "#B8C3D0"
@@ -15,7 +16,7 @@ Item {
     signal activated(string key)
     signal closed()
     visible: open || scrim.opacity > 0.01
-    function show() { index = 0; open = true }
+    function show() { index = 0; scroll.contentY = 0; open = true }
     function close() { if (open) { open = false; closed() } }
     function pad(k) {
         if (k === "u") index = Math.max(0, index - 1)
@@ -37,6 +38,13 @@ Item {
         open = false
         activated(k)
     }
+    onIndexChanged: {
+        const row = actionRows.itemAt(index)
+        if (!row) return
+        if (row.y < scroll.contentY) scroll.contentY = row.y
+        else if (row.y + row.height > scroll.contentY + scroll.height)
+            scroll.contentY = row.y + row.height - scroll.height
+    }
     Rectangle {
         id: scrim
         anchors.fill: parent
@@ -49,7 +57,7 @@ Item {
         id: panel
         anchors.centerIn: parent
         width: menu.uiScale * 400
-        height: col.implicitHeight + menu.uiScale * 36
+        height: Math.min(parent.height - menu.uiScale * 36, col.implicitHeight + menu.uiScale * 36)
         radius: menu.uiScale * 22
         color: "#F2101820"
         border.color: "#2effffff"
@@ -58,16 +66,31 @@ Item {
         Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: 160 } }
         MouseArea { anchors.fill: parent }
-        Column {
-            id: col
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: menu.uiScale * 18 }
+        Flickable {
+            id: scroll
+            anchors.fill: parent
+            anchors.margins: menu.uiScale * 18
+            clip: true
+            contentWidth: width
+            contentHeight: col.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+                id: col
+                width: scroll.width
             spacing: menu.uiScale * 6
             Text {
                 width: parent.width; text: menu.title; elide: Text.ElideRight
                 color: menu.ink2; font.family: menu.uiFont; font.pixelSize: menu.uiScale * 16
                 leftPadding: menu.uiScale * 8; bottomPadding: menu.uiScale * 6
             }
+            Text {
+                visible: menu.subtitle !== ""
+                width: parent.width; text: menu.subtitle; wrapMode: Text.Wrap; textFormat: Text.PlainText
+                color: menu.ink; font.family: menu.uiFont; font.pixelSize: menu.uiScale * 16
+                bottomPadding: menu.uiScale * 8
+            }
             Repeater {
+                id: actionRows
                 model: menu.items
                 delegate: Rectangle {
                     id: row
@@ -90,6 +113,7 @@ Item {
                     }
                 }
             }
+        }
         }
     }
 }

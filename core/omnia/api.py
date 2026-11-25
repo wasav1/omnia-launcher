@@ -46,6 +46,7 @@ from .games import refresh as games_refresh
 from . import descriptor, mangohud, sounds
 from .games.base import Detector
 from .games.steam import download_jobs as steam_download_jobs
+from .transfer_metrics import TransferMetrics
 from .store import load_json
 from .themes import accent_for, normalize_theme
 
@@ -84,6 +85,7 @@ class Api:
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
         self.package_installs = package_installs.PackageInstallManager(self.store, self._roots, on_change=self.bus.games_changed)
+        self.transfer_metrics = TransferMetrics()
         self.store_news = store_news.StoreNews()
         self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
@@ -477,6 +479,13 @@ class Api:
         game, name = self.store.find_game(str(body.get("gameId") or "")), str(body.get("folder") or "")
         if not game:
             raise ApiError(404, "juego desconocido")
+        if body.get("installation") is True:
+            paths = [(port, True) for port in game.get("ports", []) if games_refresh.port_installed(port)]
+            folder = game.get("installPath") or self._folder(paths)
+            if isinstance(folder, str) and os.path.isdir(folder) and self._allowed(folder):
+                self.open_fn(os.path.realpath(folder))
+                return {"ok": True}
+            raise ApiError(404, "esa carpeta no existe")
         for port in game.get("ports", []):
             path = self._descriptor_info(game, port).get("folders", {}).get(name)
             if path and os.path.isdir(path) and self._allowed(path):
@@ -776,7 +785,8 @@ class Api:
 
     def installations_snapshot(self, q):
         snap = self.package_installs.snapshot()
-        snap["jobs"] = snap["jobs"] + self._store_installs().jobs() + steam_download_jobs()
+        jobs = snap["jobs"] + self._store_installs().jobs() + steam_download_jobs()
+        snap["jobs"] = self.transfer_metrics.observe(jobs)
         return snap
 
     def stores_install(self, q):
@@ -1035,6 +1045,7 @@ class Api:
                 session = (self.store.state.get("sessions") or {}).get(g["id"]) or {}
                 btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
+                            "storeSource": (g.get("store_id") or {}).get("store", "") if isinstance(g.get("store_id"), dict) else "",
                             "catalogSlug": g.get("catalogSlug", ""), "installPackageId": g.get("installPackageId", ""),
                             "installPath": g.get("installPath", ""), "installVersion": g.get("installVersion", ""),
                             "sub": _library_label(g.get("sub", ""), language), "variant": g.get("variant", ""), "description": g.get("s", ""),

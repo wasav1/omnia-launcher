@@ -63,7 +63,9 @@ def download_jobs(home: Path | None = None) -> list:
                 status = "finalizing" if active & (131072 | 2097152) and done >= total else "downloading"
                 jobs[appid] = {"id": f"steam-transfer-{appid}", "name": title, "status": status,
                                "progress": progress, "source": "steam", "external": True,
-                               "destination": str(library)}
+                               "destination": str(library), "downloadedBytes": max(0, done),
+                               "downloadTotal": max(0, total), "writtenBytes": max(0, staged),
+                               "writeTotal": max(0, stage_total)}
     return list(jobs.values())
 
 

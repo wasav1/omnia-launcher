@@ -422,6 +422,7 @@ QtObject {
     function savesConfig(g, body, done, portId) { call("POST", "/saves/config?" + _q(g, portId), done, body) }
     function savesBackup(g, done, portId) { call("POST", "/saves/backup?" + _q(g, portId), done) }
     function savesRestore(g, file, done, portId) { call("POST", "/saves/restore?" + _q(g, portId) + "&file=" + encodeURIComponent(file), done) }
+    function openInstallationFolder(gameId, done) { call("POST", "/folders/open", done, {gameId: gameId, installation: true}) }
     function openFolder(gameId, folder, done) { call("POST", "/folders/open", done, {gameId: gameId, folder: folder}) }
     function savesOpen(g, done, portId) { call("POST", "/saves/open?" + _q(g, portId), done) }
     function artBrowse(g, kind, page, sgid, done) {

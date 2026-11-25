@@ -40,6 +40,16 @@ Item {
     property string onlineWarning: ""
     property bool showHiddenGames: false
     property string settingsSection: "general"
+    readonly property bool storeSettingsOpen: page === "settings" && settingsSection === "stores"
+    onStoreSettingsOpenChanged: {
+        storesView.accountsOpen = storeSettingsOpen
+        if (storeSettingsOpen) storesView.refreshStores()
+        else storesView.linking = ""
+    }
+    function openStoreSettings() {
+        settingsSection = "stores"
+        selectPage("settings")
+    }
     property string unlinkGameId: ""
     property string catalogLinkTargetId: ""
     property var bigModeWindow: null
@@ -87,7 +97,7 @@ Item {
     Api { id: api; controlsEnabled: false; systemEnabled: true }
     Component.onCompleted: loadOnline(1)
     Timer { interval: 6000; repeat: true; running: manager.visible; onTriggered: api.refresh() }
-    Timer { interval: manager.page === "installs" ? 1500 : 5000; repeat: true; running: manager.visible && (manager.page === "home" || manager.page === "installs" || manager.activeInstalls.length > 0); triggeredOnStart: true; onTriggered: manager.loadInstallations() }
+    Timer { interval: manager.page === "installs" ? 1500 : 5000; repeat: true; running: manager.visible && api.ok; triggeredOnStart: true; onTriggered: manager.loadInstallations() }
 
     function loadOnline(page, append) {
         const requestedPage = page !== undefined ? Math.max(1, Number(page) || 1) : onlinePage
@@ -172,9 +182,73 @@ Item {
         else if (act === "refresh") api.call("POST", "/library/refresh", function(status) { api.refresh(); if (status !== 200) api.notify(qsTr("No se pudo actualizar la biblioteca.")) })
         else if (act === "hidden") showHiddenGames = !showHiddenGames
     }
+    GameActions { id: gameActions }
+    property var contextualGame: null
+    property var contextualOffer: null
+    function openOfferMenu(offer) {
+        if (!offer) return
+        contextualGame = null
+        contextualOffer = offer
+        desktopMenu.items = [{key: "offer", label: qsTr("Ver opciones de instalación"), icon: "download"}]
+        desktopMenu.title = offer.name
+        desktopMenu.show()
+        desktopMenu.forceActiveFocus()
+    }
+    function openGameMenu(game) {
+        if (!game) return
+        contextualGame = game
+        contextualOffer = null
+        desktopMenu.items = gameActions.entries(game)
+        desktopMenu.title = game.name
+        desktopMenu.show()
+        desktopMenu.forceActiveFocus()
+    }
+    OmniaContextMenu {
+        id: desktopMenu
+        anchors.fill: parent; z: 50
+        uiScale: manager.s * 0.82; ink: manager.ink; ink2: manager.muted; accent: manager.accent
+        Keys.onPressed: event => event.accepted = desktopMenu.key(event)
+        onActivated: key => {
+            const game = manager.contextualGame
+            const offer = manager.contextualOffer
+            manager.contextualGame = null
+            manager.contextualOffer = null
+            if (offer?.kind === "omnia") manager.openCatalogDetail(offer.game)
+            else if (offer?.item) manager.openStoreDetail(offer.item)
+            else manager.gameAction(key, game)
+        }
+        onClosed: { manager.contextualGame = null; manager.contextualOffer = null }
+    }
+    OmniaArtEditor {
+        id: desktopArt
+        anchors.fill: parent; z: 48
+        visible: false
+        host: QtObject {
+            readonly property real s: manager.s * 0.82
+            readonly property var api: manager.desktopBackend
+            readonly property color surface: manager.surface
+            readonly property color ink: manager.ink
+            readonly property color ink2: manager.muted
+            readonly property color accent: manager.accent
+            readonly property color pageShade: "#F00B1118"
+            readonly property string uiFont: "Hanken Grotesk"
+            function keySound(event) {}
+        }
+        onBack: visible = false
+    }
     function gameAction(act, game) {
         if (!game) return
-        if (act === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(game.id), function(status) { if (status === 200) api.refresh(); else api.notify(qsTr("No se pudo actualizar el juego.")) })
+        if (act === "port") installPortFor(game)
+        else if (act === "play") launch(game)
+        else if (act === "update") updateFor(game)
+        else if (act === "details") openGameInLibrary(game)
+        else if (act === "fav") api.toggleFav(game)
+        else if (act === "saves") api.savesOpen(game, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
+        else if (act === "art") { desktopArt.visible = true; desktopArt.start(game); desktopArt.forceActiveFocus() }
+        else if (act === "folder") api.openInstallationFolder(game.id, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
+        else if (act === "external") gameActions.openExternal(game)
+        else if (act === "uninstall") { removeGameId = game.id; askUninstall() }
+        else if (act === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(game.id), function(status) { if (status === 200) api.refresh(); else api.notify(qsTr("No se pudo actualizar el juego.")) })
         else if (act === "link") startCatalogLink(game)
         else if (act === "unlink") api.call("POST", "/game/catalog-link", function(status, body) {
             if (status === 200) { api.refresh(); api.notify(qsTr("Vínculo del catálogo retirado.")) }
@@ -451,9 +525,6 @@ Item {
         height: manager.cs * 26
         color: "#0A121B"
         Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top } height: 1; color: "#1c2733" }
-        Text { visible: manager.activeInstalls.length > 0; anchors { left: parent.left; leftMargin: manager.cs * 18; verticalCenter: parent.verticalCenter }
-            text: manager.activeInstalls.length > 0 ? qsTr("Descargando: %1 · %2 %").arg(manager.activeInstalls[0].name).arg(Math.round(Number(manager.activeInstalls[0].progress || 0))) : ""
-            color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 12 }
         Row {
             anchors { right: parent.right; rightMargin: manager.cs * 18; verticalCenter: parent.verticalCenter }
             spacing: manager.cs * 22
@@ -461,9 +532,23 @@ Item {
         }
     }
 
+    TransferStrip {
+        id: activeTransfer
+        anchors { left: topbar.right; right: parent.right; bottom: statusbar.top
+            leftMargin: manager.s * 18; rightMargin: manager.s * 18 }
+        jobs: manager.installJobs
+        uiScale: manager.s
+        onClicked: manager.selectPage("installs")
+    }
+    Shortcut {
+        sequence: "F8"
+        enabled: activeTransfer.visible
+        onActivated: manager.selectPage("installs")
+    }
+
     Item {
         id: content
-        anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: statusbar.top }
+        anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: activeTransfer.top }
         property real pad: manager.s * 34
         readonly property real top0: manager.s * 30
         Flickable {
@@ -568,6 +653,7 @@ Item {
                             info: modelData.lastPlayed
                                 ? new Date(modelData.lastPlayed * 1000).toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), "d MMM")
                                 : qsTr("En tu biblioteca")
+                            onContextRequested: manager.openGameMenu(modelData)
                             onActivated: manager.openGameInLibrary(modelData)
                             onDoubleActivated: manager.launch(modelData)
                         }
@@ -633,10 +719,16 @@ Item {
                 text: manager.onlineWarning; visible: !!text
                 color: "#E8B86D"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideRight
             }
+            Button {
+                anchors { right: parent.right; rightMargin: content.pad; top: remoteSearch.bottom; topMargin: manager.s * 5 }
+                z: 3
+                text: qsTr("Cuentas de tiendas")
+                onClicked: manager.openStoreSettings()
+            }
             Flickable {
                 id: exploreFlick
                 anchors { left: parent.left; right: parent.right; top: exploreWarning.bottom; bottom: parent.bottom }
-                anchors.topMargin: manager.s * 12
+                anchors.topMargin: manager.s * 40
                 clip: true
                 contentWidth: width
                 contentHeight: exploreContent.height
@@ -706,6 +798,7 @@ Item {
                                         platform: game?.platform || game?.sub || ""
                                         info: String(game?.year || game?.releaseYear || "")
                                         installed: true
+                                        onContextRequested: manager.openGameMenu(game)
                                         onActivated: manager.openLocalExploreDetail(game)
                                     }
                                 }
@@ -801,6 +894,12 @@ Item {
                                         platform: exploreCell.modelData.platform
                                         info: exploreCell.modelData.info
                                         installed: exploreCell.modelData.installed
+                                        onContextRequested: {
+                                            const offer = exploreCell.modelData
+                                            const local = offer.item?.local || manager.localMatch(offer.game)
+                                            if (local) manager.openGameMenu(local)
+                                            else manager.openOfferMenu(offer)
+                                        }
                                         onActivated: {
                                             if (exploreCell.modelData.kind === "omnia") {
                                                 const local = manager.localMatch(exploreCell.modelData.game)
@@ -935,7 +1034,8 @@ Item {
         ManagerStores {
             id: storesView
             anchors.fill: parent
-            visible: manager.page === "catalog"
+            visible: manager.page === "catalog" || manager.storeSettingsOpen
+            accountsContainer: manager.storeSettingsOpen ? accountHost : null
             compactHost: true
             manager: manager
             api: api
@@ -957,7 +1057,7 @@ Item {
             Column {
                 x: content.pad; y: content.top0 + manager.s * 48; width: manager.s * 190; spacing: manager.s * 4
                 Repeater {
-                    model: [{ k: "general", l: qsTr("General") }, { k: "library", l: qsTr("Biblioteca") }, { k: "bigmode", l: qsTr("Big Mode") }, { k: "about", l: qsTr("Acerca de") }]
+                    model: [{ k: "general", l: qsTr("General") }, { k: "library", l: qsTr("Biblioteca") }, { k: "bigmode", l: qsTr("Big Mode") }, { k: "stores", l: qsTr("Cuentas de tiendas") }, { k: "about", l: qsTr("Acerca de") }]
                     delegate: Rectangle {
                         id: setTab
                         required property var modelData
@@ -967,6 +1067,19 @@ Item {
                         Text { anchors { left: parent.left; leftMargin: manager.s * 14; verticalCenter: parent.verticalCenter } text: setTab.modelData.l; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 16; font.weight: setTab.on ? Font.DemiBold : Font.Normal }
                         MouseArea { id: setMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.settingsSection = setTab.modelData.k }
                     }
+                }
+            }
+            ScrollView {
+                visible: manager.storeSettingsOpen
+                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom
+                    leftMargin: content.pad + manager.s * 214; rightMargin: content.pad
+                    topMargin: content.top0 + manager.s * 48; bottomMargin: manager.s * 12 }
+                contentWidth: availableWidth
+                clip: true
+                Item {
+                    id: accountHost
+                    width: parent.width
+                    implicitHeight: storesView.accountsHeight
                 }
             }
             Column {
@@ -1268,13 +1381,14 @@ Item {
         })
     }
     property string removeGameId: ""
-    function askUninstall() { uninstallDialog.open() }
+    readonly property var removalGame: api.games.find(game => game.id === removeGameId)
+    function askUninstall() { if (removeGameId) uninstallDialog.open() }
     Dialog {
         id: uninstallDialog
         modal: true
         title: qsTr("Desinstalar juego")
         standardButtons: Dialog.Yes | Dialog.Cancel
-        Label { text: qsTr("Se quitará el juego y se borrarán sus archivos instalados por Omnia."); wrapMode: Text.WordWrap }
+        Label { width: manager.s * 460; text: gameActions.uninstallText(manager.removalGame?.installPath || manager.removalGame?.folder || ""); wrapMode: Text.Wrap; textFormat: Text.PlainText }
         onAccepted: api.removeInstallation(manager.removeGameId, function(status, body) {
             if (status === 200) { manager.removeGameId = ""; manager.loadInstallations(); api.refresh() }
             else api.notify((body && body.error) || qsTr("No se pudo desinstalar el juego."))

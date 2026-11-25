@@ -27,6 +27,30 @@ Item {
     property var catalog: []
     property int catalogPage: 0
     property int totalPages: 1
+    property var consoles: []
+    property int consoleIndex: 0
+    property bool consoleFocused: false
+    readonly property string consoleSlug: activeSource === "omnia" && consoleIndex > 0 ? consoles[consoleIndex - 1]?.slug || "" : ""
+    function loadConsoles() {
+        if (consoles.length) return
+        api.catalogPlatforms((status, response) => {
+            if (status === 200) bigStore.consoles = (response.items || []).filter(platform => !!platform.slug)
+        })
+    }
+    function pickConsole(index) {
+        const count = consoles.length + 1
+        consoleIndex = (index + count) % count
+        consoleFocused = true
+    }
+    onConsoleSlugChanged: {
+        catalogRequest++
+        catalogLoading = false
+        catalogPage = 0
+        catalog = []
+        gridIndex = 0
+        gridSelection = ""
+        if (visible) loadCatalog(false)
+    }
     property int catalogRequest: 0
     property bool catalogLoading: false
     property string catalogMessage: ""
@@ -59,6 +83,8 @@ Item {
     function matches(item) {
         return (activeSource === "all" || item.store === activeSource)
             && (!query || item.name.toLowerCase().includes(query.toLowerCase()))
+            && (!consoleSlug || item.local?.platform === consoleSlug
+                || ({switch:"sw1", switch2:"sw2", gamecube:"gcwii", wii:"gcwii"})[consoleSlug] === item.local?.platform && !!item.local?.platform)
     }
     readonly property var available: {
         const remote = accounts.allItems.filter(item => !item.installed && matches(item))
@@ -103,7 +129,7 @@ Item {
         const request = ++catalogRequest
         catalogLoading = true
         catalogMessage = ""
-        api.catalogGames({page: page, pageSize: 30, q: query, sort: "updatedAt", order: "desc"}, function(status, body) {
+        api.catalogGames({page: page, pageSize: 30, q: query, platform: consoleSlug, sort: "updatedAt", order: "desc"}, function(status, body) {
             if (request !== bigStore.catalogRequest) return
             bigStore.catalogLoading = false
             if (status !== 200) {
@@ -120,6 +146,7 @@ Item {
     }
     function open() {
         if (!catalogPage && !catalogLoading) loadCatalog(false)
+        loadConsoles()
         accounts.refreshStores()
     }
     function setFilter(index) {
@@ -127,6 +154,7 @@ Item {
         gridIndex = 0
         filter = (index + sources.length) % sources.length
         zone = 2
+        consoleFocused = false
         revealFocus()
     }
     function search() {
@@ -251,7 +279,13 @@ Item {
             })
         }
     }
+    readonly property var contextGame: detail?.local || (zone === 1 ? recentGames[recentIndex]?.local
+        : zone === 3 ? gridGames[gridIndex]?.local : null)
     function pad(key) {
+        if ((key === "Y" || key === "MENU") && contextGame) {
+            host.openMenu(contextGame)
+            return
+        }
         if (detail) {
             if (key === "B") closeDetail()
             else if (key === "l" || key === "r") detailIndex = Math.max(0, Math.min(detailActions.length - 1, detailIndex + (key === "l" ? -1 : 1)))
@@ -267,12 +301,14 @@ Item {
         if (key === "u" || key === "d") {
             if (zone === 3) {
                 const next = gridIndex + (key === "u" ? -columns : columns)
-                if (next < 0) focusZone(2)
+                if (next < 0) { consoleFocused = activeSource === "omnia"; focusZone(2) }
                 else if (next < gridGames.length) selectGrid(next)
                 else if (key === "d" && Math.floor(gridIndex / columns) < Math.floor((gridGames.length - 1) / columns))
                     selectGrid(gridGames.length - 1)
                 else if (key === "d" && hasOmnia) loadCatalog(true)
             } else if (key === "u" && zone === 0) host.focusMainNav()
+            else if (zone === 2 && activeSource === "omnia" && key === "d" && !consoleFocused) consoleFocused = true
+            else if (zone === 2 && key === "u" && consoleFocused) consoleFocused = false
             else if (key === "d" && zone === 2) selectGrid(gridIndex)
             else focusZone(zone + (key === "u" ? -1 : 1))
             return
@@ -292,6 +328,7 @@ Item {
         const step = key === "r" ? 1 : -1
         if (zone === 0) grid.headerItem?.newsPanel.advance(step)
         else if (zone === 1) recentIndex = Math.max(0, Math.min(recentGames.length, recentIndex + step))
+        else if (zone === 2 && consoleFocused) pickConsole(consoleIndex + step)
         else if (zone === 2) setFilter(filter + step)
         else if (zone === 3 && Math.floor((gridIndex + step) / columns) === Math.floor(gridIndex / columns))
             selectGrid(gridIndex + step)
@@ -300,7 +337,7 @@ Item {
         const mapping = {
             [Qt.Key_Up]:"u", [Qt.Key_Down]:"d", [Qt.Key_Left]:"l", [Qt.Key_Right]:"r",
             [Qt.Key_Return]:"A", [Qt.Key_Enter]:"A", [Qt.Key_Escape]:"B", [Qt.Key_Slash]:"X",
-            [Qt.Key_Tab]:"RB", [Qt.Key_Backtab]:"LB", [Qt.Key_Y]:"Y"
+            [Qt.Key_Tab]:"RB", [Qt.Key_Backtab]:"LB", [Qt.Key_Y]:"Y", [Qt.Key_M]:"MENU", [Qt.Key_Menu]:"MENU"
         }
         if (!mapping[event.key]) return false
         pad(mapping[event.key])
@@ -340,9 +377,34 @@ Item {
                 width: (parent.width - bigStore.s * 60) / bigStore.sources.length
                 label: modelData.name
                 selected: bigStore.filter === index
-                focused: bigStore.zone === 2 && selected && bigStore.host.mainNavIndex < 0
+                focused: bigStore.zone === 2 && !bigStore.consoleFocused && selected && bigStore.host.mainNavIndex < 0
                 logo: bigStore.storeLogo(modelData.id)
                 onChoose: bigStore.setFilter(index)
+            }
+        }
+    }
+
+    component StoreFilters: Column {
+        spacing: bigStore.s * 6
+        FilterBar { width: parent.width }
+        Row {
+            visible: bigStore.activeSource === "omnia"
+            spacing: bigStore.s * 10
+            Action {
+                icon: "chevron-left"
+                label: ""
+                onChoose: bigStore.pickConsole(bigStore.consoleIndex - 1)
+            }
+            Action {
+                icon: "gamepad-2"
+                label: bigStore.consoleIndex ? bigStore.consoles[bigStore.consoleIndex - 1]?.name || qsTr("Todas las consolas") : qsTr("Todas las consolas")
+                focused: bigStore.zone === 2 && bigStore.consoleFocused && bigStore.host.mainNavIndex < 0
+                onChoose: bigStore.pickConsole(bigStore.consoleIndex + 1)
+            }
+            Action {
+                icon: "chevron-right"
+                label: ""
+                onChoose: bigStore.pickConsole(bigStore.consoleIndex + 1)
             }
         }
     }
@@ -414,9 +476,16 @@ Item {
                         onChoose: bigStore.host.openLibrary()
                     }
                 }
-                Row {
-                    id: recentCards
+                Item {
+                    id: recentFrame
                     width: parent.width
+                    height: recentCards.height + bigStore.s * 20
+                    readonly property real zoomGutter: Math.ceil(width * 0.024 / Math.max(1, bigStore.recentGames.length)) + bigStore.s * 3
+                    Row {
+                    id: recentCards
+                    x: recentFrame.zoomGutter; y: bigStore.s * 10
+                    width: parent.width - 2 * x
+                    height: bigStore.s * 168
                     spacing: bigStore.s * 16
                     Repeater {
                         model: bigStore.recentGames
@@ -431,13 +500,14 @@ Item {
                         }
                     }
                 }
+                }
                 Text {
                     visible: !bigStore.recentGames.length
                     text: qsTr("Tus juegos instalados aparecerán aquí.")
                     color: bigStore.host.ink2; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18
                 }
             }
-            FilterBar { id: filters; width: parent.width; opacity: bigStore.filtersPinned ? 0 : 1; enabled: !bigStore.filtersPinned }
+            StoreFilters { id: filters; width: parent.width; opacity: bigStore.filtersPinned ? 0 : 1; enabled: !bigStore.filtersPinned }
             Text {
                 text: qsTr("Todos los juegos")
                 color: bigStore.host.ink; font.family: bigStore.host.uiFont
@@ -479,9 +549,9 @@ Item {
         id: stickyFilters
         anchors { left: parent.left; right: parent.right; top: parent.top }
         visible: bigStore.filtersPinned
-        height: bigStore.s * 54
+        height: pinnedStoreFilters.implicitHeight + bigStore.s * 12
         color: "#BF111C27"
-        FilterBar { width: parent.width; anchors.verticalCenter: parent.verticalCenter }
+        StoreFilters { id: pinnedStoreFilters; width: parent.width; anchors.verticalCenter: parent.verticalCenter }
     }
 
     component Cover: Item {
@@ -501,6 +571,10 @@ Item {
             sourceLogo: bigStore.storeLogo(cover.game.store)
             installed: !!cover.game.local
             platform: cover.game.local ? bigStore.host.platformLabel(cover.game.local) : ""
+            onContextRequested: {
+                if (cover.game.local) bigStore.host.openMenu(cover.game.local)
+                else bigStore.openDetail(cover.game)
+            }
             onActivated: cover.choose()
         }
 

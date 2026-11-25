@@ -11,11 +11,24 @@ Item {
     signal back()
     readonly property real s: dl.host.s
     property int index: 0
-    property var jobs: []
+    property string selectedJobId: ""
+    function selectRow(row) {
+        index = Math.max(0, Math.min(Math.max(0, rows.length - 1), row))
+        selectedJobId = rows[index]?.id || ""
+    }
+    onRowsChanged: {
+        const keep = rows.findIndex(job => job.id === selectedJobId)
+        selectRow(keep < 0 ? index : keep)
+    }
+    readonly property var jobs: host.dlJobs
     readonly property var running: jobs.filter(function(j) { return ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(j.status) >= 0 })
     readonly property var failed: jobs.filter(function(j) { return ["failed", "cancelled", "interrupted"].indexOf(j.status) >= 0 })
     readonly property var done: jobs.filter(function(j) { return j.status === "completed" })
-    readonly property var rows: running.concat(failed).concat(done)
+    readonly property var rows: running.filter(j => j.status !== "queued").concat(running.filter(j => j.status === "queued"), failed, done)
+    readonly property var monitoredJob: current || rows[0] || null
+    function canPause(job) { return !!job && !job.external && job.kind !== "store"
+        && ["queued", "paused", "downloading", "extracting"].includes(job.status) }
+    function canCancel(job) { return !!job && !job.external && isBusy(job) && job.status !== "finalizing" }
     readonly property var current: rows.length > 0 ? rows[Math.max(0, Math.min(index, rows.length - 1))] : null
 
     function isBusy(j) { return !!j && ["queued", "downloading", "verifying", "extracting", "finalizing", "paused"].indexOf(j.status) >= 0 }
@@ -27,29 +40,30 @@ Item {
         return names[status] || status
     }
     function load() {
-        dl.host.api.installationSnapshot(function(st, body) { if (st === 200) dl.jobs = body.jobs || [] })
+        dl.host.pollDownloads()
     }
     function after(st, body) {
         if (st !== 200 && body && body.error) dl.host.api.notify(body.error)
-        dl.load(); dl.host.pollDownloads()
+        dl.load()
     }
     function primary() {
         const j = current
         if (!j) return
         if (j.external) Qt.openUrlExternally("steam://nav/downloads")
-        else if (isBusy(j)) (j.status === "paused" ? dl.host.api.resumeInstallation : dl.host.api.pauseInstallation)(j.id, dl.after)
+        else if (canPause(j)) (j.status === "paused" ? dl.host.api.resumeInstallation : dl.host.api.pauseInstallation)(j.id, dl.after)
+        else if (isBad(j) && j.kind === "store") dl.host.openStore()
         else if (isBad(j)) dl.host.api.retryInstallation(j.id, dl.after)
-        else if (j.gameId) { dl.host.selectById(j.gameId); dl.back() }
+        else if (j.status === "completed" && j.gameId) { dl.host.selectById(j.gameId); dl.back() }
     }
     function secondary() {
         const j = current
         if (!j || j.external) return
-        if (isBusy(j)) dl.host.api.cancelInstallation(j.id, dl.after)
+        if (canCancel(j)) dl.host.api.cancelInstallation(j.id, dl.after)
         else if (isBad(j)) dl.host.api.dismissInstallations(j.id, dl.after)
     }
     function pad(k) {
-        if (k === "u") index = Math.max(0, index - 1)
-        else if (k === "d") index = Math.min(Math.max(0, rows.length - 1), index + 1)
+        if (k === "u") selectRow(index - 1)
+        else if (k === "d") selectRow(index + 1)
         else if (k === "A") primary()
         else if (k === "X") secondary()
         else if (k === "Y" && failed.length > 0) dl.host.api.dismissInstallations(true, dl.after)
@@ -66,7 +80,7 @@ Item {
         return true
     }
     Keys.onPressed: function(e) { e.accepted = dl.key(e) }
-    onVisibleChanged: if (visible) { index = 0; load() }
+    onVisibleChanged: if (visible) { selectRow(0); load() }
     Timer { interval: 1200; repeat: true; running: dl.visible; triggeredOnStart: true; onTriggered: dl.load() }
 
     Rectangle { anchors.fill: parent; color: dl.host.pageShade }
@@ -84,9 +98,26 @@ Item {
     }
     Text { anchors { left: backB.right; leftMargin: dl.s * 22; verticalCenter: backB.verticalCenter } text: qsTr("Descargas"); color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 40; font.weight: Font.Medium }
 
+    TransferMonitor {
+        id: monitor
+        anchors { left: list.left; right: list.right; top: backB.bottom; topMargin: dl.s * 14 }
+        job: dl.monitoredJob
+        uiScale: dl.s * 1.10
+        ink: dl.host.ink; muted: dl.host.ink2; accent: dl.host.ring
+        api: dl.host.api
+        readonly property var game: (api.games || []).find(game => game.id === job?.gameId)
+        artwork: game?.fondo || game?.portada || ""
+    }
+    Text {
+        id: queueTitle
+        visible: !!dl.monitoredJob
+        anchors { left: monitor.left; top: monitor.bottom; topMargin: dl.s * 12 }
+        text: qsTr("Cola de descargas e instalaciones") + " · " + dl.running.filter(j => j.status === "queued").length
+        font.pixelSize: dl.s * 21; font.weight: Font.DemiBold; color: dl.host.ink
+    }
     ListView {
         id: list
-        anchors { left: parent.left; right: parent.right; top: backB.bottom; bottom: hints.top; leftMargin: dl.s * 48; rightMargin: dl.s * 48; topMargin: dl.s * 26; bottomMargin: dl.s * 16 }
+        anchors { left: parent.left; right: parent.right; top: queueTitle.visible ? queueTitle.bottom : backB.bottom; bottom: hints.top; leftMargin: dl.s * 48; rightMargin: dl.s * 48; topMargin: dl.s * 26; bottomMargin: dl.s * 16 }
         clip: true; spacing: dl.s * 12
         model: dl.rows
         currentIndex: dl.index
@@ -115,7 +146,7 @@ Item {
                 Text { width: parent.width; elide: Text.ElideRight; color: card.bad ? "#E8B86D" : dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 18
                        text: card.bad ? (card.modelData.error || qsTr("No terminó.")) : (card.modelData.destination || "") }
             }
-            MouseArea { anchors.fill: parent; onClicked: { dl.index = card.index; dl.primary() } }
+            MouseArea { anchors.fill: parent; onClicked: dl.selectRow(card.index); onDoubleClicked: { dl.selectRow(card.index); dl.primary() } }
         }
     }
     Text {
@@ -128,11 +159,19 @@ Item {
         id: hints
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: dl.s * 48; bottomMargin: dl.s * 28 }
         spacing: dl.s * 34
-        Text { visible: !!dl.current; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
-               text: !dl.current ? "" : dl.current.external ? qsTr("A  %1").arg(qsTr("Abrir descargas de Steam")) : (dl.isBusy(dl.current) ? qsTr("A  %1").arg(dl.current.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"))
-                     : (dl.isBad(dl.current) ? qsTr("A  Reintentar") : qsTr("A  Abrir ficha"))) }
-        Text { visible: !!dl.current && !dl.current.external && dl.current.status !== "completed"; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
-               text: !dl.current ? "" : (dl.isBusy(dl.current) ? qsTr("X  Cancelar") : qsTr("X  Descartar")) }
+        Text {
+            visible: !!dl.current && (dl.current.external || dl.canPause(dl.current) || dl.isBad(dl.current) || dl.current.status === "completed")
+            color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
+            text: !dl.current ? "" : dl.current.external ? qsTr("A  %1").arg(qsTr("Abrir descargas de Steam"))
+                : dl.canPause(dl.current) ? qsTr("A  %1").arg(dl.current.status === "paused" ? qsTr("Reanudar") : qsTr("Pausar"))
+                : dl.isBad(dl.current) ? qsTr("A  %1").arg(dl.current.kind === "store" ? qsTr("Abrir tienda") : qsTr("Reintentar"))
+                : qsTr("A  Abrir ficha")
+        }
+        Text {
+            visible: dl.canCancel(dl.current) || dl.isBad(dl.current)
+            color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21
+            text: dl.canCancel(dl.current) ? qsTr("X  Cancelar") : qsTr("X  Descartar")
+        }
         Text { visible: dl.failed.length > 0; color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21; text: qsTr("Y  Descartar las fallidas (%1)").arg(dl.failed.length) }
         Text { color: dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 21; text: qsTr("B  Volver") }
     }

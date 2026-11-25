@@ -606,6 +606,12 @@ class PackageInstallManager:
                "progress": 0, "destination": real, "error": "", "updateOf": game_id}
         try:
             with self._lock:
+                current = self.store.find_game(game_id)
+                if not current or current.get("installPackageId") != record["packageId"] or not real == os.path.realpath(str(current.get("installPath", real))):
+                    raise PackageInstallError("El juego cambió mientras preparabas la actualización.")
+                if any(pending.get("updateOf") == game_id and pending.get("status") not in self.TERMINAL
+                       for pending in self._jobs.values()):
+                    raise PackageInstallError("Ya hay una actualización en curso.")
                 self._jobs[job_id], self._cancel[job_id], self._pause[job_id] = job, cancel, pause
                 self._persist_jobs_locked()
             self._pool.submit(self._run, job_id, package, Path(real), cancel, {"gameId": game_id, "record": dict(record)})
@@ -658,6 +664,9 @@ class PackageInstallManager:
             game = self.store.find_game(game_id)
             if not record or not game or game.get("installPackageId") != record.get("packageId"):
                 return False
+            if any(job.get("updateOf") == game_id and job.get("status") not in self.TERMINAL
+                   for job in self._jobs.values()):
+                raise PackageInstallError("Cancela la actualización antes de desinstalar el juego.")
             folder = os.path.realpath(os.path.expanduser(str(record.get("path", ""))))
             allowed = [os.path.realpath(root) for root in self.allowed_roots()]
             if not folder or folder == os.path.realpath(Path.home()) or not any(
@@ -780,7 +789,7 @@ class PackageInstallManager:
         registered_game_id = ""
         try:
             pause = self._pause[job_id]
-            self._phase(job_id, "downloading", cancel, pause)
+            self._phase(job_id, "downloading", cancel, pause, downloadedBytes=0, downloadTotal=package["sizeBytes"], writtenBytes=0)
             stage = Path(tempfile.mkdtemp(prefix=".omnia-install-", dir=final.parent))
             archive = stage / ("package." + package["archiveFormat"])
             digest = hashlib.sha256()
@@ -804,7 +813,7 @@ class PackageInstallManager:
                     digest.update(block)
                     out.write(block)
                     self._consume_space(job_id, len(block))
-                    self._set(job_id, progress=min(74, int(received * 74 / package["sizeBytes"])))
+                    self._set(job_id, downloadedBytes=received, writtenBytes=received, progress=min(74, int(received * 74 / package["sizeBytes"])))
             if received != package["sizeBytes"]:
                 raise PackageInstallError("La descarga quedó incompleta.")
             self._phase(job_id, "verifying", cancel, pause, progress=75)
@@ -817,6 +826,13 @@ class PackageInstallManager:
             def extraction_progress(value):
                 self._pause_point(job_id, cancel, self._pause[job_id])
                 self._set(job_id, progress=value)
+            written = 0
+            def consume_expanded_space(amount):
+                nonlocal written
+                written += amount
+                self._consume_space(job_id, amount)
+                self._set(job_id, writtenBytes=received + written)
+
             extract_root = stage / "contents"
             extract_root.mkdir(mode=0o700)
             if package["archiveFormat"] == "appimage":
@@ -828,13 +844,13 @@ class PackageInstallManager:
             else:
                 if package["archiveFormat"] == "zip":
                     _extract_zip(archive, extract_root, extraction_progress, reserve_expanded_space,
-                                 lambda amount: self._consume_space(job_id, amount))
+                                 consume_expanded_space)
                 else:
                     _extract_tar(archive, extract_root, "r:gz" if package["archiveFormat"] == "tar.gz" else "r:xz",
                                  extraction_progress, reserve_expanded_space,
-                                 lambda amount: self._consume_space(job_id, amount))
+                                 consume_expanded_space)
                 _unwrap_single_archive(extract_root, stage, extraction_progress, reserve_expanded_space,
-                                       lambda amount: self._consume_space(job_id, amount))
+                                       consume_expanded_space)
             if (package.get("setup") or {}).get("stripRoot") is True:
                 _strip_single_root(extract_root)
             self._pause_point(job_id, cancel, pause)
@@ -880,8 +896,7 @@ class PackageInstallManager:
                 games = self.store.games()
                 record = next((g for g in games if g.get("id") == game["id"]), None)
                 if record:
-                    with self._lock:
-                        catalog_slug = self._jobs[job_id]["slug"]
+                    catalog_slug = detail_slug
                     source = str(package["sourceName"])
                     record.update({"catalogSlug": catalog_slug, "installPackageId": package["id"],
                                    "installPath": str(final), "installVersion": package["version"], "src": "Omnia",

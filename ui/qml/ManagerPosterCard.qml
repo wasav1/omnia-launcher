@@ -36,6 +36,7 @@ Item {
         return enlargement <= 1 ? 0 : Math.max(min - start + spill, Math.min(0, max - start - length - spill))
     }
     signal doubleActivated()
+    signal contextRequested()
     readonly property bool hovered: posterMouse.containsMouse
     signal activated()
     z: emphasized ? 2 : 0
@@ -58,7 +59,7 @@ Item {
             anchors.fill: parent
             source: card.artwork
             retainWhileLoading: true
-            cornerRadius: 13 * card.scaleFactor
+            cornerRadius: cover.radius
         }
         Rectangle {
             anchors.fill: parent
@@ -141,7 +142,8 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: card.activated()
-        onDoubleClicked: card.doubleActivated()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: mouse => { if (mouse.button === Qt.RightButton) card.contextRequested(); else card.activated() }
+        onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) card.doubleActivated() }
     }
 }

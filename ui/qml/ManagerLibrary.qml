@@ -167,7 +167,9 @@ Item {
                     Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : (row.g.updateAvailable ? "  ⟳" : "")); elide: Text.ElideRight
                         color: row.g.hidden ? manager.muted : manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: row.on ? Font.DemiBold : Font.Normal }
                 }
-                MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.selectGame(row.g.id); onDoubleClicked: manager.launch(row.g) }
+                MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => { if (mouse.button === Qt.RightButton) manager.openGameMenu(row.g); else ml.selectGame(row.g.id) }
+                    onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) manager.launch(row.g) } }
             }
             Text { visible: ml.visibleGames.length === 0; anchors.centerIn: parent; width: parent.width - ml.s * 40; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                 text: ml.search ? qsTr("Ningún juego coincide.") : ml.collection === "fav" ? qsTr("Aún no tienes favoritos.") : qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 14 }
@@ -394,6 +396,7 @@ Item {
                                 sourceLogo: origin?.logo || ""
                                 platform: game ? ml.platName(game) : ""
                                 installed: true
+                                onContextRequested: manager.openGameMenu(game)
                                 onActivated: ml.selectGame(modelData)
                             }
                         }
