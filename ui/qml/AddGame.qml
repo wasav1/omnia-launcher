@@ -8,6 +8,7 @@ FocusScope {
     signal finished
     signal added(string id)
     signal importRequested(string path)
+    signal nameEditRequested(string initial)
 
     property string stage: "kind"           // kind | name | done
     property var tpls: []
@@ -20,6 +21,22 @@ FocusScope {
     property string directPath: ""
     property bool directStart: false
     property string recognized: ""
+    property string identity: ""
+    property string existingId: ""
+    property string catalogSlug: ""
+    property string matchedTitle: ""
+    property var matches: []
+    property bool busy: false
+    property bool valid: false
+    property bool libraryFinish: false
+    property bool nameKeyboard: false
+    property bool editingName: false
+    property int request: 0
+
+    function finishNameEdit(value) {
+        if (value !== undefined) name = value
+        Qt.callLater(function() { ag.editingName = false; ag.forceActiveFocus() })
+    }
 
     function templateName(id, fallback) {
         const names = {
@@ -35,15 +52,38 @@ FocusScope {
     }
 
     function prepareDirect(path) {
-        file = path
+        file = path; name = baseName(path); note = ""; recognized = ""; identity = ""; existingId = ""
+        catalogSlug = ""; matchedTitle = ""; matches = []; valid = false
+        stage = "name"; list.reset()
+        if (sel?.needs === "rom") { valid = true; return }
+        const sequence = ++request
+        const requestedType = sel
+        busy = true
         api.suggestGame(path, function(st, body) {
-            if (st !== 200) { note = body.error || qsTr("No se pudo identificar este archivo"); stage = "name"; name = baseName(path); return }
-            sel = { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc" }
+            if (ag.request !== sequence) return
+            ag.busy = false
+            if (st !== 200) { note = body.error || qsTr("No se pudo identificar este archivo"); return }
+            sel = requestedType?.tpl && !body.template
+                ? requestedType : { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc" }
             name = body.name || baseName(path)
             recognized = body.recognized || ""
-            note = recognized ? qsTr("Reconocido como %1").arg(recognized) + (body.platform === "pc" ? "" : " · " + (body.platform === "sw2" ? qsTr("Switch 2") : qsTr("Switch"))) : qsTr("Revisa el nombre antes de añadirlo.")
-            stage = "name"
-            nameInput.forceActiveFocus()
+            identity = api.identityLabel(body.identity)
+            existingId = body.existingId || ""
+            note = existingId ? qsTr("Este juego ya está en tu biblioteca.")
+                : recognized ? qsTr("Reconocido como %1").arg(recognized) : qsTr("Revisa el nombre antes de añadirlo.")
+            valid = true
+            list.reset()
+        })
+    }
+
+    function findMatches() {
+        const sequence = ++request
+        busy = true; matches = []; stage = "match"; list.reset()
+        api.manualMatches(name, result => {
+            if (ag.request !== sequence) return
+            ag.matches = result || []
+            ag.busy = false
+            list.reset()
         })
     }
 
@@ -58,8 +98,18 @@ FocusScope {
     }
     readonly property var rows: {
         if (stage === "kind") return kinds.map(function (k) { return { text: k.text, sub: k.sub } }).concat([{ text: qsTr("Cancelar") }])
-        if (stage === "name") return [{ text: qsTr("Añadir «%1»").arg(name), sub: qsTr("Escribe para cambiar el nombre"), accent: true }, { text: qsTr("Volver") }]
-        return [{ text: qsTr("Elegir su carpeta de partidas ahora"), sub: qsTr("Abre la gestión de partidas para este juego"), accent: true }, { text: qsTr("Cerrar") }]
+        if (stage === "match") return matches.map(item => ({text: item.name, sub: api.manualMatchLabel(item)}))
+            .concat([{text: busy ? qsTr("Buscando juegos…") : qsTr("Añadir sin vincular"), disabled: busy}, {text: qsTr("Volver")}])
+        if (stage === "name") {
+            const out = [{ key: "add", text: existingId ? qsTr("Ver en la biblioteca") : qsTr("Añadir «%1»").arg(name),
+                           accent: true, disabled: busy || !valid || !name.trim() }]
+            if (valid && !existingId && nameKeyboard) out.push({key: "edit", text: qsTr("Editar nombre")})
+            if (valid && !existingId && sel?.needs === "exe")
+                out.push({key: "match", text: qsTr("Buscar ficha"), sub: matchedTitle})
+            return out.concat([{key: "back", text: qsTr("Volver")}])
+        }
+        return [{ text: libraryFinish ? qsTr("Ver en la biblioteca") : qsTr("Elegir su carpeta de partidas ahora"),
+                  sub: libraryFinish ? "" : qsTr("Abre la gestión de partidas para este juego"), accent: true }, { text: qsTr("Cerrar") }]
     }
     function baseName(p) { const f = p.split("/").pop(); const i = f.lastIndexOf("."); return i > 0 ? f.substring(0, i) : f }
 
@@ -69,13 +119,26 @@ FocusScope {
             sel = kinds[i]
             if (sel.id === "_import") { ag.importRequested(legacyPath); return }
             browser.active = true
+        } else if (stage === "match") {
+            if (i < matches.length) { catalogSlug = matches[i].slug; matchedTitle = matches[i].name }
+            else if (i === matches.length && !busy) { catalogSlug = ""; matchedTitle = "" }
+            back()
         } else if (stage === "name") {
-            if (i === 1) { stage = "kind"; return }
+            const key = rows[i]?.key
+            if (key === "back") { back(); return }
+            if (key === "match") { findMatches(); return }
+            if (key === "edit") { editingName = true; nameEditRequested(name); return }
+            if (key !== "add" || busy || !valid) return
+            if (existingId) { ag.added(existingId); return }
+            busy = true
             const body = { name: name.trim() }
             if (sel.tpl || sel.template) body.template = sel.tpl || sel.template; else body.kind = sel.kind
             if (sel.platform) body.platform = sel.platform
             body[sel.needs === "rom" ? "rom" : "exe"] = file
+            body.inspectExecutable = sel.needs === "exe"
+            if (body.inspectExecutable && catalogSlug) body.catalogSlug = catalogSlug
             api.addGame(body, function (st, b) {
+                busy = false
                 if (st === 200) { newId = b.id; note = qsTr("Añadido a la biblioteca"); stage = "done"; list.reset() }
                 else note = b.error || ("error " + st)
             })
@@ -83,7 +146,14 @@ FocusScope {
             if (i === 0) ag.added(newId); else ag.finished()
         }
     }
-    function back() { if (stage === "name") stage = "kind"; else ag.finished() }
+    onNameChanged: { catalogSlug = ""; matchedTitle = "" }
+    function back() {
+        request++; busy = false
+        if (stage === "match") stage = "name"
+        else if (stage === "name") { stage = "kind"; note = "" }
+        else ag.finished()
+        list.reset()
+    }
 
     Component.onCompleted: {
         api.templates(function (st, b) { if (st === 200) tpls = b.templates })
@@ -94,7 +164,7 @@ FocusScope {
     }
     focus: true
     Keys.onPressed: function (e) {
-        if (browser.active) return
+        if (browser.active || editingName) return
         if (e.key === Qt.Key_Down) { list.moveSelection(1); e.accepted = true }
         else if (e.key === Qt.Key_Up) { list.moveSelection(-1); e.accepted = true }
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { list.activate(); e.accepted = true }
@@ -103,7 +173,7 @@ FocusScope {
     Connections {
         target: ag.api
         function onPadKey(key) {
-            if (browser.active) return
+            if (browser.active || ag.editingName) return
             if (key === "d") list.moveSelection(1); else if (key === "u") list.moveSelection(-1)
             else if (key === "A") list.activate(); else if (key === "B") ag.back()
         }
@@ -111,7 +181,8 @@ FocusScope {
 
     Modal {
         anchors.fill: parent
-        title: stage === "kind" ? qsTr("Añadir un juego") : (stage === "name" ? qsTr("Nombre del juego") : qsTr("Listo"))
+        title: stage === "kind" ? qsTr("Añadir un juego") : stage === "name" ? qsTr("Nombre del juego")
+            : stage === "match" ? qsTr("Elegir ficha del catálogo") : qsTr("Listo")
         footer: qsTr("↑↓ elegir  ·  Enter/A aceptar  ·  Esc/B volver")
         onCloseRequested: ag.finished()
         Column {
@@ -121,6 +192,7 @@ FocusScope {
                    text: qsTr("¿Qué tipo de juego quieres añadir? Omnia sabe dónde guardan sus partidas los ports y emuladores compatibles.") }
             Text { visible: ag.stage === "name"; width: parent.width; elide: Text.ElideMiddle; color: "#c9bf8a"; font.pixelSize: 16; text: ag.file }
             Text { visible: ag.stage === "name"; width: parent.width; wrapMode: Text.WordWrap; color: ag.recognized ? "#7fd69f" : "#c9bf8a"; font.pixelSize: 15; text: ag.note }
+            Text { visible: ag.stage === "name" && ag.identity !== ""; width: parent.width; color: "#c9bf8a"; font.pixelSize: 15; text: ag.identity }
             Rectangle {
                 visible: ag.stage === "name"; width: parent.width; height: 52; radius: 26; color: Qt.rgba(1, 1, 1, 0.08)
                 TextInput {
@@ -137,7 +209,7 @@ FocusScope {
                     }
                 }
             }
-            Text { visible: ag.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: ag.note; color: ag.stage === "done" || ag.recognized ? "#7fd69f" : "#e89a8a"; font.pixelSize: 16 }
+            Text { visible: ag.stage === "done" && ag.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: ag.note; color: "#7fd69f"; font.pixelSize: 16 }
             OptionList {
                 id: list
                 width: parent.width; height: parent.height - y

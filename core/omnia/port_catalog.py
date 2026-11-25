@@ -30,7 +30,8 @@ def identify(path):
         matches = stem in record['executables']
         if template == 'nx2navi' and file.suffix.lower() == '.sh':
             try:
-                content = file.read_text(errors='replace')[:4096]
+                with file.open(errors='replace') as source:
+                    content = source.read(4096)
                 matches = 'ocarina' in content and (file.parent / 'ocarina').is_file()
             except OSError:
                 pass
@@ -42,7 +43,8 @@ def identify(path):
             launcher_priority = 0
             if template == 'longshot':
                 try:
-                    prefix = file.read_text(errors='replace')[:4096]
+                    with file.open(errors='replace') as source:
+                        prefix = source.read(4096)
                     if prefix.startswith('#!/bin/sh') and 'builder_line()' in prefix and '--launch "$HERE"' in prefix:
                         launcher_priority = 1
                 except OSError:

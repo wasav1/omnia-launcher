@@ -451,6 +451,7 @@ Item {
                         { l: page.g.hidden ? qsTr("Mostrar en biblioteca") : qsTr("Ocultar de la biblioteca"), k: "hide" },
                         { l: page.g.catalogSlug ? qsTr("Cambiar ficha del catálogo…") : qsTr("Vincular con el catálogo…"), k: "link" },
                         { l: qsTr("Quitar vínculo del catálogo"), k: "unlink", only: !!page.g.catalogSlug },
+                        { l: qsTr("Desinstalar juego"), k: "uninstall", only: (page.g.canUninstall || page.g.installPackageId) && !page.g.running, danger: true },
                         { l: qsTr("Quitar de Omnia…"), k: "remove", danger: true }
                     ].filter(function(x) { return x.only === undefined || x.only }) : []
                     delegate: Rectangle {

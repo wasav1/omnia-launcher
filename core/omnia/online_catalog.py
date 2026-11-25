@@ -363,6 +363,11 @@ _MANUAL_STEAM = {
 def manual_steam_appid(game) -> str:
     if game.get("src") != "Manual" or game.get("platform") != "pc" or game.get("catalogSlug"):
         return ""
+    identity = game.get("detectedIdentity")
+    if isinstance(identity, dict) and identity.get("store") == "steam":
+        appid = str(identity.get("id", ""))
+        if re.fullmatch(r"[0-9]{1,10}", appid):
+            return appid
     title = " ".join(re.findall(r"[a-z0-9]+", str(game.get("name") or "").casefold()))
     entry = _MANUAL_STEAM.get(title)
     if not entry:

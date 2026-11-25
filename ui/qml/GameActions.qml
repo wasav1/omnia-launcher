@@ -1,13 +1,6 @@
 import QtQuick
 
 QtObject {
-    function storeOf(game) {
-        if (game.storeSource) return game.storeSource
-        if (game.src === "Steam") return "steam"
-        const tag = String(game.sub || "").toLowerCase()
-        return ["epic", "gog", "amazon"].find(store => tag.includes(store)) || ""
-    }
-
     function entries(game) {
         if (!game) return []
         const actions = []
@@ -23,21 +16,24 @@ QtObject {
                      {key: "hide", label: game.hidden ? qsTr("Mostrar en la biblioteca") : qsTr("Ocultar de la biblioteca"), icon: "eye-off"})
         if (game.installPath || game.folder)
             actions.push({key: "folder", label: qsTr("Abrir carpeta de instalación"), icon: "folder-open"})
-        if (game.installPackageId && !game.running)
+        if ((game.canUninstall || game.installPackageId) && !game.running)
             actions.push({key: "uninstall", label: qsTr("Desinstalar juego"), icon: "trash-2"})
-        else if (storeOf(game))
-            actions.push({key: "external", label: qsTr("Gestionar en la tienda"), icon: "settings"})
+        if (game.canUnlink && !game.running)
+            actions.push({key: "remove", label: qsTr("Quitar de la biblioteca"), icon: "eye-off"})
         return actions
     }
 
-    function openExternal(game) {
-        if (storeOf(game) === "steam") Qt.openUrlExternally("steam://nav/library")
-        else Qt.openUrlExternally("heroic://")
+    function uninstallText(preview) {
+        if (!preview || !preview.path) return ""
+        const text = qsTr("Omnia borrará la carpeta %1 y su contenido, incluidas las partidas guardadas dentro de ella.").arg(preview.path)
+        if (preview.client === "steam") return text + "\n\n" + qsTr("Cierra Steam antes de confirmar.")
+        if (preview.client === "heroic") return text + "\n\n" + qsTr("Cierra Heroic antes de confirmar.")
+        return text
     }
 
-    function uninstallText(path) {
-        return path
-            ? qsTr("Omnia borrará la carpeta %1 y su contenido, incluidas las partidas guardadas dentro de ella.").arg(path)
-            : qsTr("Omnia borrará la carpeta de instalación y su contenido, incluidas las partidas guardadas dentro de ella.")
+    function removalResult(api, status, body) {
+        if (status !== 200) api.notify(body.error || qsTr("No se pudo desinstalar el juego."))
+        else if (body.leftover) api.notify(qsTr("La instalación se retiró. Quedaron archivos en %1.").arg(body.leftover))
+        else api.notify(qsTr("Juego desinstalado."))
     }
 }

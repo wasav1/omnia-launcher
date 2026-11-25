@@ -93,6 +93,17 @@ Item {
     property int mainNavIndex: -1
     property string settingsFrom: "library"
     property string downloadsFrom: "library"
+    property bool addOpen: false
+    property string addImportPath: ""
+    property string addedGameId: ""
+    readonly property int gearIndex: page === "library" ? 4 : 3
+    function openAddGame() { mainNavIndex = -1; addImportPath = ""; addOpen = true }
+    function closeAddGame() { addOpen = false; addImportPath = ""; lib.forceActiveFocus() }
+    function selectAddedGame() {
+        if (!addedGameId || !api.games.some(game => game.id === addedGameId)) return
+        selectById(addedGameId)
+        addedGameId = ""
+    }
     readonly property bool mainNavVisible: page === "home" || page === "library" || page === "all" || page === "store"
     readonly property var mainNavTabs: [
         {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Tienda")}
@@ -108,11 +119,12 @@ Item {
         if (i === 0) openHome()
         else if (i === 1) openLibrary()
         else if (i === 2) openStore()
+        else if (i === 3 && page === "library") openAddGame()
         else openSettings()
     }
     function handleMainNav(key) {
         if (mainNavIndex < 0) return false
-        if (key === "l" || key === "r") mainNavIndex = (mainNavIndex + (key === "l" ? 3 : 1)) % 4
+        if (key === "l" || key === "r") mainNavIndex = (mainNavIndex + (key === "l" ? gearIndex : 1)) % (gearIndex + 1)
         else if (key === "A") activateMainNav(mainNavIndex)
         else if (key === "B" || key === "d" || key === "SELECT") {
             mainNavIndex = -1
@@ -177,10 +189,12 @@ Item {
     GameActions { id: gameActions }
     function menuItems(g) { return gameActions.entries(g) }
     property var menuGame: null
+    property var menuRemoval: null
     function openMenu(g) {
         g = g || current
         if (!g) return
         menuGame = g
+        menuRemoval = null
         ctxMenu.items = menuItems(g)
         ctxMenu.title = g.name
         ctxMenu.subtitle = ""
@@ -197,21 +211,39 @@ Item {
         else if (key === "saves") api.savesOpen(g, function() { })
         else if (key === "art") openArt(g)
         else if (key === "folder") api.openInstallationFolder(g.id, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
-        else if (key === "external") gameActions.openExternal(g)
         else if (key === "uninstall") {
-            ctxMenu.title = qsTr("Desinstalar juego")
-            ctxMenu.subtitle = gameActions.uninstallText(g.installPath || g.folder || "")
+            const requestedPage = page
+            api.removalPreview(g.id, (status, body) => {
+                if (menuGame !== g || page !== requestedPage) return
+                if (status !== 200) { menuGame = null; gameActions.removalResult(api, status, body); return }
+                menuRemoval = body
+                ctxMenu.title = qsTr("Desinstalar %1").arg(g.name)
+                ctxMenu.subtitle = gameActions.uninstallText(body)
+                ctxMenu.items = [
+                    {key: "backInstall", label: qsTr("Cancelar"), icon: "chevron-left"},
+                    {key: "confirmUninstall", label: qsTr("Desinstalar juego"), icon: "trash-2"}
+                ]
+                ctxMenu.show()
+            })
+            return
+        }
+        else if (key === "remove") {
+            ctxMenu.title = g.name
+            ctxMenu.subtitle = qsTr("El juego dejará de aparecer en Omnia. Sus archivos no se borrarán del disco.")
             ctxMenu.items = [
                 {key: "backInstall", label: qsTr("Cancelar"), icon: "chevron-left"},
-                {key: "confirmUninstall", label: qsTr("Desinstalar juego"), icon: "trash-2"}
+                {key: "confirmRemove", label: qsTr("Quitar de la biblioteca"), icon: "eye-off"}
             ]
             ctxMenu.show()
             return
         }
         else if (key === "backInstall") { openMenu(g); return }
-        else if (key === "confirmUninstall") api.removeInstallation(g.id, (status, body) => {
+        else if (key === "confirmUninstall" && menuRemoval) api.removeInstallation(g.id, menuRemoval.path, (status, body) => {
             if (status === 200) { api.refresh(); pollDownloads() }
-            else api.notify(body.error || qsTr("No se pudo desinstalar el juego."))
+            gameActions.removalResult(api, status, body)
+        })
+        else if (key === "confirmRemove") api.removeGame(g, (status, body) => {
+            if (status !== 200) api.notify(body.error || qsTr("No se pudo quitar el juego de Omnia."))
         })
         else if (key === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(g.id), function() { api.refresh() })
         menuGame = null
@@ -406,6 +438,7 @@ Item {
     Connections {
         target: api
         function onGamesChanged() {
+            lib.selectAddedGame()
             if (lib.argsApplied || api.games.length === 0) return
             lib.argsApplied = true
             if (Qt.application.arguments.indexOf("--settings") >= 0) { Qt.callLater(lib.openSettings); return }
@@ -446,6 +479,7 @@ Item {
             lib.padSound(k)
             if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
+            if (lib.addOpen) return
             if (ctxMenu.open) { ctxMenu.pad(k); return }
             if (k === "START" && transferBar.visible && lib.page !== "downloads") { lib.openDownloads(); return }
             if (lib.handleMainNav(k)) return
@@ -496,6 +530,7 @@ Item {
         if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { e.accepted = vkb.key(e); return }
+        if (lib.addOpen) return
         if (page === "store" && mainNavIndex < 0 && !(e.modifiers & Qt.ControlModifier)) { e.accepted = bigStoreView.key(e); return }
         if (mainNavIndex >= 0) {
             const navKeys = { [Qt.Key_Left]:"l", [Qt.Key_Right]:"r", [Qt.Key_Down]:"d", [Qt.Key_Escape]:"B", [Qt.Key_Return]:"A", [Qt.Key_Enter]:"A" }
@@ -504,7 +539,8 @@ Item {
         }
         if (mainNavVisible && (e.modifiers & Qt.ControlModifier)) {
             const i = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4].indexOf(e.key)
-            if (i >= 0) { activateMainNav(i); e.accepted = true; return }
+            if (i >= 0) { activateMainNav(i === 3 ? gearIndex : i); e.accepted = true; return }
+            if (e.key === Qt.Key_O && page === "library") { openAddGame(); e.accepted = true; return }
         }
         if (searchOpen) return                              // el campo de texto maneja el teclado
         if (detailsOpen || page === "settings" || page === "downloads" || page === "art") return           // la ficha, los ajustes y las descargas manejan su propio teclado
@@ -726,6 +762,19 @@ Item {
             }
         }
 
+        Rectangle {
+            visible: lib.page === "library"
+            anchors { left: searchBox.right; leftMargin: lib.s * 8; verticalCenter: parent.verticalCenter }
+            width: lib.s * 42; height: width; radius: width / 2
+            color: addMouse.containsMouse ? lib.surface : "#b30b0f14"
+            border.width: lib.mainNavIndex === 3 ? 3 : 1
+            border.color: lib.mainNavIndex === 3 ? lib.ring : lib.surfaceBorder
+            Accessible.name: qsTr("Añadir juego")
+            Accessible.role: Accessible.Button
+            LucideIcon { anchors.centerIn: parent; width: lib.s * 20; height: width; name: "plus"; color: lib.ink }
+            MouseArea { id: addMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openAddGame() }
+        }
+
         // cerrar BigMode con el ratón (con mando hay «B Atrás»)
         Rectangle {
             id: closeBtn
@@ -744,7 +793,8 @@ Item {
             anchors { right: closeBtn.visible ? closeBtn.left : parent.right; rightMargin: closeBtn.visible ? lib.s * 12 : 0; verticalCenter: parent.verticalCenter }
             width: lib.s * 42; height: lib.s * 42; radius: width / 2
             color: gearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-            border.width: lib.mainNavIndex === 3 ? 3 : 1; border.color: lib.mainNavIndex === 3 ? lib.ring : Qt.rgba(1, 1, 1, 0.20)
+            border.width: lib.mainNavIndex === lib.gearIndex ? 3 : 1
+            border.color: lib.mainNavIndex === lib.gearIndex ? lib.ring : Qt.rgba(1, 1, 1, 0.20)
             LucideIcon { anchors.centerIn: parent; width: lib.s * 20; height: lib.s * 20; name: "settings"; color: lib.ink }
             MouseArea { id: gearMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openSettings() }
         }
@@ -1269,7 +1319,7 @@ Item {
             bottom: lib.mainNavVisible ? footer.top : parent.bottom
             margins: lib.s * 48; bottomMargin: lib.mainNavVisible ? lib.s * 23 : lib.s * 12
         }
-        visible: !!current && !intro.active && !ctxMenu.open && !vkb.open && !portDialog.open
+        visible: !!current && !intro.active && !ctxMenu.open && !vkb.open && !portDialog.open && !lib.addOpen
         jobs: lib.dlJobs
         uiScale: lib.s * 1.30
         ink: lib.ink
@@ -1389,6 +1439,38 @@ Item {
             else if (lib.page === "store") bigStoreView.forceActiveFocus()
             else lib.forceActiveFocus()
             if (done) done(accepted)
+        }
+    }
+
+    Loader {
+        anchors.fill: parent
+        z: 59
+        active: lib.addOpen
+        sourceComponent: lib.addImportPath ? importGameComponent : addGameComponent
+    }
+    Component {
+        id: addGameComponent
+        AddGame {
+            api: lib.api
+            libraryFinish: true
+            nameKeyboard: lib.padOn
+            onFinished: lib.closeAddGame()
+            onAdded: function(id) { lib.addedGameId = id; lib.closeAddGame(); lib.selectAddedGame() }
+            onImportRequested: function(path) { lib.addImportPath = path }
+            onNameEditRequested: function(initial) {
+                let pending = initial
+                lib.openKeyboardFor(initial, value => pending = value,
+                                    accepted => finishNameEdit(accepted ? pending : undefined))
+            }
+        }
+    }
+    Component {
+        id: importGameComponent
+        ImportPanel {
+            api: lib.api
+            path: lib.addImportPath
+            onFinished: lib.closeAddGame()
+            onImported: { lib.closeAddGame(); lib.api.refresh() }
         }
     }
 

@@ -172,7 +172,7 @@ def store_identity(game):
 def game_metadata(game, locale):
     slug = str(game.get("catalogSlug") or "")
     appid = online_catalog.steam_appid(game) or online_catalog.manual_steam_appid(game)
-    store_info = store_identity(game)
+    store_info = store_identity(game) or game.get("detectedIdentity") or {}
     product = str(store_info.get("id") or "")
     source = store_info.get("store")
     gog = product if source == "gog" and re.fullmatch(r"[0-9]{1,12}", product) else ""

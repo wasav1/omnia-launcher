@@ -246,7 +246,6 @@ Item {
         else if (act === "saves") api.savesOpen(game, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
         else if (act === "art") { desktopArt.visible = true; desktopArt.start(game); desktopArt.forceActiveFocus() }
         else if (act === "folder") api.openInstallationFolder(game.id, (status, body) => { if (status !== 200 && body.error) api.notify(body.error) })
-        else if (act === "external") gameActions.openExternal(game)
         else if (act === "uninstall") { removeGameId = game.id; askUninstall() }
         else if (act === "hide") api.call("POST", "/game/hide?id=" + encodeURIComponent(game.id), function(status) { if (status === 200) api.refresh(); else api.notify(qsTr("No se pudo actualizar el juego.")) })
         else if (act === "link") startCatalogLink(game)
@@ -1381,17 +1380,31 @@ Item {
         })
     }
     property string removeGameId: ""
+    property var removePreview: null
     readonly property var removalGame: api.games.find(game => game.id === removeGameId)
-    function askUninstall() { if (removeGameId) uninstallDialog.open() }
+    function askUninstall() {
+        const id = removeGameId
+        if (!id) return
+        removePreview = null
+        api.removalPreview(id, (status, body) => {
+            if (removeGameId !== id) return
+            if (status !== 200) { gameActions.removalResult(api, status, body); return }
+            removePreview = body
+            uninstallDialog.open()
+        })
+    }
     Dialog {
         id: uninstallDialog
         modal: true
-        title: qsTr("Desinstalar juego")
+        anchors.centerIn: Overlay.overlay
+        implicitWidth: Math.max(1, Math.min(manager.width - manager.s * 28, manager.s * 540))
+        title: manager.removalGame ? qsTr("Desinstalar %1").arg(manager.removalGame.name) : qsTr("Desinstalar juego")
         standardButtons: Dialog.Yes | Dialog.Cancel
-        Label { width: manager.s * 460; text: gameActions.uninstallText(manager.removalGame?.installPath || manager.removalGame?.folder || ""); wrapMode: Text.Wrap; textFormat: Text.PlainText }
-        onAccepted: api.removeInstallation(manager.removeGameId, function(status, body) {
+        onOpened: standardButton(Dialog.Cancel).forceActiveFocus()
+        contentItem: Label { text: gameActions.uninstallText(manager.removePreview); wrapMode: Text.Wrap; textFormat: Text.PlainText }
+        onAccepted: api.removeInstallation(manager.removeGameId, manager.removePreview.path, function(status, body) {
             if (status === 200) { manager.removeGameId = ""; manager.loadInstallations(); api.refresh() }
-            else api.notify((body && body.error) || qsTr("No se pudo desinstalar el juego."))
+            gameActions.removalResult(api, status, body)
         })
     }
     Dialog {

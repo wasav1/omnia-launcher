@@ -144,6 +144,24 @@ QtObject {
             "la instalación no se puede pausar en este momento": "The installation cannot be paused right now.",
             "la instalación no está pausada": "The installation is not paused.",
             "Cierra el juego antes de desinstalarlo.": "Close the game before uninstalling it.",
+            "Cierra Steam antes de desinstalar el juego.": "Close Steam before uninstalling the game.",
+            "Cierra Heroic antes de desinstalar el juego.": "Close Heroic before uninstalling the game.",
+            "No se pudo verificar el registro de instalación.": "Could not verify the installation record.",
+            "El registro de instalación es demasiado grande.": "The installation record is too large.",
+            "No se pudo verificar el App ID de Steam.": "Could not verify the Steam App ID.",
+            "No se pudo verificar una única instalación de Steam.": "Could not verify a single Steam installation.",
+            "Termina la descarga o actualización de Steam antes de desinstalar.": "Finish the Steam download or update before uninstalling.",
+            "La instalación cambió. Actualiza la biblioteca y vuelve a intentarlo.": "The installation changed. Refresh the library and try again.",
+            "La carpeta de instalación se comparte con otro juego.": "Another game shares the installation folder.",
+            "Omnia no pudo verificar qué archivos pertenecen a este juego.": "Omnia could not verify which files belong to this game.",
+            "La carpeta de instalación contiene un punto de montaje.": "The installation folder contains a mount point.",
+            "No se pudieron verificar los puntos de montaje.": "Could not verify the mount points.",
+            "Omnia no pudo retirar todos los archivos de instalación.": "Omnia could not remove all installation files.",
+            "Usa Quitar de la biblioteca para conservar los archivos.": "Use Remove from library to keep the files.",
+            "El archivo no es un ejecutable de Windows válido.": "The file is not a valid Windows executable.",
+            "El archivo no es un ejecutable de Linux válido.": "The file is not a valid Linux executable.",
+            "No se pudo leer el ejecutable del juego.": "Could not read the game executable.",
+            "Elige el ejecutable del juego, en lugar del instalador o desinstalador.": "Choose the game executable instead of the installer or uninstaller.",
             "la instalación de Omnia no existe": "The Omnia installation record does not exist.",
             "MangoHud no está instalado. Instálalo desde el gestor de paquetes y vuelve a intentarlo.": "MangoHud is not installed. Install it with your package manager and try again.",
             "juego o port desconocido": "Unknown game or port.",
@@ -346,7 +364,14 @@ QtObject {
     function cancelInstallation(jobId, done) { call("POST", "/installations/cancel", done, {jobId: jobId}) }
     function pauseInstallation(jobId, done) { call("POST", "/installations/pause", done, {jobId: jobId}) }
     function resumeInstallation(jobId, done) { call("POST", "/installations/resume", done, {jobId: jobId}) }
-    function removeInstallation(gameId, done) { call("POST", "/installations/remove", done, {gameId: gameId, removeFiles: true}) }
+    signal storeInstallationRemoved(string store, string product)
+    function removalPreview(gameId, done) { call("GET", "/installations/removal-preview?id=" + encodeURIComponent(gameId), done) }
+    function removeInstallation(gameId, path, done) {
+        call("POST", "/installations/remove", (status, body) => {
+            if (status === 200 && body.store && body.product) storeInstallationRemoved(body.store, body.product)
+            done(status, body)
+        }, {gameId: gameId, removeFiles: true, expectedPath: path})
+    }
 
     function selectGame(id, done, filterKey) {
         call("POST", "/selection/set", function (status, body) {
@@ -444,6 +469,18 @@ QtObject {
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
     function suggestGame(path, done) { call("GET", "/game/suggest?path=" + encodeURIComponent(path), done) }
+    function manualMatches(name, done) {
+        catalogGames({q: name.trim(), page: 1, pageSize: 12}, function(status, body) {
+            done(status === 200 ? (body.items || []).filter(item => item.slug && item.name) : null)
+        })
+    }
+    function identityLabel(identity) {
+        const stores = {steam: "Steam", epic: "Epic", gog: "GOG", amazon: "Amazon"}
+        return identity && stores[identity.store] && identity.id ? qsTr("%1 · ID %2").arg(stores[identity.store]).arg(identity.id) : ""
+    }
+    function manualMatchLabel(item) {
+        return [item.releaseYear, (item.platforms || []).map(p => p.name || p.slug).join(", ")].filter(Boolean).join(" · ")
+    }
     function libraryRoots(done) { call("GET", "/library/roots", done) }
     function setLibraryRoot(action, path, done) {
         call("POST", "/library/roots/set", function(status, body) {

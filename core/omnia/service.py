@@ -170,21 +170,27 @@ def sync_steam_art(game, retry_at: dict) -> bool:
 
 
 def sync_unlinked_art(store, game, retry_at) -> bool:
-    """Recupera arte de PC por título cuando la ficha o la portada aún faltan."""
+    """Recupera arte de PC por App ID o título cuando el catálogo local no lo aporta."""
     if game.get("platform") != "pc" or not game.get("name"):
         return False
     game_id = game["id"]
     title = game["name"]
-    if time.monotonic() < retry_at.get((game_id, title), 0) or Api._art(game, store.state).get("portada"):
+    existing = Api._art(game, store.state)
+    identified = bool(game.get("detectedIdentity"))
+    missing = {kind for kind in ("portada", "fondo", "logo") if not existing.get(kind)}
+    if time.monotonic() < retry_at.get((game_id, title), 0) or not missing or ("portada" not in missing and not identified):
         return False
     retry_at[(game_id, title)] = time.monotonic() + 3600
     try:
         steam_id = online_catalog.steam_appid(game) or online_catalog.manual_steam_appid(game)
-        assets = online_catalog.lookup_pc_artwork(title, game.get("releaseYear"), steam_id)
+        art_title = (game.get("art") or {}).get("sgdb") if identified else title
+        assets = online_catalog.lookup_pc_artwork(art_title or title, game.get("releaseYear"), steam_id)
     except online_catalog.CatalogError:
         return False
     found = {}
     for kind, url in assets.items():
+        if kind not in missing:
+            continue
         try:
             online_catalog.store_artwork(url, provider=True)
             found[kind] = url
@@ -196,7 +202,10 @@ def sync_unlinked_art(store, game, retry_at) -> bool:
         current = store.find_game(game_id)
         if not current or current.get("name") != title:
             return False
-        store.state.setdefault("lookup_art", {})[game_id] = {"title": title, "assets": found}
+        entries = store.state.setdefault("lookup_art", {})
+        last = entries.get(game_id) or {}
+        previous = (last.get("assets") or {}) if last.get("title") == title else {}
+        entries[game_id] = {"title": title, "assets": {**previous, **found}}
         store.save_state()
     return True
 

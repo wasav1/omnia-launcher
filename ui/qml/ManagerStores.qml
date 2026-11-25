@@ -67,6 +67,18 @@ Item {
     function status(sid) { return stores.find(function(x) { return x.id === sid }) || null }
     readonly property var disconnected: ["steam", "epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
 
+    Connections {
+        target: st.api
+        function onStoreInstallationRemoved(store, product) {
+            for (const key of ["remote", "batch"]) {
+                const source = st[key]
+                if (source[store]) st[key] = Object.assign({}, source, {
+                    [store]: source[store].map(item => String(item.id) === product ? Object.assign({}, item, {installed: false}) : item)
+                })
+            }
+        }
+    }
+
     property var installTarget: null
     function installSteam(item) {
         Qt.openUrlExternally("steam://install/" + item.rawId)

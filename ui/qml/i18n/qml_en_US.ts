@@ -198,6 +198,41 @@
         <source>Juegos de Windows (*.exe)</source>
         <translation>Windows games (*.exe)</translation>
     </message>
+    <message>
+        <location filename="../AddGame.qml" line="72"/>
+        <source>Este juego ya está en tu biblioteca.</source>
+        <translation>This game is already in your library.</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="102"/>
+        <source>Buscando juegos…</source>
+        <translation>Searching for games…</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="102"/>
+        <source>Añadir sin vincular</source>
+        <translation>Add without linking</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="104"/>
+        <source>Ver en la biblioteca</source>
+        <translation>View in library</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="106"/>
+        <source>Editar nombre</source>
+        <translation>Edit name</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="108"/>
+        <source>Buscar ficha</source>
+        <translation>Find catalog entry</translation>
+    </message>
+    <message>
+        <location filename="../AddGame.qml" line="185"/>
+        <source>Elegir ficha del catálogo</source>
+        <translation>Choose catalog entry</translation>
+    </message>
 </context>
 <context>
     <name>Api</name>
@@ -216,6 +251,11 @@
         <location filename="../Api.qml" line="433"/>
         <source>No se pudo ejecutar la acción</source>
         <translation>Could not perform the action</translation>
+    </message>
+    <message>
+        <location filename="../Api.qml" line="461"/>
+        <source>%1 · ID %2</source>
+        <translation>%1 · ID %2</translation>
     </message>
 </context>
 <context>
@@ -1112,6 +1152,11 @@
         <source>Tu copia del juego es de otra versión que la que acepta este port.</source>
         <translation>Your copy of the game is a different version from the one this port supports.</translation>
     </message>
+    <message>
+        <location filename="../OmniaGameDetails.qml" line="32"/>
+        <source>Gestionar instalación</source>
+        <translation>Manage installation</translation>
+    </message>
 </context>
 <context>
     <name>OmniaHome</name>
@@ -1786,6 +1831,31 @@
     <message>
         <source>No se pudo desinstalar el juego.</source>
         <translation>Could not uninstall the game.</translation>
+    </message>
+    <message>
+        <location filename="../OmniaLibrary.qml" line="220"/>
+        <source>Desinstalar %1</source>
+        <translation>Uninstall %1</translation>
+    </message>
+    <message>
+        <location filename="../OmniaLibrary.qml" line="232"/>
+        <source>El juego dejará de aparecer en Omnia. Sus archivos no se borrarán del disco.</source>
+        <translation>The game will be removed from Omnia. Its files will remain on disk.</translation>
+    </message>
+    <message>
+        <location filename="../OmniaLibrary.qml" line="235"/>
+        <source>Quitar de la biblioteca</source>
+        <translation>Remove from library</translation>
+    </message>
+    <message>
+        <location filename="../OmniaLibrary.qml" line="246"/>
+        <source>No se pudo quitar el juego de Omnia.</source>
+        <translation>Could not remove the game from Omnia.</translation>
+    </message>
+    <message>
+        <location filename="../OmniaLibrary.qml" line="772"/>
+        <source>Añadir juego</source>
+        <translation>Add game</translation>
     </message>
 </context>
 <context>
@@ -2598,6 +2668,11 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Cuentas de tiendas</source>
         <translation>Store accounts</translation>
+    </message>
+    <message>
+        <location filename="../OmniaManager.qml" line="1399"/>
+        <source>Desinstalar %1</source>
+        <translation>Uninstall %1</translation>
     </message>
 </context>
 <context>
@@ -3707,6 +3782,26 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <source>Añadir a la biblioteca</source>
         <translation>Add to library</translation>
     </message>
+    <message>
+        <location filename="../ManagerAddGame.qml" line="107"/>
+        <source>No se pudo identificar el archivo.</source>
+        <translation>Could not identify the file.</translation>
+    </message>
+    <message>
+        <location filename="../ManagerAddGame.qml" line="116"/>
+        <source>Este juego ya está en tu biblioteca.</source>
+        <translation>This game is already in your library.</translation>
+    </message>
+    <message>
+        <location filename="../ManagerAddGame.qml" line="323"/>
+        <source>Buscar ficha</source>
+        <translation>Find catalog entry</translation>
+    </message>
+    <message>
+        <location filename="../ManagerAddGame.qml" line="331"/>
+        <source>Añadir sin vincular</source>
+        <translation>Add without linking</translation>
+    </message>
 </context>
 <context>
     <name>ManagerDownloads</name>
@@ -4040,6 +4135,11 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Elige un juego de la lista.</source>
         <translation>Choose a game from the list.</translation>
+    </message>
+    <message>
+        <location filename="../ManagerLibrary.qml" line="454"/>
+        <source>Desinstalar juego</source>
+        <translation>Uninstall game</translation>
     </message>
 </context>
 <context>
@@ -4845,6 +4945,36 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
     <message>
         <source>Omnia borrará la carpeta de instalación y su contenido, incluidas las partidas guardadas dentro de ella.</source>
         <translation>Omnia will delete the installation folder and its contents, including any saves stored inside it.</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="22"/>
+        <source>Quitar de la biblioteca</source>
+        <translation>Remove from library</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="29"/>
+        <source>Cierra Steam antes de confirmar.</source>
+        <translation>Close Steam before confirming.</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="30"/>
+        <source>Cierra Heroic antes de confirmar.</source>
+        <translation>Close Heroic before confirming.</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="35"/>
+        <source>No se pudo desinstalar el juego.</source>
+        <translation>Could not uninstall the game.</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="36"/>
+        <source>La instalación se retiró. Quedaron archivos en %1.</source>
+        <translation>The installation was removed. Some files remain in %1.</translation>
+    </message>
+    <message>
+        <location filename="../GameActions.qml" line="37"/>
+        <source>Juego desinstalado.</source>
+        <translation>Game uninstalled.</translation>
     </message>
 </context>
 <context>

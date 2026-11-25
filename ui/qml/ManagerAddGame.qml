@@ -28,6 +28,24 @@ FocusScope {
     property string newId: ""
     property bool done: false
     property string error: ""
+    property string identity: ""
+    property string existingId: ""
+    property var matches: []
+    property string matchedQuery: ""
+    property string catalogSlug: ""
+    property bool matching: false
+
+    function findMatches() {
+        const query = name.trim()
+        if (!query || existingId || sel?.needs !== "exe") return
+        const selectedFile = file
+        matchedQuery = query; matches = []; catalogSlug = ""; matching = true
+        api.manualMatches(query, result => {
+            if (wz.file !== selectedFile || wz.matchedQuery !== query) return
+            wz.matches = result || []
+            wz.matching = false
+        })
+    }
 
     function templateName(id, fallback) {
         const names = {
@@ -74,27 +92,41 @@ FocusScope {
     }
     function chooseFile(path) {
         folderFlow = false; file = path; step = 2; busy = true; error = ""; note = qsTr("Identificando el archivo…")
+        identity = ""; existingId = ""; matches = []; matchedQuery = ""; catalogSlug = ""; matching = false
+        if (sel?.needs === "rom") {
+            busy = false; recognized = false; name = baseName(path)
+            note = qsTr("Revisa el nombre antes de añadirlo.")
+            return
+        }
+        const requestedType = sel
         api.suggestGame(path, function(st, body) {
+            if (wz.step !== 2 || wz.file !== path) return
             wz.busy = false
             if (st !== 200) {
-                wz.name = wz.baseName(path)
                 wz.recognized = false
-                wz.note = (body && body.error) || qsTr("No se pudo identificar el archivo. Revisa el nombre antes de añadirlo.")
+                wz.error = body.error || qsTr("No se pudo identificar el archivo.")
                 return
             }
-            wz.sel = { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc", ext: [] }
+            wz.sel = requestedType?.tpl && !body.template
+                ? requestedType : { kind: body.kind, template: body.template || "", needs: "exe", platform: body.platform || "pc" }
             wz.name = body.name || wz.baseName(path)
             wz.recognized = !!body.recognized
-            wz.note = body.recognized ? qsTr("Reconocido como %1").arg(body.recognized) + (body.platform === "pc" ? "" : " · " + (body.platform === "sw2" ? qsTr("Switch 2") : qsTr("Switch"))) : qsTr("Revisa el nombre antes de añadirlo.")
+            wz.existingId = body.existingId || ""
+            wz.identity = api.identityLabel(body.identity)
+            wz.note = wz.existingId ? qsTr("Este juego ya está en tu biblioteca.")
+                : body.recognized ? qsTr("Reconocido como %1").arg(body.recognized) : qsTr("Revisa el nombre antes de añadirlo.")
         })
     }
     function confirm() {
-        if (!sel || !name.trim()) return
+        if (!sel || !name.trim() || busy) return
+        if (existingId) { added(existingId); return }
         busy = true; error = ""
         const body = { name: name.trim() }
         if (sel.tpl || sel.template) body.template = sel.tpl || sel.template; else body.kind = sel.kind
         if (sel.platform) body.platform = sel.platform
         body[sel.needs === "rom" ? "rom" : "exe"] = file
+        body.inspectExecutable = sel.needs === "exe"
+        if (body.inspectExecutable && catalogSlug && matchedQuery === name.trim()) body.catalogSlug = catalogSlug
         api.addGame(body, function(st, b) {
             wz.busy = false
             if (st === 200) { wz.newId = b.id; wz.done = true }
@@ -102,7 +134,7 @@ FocusScope {
         })
     }
     function next() {
-        if (step === 2 && !busy && !error) step = 3
+        if (step === 2 && !busy && !error) { step = 3; if (!identity) findMatches() }
         else if (step === 3 && !folderFlow && !done) confirm()
         else if (step === 3 && (folderFlow || done)) { if (folderFlow) finished(); else added(newId) }
     }
@@ -283,6 +315,24 @@ FocusScope {
                     background: Rectangle { radius: wz.s * 12; color: manager.surface2; border.color: nameField.activeFocus ? "#5B9BE0" : "#24FFFFFF" }
                 }
                 Text { visible: !wz.folderFlow && !wz.done; width: parent.width; wrapMode: Text.WordWrap; text: wz.note; color: wz.recognized ? "#7fd69f" : manager.muted; font.family: wz.font; font.pixelSize: wz.s * 14 }
+                Text { visible: !wz.done && wz.identity !== ""; width: parent.width; text: wz.identity; color: manager.muted; font.family: wz.font; font.pixelSize: wz.s * 14 }
+                Row {
+                    visible: !wz.folderFlow && !wz.done && !wz.existingId && wz.sel?.needs === "exe"
+                    width: parent.width; spacing: wz.s * 10
+                    Button {
+                        text: wz.matching ? qsTr("Buscando juegos…") : qsTr("Buscar ficha")
+                        enabled: !wz.matching && !wz.busy && wz.name.trim() !== ""
+                        onClicked: wz.findMatches()
+                    }
+                    ComboBox {
+                        id: matchPicker
+                        width: parent.width - x
+                        visible: wz.matches.length > 0 && wz.matchedQuery === wz.name.trim()
+                        model: [qsTr("Añadir sin vincular")].concat(wz.matches.map(item => [item.name, api.manualMatchLabel(item)].filter(Boolean).join(" · ")))
+                        onActivated: index => wz.catalogSlug = index > 0 ? wz.matches[index - 1].slug : ""
+                        Connections { target: wz; function onMatchesChanged() { matchPicker.currentIndex = 0 } }
+                    }
+                }
                 Text { visible: !wz.folderFlow && !wz.done; width: parent.width; text: wz.file; elide: Text.ElideMiddle; color: "#8495A8"; font.family: wz.font; font.pixelSize: wz.s * 12 }
                 Text { visible: wz.error !== ""; width: parent.width; wrapMode: Text.WordWrap; text: wz.error; color: "#E8B86D"; font.family: wz.font; font.pixelSize: wz.s * 14 }
             }
@@ -310,7 +360,7 @@ FocusScope {
                 color: ready ? (priMa.containsMouse ? Qt.lighter(manager.accent, 1.15) : manager.accent) : manager.surface2
                 opacity: ready ? 1 : 0.55
                 Text { anchors.centerIn: parent; color: manager.ink; font.family: wz.font; font.pixelSize: wz.s * 15; font.weight: Font.DemiBold
-                    text: wz.step === 2 ? qsTr("Siguiente") : (wz.folderFlow ? qsTr("Terminar") : (wz.done ? qsTr("Ver en la biblioteca") : qsTr("Añadir a la biblioteca"))) }
+                    text: wz.step === 2 ? qsTr("Siguiente") : (wz.folderFlow ? qsTr("Terminar") : (wz.done || wz.existingId ? qsTr("Ver en la biblioteca") : qsTr("Añadir a la biblioteca"))) }
                 MouseArea { id: priMa; anchors.fill: parent; enabled: primary.ready; hoverEnabled: true; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: wz.next() }
             }
         }

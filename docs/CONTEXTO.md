@@ -28,7 +28,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 | `plasma/`, `kwin/` | Integración opcional con KDE Plasma 6 (wallpaper, widget, scripts de KWin) |
 | `packaging/arch/` | PKGBUILD de 4 paquetes (`omnia-core`, `omnia-app`, `omnia-hyprland`, `omnia-kde`), `build-local.sh`, preparación del AUR |
 | `tools/` | `sound/` (generadores de sonidos, vista previa de la bienvenida), `release.sh`, `dev-service.sh` |
-| `tests/` | `unittest` (610 pruebas). `PYTHONPATH=core python3 -m unittest discover -s tests` (sin `PYTHONPATH=core` importa el paquete instalado, más antiguo) |
+| `tests/` | `unittest` (690 pruebas). `PYTHONPATH=core python3 -m unittest discover -s tests` (sin `PYTHONPATH=core` importa el paquete instalado, más antiguo) |
 | `docs/` | `HANDOFF.md` (arranque), este documento, `HISTORICO-KDE.md`, y planes por tema (`PLAN-*`, `ESTANDARES-PORTS`, `PUBLICAR-AUR`, `MODO-JUEGO`, `PARTIDAS`…) |
 
 ## 3. Arquitectura
@@ -72,7 +72,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 ## 5. Estado actual (2026-11-25)
 **Hecho y probado:** instalación de ports desde Explorar (≈58 paquetes publicados), Descargas independientes (tanda 5 publicada o por publicar: ver HANDOFF),
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
-con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
+con navegación de mando (General, Sonido, Audio, Mandos), alta manual de ejecutables y desinstalación por registro de tienda desde Escritorio y Big Mode, bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
 integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
 **Pendiente (prioridad en `docs/HANDOFF.md`):** revisar la nueva cuadrícula de Tienda y sus Ajustes con un mando físico y cuentas reales; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
@@ -86,6 +86,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-25 — Desinstalación y alta manual de juegos.** Escritorio y Big Mode confirman la ruta verificada antes de retirar un port o una instalación registrada de Steam, Epic, GOG o Amazon. Steam y Heroic deben estar cerrados para sincronizar su registro local. Una instalación de origen desconocido puede retirarse de la biblioteca conservando sus archivos. El asistente inspecciona recursos PE y lanzadores Linux, reutiliza registros de instalación y sugiere fichas del catálogo. El App ID de Steam se consulta directamente para el arte y las otras fichas se recuperan mediante el título identificado o el vínculo de catálogo. Se probaron registros de tienda temporales, casos de rutas compartidas e inválidas y ambos asistentes en Qt fuera de pantalla con mando simulado. Se verificaron en modo lectura las rutas de 10 instalaciones locales. Pasaron las 690 pruebas. Paquetes locales 0.3.0-110.
 
 - **2026-11-25 — Contraste de la tarjeta de Sistema.** El monitor de Big Mode usa un fondo oscuro opaco para mantener legibles sus indicadores sobre el arte de los juegos. Se comprobó el color y la opacidad del render con Qt fuera de pantalla y se ejecutó qmllint. Pasaron las 679 pruebas. Paquetes locales 0.3.0-109.
 

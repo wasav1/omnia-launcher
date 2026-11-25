@@ -1,3 +1,4 @@
+import threading
 import unittest
 
 from omnia.library_paths import port_visible, update_excluded
@@ -47,6 +48,7 @@ class CatalogIntegration(unittest.TestCase):
             store.set_games([game])
             api = Api.__new__(Api)
             api.store, api.sessions = store, None
+            api._installation_actions = threading.Lock()
             api.scan_fn = list
             api._is_running = lambda *args: False
             api._art = lambda *args: {}

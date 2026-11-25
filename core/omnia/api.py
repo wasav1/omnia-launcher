@@ -21,6 +21,7 @@ from . import (
     apps,
     art,
     audio_out,
+    executable_identity,
     fsbrowse,
     importer,
     launcher,
@@ -34,6 +35,7 @@ from . import (
     port_catalog,
     power,
     procs,
+    removal,
     roms,
     saves,
     security,
@@ -86,6 +88,7 @@ class Api:
         self.fs_roots, self.backup_root = fs_roots, backup_root
         self.package_installs = package_installs.PackageInstallManager(self.store, self._roots, on_change=self.bus.games_changed)
         self.transfer_metrics = TransferMetrics()
+        self._installation_actions = threading.Lock()
         self.store_news = store_news.StoreNews()
         self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
@@ -178,6 +181,7 @@ class Api:
             "/installations/pause": ("POST", True, self.installation_pause),
             "/installations/resume": ("POST", True, self.installation_resume),
             "/installations/remove": ("POST", True, self.installation_remove),
+            "/installations/removal-preview": ("GET", True, self.installation_removal_preview),
             "/installations/update": ("POST", True, self.installation_update),
             "/installations/dismiss": ("POST", True, self.installation_dismiss),
             "/installations/retry": ("POST", True, self.installation_retry),
@@ -769,9 +773,10 @@ class Api:
                 image = game.get(key) if isinstance(game, dict) else None
                 if isinstance(image, str) and image.startswith("https://"):
                     game[key] = online_catalog.local_or_remote(image)
-        mine = {g.get("store_id", {}).get("id") for g in self.store.games()
-                if isinstance(g.get("store_id"), dict) and g["store_id"].get("store") == store.id}
-        local_ids = {g.get("id") for g in self.store.games()}
+        installed = [g for g in self.store.games() if any(games_refresh.port_installed(p) for p in g.get("ports", []))]
+        identities = [library_metadata.store_identity(g) for g in installed]
+        mine = {str(identity.get("id")) for identity in identities if identity.get("store") == store.id}
+        local_ids = {g.get("id") for g in installed}
         for g in games:
             if g["id"] in mine or (store.id == "steam" and "steam-" + g["id"] in local_ids):
                 g["installed"] = True
@@ -796,7 +801,8 @@ class Api:
         if not isinstance(store, str) or store not in self._stores():
             raise ApiError(404, "tienda desconocida")
         try:
-            return {"ok": True, "job": self._store_installs().start(store, body.get("id"), body.get("title"), body.get("destination"))}
+            with self._installation_actions:
+                return {"ok": True, "job": self._store_installs().start(store, body.get("id"), body.get("title"), body.get("destination"))}
         except StoreError as e:
             raise ApiError(400, str(e))
 
@@ -961,19 +967,78 @@ class Api:
         except package_installs.PackageInstallError as exc:
             raise ApiError(409 if "Cierra el juego" in str(exc) else 400, str(exc))
 
+    def _installation_removal(self, game, remove_files=True):
+        games, roots = self.store.games(), self._roots()
+        if game.get("installPackageId"):
+            records = self.package_installs.installed()
+            path = next((item.get("path") for item in records if isinstance(item, dict)
+                         and item.get("gameId") == game["id"] and item.get("packageId") == game["installPackageId"]), None)
+            if not isinstance(path, str) or not path:
+                raise removal.RemovalError("No se pudo verificar el registro de instalación.")
+            folder = removal.validate_folder(Path(path), game, games, roots) if remove_files else Path(path)
+            return removal.Installation(folder)
+        home = getattr(self.detectors_by_src.get(game.get("auto")), "home", None)
+        return removal.locate(game, games, roots, self._stores(), home)
+
+    def installation_removal_preview(self, q):
+        game = self.store.find_game(q.get("id", ""))
+        if not game:
+            raise ApiError(404, "juego desconocido")
+        try:
+            install = self._installation_removal(game)
+        except removal.RemovalError as exc:
+            raise ApiError(409, str(exc)) from exc
+        return {"path": str(install.folder.resolve()), "client": install.client}
+
     def installation_remove(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
         game_id = body.get("gameId")
         if not isinstance(game_id, str):
             raise ApiError(400, "juego no válido")
-        if any(game.get("id") == game_id for game in self.running_list()):
+        with self._installation_actions:
+            return self._remove_installation(game_id, body)
+
+    def _remove_installation(self, game_id, body):
+        game = self.store.find_game(game_id)
+        if game is None:
+            raise ApiError(404, "juego desconocido")
+        cmds = self.scan_fn()
+        if any(row.get("id") == game_id for row in self.running_list(cmds)):
             raise ApiError(409, "Cierra el juego antes de desinstalarlo.")
+        remove_files = body.get("removeFiles") is not False
         try:
-            if not self.package_installs.uninstall(game_id, body.get("removeFiles") is not False):
-                raise ApiError(404, "la instalación de Omnia no existe")
+            install = self._installation_removal(game, remove_files)
+            if body.get("expectedPath") is not None and body["expectedPath"] != str(install.folder.resolve()):
+                raise removal.RemovalError("La instalación cambió. Actualiza la biblioteca y vuelve a intentarlo.")
+            if game.get("installPackageId"):
+                if not self.package_installs.uninstall(game_id, remove_files):
+                    raise ApiError(404, "la instalación de Omnia no existe")
+                return {"ok": True, "removed": True}
+            if not remove_files:
+                raise removal.RemovalError("Usa Quitar de la biblioteca para conservar los archivos.")
+            if removal.client_is_running(install.client, cmds):
+                message = ("Cierra Steam antes de desinstalar el juego." if install.client == "steam"
+                           else "Cierra Heroic antes de desinstalar el juego.")
+                raise removal.RemovalError(message)
+            identity = library_metadata.store_identity(game) or removal.manual_gog_identity(game)
+            if identity and any(job.get("store") == identity.get("store") and job.get("gameId") == identity.get("id")
+                                and job["status"] in {"queued", "downloading", "finalizing"}
+                                for job in self._store_installs().jobs()):
+                raise removal.RemovalError("Cancela la actualización antes de desinstalar el juego.")
+            if any(str(install.folder.resolve()) in command for command in cmds):
+                raise removal.RemovalError("Cierra el juego antes de desinstalarlo.")
+            leftover = removal.uninstall(install)
+        except removal.RemovalError as exc:
+            raise ApiError(409, str(exc)) from exc
         except package_installs.PackageInstallError as exc:
             raise ApiError(400, str(exc))
-        return {"ok": True, "removed": True}
+        with self.store.lock:
+            self.store.set_games([row for row in self.store.games() if row["id"] != game_id])
+        self.bus.games_changed()
+        steam_id = online_catalog.steam_appid(game)
+        return {"ok": True, "removed": True, "leftover": leftover or "",
+                "store": "steam" if steam_id else identity.get("store", ""),
+                "product": steam_id or identity.get("id", "")}
 
     def system_status(self, q):
         now = time.monotonic()
@@ -1046,6 +1111,10 @@ class Api:
                 btime = self.store.state.get("backups", {}).get(g["id"], 0)
                 out.append({"id": g["id"], "name": g["name"], "src": g.get("src", ""), "platform": g.get("platform", ""),
                             "storeSource": (g.get("store_id") or {}).get("store", "") if isinstance(g.get("store_id"), dict) else "",
+                            "canUninstall": bool(g.get("installPackageId") or g.get("auto") in {"steam", "heroic"}
+                                                 or library_metadata.store_identity(g).get("store") in {"epic", "gog", "amazon"}
+                                                 or removal.manual_gog_identity(g)),
+                            "canUnlink": g["id"].startswith("manual-") and not g.get("installPackageId"),
                             "catalogSlug": g.get("catalogSlug", ""), "installPackageId": g.get("installPackageId", ""),
                             "installPath": g.get("installPath", ""), "installVersion": g.get("installVersion", ""),
                             "sub": _library_label(g.get("sub", ""), language), "variant": g.get("variant", ""), "description": g.get("s", ""),
@@ -1253,6 +1322,10 @@ class Api:
         return {"ok": True, "on": self.store.toggle(key, gid)}
 
     def launch(self, q):
+        with self._installation_actions:
+            return self._launch(q)
+
+    def _launch(self, q):
         g, p = self.store.find_port(q.get("id", ""), q.get("port", ""))
         if not g or not p:
             raise ApiError(404, "juego o port desconocido")
@@ -1508,10 +1581,30 @@ class Api:
 
     def game_add(self, q):
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        identity, slug, art_title = None, "", ""
+        if body.get("inspectExecutable") is True:
+            suggested = self.game_suggest({"path": body.get("exe")})
+            if suggested.get("existingId"):
+                return {"ok": True, "id": suggested["existingId"], "existing": True}
+            identity = suggested.get("identity")
+            if identity:
+                art_title = suggested.get("name", "")
+            if body.get("catalogSlug"):
+                slug = str(body["catalogSlug"])
+                if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,119}", slug):
+                    raise ApiError(400, "identificador de catálogo no válido")
+                try:
+                    remote = online_catalog.game_detail(slug).get("data")
+                except online_catalog.CatalogError as exc:
+                    raise ApiError(503, str(exc)) from exc
+                if not isinstance(remote, dict) or remote.get("slug") != slug:
+                    raise ApiError(404, "la ficha no existe en el catálogo disponible")
         try:
-            g = manual.add_game(self.store, body, self._roots(), gopher64=getattr(self, "gopher64_override", None))
+            g = manual.add_game(self.store, body, self._roots(), gopher64=getattr(self, "gopher64_override", None),
+                                identity=identity, catalog_slug=slug, art_title=art_title)
         except manual.ManualError as e:
             raise ApiError(400, str(e))
+        self.bus.games_changed()
         return {"ok": True, "id": g["id"], "suggest": templates.suggest_dirs(g["ports"][0].get("cwd", ""))}
 
     def game_catalog_link(self, q):
@@ -1546,17 +1639,29 @@ class Api:
         return {"ok": True, "id": game_id, "catalogSlug": slug}
 
     def game_suggest(self, q):
-        path = str(q.get("path", ""))
-        if templates.bedrock_on_linux_appimage(path):
+        raw = q.get("path")
+        if not isinstance(raw, str) or not raw or len(raw) > 4096 or "\0" in raw or not os.path.isabs(raw):
+            raise ApiError(400, "Elige el ejecutable del juego.")
+        try:
+            path = Path(raw).resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ApiError(400, "Elige el ejecutable del juego.") from exc
+        if not path.is_file() or not self._allowed(str(path)):
+            raise ApiError(403, "Ese archivo está fuera de las carpetas permitidas.")
+        try:
+            result = executable_identity.inspect(path, self.store.games(), lambda: self._stores()["steam"].library())
+        except ValueError as exc:
+            raise ApiError(400, str(exc)) from exc
+        except (OSError, RuntimeError) as exc:
+            raise ApiError(400, "No se pudo leer el ejecutable del juego.") from exc
+        if templates.bedrock_on_linux_appimage(str(path)):
             return {"name": "Minecraft Bedrock", "kind": "port", "template": "bedrock-on-linux",
                     "platform": "pc", "recognized": "BedrockOnLinux · Minecraft Bedrock"}
-        recognized = port_catalog.identify(path) if path else None
+        recognized = port_catalog.identify(str(path))
         if recognized:
             return {"name": recognized["game"], "kind": "port", "template": recognized["template"],
                     "platform": recognized["platform"], "recognized": recognized["port"]}
-        suffix = os.path.splitext(path)[1].lower()
-        return {"name": os.path.basename(path).rsplit(".", 1)[0] if "." in os.path.basename(path) else os.path.basename(path),
-                "kind": "windows" if suffix == ".exe" else "native", "platform": "pc", "recognized": ""}
+        return result
 
     def rom_scan(self, q):
         try:

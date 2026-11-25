@@ -27,7 +27,7 @@ def _inside(path: str, roots) -> bool:
     return any(real == str(r) or real.startswith(str(r).rstrip("/") + "/") for r in map(os.path.realpath, roots))
 
 
-def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dict:
+def add_game(store, data: dict, roots, gopher64=None, which=shutil.which, identity=None, catalog_slug="", art_title="") -> dict:
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 80:
         raise ManualError("Pon un nombre al juego (hasta 80 letras).")
@@ -80,7 +80,11 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dic
         if platform not in {"pc", "sw1", "sw2", *roms.SYSTEMS.keys()}:
             raise ManualError("Plataforma no válida.")
         entry = {"id": gid, "name": name, "sub": KINDS[kind], "platform": platform, "src": "Manual",
-                 "art": {"slug": gid, "sgdb": name}, "ports": [port]}
+                 "art": {"slug": gid, "sgdb": art_title or name}, "ports": [port]}
+        if identity:
+            entry["detectedIdentity"] = identity
+        if catalog_slug:
+            entry["catalogSlug"] = catalog_slug
         store.set_games(games + [entry])
     return entry
 

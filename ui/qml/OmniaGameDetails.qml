@@ -28,6 +28,8 @@ Item {
         if (!g) return out;
         out.push({ id: "fav", label: g.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos") });
         if (g.folder) out.push({ id: "folder", label: qsTr("Abrir carpeta del juego") });
+        if (g.canUninstall || g.installPackageId || g.canUnlink)
+            out.push({ id: "manage", label: qsTr("Gestionar instalación") });
         return out;
     }
 
@@ -61,6 +63,7 @@ Item {
         if (!it || !game) return
         if (it.id === "fav") det.host.api.toggleFav(game)
         else if (it.id === "folder") Qt.openUrlExternally("file://" + game.folder)      // gestor de archivos del escritorio
+        else if (it.id === "manage") det.host.openMenu(game)
         menuOpen = false; zone = "more"
     }
     function nav(k) {
