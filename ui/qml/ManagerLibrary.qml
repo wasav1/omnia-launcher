@@ -9,11 +9,25 @@ Item {
     id: ml
     property var manager: null
     property var api: null
-    property string collection: "all"        // all | fav | recent
+    property string chosenCollection: ""        // "" (automática) | all | fav | recent
+    readonly property string collection: chosenCollection ||
+        (search.trim() ? "all" : (libraryGames.some(g => g.fav) ? "fav" : "all"))
+    readonly property var libraryGames: api?.games || []
+    readonly property var visibleLibrary: libraryGames.filter(g => !g.hidden || manager.showHiddenGames)
+    readonly property var gameById: new Map(libraryGames.map(g => [g.id, g]))
+    // La lista de IDs permanece estable al actualizar sesiones u otros campos.
+    readonly property string installedOrder: JSON.stringify(visibleLibrary
+        .filter(g => (g.ports || []).some(port => port.canLaunch))
+        .sort((a, b) => Number(b.added || 0) - Number(a.added || 0) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+        .map(g => g.id))
+    readonly property var installedIds: JSON.parse(installedOrder)
     property string search: ""
     property string selId: ""
     property string tab: "summary"           // summary | saves | manage
     property var activity: null
+    property var metadata: ({})
+    readonly property string metadataKey: current && visible
+        ? JSON.stringify([current.id, current.catalogSlug || "", api.language]) : ""
     readonly property real s: manager ? manager.s : 1
     readonly property string font: "Hanken Grotesk"
 
@@ -29,8 +43,7 @@ Item {
     function lastOf(g) { return Number(g.lastPlayed || (g.played || {}).last || 0) }
     readonly property var visibleGames: {
         const q = norm(search).trim()
-        let list = (api.games || []).filter(function(g) {
-            if (g.hidden && !manager.showHiddenGames) return false
+        let list = visibleLibrary.filter(function(g) {
             if (q && norm(g.name + " " + (g.sub || "")).indexOf(q) < 0) return false
             if (collection === "fav") return !!g.fav
             if (collection === "recent") return lastOf(g) > 0
@@ -43,12 +56,42 @@ Item {
         })
         return list.map(function(g) { return { game: g, plat: collection === "recent" ? qsTr("Jugados recientemente") : platName(g) } })
     }
-    readonly property var current: (api.games || []).find(function(g) { return g.id === selId }) || null
+    readonly property var current: gameById.get(selId) || null
     onVisibleGamesChanged: {
-        if (!current || !visibleGames.some(function(e) { return e.game.id === selId }))
-            selId = visibleGames.length ? visibleGames[0].game.id : ""
+        const game = gameById.get(selId)
+        if (!game || (game.hidden && !manager.showHiddenGames))
+            selId = visibleGames.length ? visibleGames[0].game.id : (visibleLibrary[0]?.id || "")
     }
-    onSelIdChanged: { activity = null; tab = "summary"; actDelay.restart() }
+    function selectGame(id) {
+        selId = id
+        tab = "summary"
+        if (summaryScroll.contentItem) summaryScroll.contentItem.contentY = 0
+    }
+    onSearchChanged: if (search.trim() && visibleGames.length && !visibleGames.some(row => row.game.id === selId))
+        selectGame(visibleGames[0].game.id)
+    onSelIdChanged: {
+        activity = null
+        tab = "summary"
+        actDelay.restart()
+    }
+    onMetadataKeyChanged: {
+        metadata = {}
+        if (metadataKey) metadataDelay.restart()
+        else metadataDelay.stop()
+    }
+    Timer {
+        id: metadataDelay
+        interval: 250
+        onTriggered: {
+            const key = ml.metadataKey
+            if (!key) return
+            const [id, , lang] = JSON.parse(key)
+            ml.api.call("GET", "/game/metadata?id=" + encodeURIComponent(id) + "&lang=" + encodeURIComponent(lang),
+                function(status, data) {
+                    if (status === 200 && ml.metadataKey === key) ml.metadata = data.metadata || {}
+                })
+        }
+    }
     Timer {
         id: actDelay
         interval: 200
@@ -100,7 +143,11 @@ Item {
                     color: on ? "#16434E" : (chipMa.containsMouse ? "#1AFFFFFF" : "transparent")
                     border.color: on ? "#45CFC9" : "#334352"
                     Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14 }
-                    MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.collection = chip.modelData.k }
+                    MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: {
+                            ml.chosenCollection = chip.modelData.k
+                            if (ml.visibleGames.length && !ml.visibleGames.some(row => row.game.id === ml.selId))
+                                ml.selectGame(ml.visibleGames[0].game.id)
+                        } }
                 }
             }
         }
@@ -128,23 +175,23 @@ Item {
                 required property var modelData
                 readonly property var g: modelData.game
                 readonly property bool on: g.id === ml.selId
-                width: gameList.width; height: ml.s * 40
+                width: gameList.width; height: ml.s * 49
                 color: on ? "#16434E" : (rowMa.containsMouse ? "#14FFFFFF" : "transparent")
                 Row {
                     anchors { left: parent.left; leftMargin: ml.s * 14; right: parent.right; rightMargin: ml.s * 10; verticalCenter: parent.verticalCenter }
                     spacing: ml.s * 10
                     Item {
-                        width: ml.s * 26; height: width; anchors.verticalCenter: parent.verticalCenter
+                        width: ml.s * 32; height: width; anchors.verticalCenter: parent.verticalCenter
                         Rectangle { anchors.fill: parent; radius: ml.s * 6; color: manager.surface2 }
                         FadedImage { anchors.fill: parent; source: row.g.portada || ""; cornerRadius: ml.s * 6 }
                     }
                     Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - ml.s * 60; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : (row.g.updateAvailable ? "  ⟳" : "")); elide: Text.ElideRight
                         color: row.g.hidden ? manager.muted : manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: row.on ? Font.DemiBold : Font.Normal }
                 }
-                MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.selId = row.g.id; onDoubleClicked: manager.launch(row.g) }
+                MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ml.selectGame(row.g.id); onDoubleClicked: manager.launch(row.g) }
             }
             Text { visible: ml.visibleGames.length === 0; anchors.centerIn: parent; width: parent.width - ml.s * 40; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                text: ml.search ? qsTr("Ningún juego coincide.") : qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 14 }
+                text: ml.search ? qsTr("Ningún juego coincide.") : ml.collection === "fav" ? qsTr("Aún no tienes favoritos.") : qsTr("Añade juegos para verlos aquí."); color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 14 }
         }
         Row {
             id: actions
@@ -257,76 +304,142 @@ Item {
             anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: parent.bottom; margins: ml.s * 32; topMargin: ml.s * 14 }
             clip: true
             // Resumen
-            Column {
+            ScrollView {
+                id: summaryScroll
+                anchors.fill: parent
                 visible: ml.tab === "summary"
-                width: parent.width; spacing: ml.s * 14
-                Rectangle {      // actualización disponible
-                    visible: !!page.g && !!page.g.updateAvailable && !page.g.portAvailable
-                    width: parent.width; height: updNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#2F2A1B"; border.color: "#8A6D2F"
-                    Text { id: updNote; anchors { left: parent.left; right: updBtn.left; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
-                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
-                        text: page.g && page.g.updateAvailable ? qsTr("Actualización disponible: %1 → %2. Se conservan tus partidas y los datos del juego.").arg(page.g.updateAvailable.current || "?").arg(page.g.updateAvailable.version) : "" }
-                    Rectangle { id: updBtn; anchors { right: parent.right; rightMargin: ml.s * 16; verticalCenter: parent.verticalCenter }
-                        width: ml.s * 130; height: ml.s * 38; radius: ml.s * 10; color: page.g && page.g.running ? manager.surface2 : "#B8862F"
-                        Text { anchors.centerIn: parent; text: qsTr("Actualizar"); color: "white"; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: Font.DemiBold }
-                        MouseArea { anchors.fill: parent; enabled: !!page.g && !page.g.running; cursorShape: Qt.PointingHandCursor; onClicked: manager.updateFor(page.g) } }
-                }
-                Rectangle {      // port disponible
-                    visible: !!page.g && !!page.g.portAvailable
-                    width: parent.width; height: portNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#1F2F44"; border.color: "#3B6A99"
-                    Text { id: portNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
-                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
-                        text: page.g && page.g.portAvailable ? qsTr("Port disponible: %1 · %2 · licencia %3. Detectamos tu copia del juego; pulsa «Instalar port» para descargarlo y verificarlo.").arg(page.g.portAvailable.title).arg(page.g.portAvailable.version).arg(page.g.portAvailable.licenseName) : "" }
-                }
-                Text { width: parent.width; text: page.g && page.g.description ? page.g.description : qsTr("Sin descripción disponible."); wrapMode: Text.WordWrap; color: manager.muted
-                    font.family: ml.font; font.pixelSize: ml.s * 16; lineHeight: 1.25; maximumLineCount: 6; elide: Text.ElideRight }
-                Row {
-                    spacing: ml.s * 12
-                    Repeater {
-                        model: [
-                            { l: qsTr("Fuente"), v: page.g ? (page.g.variant || page.g.src || "—") : "—" },
-                            { l: qsTr("Consola"), v: page.g ? ml.platName(page.g) : "—" },
-                            { l: qsTr("Carpeta"), v: page.g && page.g.folder ? page.g.folder : "—" }
-                        ]
-                        delegate: Rectangle {
-                            id: card
-                            required property var modelData
-                            width: Math.min(ml.s * 330, (page.width - ml.s * 64 - ml.s * 24) / 3); height: ml.s * 70; radius: ml.s * 12; color: manager.surface
-                            Column { anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 16 } spacing: ml.s * 4
-                                Text { text: card.modelData.l; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 12 }
-                                Text { width: parent.width; text: card.modelData.v; elide: Text.ElideMiddle; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: Font.DemiBold } }
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                Column {
+                    width: summaryScroll.availableWidth
+                    spacing: ml.s * 14
+                    bottomPadding: ml.s * 12
+                    Rectangle {      // actualización disponible
+                        visible: !!page.g && !!page.g.updateAvailable && !page.g.portAvailable
+                        width: parent.width; height: updNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#2F2A1B"; border.color: "#8A6D2F"
+                        Text { id: updNote; anchors { left: parent.left; right: updBtn.left; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
+                            wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
+                            text: page.g && page.g.updateAvailable ? qsTr("Actualización disponible: %1 → %2. Se conservan tus partidas y los datos del juego.").arg(page.g.updateAvailable.current || "?").arg(page.g.updateAvailable.version) : "" }
+                        Rectangle { id: updBtn; anchors { right: parent.right; rightMargin: ml.s * 16; verticalCenter: parent.verticalCenter }
+                            width: ml.s * 130; height: ml.s * 38; radius: ml.s * 10; color: page.g && page.g.running ? manager.surface2 : "#B8862F"
+                            Text { anchors.centerIn: parent; text: qsTr("Actualizar"); color: "white"; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: Font.DemiBold }
+                            MouseArea { anchors.fill: parent; enabled: !!page.g && !page.g.running; cursorShape: Qt.PointingHandCursor; onClicked: manager.updateFor(page.g) } }
+                    }
+                    Rectangle {      // port disponible
+                        visible: !!page.g && !!page.g.portAvailable
+                        width: parent.width; height: portNote.implicitHeight + ml.s * 24; radius: ml.s * 12; color: "#1F2F44"; border.color: "#3B6A99"
+                        Text { id: portNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 16 }
+                            wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15
+                            text: page.g && page.g.portAvailable ? qsTr("Port disponible: %1 · %2 · licencia %3. Detectamos tu copia del juego; pulsa «Instalar port» para descargarlo y verificarlo.").arg(page.g.portAvailable.title).arg(page.g.portAvailable.version).arg(page.g.portAvailable.licenseName) : "" }
+                    }
+                    Text { width: parent.width; text: ml.metadata.description || page.g?.description || qsTr("Sin descripción disponible."); textFormat: Text.PlainText; wrapMode: Text.WordWrap; color: manager.muted
+                        font.family: ml.font; font.pixelSize: ml.s * 16; lineHeight: 1.25; maximumLineCount: 6; elide: Text.ElideRight }
+                    Flow {
+                        width: parent.width; spacing: ml.s * 8
+                        Repeater {
+                            model: [
+                                [qsTr("Lanzamiento"), ml.metadata.release],
+                                [qsTr("Géneros"), ml.metadata.genres],
+                                [qsTr("Desarrolladora"), ml.metadata.developer],
+                                [qsTr("Editora"), ml.metadata.publisher]
+                            ].filter(field => !!field[1])
+                            delegate: Rectangle {
+                                id: fieldCard
+                                required property var modelData
+                                width: Math.min(parent.width, fact.implicitWidth + ml.s * 24)
+                                height: fact.implicitHeight + ml.s * 14
+                                radius: ml.s * 8; color: manager.surface
+                                Text {
+                                    id: fact
+                                    anchors { fill: parent; margins: ml.s * 7 }
+                                    text: fieldCard.modelData[0] + " · " + fieldCard.modelData[1]
+                                    textFormat: Text.PlainText
+                                    elide: Text.ElideRight
+                                    color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14
+                                }
+                            }
                         }
                     }
-                }
-                Text {      // tu copia del juego (volcado .nup o carpeta exefs+romfs que Omnia unió con este port)
-                    visible: !!page.g && !!page.g.romCopy
-                    width: parent.width; wrapMode: Text.WrapAnywhere; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 13
-                    text: page.g && page.g.romCopy ? qsTr("Tu copia del juego: %1").arg(page.g.romCopy.path) + (page.g.romCopy.buildId ? "  ·  build " + page.g.romCopy.buildId.substring(0, 12) : "") : ""
-                }
-                Text {      // ¿la copia es la versión que acepta el port? (build ID del exefs/main contra el descriptor del port)
-                    visible: !!page.g && !!page.g.romCopy && !!page.g.romCopy.compat
-                    width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
-                    readonly property string st: page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.state : ""
-                    color: st === "ok" ? "#7fd69f" : (st === "mismatch" ? "#e8a24b" : manager.muted)
-                    text: st === "ok" ? qsTr("Es la versión que acepta este port.")
-                        : (st === "mismatch" ? qsTr("Esta copia es de otra versión (build %1); el port espera %2.").arg((page.g.romCopy.compat.found || "").substring(0, 8)).arg(page.g.romCopy.compat.expected.join(", "))
-                        : qsTr("No se pudo comprobar la versión de esta copia (un archivo .nup no se lee todavía); el port espera el build %1.").arg(page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.expected.join(", ") : ""))
-                }
-                Rectangle {      // el port cerró con un código que él mismo explica (exit_codes de su descriptor)
-                    visible: !!page.g && !!page.g.lastExit
-                    width: parent.width; height: exitNote.implicitHeight + ml.s * 20; radius: ml.s * 10; color: "#3A2A1E"; border.color: "#8A5A2F"
-                    Text { id: exitNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 14 }
-                        wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14
-                        text: page.g && page.g.lastExit ? qsTr("La última vez, el juego se cerró con este aviso: %1").arg(page.g.lastExit.message) : "" }
-                }
-                Text {      // requisitos que declara el port (glibc, Vulkan…) y si este PC los cumple
-                    visible: !!page.g && !!page.g.requirements && page.g.requirements.length > 0
-                    width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
-                    readonly property var bad: page.g && page.g.requirements ? page.g.requirements.filter(function(r) { return r.ok === false }) : []
-                    color: bad.length > 0 ? "#e8a24b" : manager.muted
-                    text: page.g && page.g.requirements
-                          ? qsTr("Requisitos: %1").arg(page.g.requirements.map(function(r) { return r.label + " " + r.need + (r.ok === false ? " ✗ (este PC: " + r.have + ")" : (r.ok === true ? " ✓" : "")) }).join("  ·  "))
-                            + (bad.length > 0 ? "  " + qsTr("El juego puede no arrancar.") : "") : ""
+                    Row {
+                        spacing: ml.s * 12
+                        Repeater {
+                            model: [
+                                { l: qsTr("Fuente"), v: page.g ? (page.g.variant || page.g.src || "—") : "—" },
+                                { l: qsTr("Consola"), v: page.g ? ml.platName(page.g) : "—" },
+                                { l: qsTr("Carpeta"), v: page.g && page.g.folder ? page.g.folder : "—" }
+                            ]
+                            delegate: Rectangle {
+                                id: card
+                                required property var modelData
+                                width: Math.min(ml.s * 330, (page.width - ml.s * 64 - ml.s * 24) / 3); height: ml.s * 70; radius: ml.s * 12; color: manager.surface
+                                Column { anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 16 } spacing: ml.s * 4
+                                    Text { text: card.modelData.l; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 12 }
+                                    Text { width: parent.width; text: card.modelData.v; elide: Text.ElideMiddle; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 15; font.weight: Font.DemiBold } }
+                            }
+                        }
+                    }
+                    Text {      // tu copia del juego (volcado .nup o carpeta exefs+romfs que Omnia unió con este port)
+                        visible: !!page.g && !!page.g.romCopy
+                        width: parent.width; wrapMode: Text.WrapAnywhere; color: manager.muted; font.family: ml.font; font.pixelSize: ml.s * 13
+                        text: page.g && page.g.romCopy ? qsTr("Tu copia del juego: %1").arg(page.g.romCopy.path) + (page.g.romCopy.buildId ? "  ·  build " + page.g.romCopy.buildId.substring(0, 12) : "") : ""
+                    }
+                    Text {      // ¿la copia es la versión que acepta el port? (build ID del exefs/main contra el descriptor del port)
+                        visible: !!page.g && !!page.g.romCopy && !!page.g.romCopy.compat
+                        width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
+                        readonly property string st: page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.state : ""
+                        color: st === "ok" ? "#7fd69f" : (st === "mismatch" ? "#e8a24b" : manager.muted)
+                        text: st === "ok" ? qsTr("Es la versión que acepta este port.")
+                            : (st === "mismatch" ? qsTr("Esta copia es de otra versión (build %1); el port espera %2.").arg((page.g.romCopy.compat.found || "").substring(0, 8)).arg(page.g.romCopy.compat.expected.join(", "))
+                            : qsTr("No se pudo comprobar la versión de esta copia (un archivo .nup no se lee todavía); el port espera el build %1.").arg(page.g && page.g.romCopy && page.g.romCopy.compat ? page.g.romCopy.compat.expected.join(", ") : ""))
+                    }
+                    Rectangle {      // el port cerró con un código que él mismo explica (exit_codes de su descriptor)
+                        visible: !!page.g && !!page.g.lastExit
+                        width: parent.width; height: exitNote.implicitHeight + ml.s * 20; radius: ml.s * 10; color: "#3A2A1E"; border.color: "#8A5A2F"
+                        Text { id: exitNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ml.s * 14 }
+                            wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 14
+                            text: page.g && page.g.lastExit ? qsTr("La última vez, el juego se cerró con este aviso: %1").arg(page.g.lastExit.message) : "" }
+                    }
+                    Text {      // requisitos que declara el port (glibc, Vulkan…) y si este PC los cumple
+                        visible: !!page.g && !!page.g.requirements && page.g.requirements.length > 0
+                        width: parent.width; wrapMode: Text.WordWrap; font.family: ml.font; font.pixelSize: ml.s * 13
+                        readonly property var bad: page.g && page.g.requirements ? page.g.requirements.filter(function(r) { return r.ok === false }) : []
+                        color: bad.length > 0 ? "#e8a24b" : manager.muted
+                        text: page.g && page.g.requirements
+                              ? qsTr("Requisitos: %1").arg(page.g.requirements.map(function(r) { return r.label + " " + r.need + (r.ok === false ? " ✗ (este PC: " + r.have + ")" : (r.ok === true ? " ✓" : "")) }).join("  ·  "))
+                                + (bad.length > 0 ? "  " + qsTr("El juego puede no arrancar.") : "") : ""
+                    }
+                    Text {
+                        text: qsTr("Juegos instalados")
+                        color: manager.ink; font.family: ml.font
+                        font.pixelSize: ml.s * 21; font.weight: Font.DemiBold
+                        visible: ml.installedIds.length > 0
+                    }
+                    Grid {
+                        id: installedGrid
+                        width: parent.width
+                        readonly property real gap: ml.s * 16
+                        readonly property real cardWidth: (width - gap * (columns - 1)) / columns
+                        columns: Math.max(1, Math.floor((width + gap) / (ml.s * 185 + gap)))
+                        spacing: gap
+                        Repeater {
+                            model: ml.installedIds
+                            delegate: ManagerPosterCard {
+                                id: installedCard
+                                required property string modelData
+                                readonly property var game: ml.gameById.get(modelData)
+                                readonly property var origin: game ? manager.sourceForGame(game) : null
+                                width: installedGrid.cardWidth; height: width * 1.42
+                                scaleFactor: ml.s
+                                title: game?.name || ""
+                                artwork: game?.portada || game?.fondo || ""
+                                store: origin?.label || ""
+                                sourceLogo: origin?.logo || ""
+                                platform: game ? ml.platName(game) : ""
+                                installed: true
+                                onActivated: ml.selectGame(modelData)
+                            }
+                        }
+                    }
                 }
             }
             // Partidas

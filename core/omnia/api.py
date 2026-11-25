@@ -24,6 +24,7 @@ from . import (
     fsbrowse,
     importer,
     launcher,
+    library_metadata,
     library_paths,
     paths,
     manual,
@@ -153,6 +154,7 @@ class Api:
             "/saves/backup": ("POST", True, self.saves_backup),
             "/saves/restore": ("POST", True, self.saves_restore),
             "/saves/open": ("POST", True, self.saves_open),
+            "/game/metadata": ("GET", True, self.game_metadata),
             "/game/activity": ("GET", True, self.game_activity),
             "/art/browse": ("GET", True, self.art_browse),
             "/art/pick": ("POST", True, self.art_pick),
@@ -1129,6 +1131,13 @@ class Api:
                 if cand and os.path.isabs(os.path.expanduser(cand)) and os.path.isdir(os.path.expanduser(cand)):
                     return os.path.realpath(os.path.expanduser(cand))
         return ""
+
+    def game_metadata(self, q):
+        game = self.store.find_game(str(q.get("id", "")))
+        if not game:
+            raise ApiError(404, "juego desconocido")
+        locale = "en" if q.get("lang") == "en" else "es"
+        return {"metadata": library_metadata.game_metadata(game, locale)}
 
     def game_activity(self, q):
         """Historial reciente de un juego (últimas sesiones, más nuevas primero) y sus totales."""

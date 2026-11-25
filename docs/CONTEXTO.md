@@ -72,7 +72,7 @@ terceros; todo cambio de configuración del usuario es reversible; el usuario ej
 actualizaciones de ports, editor de arte con SteamGridDB, arte para Steam/Heroic/Lutris, Big Mode con estantería paginada (rueda, flechas, LT/RT), ajustes de Big Mode
 con navegación de mando (General, Sonido, Audio, Mandos), bienvenida con sonido, sonidos de interfaz (paquetes Omnia y Kenney), prueba de mando en vivo,
 integración con Dux (botón con mando y batería, popout compacto), HUD de MangoHud con el estilo de Omnia, paquete de metadata del catálogo (53 fichas).
-**Pendiente (prioridad en `docs/HANDOFF.md`):** instalar y validar visualmente la revisión de Explorar (padding, filtros a ancho completo, logo y orden); probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
+**Pendiente (prioridad en `docs/HANDOFF.md`):** instalar y revisar la cuadrícula y fichas de Biblioteca; probar la integración de tiendas con cuentas reales donde aún falte, mejoras de Big Mode y de la app de escritorio acordadas, publicación en el AUR, pruebas manuales con mando (vibración, gatillos) y con juegos a pantalla completa.
 
 ## 6. Operación
 - **Pruebas:** `PYTHONPATH=core python3 -m unittest discover -s tests`; QML: `/usr/lib/qt6/bin/qmllint <archivo>`; pruebas visuales con arneses `qml6` fuera de pantalla
@@ -84,6 +84,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Biblioteca con cuadrícula de instalados y fichas enriquecidas.** El resumen incluye carátulas por orden de instalación registrado y abre cada juego en la misma ficha. La lista lateral abre en Favoritos si hay alguno, ofrece filas más altas y conserva Todos, Recientes y la búsqueda. La ruta `/game/metadata` combina la ficha vinculada de Omnia con datos públicos de Steam para IDs conocidos, prioriza sinopsis en español cuando Steam la publica y guarda los resultados por idioma en `library-metadata`. Los datos locales siguen visibles mientras llega la consulta. Verificados el flujo de Biblioteca fuera de pantalla, dos fichas públicas de Steam y la caché. Paquetes 0.3.0-101 generados y comprobados. Pasaron 671 de 672 pruebas, con el fallo de geometría de DesktopSurface ya conocido.
 
 - **2026-11-24 — Novedades y tarjetas de Explorar.** Un banner de ancho completo alterna cada diez segundos anuncios de los juegos detectados de Steam y noticias de GOG, Epic y Amazon. El servicio consulta en segundo plano y conserva los últimos resultados de cada fuente en `store-news.json`. Se validaron respuestas reales de Steam, GOG y Amazon. La página de Epic devolvió HTTP 403 en este entorno. «Últimos instalados» reserva espacio para el zoom y conserva las instancias de sus tarjetas al actualizar la biblioteca. Las carátulas mantienen la imagen anterior durante una carga. Tarjetas más grandes y logos blancos más visibles, arriba a la izquierda sobre un degradado superior. Paquetes 0.3.0-100 verificados. La suite pasó 671 de 672 pruebas. El fallo restante de geometría de DesktopSurface se reprodujo con el commit anterior.
 
