@@ -28,6 +28,7 @@ Item {
         FadedImage {
             anchors.fill: parent
             source: card.artwork
+            retainWhileLoading: true
             cornerRadius: 13 * card.scaleFactor
         }
         Rectangle {
@@ -47,31 +48,34 @@ Item {
             border.color: "#6CE2DC"
             Behavior on color { ColorAnimation { duration: 150 } }
         }
+        Rectangle {
+            anchors.fill: parent
+            radius: cover.radius
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#CC000000" }
+                GradientStop { position: 0.53; color: "transparent" }
+            }
+        }
+        Image {
+            anchors { left: parent.left; top: parent.top; margins: 11 * card.scaleFactor }
+            width: 30 * card.scaleFactor; height: width
+            source: card.sourceLogo
+            sourceSize: Qt.size(96, 96)
+            fillMode: Image.PreserveAspectFit
+        }
         Column {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 11 * card.scaleFactor }
             spacing: 3 * card.scaleFactor
             Text {
-                id: sourceLabel
                 visible: card.store !== ""
-                width: parent.width - sourceLogoWell.width - (sourceLogoWell.visible ? 6 * card.scaleFactor : 0)
+                width: parent.width
                 text: card.store
                 color: "#70E0D9"
                 font.family: "Hanken Grotesk"
                 font.pixelSize: 10 * card.scaleFactor
                 font.weight: Font.Bold
                 elide: Text.ElideRight
-                Image {
-                    id: sourceLogoWell
-                    visible: card.sourceLogo !== ""
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    width: 16 * card.scaleFactor
-                    height: width
-                    source: card.sourceLogo
-                    sourceSize.width: 64
-                    sourceSize.height: 64
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                }
+
             }
             Text {
                 width: parent.width

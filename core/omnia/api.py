@@ -36,6 +36,7 @@ from . import (
     roms,
     saves,
     security,
+    store_news,
     system,
     templates,
 )
@@ -81,6 +82,7 @@ class Api:
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
         self.package_installs = package_installs.PackageInstallManager(self.store, self._roots, on_change=self.bus.games_changed)
+        self.store_news = store_news.StoreNews()
         self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
                                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
@@ -115,6 +117,7 @@ class Api:
             "/stores/login-url": ("GET", True, self.stores_login_url),
             "/stores/login": ("POST", True, self.stores_login),
             "/stores/logout": ("POST", True, self.stores_logout),
+            "/stores/news": ("GET", True, self.stores_news),
             "/stores/library": ("GET", True, self.stores_library),
             "/pads": ("GET", True, self.pads),
             "/pads/settings": ("POST", True, self.pads_settings),
@@ -738,6 +741,9 @@ class Api:
             return {"ok": True, "store": store.logout()}
         except StoreError as e:
             raise ApiError(400, str(e))
+
+    def stores_news(self, q):
+        return self.store_news.snapshot(self.store.games())
 
     def stores_library(self, q):
         from .stores.base import StoreError

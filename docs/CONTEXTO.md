@@ -7,7 +7,7 @@
 Omnia es una **biblioteca unificada de juegos para Linux** (Arch/CachyOS como objetivo): reúne juegos de Steam, Heroic (Epic, GOG, Amazon), Lutris,
 ports y recompilaciones instalables desde un catálogo, ROMs y ejecutables locales, y los gestiona desde varias superficies que comparten el mismo
 servicio:
-- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio con navegación lateral (Inicio, Biblioteca, Explorar, Estadísticas, Descargas, Ajustes). Explorar reúne ports y juegos de tiendas en una cuadrícula continua, con filtros adhesivos, recomendaciones, instalaciones recientes y orden por año/nombre; la gestión de cuentas se abre desde esa página.
+- **Omnia Desktop Suite** (`omnia-ui --manager`): app de escritorio con navegación lateral (Inicio, Biblioteca, Explorar, Estadísticas, Descargas, Ajustes). Explorar reúne ports y juegos de tiendas en una cuadrícula continua, con filtros adhesivos, novedades de tiendas, instalaciones recientes y orden por año/nombre; la gestión de cuentas se abre desde esa página.
 - **Big Mode (BM)** (`omnia-ui --window`, o desde la app): interfaz de consola para mando/teclado/ratón, con bienvenida animada, estantería, ficha de
   juego, editor de arte, ajustes (sonido, audio, mandos) y sonidos de interfaz.
 - **Panel rápido**: integración opcional con Hyprland (módulo de illogical-impulse, `integrations/hyprland/ii`) y con el shell Dux/DMS
@@ -84,6 +84,8 @@ integración con Dux (botón con mando y batería, popout compacto), HUD de Mang
 - **Reglas:** el usuario ejecuta `git push` y `sudo`; nunca imprimir claves ni pedir contraseñas; no usar `pkill -f` (puede matar el propio comando).
 
 ## 7. Registro de cambios
+
+- **2026-11-24 — Novedades y tarjetas de Explorar.** Un banner de ancho completo alterna cada diez segundos anuncios de los juegos detectados de Steam y noticias de GOG, Epic y Amazon. El servicio consulta en segundo plano y conserva los últimos resultados de cada fuente en `store-news.json`. Se validaron respuestas reales de Steam, GOG y Amazon. La página de Epic devolvió HTTP 403 en este entorno. «Últimos instalados» reserva espacio para el zoom y conserva las instancias de sus tarjetas al actualizar la biblioteca. Las carátulas mantienen la imagen anterior durante una carga. Tarjetas más grandes y logos blancos más visibles, arriba a la izquierda sobre un degradado superior. Paquetes 0.3.0-100 verificados. La suite pasó 671 de 672 pruebas. El fallo restante de geometría de DesktopSurface se reprodujo con el commit anterior.
 
 - **2026-11-24 — Pulido de Explorar, caché de imágenes y reconexión del servicio:** el contenido respeta el padding común, la búsqueda comparte fila con el título, las dos recomendaciones y hasta cinco recientes distribuyen todo el ancho, los filtros ocupan seis columnas iguales y los logos blancos/transparentes salen de los SVG de Descargas (y la marca de Omnia). Los instalados abren una ficha local de detalle con botón Jugar; se añadió orden por año reciente/antiguo y nombre A–Z/Z–A. `imageFor` prioriza `localUrl`; las carátulas remotas admitidas de tiendas también se guardan en `catalog-art`. `Api.qml` reintenta mientras el servicio no responde. Diagnóstico: `omnia.service` estaba activo y `/health` y `/library` respondieron; se agregó reintento de interfaz para el fallo transitorio. `qmllint`, compilación Python y `git diff --check` limpios; los cuatro paquetes Arch 0.3.0-99 generados y verificados en `/tmp/omnia-pkg/`.
 

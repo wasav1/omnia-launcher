@@ -14,8 +14,6 @@ Item {
     property int onlinePageSize: 30
     property string exploreFilter: "all"
     property string exploreSort: "year-desc"
-    property int recommendationOffset: 0
-    property bool recommendationsVisible: true
     property var exploreDetailGame: null
     property var detailGame: null
     property var storeDetailItem: null
@@ -85,12 +83,6 @@ Item {
         })
         return filtered
     }
-    readonly property var recommendationPair: {
-        if (!onlineGames.length) return []
-        const count = Math.min(10, onlineGames.length)
-        return [onlineGames[recommendationOffset % count], onlineGames[(recommendationOffset + 1) % count]].filter(Boolean)
-    }
-
     Api { id: api; controlsEnabled: false; systemEnabled: true }
     Component.onCompleted: loadOnline(1)
     Timer { interval: 6000; repeat: true; running: manager.visible; onTriggered: api.refresh() }
@@ -552,20 +544,26 @@ Item {
             api: api
         }
 
-        // Explorar: recomendaciones, instalaciones recientes y cuadrícula unificada sin paginación.
+        // Explorar: novedades, instalaciones recientes y cuadrícula unificada sin paginación.
         Item {
             id: explorePage
             anchors.fill: parent
             visible: manager.page === "catalog"
-            Text {
+            Column {
+                id: exploreHeading
                 x: content.pad; y: content.top0
-                text: qsTr("Explorar"); color: manager.ink
-                font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 28; font.weight: Font.Bold
-            }
-            Text {
-                x: content.pad; y: content.top0 + manager.s * 34
-                text: qsTr("Ports de Omnia y juegos de tus tiendas, en un solo lugar.")
-                color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12
+                width: remoteSearch.x - x - manager.s * 12
+                spacing: manager.s * 3
+                Text {
+                    text: qsTr("Explorar"); color: manager.ink
+                    font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 28; font.weight: Font.Bold
+                }
+                Text {
+                    width: parent.width
+                    text: qsTr("Ports de Omnia y juegos de tus tiendas, en un solo lugar.")
+                    color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 13
+                    wrapMode: Text.WordWrap
+                }
             }
             TextField {
                 id: remoteSearch
@@ -586,15 +584,15 @@ Item {
             }
             Text {
                 id: exploreWarning
-                x: content.pad; y: remoteSearch.y + remoteSearch.height + manager.s * 3
+                x: content.pad; y: Math.max(exploreHeading.y + exploreHeading.height, remoteSearch.y + remoteSearch.height) + manager.s * 4
                 width: parent.width - content.pad * 2
                 text: manager.onlineWarning; visible: !!text
                 color: "#E8B86D"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 11; elide: Text.ElideRight
             }
             Flickable {
                 id: exploreFlick
-                anchors { left: parent.left; right: parent.right; top: exploreWarning.visible ? exploreWarning.bottom : remoteSearch.bottom; bottom: parent.bottom }
-                anchors.topMargin: manager.s * 7
+                anchors { left: parent.left; right: parent.right; top: exploreWarning.bottom; bottom: parent.bottom }
+                anchors.topMargin: manager.s * 12
                 clip: true
                 contentWidth: width
                 contentHeight: exploreContent.height
@@ -603,44 +601,19 @@ Item {
                     id: exploreContent
                     x: content.pad
                     width: exploreFlick.width - content.pad * 2
-                    spacing: manager.s * 15
+                    spacing: manager.s * 17
 
-                    Column {
+                    ManagerStoreNews {
                         width: parent.width
-                        spacing: manager.s * 7
-                        Text { text: qsTr("Recomendados"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold }
-                        Row {
-                            width: parent.width; height: manager.s * 132; spacing: manager.s * 10
-                            opacity: manager.recommendationsVisible ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
-                            Repeater {
-                                model: manager.recommendationPair
-                                delegate: ManagerPosterCard {
-                                    required property var modelData
-                                    width: (parent.width - parent.spacing) / 2; height: parent.height
-                                    scaleFactor: manager.s
-                                    title: modelData.name || ""
-                                    artwork: manager.imageFor(modelData, ["grid", "hero"])
-                                    store: qsTr("Omnia · ports")
-                                    sourceLogo: "images/stores/omnia.svg"
-                                    installed: !!manager.localMatch(modelData)
-                                    platform: (modelData.platforms || []).map(function(p) { return p.name || p.slug }).join(" · ")
-                                    info: [modelData.year || modelData.releaseYear || "", (modelData.genres || []).slice(0, 2).join(" · ")].filter(Boolean).join(" · ")
-                                    onActivated: {
-                                        const local = manager.localMatch(modelData)
-                                        if (local) manager.openLocalExploreDetail(local)
-                                        else manager.openCatalogDetail(modelData)
-                                    }
-                                }
-                            }
-                            Text { visible: manager.recommendationPair.length === 0; anchors.centerIn: parent; text: manager.onlineBusy ? qsTr("Cargando recomendaciones…") : qsTr("Aún no hay recomendaciones."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
-                        }
+                        manager: manager
+                        api: api
+                        active: explorePage.visible
                     }
 
                     Column {
                         width: parent.width
                         spacing: manager.s * 7
-                        Row {
+                        Item {
                             width: parent.width; height: manager.s * 24
                             Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Últimos instalados"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 17; font.weight: Font.DemiBold }
                             Rectangle {
@@ -651,32 +624,61 @@ Item {
                                 MouseArea { id: moreInstalledMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage("library") }
                             }
                         }
-                        ListView {
+                        Flickable {
                             id: installedList
-                            width: parent.width; height: manager.s * 148
-                            orientation: ListView.Horizontal; spacing: manager.s * 9; clip: true
-                            model: manager.recentGames
-                            delegate: ManagerPosterCard {
-                                required property var modelData
-                                width: (installedList.width - installedList.spacing * (installedList.visibleCount - 1)) / installedList.visibleCount; height: installedList.height
-                                scaleFactor: manager.s * 0.92
-                                title: modelData.name || ""
-                                artwork: modelData.portada || modelData.fondo || ""
-                                store: manager.sourceForGame(modelData).label
-                                sourceLogo: manager.sourceForGame(modelData).logo
-                                platform: modelData.platform || modelData.sub || "PC"
-                                info: modelData.year || modelData.releaseYear || modelData.platform || ""
-                                installed: true
-                                onActivated: manager.openLocalExploreDetail(modelData)
+                            width: parent.width
+                            height: cardHeight + 2 * zoomMargin
+                            readonly property real cardHeight: manager.s * 178
+                            readonly property int visibleCount: Math.max(1, manager.recentGames.length)
+                            readonly property real cardWidth: Math.max(manager.s * 175,
+                                (width - 2 * zoomMargin - installedRow.spacing * (visibleCount - 1)) / visibleCount)
+                            readonly property real zoomMargin: Math.ceil(0.023 * Math.max(width / visibleCount, manager.s * 178)) + 2
+                            contentWidth: installedRow.width + 2 * zoomMargin
+                            contentHeight: height
+                            clip: true
+                            flickableDirection: Flickable.HorizontalFlick
+                            boundsBehavior: Flickable.StopAtBounds
+                            Row {
+                                id: installedRow
+                                x: installedList.zoomMargin; y: installedList.zoomMargin
+                                width: installedList.cardWidth * installedList.visibleCount + spacing * (installedList.visibleCount - 1)
+                                spacing: manager.s * 12
+                                Repeater {
+                                    // Los delegados sobreviven a cada actualización de la biblioteca.
+                                    model: 5
+                                    delegate: ManagerPosterCard {
+                                        id: recentCard
+                                        required property int index
+                                        readonly property var game: manager.recentGames[index] || null
+                                        visible: !!game
+                                        width: installedList.cardWidth; height: installedList.cardHeight
+                                        scaleFactor: manager.s
+                                        title: game?.name || ""
+                                        artwork: game?.fondo || game?.portada || ""
+                                        store: game ? manager.sourceForGame(game).label : ""
+                                        sourceLogo: game ? manager.sourceForGame(game).logo : ""
+                                        platform: game?.platform || game?.sub || ""
+                                        info: String(game?.year || game?.releaseYear || "")
+                                        installed: true
+                                        onActivated: manager.openLocalExploreDetail(game)
+                                    }
+                                }
                             }
-                            readonly property int visibleCount: Math.max(1, Math.min(5, manager.recentGames.length))
-                            Text { visible: installedList.count === 0; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Tus juegos instalados aparecerán aquí."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12 }
+                            Text {
+                                visible: manager.recentGames.length === 0
+                                x: installedList.zoomMargin
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("Tus juegos instalados aparecerán aquí.")
+                                color: manager.muted
+                                font.family: "Hanken Grotesk"
+                                font.pixelSize: manager.s * 12
+                            }
                         }
                     }
 
                     Item {
                         id: inlineExploreFilters
-                        width: parent.width; height: manager.s * 41
+                        width: parent.width; height: manager.s * 46
                         Row {
                             id: inlineFilterRow
                             width: parent.width
@@ -688,12 +690,12 @@ Item {
                                     id: inlineChip
                                     required property var modelData
                                     readonly property bool selected: manager.exploreFilter === modelData.k
-                                    width: (inlineFilterRow.width - inlineFilterRow.spacing * 5) / 6; height: manager.s * 31; radius: height / 2
+                                    width: (inlineFilterRow.width - inlineFilterRow.spacing * 5) / 6; height: manager.s * 36; radius: height / 2
                                     color: selected ? "#16434E" : "#101C27"
                                     border.color: selected ? "#45CFC9" : "#30414E"
                                     Row {
                                         anchors.centerIn: parent; spacing: manager.s * 6
-                                        Image { visible: !!inlineChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 16; height: width; source: inlineChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
+                                        Image { visible: !!inlineChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 26; height: width; source: inlineChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
                                         Text { anchors.verticalCenter: parent.verticalCenter; text: inlineChip.modelData.label; color: inlineChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: inlineChip.selected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = inlineChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
@@ -726,7 +728,7 @@ Item {
                             readonly property real gap: manager.s * 12
                             readonly property real cardWidth: Math.max(manager.s * 112, Math.floor((width - gap * (columns - 1)) / columns))
                             readonly property real cardHeight: cardWidth * 1.42
-                            columns: Math.max(2, Math.floor((width + gap) / (manager.s * 160 + gap)))
+                            columns: Math.max(2, Math.floor((width + gap) / (manager.s * 185 + gap)))
                             columnSpacing: gap; rowSpacing: gap
                             height: exploreGridRepeater.count ? Math.ceil(exploreGridRepeater.count / columns) * (cardHeight + rowSpacing) - rowSpacing : 0
                             Repeater {
@@ -774,7 +776,7 @@ Item {
                 visible: exploreFlick.contentY >= inlineExploreFilters.y && exploreFlick.contentHeight > exploreFlick.height
                 z: 10
                 anchors { left: exploreFlick.left; right: exploreFlick.right; top: exploreFlick.top; leftMargin: content.pad; rightMargin: content.pad }
-                height: manager.s * 41; color: "#F20B1118"
+                height: manager.s * 46; color: "#F20B1118"
                 Row {
                     id: pinnedFilterRow
                     width: parent.width
@@ -786,12 +788,12 @@ Item {
                             id: pinnedChip
                             required property var modelData
                             readonly property bool selected: manager.exploreFilter === modelData.k
-                            width: (pinnedFilterRow.width - pinnedFilterRow.spacing * 5) / 6; height: manager.s * 31; radius: height / 2
+                            width: (pinnedFilterRow.width - pinnedFilterRow.spacing * 5) / 6; height: manager.s * 36; radius: height / 2
                             color: selected ? "#16434E" : "#101C27"
                             border.color: selected ? "#45CFC9" : "#30414E"
                             Row {
                                 anchors.centerIn: parent; spacing: manager.s * 6
-                                Image { visible: !!pinnedChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 16; height: width; source: pinnedChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
+                                Image { visible: !!pinnedChip.modelData.logo; anchors.verticalCenter: parent.verticalCenter; width: manager.s * 26; height: width; source: pinnedChip.modelData.logo; sourceSize.width: 48; sourceSize.height: 48; fillMode: Image.PreserveAspectFit }
                                 Text { anchors.verticalCenter: parent.verticalCenter; text: pinnedChip.modelData.label; color: pinnedChip.selected ? "#72E0DA" : manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 10; font.weight: pinnedChip.selected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { manager.exploreFilter = pinnedChip.modelData.k; exploreFlick.contentY = inlineExploreFilters.y } }
@@ -824,7 +826,7 @@ Item {
                         spacing: manager.s * 10
                         Row {
                             spacing: manager.s * 9
-                            Image { anchors.verticalCenter: parent.verticalCenter; width: manager.s * 20; height: width; source: manager.exploreDetailGame ? manager.sourceForGame(manager.exploreDetailGame).logo : ""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit }
+                            Image { anchors.verticalCenter: parent.verticalCenter; width: manager.s * 32; height: width; source: manager.exploreDetailGame ? manager.sourceForGame(manager.exploreDetailGame).logo : ""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit }
                             Text { anchors.verticalCenter: parent.verticalCenter; text: manager.exploreDetailGame ? (manager.sourceForGame(manager.exploreDetailGame).label + "  ·  " + (manager.exploreDetailGame.platform || manager.exploreDetailGame.sub || "PC")) : ""; color: "#70E0D9"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.DemiBold }
                         }
                         Text { width: parent.width; text: manager.exploreDetailGame ? manager.exploreDetailGame.name || "" : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap }
@@ -846,21 +848,7 @@ Item {
                     }
                 }
             }
-            Timer {
-                id: recommendationTimer
-                interval: 10000; repeat: true
-                running: manager.page === "catalog" && manager.onlineGames.length > 2
-                onTriggered: { manager.recommendationsVisible = false; recommendationSwap.restart() }
-            }
-            Timer {
-                id: recommendationSwap
-                interval: 280; repeat: false
-                onTriggered: {
-                    const count = Math.min(10, manager.onlineGames.length)
-                    manager.recommendationOffset = count > 0 ? (manager.recommendationOffset + 2) % count : 0
-                    manager.recommendationsVisible = true
-                }
-            }
+
         }
 
         // Estadísticas de juego
@@ -1101,7 +1089,16 @@ Item {
             Column {
                 anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.width * 0.43; rightMargin: manager.s * 34; topMargin: manager.s * 54 }
                 spacing: manager.s * 12
-                Text { text: manager.storeDetailItem ? (storesView.names[manager.storeDetailItem.store] || "") : ""; color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                Row {
+                    spacing: manager.s * 9
+                    Image {
+                        width: manager.s * 32; height: width
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: manager.storeDetailItem ? manager.storeLogo(manager.storeDetailItem.store) : ""
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: manager.storeDetailItem ? (storesView.names[manager.storeDetailItem.store] || "") : ""; color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                }
                 Text { width: parent.width; text: manager.storeDetailItem ? manager.storeDetailItem.name : ""; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
                 Text { width: parent.width; text: manager.storeDetailItem ? ((manager.storeDetailItem.local && manager.storeDetailItem.local.platform) || "PC") + "  ·  " + (storesView.names[manager.storeDetailItem.store] || "") : ""; color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 15 }
                 Text { width: parent.width; text: manager.storeDetailItem && manager.storeDetailItem.store === "steam" ? qsTr("Se abrirá Steam para que confirmes la instalación.") : qsTr("El juego se instalará usando la cuenta conectada de esta tienda."); color: manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: manager.s * 14; wrapMode: Text.WordWrap }

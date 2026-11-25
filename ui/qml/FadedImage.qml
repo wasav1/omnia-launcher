@@ -12,6 +12,7 @@ Canvas {
     property real fadeBottom: 0
     property real cornerRadius: 0
     property real alignX: 0.5                      // 0 = recorta mostrando la izquierda, 1 = la derecha
+    property bool retainWhileLoading: false
     property bool ready: false                     // la imagen ya está cargada y dibujada
     readonly property url resolved: {
         const t = source.toString()
@@ -24,7 +25,7 @@ Canvas {
         source: cv.resolved
         visible: false
         asynchronous: true
-        onStatusChanged: if (status === Image.Ready) cv.requestPaint()
+        onStatusChanged: if (status === Image.Ready || (cv.retainWhileLoading && status === Image.Error)) cv.requestPaint()
     }
     onResolvedChanged: { ready = false; if (resolved.toString() !== "") loadImage(resolved); requestPaint() }
     Component.onCompleted: { if (resolved.toString() !== "") loadImage(resolved) }
@@ -36,6 +37,7 @@ Canvas {
     onFadeTopChanged: requestPaint()
     onFadeBottomChanged: requestPaint()
     onPaint: {
+        if (retainWhileLoading && resolved.toString() !== "" && !isImageLoaded(resolved) && probe.status !== Image.Error) return
         const ctx = getContext("2d")
         ctx.reset()
         ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
