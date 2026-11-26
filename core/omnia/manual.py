@@ -8,9 +8,9 @@ import re
 import shutil
 from pathlib import Path
 
-from . import templates
+from . import roms, templates
 
-KINDS = {"port": "Port recompilado", "emulator": "Emulador", "windows": "Juego de Windows", "native": "Juego nativo"}
+KINDS = {"port": "Port nativo", "emulator": "Emulador", "windows": "Juego de Windows", "native": "Juego nativo"}
 PLATFORMS = {"gopher64": "n64"}
 
 
@@ -27,7 +27,7 @@ def _inside(path: str, roots) -> bool:
     return any(real == str(r) or real.startswith(str(r).rstrip("/") + "/") for r in map(os.path.realpath, roots))
 
 
-def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dict:
+def add_game(store, data: dict, roots, gopher64=None, which=shutil.which, identity=None, catalog_slug="", art_title="") -> dict:
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 80:
         raise ManualError("Pon un nombre al juego (hasta 80 letras).")
@@ -77,10 +77,91 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which) -> dic
         if isinstance(data.get("backup_dir"), str) and data["backup_dir"]:
             port["backup_dir"] = data["backup_dir"]
         platform = str(data.get("platform", PLATFORMS.get(tpl, "pc")))
-        if platform not in {"pc", "sw1", "sw2", "n64"}:
+        if platform not in {"pc", "sw1", "sw2", *roms.SYSTEMS.keys()}:
             raise ManualError("Plataforma no válida.")
         entry = {"id": gid, "name": name, "sub": KINDS[kind], "platform": platform, "src": "Manual",
-                 "art": {"slug": gid, "sgdb": name}, "ports": [port]}
+                 "art": {"slug": gid, "sgdb": art_title or name}, "ports": [port]}
+        if identity:
+            entry["detectedIdentity"] = identity
+        if catalog_slug:
+            entry["catalogSlug"] = catalog_slug
+        store.set_games(games + [entry])
+    return entry
+
+
+def _rom_launch(system: str, emulator: str, path: str, roots) -> tuple[list, dict | None, str]:
+    """Comando de lanzamiento de una ROM con un emulador detectado: (argv, partidas, nombre del emulador)."""
+    try:
+        launch, emulator_name = roms.launch_command(system, emulator, path, roots)
+        saves = None
+        # Gopher64 needs Omnia's save/launch template, but a user may instead
+        # select a detected RetroArch core for N64. Keep the chosen emulator.
+        if system == "n64" and emulator in {"gopher64", "gopher64-flatpak"}:
+            gopher = templates.gopher64_install()
+            built = templates.build("gopher64", rom=path, gopher64=gopher)
+            launch, saves = built["launch"], built["saves"]
+            emulator_name = "Gopher64" if emulator == "gopher64" else "Gopher64 (Flatpak)"
+    except roms.RomScanError as exc:
+        raise ManualError(str(exc)) from exc
+    except templates.TemplateError as exc:
+        raise ManualError(str(exc)) from exc
+    return launch, saves, emulator_name
+
+
+def resolve_rom_launch(port: dict, roots, which=shutil.which) -> dict:
+    """Completa en el momento de jugar el emulador de una ROM importada sin él (o cuyo emulador desapareció).
+
+    Devuelve una copia del port con `launch`, `saves` y `name` listos. Prefiere el emulador guardado si sigue instalado.
+    """
+    rom = port.get("rom") if isinstance(port.get("rom"), dict) else None
+    if not rom:
+        return port
+    system, path = str(rom.get("system", "")), str(rom.get("path", ""))
+    choices = roms.available_emulators(system, which=which)
+    if not choices:
+        name = roms.SYSTEMS.get(system, {}).get("name", system)
+        raise ManualError(f"No hay ningún emulador de {name} instalado. Instala {roms.emulator_hint(system)} y vuelve a pulsar Jugar.")
+    ids = [item["id"] for item in choices]
+    chosen = rom.get("emulator") if rom.get("emulator") in ids else ids[0]
+    launch, saves, emulator_name = _rom_launch(system, chosen, path, roots)
+    resolved = {**port, "launch": launch, "name": emulator_name, "rom": {**rom, "emulator": chosen}}
+    if saves:
+        resolved["saves"] = saves
+    return resolved
+
+
+def add_rom_game(store, data: dict, roots) -> dict:
+    """Registra una ROM confirmada. El emulador es opcional: sin él se elige al jugar; nunca ejecuta comandos de la petición."""
+    name = str(data.get("name", "")).strip()
+    path = data.get("path")
+    system = data.get("system")
+    emulator = data.get("emulator") or ""
+    if not name or len(name) > 80 or not isinstance(path, str) or not isinstance(system, str) or not isinstance(emulator, str):
+        raise ManualError("Nombre, ROM, plataforma o emulador no válidos.")
+    candidate = roms.inspect_file(path, roots, include_emulators=False, system=system)
+    if not candidate or candidate["system"] != system:
+        raise ManualError("La ROM ya no es válida o cambió de plataforma.")
+    launch, saves, emulator_name = [], None, "Emulador por elegir"
+    if emulator:
+        launch, saves, emulator_name = _rom_launch(system, emulator, candidate["path"], roots)
+    with store.lock:
+        games = store.games()
+        base = "manual-" + slug(name)
+        gid, n = base, 2
+        while any(game.get("id") == gid for game in games):
+            gid, n = f"{base}-{n:d}", n + 1
+        port = {"id": gid + "-main", "name": emulator_name, "chips": ["ROM", candidate["systemName"]],
+                "launch": launch, "check": candidate["path"], "proc": candidate["path"],
+                "cwd": os.path.dirname(candidate["path"]),
+                "rom": {"path": candidate["path"], "system": system, "emulator": emulator,
+                        "internalId": candidate.get("internalId", ""), "internalIdType": candidate.get("internalIdType", "")}}
+        if saves:
+            port["saves"] = saves
+        entry = {"id": gid, "name": name, "variant": emulator_name, "sub": "ROM · " + candidate["systemName"],
+                 "platform": roms.platform_for(system, candidate.get("internalIdType", "")), "src": "ROM local", "art": {"slug": gid, "sgdb": name}, "ports": [port]}
+        catalog_slug = data.get("catalogSlug")
+        if isinstance(catalog_slug, str) and catalog_slug:
+            entry["catalogSlug"] = catalog_slug
         store.set_games(games + [entry])
     return entry
 

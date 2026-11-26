@@ -1,0 +1,17 @@
+{
+  "id": "omniaPanel",
+  "name": "Panel de Omnia",
+  "description": "Abre Omnia desde su logo en la barra de Dux. El panel muestra el mando conectado y su batería.",
+  "version": "3.0.0",
+  "author": "Omnia",
+  "icon": "apps",
+  "type": "widget",
+  "capabilities": [
+    "dankbar-widget"
+  ],
+  "permissions": [
+    "process"
+  ],
+  "requires_dms": ">=2.0.0",
+  "component": "./OmniaPanelWidget.qml"
+}

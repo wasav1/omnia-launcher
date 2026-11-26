@@ -16,21 +16,21 @@ FocusScope {
     function load() {
         api.importPreview(path, function (st, b) {
             if (st === 200) { plan = b; list.reset() }          // el cursor vuelve a «Importar» ahora que está activa
-            else note = b.error || ("error " + st)
+            else note = b.error || qsTr("Error %1").arg(st)
         })
     }
     readonly property var rows: [
-        { text: busy ? "Importando…" : (nNew > 0 ? "Importar " + nNew + (nNew === 1 ? " juego" : " juegos") : "No hay nada nuevo que importar"),
-          sub: nNew > 0 ? "Se añaden a tu biblioteca; no se toca nada más" : "", accent: nNew > 0, disabled: nNew === 0 || busy },
-        { text: "Cancelar" }]
+        { text: busy ? qsTr("Importando…") : (nNew > 0 ? qsTr("Importar %1 juegos").arg(nNew) : qsTr("No hay nada nuevo que importar")),
+          sub: nNew > 0 ? qsTr("Se añaden a tu biblioteca; no se toca nada más") : "", accent: nNew > 0, disabled: nNew === 0 || busy },
+        { text: qsTr("Cancelar") }]
 
     function run(i) {
         if (i === 1) { ip.finished(); return }
         busy = true
         api.importApply(path, function (st, b) {
             busy = false
-            if (st === 200) { note = "Importados: " + b.count; plan = null; ip.imported(b.count) }      // se vacía la lista antes de cerrar
-            else note = b.error || ("error " + st)
+            if (st === 200) { note = qsTr("Importados: %1").arg(b.count); plan = null; ip.imported(b.count) }      // se vacía la lista antes de cerrar
+            else note = b.error || qsTr("Error %1").arg(st)
         })
     }
     function mark(status) { return status === "new" ? "plus" : (status === "existing" ? "check" : "minus") }
@@ -58,14 +58,14 @@ FocusScope {
 
     Modal {
         anchors.fill: parent
-        title: "Importar mi biblioteca anterior"
+        title: qsTr("Importar mi biblioteca anterior")
         footer: "↑↓ elegir  ·  Enter/A aceptar  ·  LB/RB o RePág/AvPág: desplazar la lista  ·  Esc/B cancelar"
         onCloseRequested: ip.finished()
         Column {
             anchors.fill: parent
             spacing: 10
             Text { width: parent.width; wrapMode: Text.WordWrap; color: "#c9bf8a"; font.pixelSize: 16
-                   text: ip.plan ? ip.plan.summary.new + " nuevos  ·  " + ip.plan.summary.existing + " ya importados  ·  " + ip.plan.summary.skip + " omitidos" : "Leyendo la biblioteca…" }
+            text: ip.plan ? qsTr("%1 nuevos · %2 ya importados · %3 omitidos").arg(ip.plan.summary.new).arg(ip.plan.summary.existing).arg(ip.plan.summary.skip) : qsTr("Leyendo la biblioteca…") }
             Repeater { model: ip.plan ? ip.plan.warnings : []
                        Text { required property string modelData; width: parent.width; wrapMode: Text.WordWrap; text: "⚠ " + modelData; color: "#e6c27a"; font.pixelSize: 15 } }
             Text { visible: ip.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: ip.note; color: "#7fd69f"; font.pixelSize: 16 }

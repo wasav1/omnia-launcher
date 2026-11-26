@@ -45,9 +45,8 @@ def stage(root):
     for src, dest in [('packaging/distros/omnia-desktop-suite-install', 'usr/bin/omnia-desktop-suite-install'),
                       ('packaging/xdg/org.omnia.installer.desktop', 'usr/share/applications/org.omnia.installer.desktop'),
                       ('packaging/xdg/org.omnia.uninstall.desktop', 'usr/share/applications/org.omnia.uninstall.desktop'),
-                      ('assets/branding/omnia-icon-bluegray.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png'),
-                      ('assets/branding/omnia-uninstall-icon.png', 'usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png'),
-                      ('assets/branding/omnia-menu.svg', 'usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg')]:
+                      ('assets/branding/omnia-logo.svg', 'usr/share/icons/hicolor/scalable/apps/org.omnia.installer.svg'),
+                      ('assets/branding/omnia-uninstall-icon.svg', 'usr/share/icons/hicolor/scalable/apps/org.omnia.uninstall.svg')]:
         target=root/dest;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(REPO/src,target)
         target.chmod(0o755 if dest.startswith('usr/bin') else 0o644)
         if dest.endswith('org.omnia.uninstall.desktop'):
@@ -146,9 +145,8 @@ cp -a usr %{{buildroot}}/
 /usr/share/{NAME}
 /usr/share/applications/org.omnia.installer.desktop
 /usr/share/applications/org.omnia.uninstall.desktop
-/usr/share/icons/hicolor/512x512/apps/org.omnia.installer.png
-/usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png
-/usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg
+/usr/share/icons/hicolor/scalable/apps/org.omnia.installer.svg
+/usr/share/icons/hicolor/scalable/apps/org.omnia.uninstall.svg
 '''
     spec=top/'SPECS/omnia.spec';spec.write_text(text)
     subprocess.run([rpmbuild,'--define',f'_topdir {top}','--define',f'_tmppath {top}', '--define', f'_dbpath {top}/rpmdb','--define','_buildhost omnia-builder','--nodeps','-bb',str(spec)],check=True)

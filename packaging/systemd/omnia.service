@@ -5,18 +5,23 @@ After=graphical-session.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/omnia-core
+Environment=OMNIA_UI_LAUNCHER=/usr/bin/omnia-ui
 Restart=on-failure
 RestartSec=3
 # Los juegos van en scopes propios (systemd-run), no dependen de este servicio.
 NoNewPrivileges=true
 PrivateTmp=true
+# PrivateTmp oculta /tmp/.X11-unix: los juegos que usan X11/XWayland (p. ej. mkw-recomp) abrían sin ventana. Se expone solo ese socket.
+BindReadOnlyPaths=-/tmp/.X11-unix
 ProtectSystem=full
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK: los juegos lanzados por Omnia heredan este filtro y Wine/Proton lo necesita (p. ej. Minecraft Bedrock
+# con BedrockOnLinux se queda colgado al arrancar sin él).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=default.target

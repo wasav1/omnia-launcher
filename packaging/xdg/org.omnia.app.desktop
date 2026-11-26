@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Omnia Game Suite
+GenericName=Game library
+GenericName[es]=Biblioteca de juegos
+Comment=Manage your local game library and discover games in the Omnia catalog
+Comment[es]=Gestiona tu biblioteca local y descubre juegos en el catálogo de Omnia
+Exec=omnia-ui --manager
+Icon=org.omnia
+Terminal=false
+Categories=Game;Utility;
+StartupNotify=true
+StartupWMClass=org.omnia.app.qml6

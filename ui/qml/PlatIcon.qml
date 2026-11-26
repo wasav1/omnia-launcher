@@ -46,6 +46,14 @@ Canvas {
             var o = key === "sw2" ? 1 : 0
             rr(3 - o, 4 + o, 7 + o, 16 - 2 * o, 3); ctx.stroke()
             rr(14, 4 + o, 7 + o, 16 - 2 * o, 3); ctx.fill()
+        } else if (["nes", "snes", "gb", "gbc", "gba", "nds", "gcwii", "3ds", "switch", "ps1", "ps2", "psp"].indexOf(key) >= 0) {
+            ctx.lineCap = "round"; ctx.lineJoin = "round"
+            ctx.beginPath(); ctx.moveTo(7, 7); ctx.lineTo(17, 7); ctx.quadraticCurveTo(20, 7, 21, 11)
+            ctx.lineTo(22, 16); ctx.quadraticCurveTo(22, 19, 19, 19); ctx.lineTo(16, 16)
+            ctx.lineTo(8, 16); ctx.lineTo(5, 19); ctx.quadraticCurveTo(2, 19, 2, 16); ctx.lineTo(3, 11)
+            ctx.quadraticCurveTo(4, 7, 7, 7); ctx.stroke()
+            ctx.beginPath(); ctx.moveTo(6, 10); ctx.lineTo(6, 14); ctx.moveTo(4, 12); ctx.lineTo(8, 12); ctx.stroke()
+            ctx.beginPath(); ctx.arc(17, 11, 1, 0, 6.2832); ctx.fill(); ctx.beginPath(); ctx.arc(19, 14, 1, 0, 6.2832); ctx.fill()
         } else if (key === "steam") {
             ctx.beginPath(); ctx.arc(12, 12, 8.5, 0, 6.2832); ctx.stroke()
             ctx.beginPath(); ctx.arc(15, 9.5, 2.6, 0, 6.2832); ctx.fill()

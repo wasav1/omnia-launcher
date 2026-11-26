@@ -1,0 +1,50 @@
+# Omnia — guía de traspaso (para continuar con otra persona o IA)
+
+Actualizada: 2026-11-26. Léela entera, luego `AGENTS.md` (reglas) y la sección 5 de `docs/CONTEXTO.md` (estado). El historial detallado está al final de CONTEXTO.md.
+
+## 1. Cómo trabaja el dueño del proyecto
+- Idioma: español. Explicaciones cortas, sin jerga innecesaria.
+- Flujo: la IA implementa, prueba y **hace commits locales**; el usuario hace `git push`, ejecuta `sudo` y teclea las claves. Se le guía con **«Paso N»** y cada comando en su propio bloque ```bash.
+- Generar un instalador local único `.run` con revisión superior en cada entrega y dar el comando para actualizar desde el asistente. Commits, PR, merge y release de los cambios extras quedan pendientes de aprobación.
+- Al entregar cada ajuste, indicar qué app o superficie debe probarse (Desktop, Big Mode/BM o panel rápido) en cada fila de la tabla de pruebas funcionales.
+- Su shell es **fish** (no usar sintaxis bash en comandos que debe pegar: `set -x`, no `export`).
+- Pide aprobación antes de cambios grandes de diseño («espera mi aprobación»); le gustan los prototipos (3–5) para elegir.
+- Nunca pedir ni imprimir contraseñas o claves. `ADMIN_API_KEY` se carga con `omnia-admin` (secret-tool) en su terminal.
+- Descargas de terceros: pedir permiso. Capturas de pantalla: solo de ventanas propias (hyprctl + grim por región), nunca todo el escritorio.
+
+## 2. Arranque rápido
+```bash
+cd ~/Proyectos/omnia-launcher        # rama work/standalone-application
+PYTHONPATH=core python3 -m unittest discover -s tests   # 692 pruebas
+/usr/lib/qt6/bin/qmllint ui/qml/<archivo>.qml
+env OMNIA_PKGREL=N packaging/arch/build-local.sh         # → /tmp/omnia-pkg/*.pkg.tar.zst (4 paquetes)
+```
+Instalador único local 0.3.0-141: `/tmp/omnia-game-suite-141/Omnia-Game-Suite-0.3.0-x86_64.run`. El usuario ejecuta ese archivo desde Hyprland y autoriza la instalación con Polkit. Se genera con `packaging/suite/build-suite.py --packages <carpeta de makepkg> --output <salida>`. Las actualizaciones de Desktop, Big Mode y el popout de Dux consultan una sola publicación verificada de GitHub Releases. La prueba de actualización publicada queda para después del PR y el release.
+Backend (`~/Proyectos/omnia-backend`): `npx vitest run` (346), `python3 -m unittest discover -s tools/release-packages`, `npx wrangler deploy`, `npm run db:migrate`.
+
+## 3. Cómo verificar
+- **Servicio aislado** (no tocar el real): carpetas XDG propias, `PULSE_SERVER=unix:/run/user/1000/pulse/native`, `python3 -c "from omnia.service import main; main(['--port','47990'])"` con `PYTHONPATH=core`.
+- **QML fuera de pantalla**: `MANGOHUD=0 DISABLE_MANGOHUD=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QML_XHR_ALLOW_FILE_READ=1 QT_FORCE_STDERR_LOGGING=1 QT_LOGGING_RULES="qml=true" qml6 <Main.qml> -- --token <archivo> --port <N>`. Truco: carpeta temporal con enlaces `qml → ui/qml` y `assets → assets` del repo.
+- **Dux**: `dms restart` para plugins nuevos; `dms ipc call omniaPanel toggle`.
+- Trampas conocidas: `pkill -f` mata el propio comando (usar `ss -ltnp` y el PID); `MediaPlayer` en QML se cae con MangoHud global (usar `SoundEffect`); los `Repeater` necesitan delegados `Item` (usar `Instantiator` para objetos no visuales); QML `clip` no redondea imágenes (`ClippingRectangle` de Quickshell.Widgets).
+- Adaptabilidad actual: la app de escritorio mantiene el tamaño de controles al estrechar la ventana (mínimo 800×560), compacta la navegación bajo 1120 px y hace que los filtros de Explorar y colecciones de Biblioteca fluyan. El panel Hyprland se limita al área de trabajo visible. Pendiente revisar visualmente en varios tamaños; Big Mode es fullscreen y Dux reporta un popout de tamaño fijo (400×620).
+- Fase 2 de mando: Detalles usa X para el menú contextual y la ayuda lo muestra cuando hay acciones. La ayuda inferior de Ajustes dibuja los iconos de cruceta, A/B y LB/RB con la familia del mando conectado; falta probar Inicio, Biblioteca, Tienda, Detalles y Ajustes con mando físico.
+- Fase 3 inicial de rendimiento: arte de `ManagerPosterCard` se asigna solo cuando la tarjeta está en el viewport o a una tarjeta de distancia; el sondeo de instalaciones se ralentiza en reposo. Falta recorrer el catálogo grande, confirmar que no hay parpadeos y medir CPU/memoria antes/después.
+- Fase 4 de modularidad: cerrada. `ManagerHome.qml`, `ManagerExplore.qml`, `ManagerSettings.qml`, `ManagerCatalogDetails.qml`, `ManagerRomScanner.qml`, `ManagerGameDialogs.qml`, `ManagerAddFlows.qml`, `ManagerFolderDialogs.qml` y `ManagerBigModeWindow.qml` separan las responsabilidades de Desktop. En Big Mode, `OmniaBigHeader.qml`, `OmniaBigShelf.qml` y `OmniaLibraryHero.qml` separan encabezado, estantería y ficha; `OmniaLibrary` conserva coordinación y estado. El usuario validó los paquetes 0.3.0-133, 0.3.0-134 y 0.3.0-135 en BM. La regresión técnica dio 691/692; el único fallo es el conocido `test_desktop_surface` (`geometry-ok` ausente en Qt offscreen). `qmllint` global devolvió 0, con advertencias en QML ajeno a la extracción.
+
+## 4. Mapa de módulos clave
+- `core/omnia/service.py` arranque; `api.py` todas las rutas; `config`/`store` estado; `games/*` detectores; `package_installs.py` instalador; `online_catalog.py` catálogo y arte; `mangohud.py`; `audio_out.py`; `pad.py` (evdev, vibración); `sounds.py`.
+- `ui/qml/Api.qml` cliente único; `OmniaLibrary.qml` (Big Mode: estantería, intro, ajustes, sonidos); `OmniaManager.qml` (app de escritorio); `ui/omnia-ui` lanzador (desactiva MangoHud para la UI).
+- `integrations/dux/omnia-panel/` plugin de Dux; `integrations/hyprland/ii/` panel de Hyprland.
+- Backend: `src/` (Hono), `migrations/`, `seeds/`, `tools/release-packages/{build_packages,discover}.py + ports.json`, `tools/game-metadata/apply.py`.
+
+## 5. Pendientes por prioridad
+- Antes de la fase 5: el usuario validó 0.3.0-139. Probar 0.3.0-140 con el instalador único en Hyprland, detectar la versión instalada, mantener biblioteca y cuentas, abrir el paso opcional de tiendas y verificar Desktop, BM y Dux. Con la primera versión posterior publicada, validar la descarga compartida y el reinicio de las ventanas y del servicio. Después del visto bueno, preparar commits, PR, merge y release.
+1. **Acciones del usuario**: la regresión de modularidad está cerrada; el usuario validó 0.3.0-133/134/135 en BM. Quedan verificaciones generales de producto: Inicio y Explorar completos; Ajustes (General, Biblioteca, Big Mode, Cuentas de tiendas y Acerca de); fichas de catálogo/tienda e instalación de un port; escáner de ROMs; alta/importación; menús de gestión de juegos; imágenes y transferencias; y mando físico en Desktop, BM y panel rápido. También falta revisar Desktop en 800×560, 1024×768 y tamaño habitual, y Hyprland en monitores bajos/estrechos. Los flujos del servicio real, tiendas y publicación están enumerados en los puntos 2–5 y requieren intervención/cuentas del usuario.
+2. **Discord** (solo Big Mode): nivel A presencia HECHO (`core/omnia/discord.py`, pestaña Discord de los ajustes de BM; falta probarlo con el Application ID del usuario), nivel B voz (Client Secret tecleado por el usuario en su terminal). Discord Flatpak: socket `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-0` requiere un `flatpak override`.
+3. **Tiendas**: app de escritorio integra en Explorar el catálogo de Omnia y los juegos de Steam/Epic/GOG/Amazon en una cuadrícula unificada; cuentas y compras conservan sus flujos existentes. Carátulas de las tiendas se cachean localmente en `~/.cache/omnia/catalog-art`. Probar con cuentas reales donde quede pendiente (Steam y Amazon); Ubisoft/EA quedan para más adelante vía Lutris/Wine. Inicio de sesión por OAuth en el navegador; tokens en el llavero o archivo 0600; **Omnia nunca ve contraseñas**. La reorganización visual de escritorio aún requiere revisión gráfica.
+4. **19 mejoras acordadas** (en bloques pequeños). Big Mode: perfiles, mando como ratón/gestos, estadísticas, colecciones/etiquetas, capturas/grabación, modo nocturno/pantalla, tutorial de mando, suspender/apagar, salvapantallas, notificaciones propias. Escritorio: copias de partidas, gestor de ports, importar arrastrando, estadísticas/calendario, editor de colecciones, filtros de Explorar, salud del sistema, registros/diagnóstico, ajustes de sonido/bienvenida.
+5. AUR (cuando reabran registros; tarea programada `aur-registration-watch`, guía `docs/PUBLICAR-AUR.md`); clave `VT_API_KEY` de VirusTotal; ~150 fichas sin arte; más candidatos en `discovery.json`; prueba real de vibración/gatillos con mando; cambios sin commit en MangoHud-Gerudo (sus reglas: no commitear sin permiso).
+
+## 6. Mantener este contexto
+Con **cada cambio**: línea nueva arriba del «Registro de cambios» de `docs/CONTEXTO.md` (fecha, qué, por qué, pruebas) y, si cambia el estado, secciones 4–5 de ese archivo y los pendientes de aquí. `tools/check-context.sh` avisa si hay cambios de código sin tocar CONTEXTO.md; se activa con `git config core.hooksPath .githooks` (solo avisa, no bloquea).

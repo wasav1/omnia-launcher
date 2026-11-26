@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Omnia — Ajustes generales
-Comment=Bibliotecas, monitor y SteamGridDB
+Comment=Bibliotecas, monitor, idioma y apariencia
 Exec=omnia-settings
 Icon=org.omnia
 Terminal=false

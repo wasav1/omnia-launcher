@@ -1,13 +1,13 @@
 # Maintainer: wasav1
-# Paquete dividido: omnia-core (servicio/API) y omnia-kde (interfaz e integración nativa de Plasma).
+# Paquetes: núcleo compartido, aplicación independiente y complementos opcionales de Plasma.
 pkgbase=omnia-launcher
-pkgname=(omnia-core omnia-kde)
-pkgver=0.2.1
+pkgname=(omnia-core omnia-app omnia-hyprland omnia-kde)
+pkgver=0.3.0
 pkgrel=${OMNIA_PKGREL:-1}
 pkgdesc="Biblioteca de juegos unificada y escritorio de juegos para CachyOS y KDE Plasma"
 arch=('x86_64' 'aarch64')
 url="https://github.com/wasav1/omnia-launcher"
-license=('GPL-3.0-or-later')       # recomendada; decisión abierta, confirmar antes de publicar
+license=('GPL-3.0-or-later')       # coincide con el LICENSE del repositorio (GPLv3)
 makedepends=(gcc make cmake qt6-base qt6-declarative python-build python-installer python-setuptools python-wheel)
 source=("$pkgbase-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')                # sustituir con `updpkgsums` al publicar una versión
@@ -23,7 +23,7 @@ build() {
 
 package_omnia-core() {
   pkgdesc="Núcleo de Omnia: biblioteca de juegos, API local, arte y mando"
-  depends=(python systemd glib2 python-gobject libpulse mangohud pciutils) # gio, overlay y nombre del hardware
+  depends=(python systemd glib2 python-gobject libpulse mangohud pciutils)
   optdepends=('steam: juegos de Steam'
               'lutris: juegos de Lutris'
               'heroic-games-launcher-bin: juegos de Epic, GOG y Amazon'
@@ -34,17 +34,51 @@ package_omnia-core() {
   install -Dm644 packaging/systemd/omnia.service "$pkgdir/usr/lib/systemd/user/omnia.service"
 }
 
+package_omnia-app() {
+  pkgdesc="Aplicación independiente de biblioteca y gestión de juegos para Linux"
+  depends=(omnia-core qt6-base qt6-declarative qt6-5compat qt6-svg qt6-multimedia qt6-wayland qt6-webengine)
+  optdepends=('steam: detección de juegos de Steam'
+              'lutris: detección de juegos de Lutris'
+              'heroic-games-launcher-bin: detección de juegos de Heroic')
+  cd "$pkgbase-$pkgver"
+  DESTDIR="$pkgdir" cmake --install "$srcdir/omnia-session-build"
+  install -Dm755 ui/omnia-ui "$pkgdir/usr/bin/omnia-ui"
+  install -d "$pkgdir/usr/share/omnia/ui"
+  cp -r ui/qml "$pkgdir/usr/share/omnia/ui/"
+  install -d "$pkgdir/usr/share/omnia/ui/qml/fonts"
+  cp -r assets/fonts/. "$pkgdir/usr/share/omnia/ui/qml/fonts/"
+  install -Dm644 assets/branding/omnia-logo.svg "$pkgdir/usr/share/omnia/ui/assets/branding/omnia-logo.svg"
+  install -Dm644 packaging/xdg/org.omnia.app.desktop "$pkgdir/usr/share/applications/org.omnia.app.desktop"
+  install -Dm644 packaging/xdg/org.omnia.bigmode.desktop "$pkgdir/usr/share/applications/org.omnia.bigmode.desktop"
+  install -Dm644 assets/branding/omnia-icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/org.omnia.svg"
+  install -Dm644 assets/branding/omnia-bigmode-icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/org.omnia.bigmode.svg"
+}
+
+package_omnia-hyprland() {
+  pkgdesc="Integración opcional del panel de Omnia con illogical-impulse y Hyprland"
+  depends=(omnia-app)
+  optdepends=('quickshell: motor del shell de illogical-impulse'
+              'hyprland: compositor compatible con la integración del panel')
+  cd "$pkgbase-$pkgver"
+  install -d "$pkgdir/usr/share/omnia/hyprland/ii" "$pkgdir/usr/bin"
+  cp -r integrations/hyprland/ii/. "$pkgdir/usr/share/omnia/hyprland/ii/"
+  install -Dm755 integrations/hyprland/omnia-hyprland "$pkgdir/usr/share/omnia/hyprland/omnia-hyprland"
+  install -Dm644 integrations/hyprland/README.md "$pkgdir/usr/share/omnia/hyprland/README.md"
+  ln -s /usr/share/omnia/hyprland/omnia-hyprland "$pkgdir/usr/bin/omnia-hyprland"
+  install -d "$pkgdir/usr/share/omnia/dux"                 # integración con Dux (botón de barra con mando y batería, y el panel como pestaña del dashboard)
+  cp -r integrations/dux/omnia-panel "$pkgdir/usr/share/omnia/dux/"
+  install -Dm755 integrations/dux/install.sh "$pkgdir/usr/share/omnia/dux/install.sh"
+  install -Dm644 integrations/dux/README.md "$pkgdir/usr/share/omnia/dux/README.md"
+}
+
 package_omnia-kde() {
   pkgdesc="Integración de Omnia con KDE Plasma: Win+D, vigilante de ventanas y primer arranque"
-  depends=(omnia-core plasma-workspace kwin kdialog python-gobject qt6-declarative qt6-tools libksysguard)
+  depends=(omnia-app plasma-workspace kwin kdialog qt6-tools libksysguard)
   cd "$pkgbase-$pkgver"
   for s in omnia-showdesktop omnia-watch; do
     install -d "$pkgdir/usr/share/kwin/scripts/$s"
     cp -r "kwin/$s/." "$pkgdir/usr/share/kwin/scripts/$s/"
   done
-  DESTDIR="$pkgdir" cmake --install "$srcdir/omnia-session-build"
-  install -d "$pkgdir/usr/share/omnia/ui"
-  cp -r ui/qml "$pkgdir/usr/share/omnia/ui/"
   install -d "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher"
   cp -r plasma/wallpapers/org.omnia.launcher/. "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher/"
   install -d "$pkgdir/usr/share/plasma/plasmoids/org.omnia.desktop"
@@ -52,15 +86,13 @@ package_omnia-kde() {
   install -Dm755 "$srcdir/omnia-installer-build/omnia-installer" "$pkgdir/usr/share/omnia/installer/omnia-installer"
   install -Dm755 packaging/universal/omnia-uninstall "$pkgdir/usr/bin/omnia-uninstall"
   install -Dm644 packaging/xdg/org.omnia.uninstall.desktop "$pkgdir/usr/share/applications/org.omnia.uninstall.desktop"
-  install -Dm644 assets/branding/omnia-uninstall-icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/org.omnia.uninstall.png"
+  install -Dm644 assets/branding/omnia-uninstall-icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/org.omnia.uninstall.svg"
   install -Dm755 packaging/universal/omnia-settings "$pkgdir/usr/bin/omnia-settings"
   install -Dm644 packaging/universal/candidate_import.py "$pkgdir/usr/share/omnia/installer/packaging/universal/candidate_import.py"
   install -Dm644 packaging/universal/route_inspection.py "$pkgdir/usr/share/omnia/installer/packaging/universal/route_inspection.py"
   install -Dm644 packaging/universal/installer_backend.py "$pkgdir/usr/share/omnia/installer/packaging/universal/installer_backend.py"
   install -Dm644 packaging/xdg/org.omnia.settings.desktop "$pkgdir/usr/share/applications/org.omnia.settings.desktop"
-  install -Dm644 assets/branding/omnia-icon-bluegray.png "$pkgdir/usr/share/omnia/assets/branding/omnia-logo.png"
-  install -Dm644 assets/branding/omnia-icon-bluegray.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/org.omnia.png"
-  install -Dm644 assets/branding/omnia-menu.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/org.omnia.menu.svg"
+  install -Dm644 assets/branding/omnia-logo.svg "$pkgdir/usr/share/omnia/assets/branding/omnia-logo.svg"
   install -Dm644 packaging/universal/omnia-layout.js "$pkgdir/usr/share/omnia/omnia-layout.js"
   install -Dm644 packaging/xdg/omnia-first-run.desktop "$pkgdir/etc/xdg/autostart/omnia-first-run.desktop"
 }

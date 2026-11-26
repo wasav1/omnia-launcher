@@ -14,3 +14,4 @@ packaging/arch/out/
 packaging/distros/out/
 # Instalador universal generado localmente
 packaging/universal/out/
+tools/sound/out/

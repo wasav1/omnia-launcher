@@ -1,4 +1,4 @@
-name: Construir instaladores
+name: Construir Omnia Game Suite
 
 on:
   push:
@@ -10,117 +10,61 @@ permissions:
   contents: read
 
 concurrency:
-  group: installers-${{ github.ref }}
+  group: installer-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  packages:
+  suite-installer:
     runs-on: ubuntu-24.04
+    container: archlinux:base-devel
     steps:
+      - name: Preparar entorno de Arch
+        run: |
+          pacman -Syu --noconfirm --needed git python python-build python-installer python-setuptools python-wheel cmake qt6-base qt6-declarative qt6-tools qt6-wayland qt6-svg
+          useradd --create-home builder
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Instalar herramientas de empaquetado
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm zstd
-      - name: Comprobar la versión de la etiqueta
+      - name: Comprobar versión
         if: github.ref_type == 'tag'
         run: |
           python3 - <<'PY'
           import os
+          import re
           import tomllib
           from pathlib import Path
-
           version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
-          tag = os.environ["GITHUB_REF_NAME"]
-          if tag != f"v{version}":
-              raise SystemExit(f"La etiqueta {tag} no coincide con la versión {version}")
+          package = re.search(r"^pkgver=(.+)$", Path("packaging/arch/PKGBUILD").read_text(), re.MULTILINE)
+          if not package or package[1] != version or os.environ["GITHUB_REF_NAME"] != f"v{version}":
+              raise SystemExit("Las versiones de la etiqueta, pyproject y PKGBUILD no coinciden.")
           PY
-      - name: Generar DEB, Arch, RPM, asistente portable y fuentes
-        run: python3 packaging/distros/build.py --output dist
-      - name: Guardar paquetes
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages
-          path: dist/
-          if-no-files-found: error
-
-  appimage:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Instalar Qt y las herramientas de compilación
+      - name: Construir paquetes y el instalador único
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ qt6-base-dev qmake6 qt6-qpa-plugins qt6-wayland libqt6svg6 squashfs-tools
-      - name: Descargar herramientas de AppImage y comprobar sus hashes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir appimage-tools
-          download() {
-            local repo=$1 filename=$2
-            local url digest
-            IFS=$'\t' read -r url digest < <(
-              gh api "repos/AppImage/$repo/releases/tags/continuous" --jq \
-                ".assets[] | select(.name == \"$filename\") | [.browser_download_url, .digest] | @tsv"
-            )
-            [[ $url = https://github.com/AppImage/"$repo"/releases/download/* ]]
-            [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]
-            curl --fail --location --retry 3 "$url" -o "appimage-tools/$filename"
-            printf '%s  %s\n' "${digest#sha256:}" "appimage-tools/$filename" | sha256sum --check
-          }
-          download appimagetool appimagetool-x86_64.AppImage
-          download type2-runtime runtime-x86_64
-          chmod +x appimage-tools/appimagetool-x86_64.AppImage
-      - name: Generar AppImage x86-64
-        run: |
-          python3 packaging/distros/build_appimage.py \
-            --appimagetool appimage-tools/appimagetool-x86_64.AppImage \
-            --runtime appimage-tools/runtime-x86_64 \
-            --output dist
-      - name: Guardar AppImage y manifiesto
-        uses: actions/upload-artifact@v4
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- env HOME=/home/builder OMNIA_PKG_OUT=/tmp/omnia-pkgs packaging/arch/build-local.sh
+          runuser -u builder -- env HOME=/home/builder python3 packaging/suite/build-suite.py --packages /tmp/omnia-pkgs --output dist
+      - uses: actions/upload-artifact@v4
         with:
-          name: appimage
-          path: dist/
+          name: omnia-game-suite-installer
+          path: dist/Omnia-Game-Suite-*-x86_64.run
           if-no-files-found: error
 
   draft:
     if: github.ref_type == 'tag'
-    needs: [packages, appimage]
+    needs: suite-installer
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: '*'
+          name: omnia-game-suite-installer
           path: dist
-          merge-multiple: true
-      - name: Consolidar los checksums y el manifiesto
-        working-directory: dist
-        run: |
-          sha256sum -- *.deb *.pkg.tar.zst *.rpm *.run *.tar.gz *.AppImage > SHA256SUMS
-          sha256sum --check SHA256SUMS
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path("manifest.json")
-          manifest = json.loads(path.read_text())
-          manifest["artifacts"].extend(image.name for image in sorted(Path(".").glob("*.AppImage")))
-          manifest["tested_installation"] = []
-          manifest["target_distro_installation"] = "Artefactos generados. Consulta las notas para la validación en Plasma."
-          path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-          PY
-      - name: Crear borrador con los instaladores
+      - name: Crear borrador con un solo instalador
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --draft --verify-tag --generate-notes --title "Omnia ${GITHUB_REF_NAME#v}"
+          sha256sum dist/*.run
+          gh release create "$GITHUB_REF_NAME" dist/*.run --draft --verify-tag --generate-notes \
+            --title "Omnia Game Suite ${GITHUB_REF_NAME#v}"

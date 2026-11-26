@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from omnia import system
 
@@ -65,3 +66,81 @@ class SystemTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveMetrics(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        system._cpu_prev = None
+        system._gpu_cache = (0.0, (None, None))
+
+    def stat(self, user, idle):
+        (self.tmp / "stat").write_text(f"cpu  {user} 0 0 {idle} 0 0 0 0 0 0\ncpu0 1 1 1 1\n")
+
+    def test_cpu_percent_from_delta(self):
+        self.stat(100, 900)
+        self.assertIsNone(system.cpu_percent(str(self.tmp)))        # primera lectura
+        self.stat(200, 1000)                                        # +100 usuario, +100 libre → 50 %
+        self.assertEqual(system.cpu_percent(str(self.tmp)), 50.0)
+        self.assertIsNone(system.cpu_percent(str(self.tmp / "nada")))
+
+    def test_memory_used_is_total_minus_available(self):
+        (self.tmp / "meminfo").write_text("MemTotal: 1000 kB\nMemFree: 100 kB\nMemAvailable: 400 kB\n")
+        self.assertEqual(system.memory(str(self.tmp)), {"ram_total": 1024000, "ram_used": 614400})
+        self.assertEqual(system.memory(str(self.tmp / "nada")), {})
+
+    def test_gpu_prefers_sysfs_then_nvidia_smi_and_caches(self):
+        card = self.tmp / "class/drm/card0/device"
+        card.mkdir(parents=True)
+        (card / "gpu_busy_percent").write_text("37\n")
+        boom = mock.Mock(side_effect=AssertionError("no debe llamar a nvidia-smi"))
+        self.assertEqual(system.gpu_percent(str(self.tmp), run=boom, now=lambda: 10.0), 37.0)
+        (card / "gpu_busy_percent").write_text("90\n")
+        self.assertEqual(system.gpu_percent(str(self.tmp), run=boom, now=lambda: 10.5), 37.0)   # caché
+        shutil.rmtree(self.tmp / "class")
+        smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="64\n"))
+        self.assertEqual(system.gpu_percent(str(self.tmp), run=smi, now=lambda: 20.0), 64.0)
+
+    def hwmon(self, n, name, temps):
+        d = self.tmp / f"class/hwmon/hwmon{n}"
+        d.mkdir(parents=True)
+        (d / "name").write_text(name + "\n")
+        for i, (label, milli) in enumerate(temps, 1):
+            (d / f"temp{i}_input").write_text(f"{milli}\n")
+            if label:
+                (d / f"temp{i}_label").write_text(label + "\n")
+
+    def test_cpu_temperature_prefers_the_package_sensor(self):
+        self.hwmon(1, "acpitz", [(None, 30000)])
+        self.hwmon(2, "coretemp", [("Core 0", 75000), ("Package id 0", 76000), ("Core 1", 74000)])
+        self.assertEqual(system.cpu_temperature(str(self.tmp)), 76.0)
+
+    def test_cpu_temperature_amd_and_missing(self):
+        self.assertIsNone(system.cpu_temperature(str(self.tmp)))
+        self.hwmon(0, "k10temp", [("Tctl", 61500)])
+        self.assertEqual(system.cpu_temperature(str(self.tmp)), 61.5)
+
+    def test_gpu_temperature_from_nvidia_smi_and_amd_hwmon(self):
+        smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="33, 55\n"))
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=smi, now=lambda: 40.0), (33.0, 55.0))
+        card = self.tmp / "class/drm/card0/device"
+        card.mkdir(parents=True)
+        (card / "gpu_busy_percent").write_text("12\n")
+        self.hwmon(3, "amdgpu", [("edge", 48000)])
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=mock.Mock(side_effect=AssertionError), now=lambda: 50.0), (12.0, 48.0))
+
+    def test_nvidia_smi_decimals_are_accepted(self):
+        smi = mock.Mock(return_value=mock.Mock(returncode=0, stdout="28, 55.31\n"))
+        self.assertEqual(system.gpu_stats(str(self.tmp), run=smi, now=lambda: 60.0), (28.0, 55.31))
+
+    def test_live_includes_temperatures_when_available(self):
+        self.hwmon(2, "coretemp", [("Package id 0", 70000)])
+        live = system.live(str(self.tmp), str(self.tmp))
+        self.assertEqual(live.get("cpu_temp"), 70.0)
+
+    def test_gpu_unavailable_is_none(self):
+        self.assertIsNone(system.gpu_percent(str(self.tmp), run=mock.Mock(side_effect=FileNotFoundError), now=lambda: 30.0))
+
+    def test_live_omits_missing_values(self):
+        self.assertEqual(system.live(str(self.tmp), str(self.tmp)).get("cpu_pct"), None)

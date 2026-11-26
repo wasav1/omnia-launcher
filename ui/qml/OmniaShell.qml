@@ -89,14 +89,14 @@ Rectangle {
     readonly property real scaleFactor: sectionMode === "full" ? Math.min(width / 1920, height / 1080)
                                                               : Math.min(width / sectionViewport.width, height / sectionViewport.height)
     readonly property var filterOptions: {
-        const out = [{ key: "all", label: "Todos" }]
+        const out = [{ key: "all", label: qsTr("Todos") }]
         let fav = false, hidden = false
         for (let i = 0; i < api.games.length; i++) {
             const g = api.games[i]
             if (g.fav) fav = true
             if (g.hidden) hidden = true
         }
-        if (fav) out.push({ key: "fav", label: "Favoritos" })
+        if (fav) out.push({ key: "fav", label: qsTr("Favoritos") })
         const seen = {}
         const platforms = []
         for (let i = 0; i < api.games.length; i++) {
@@ -108,7 +108,7 @@ Rectangle {
         const order = { pc: 0, ps5: 1, sw2: 2, ps4: 3, sw1: 4, ps3: 5, n64: 6 }
         platforms.sort(function(a, b) { return (order[a.key] === undefined ? 9 : order[a.key]) - (order[b.key] === undefined ? 9 : order[b.key]) })
         out.push.apply(out, platforms)
-        if (hidden) out.push({ key: "hidden", label: "Ocultos" })
+        if (hidden) out.push({ key: "hidden", label: qsTr("Ocultos") })
         return out
     }
     readonly property var visibleGames: filteredAndSorted()
@@ -130,26 +130,29 @@ Rectangle {
     readonly property var contextItems: {
         if (!current) return []
         const items = [
-            { label: "Jugar", icon: "play" },
-            { label: "Respaldar partidas", icon: "download" },
-            { label: "Abrir carpeta", icon: "folder-open" },
-            { label: "Elegir arte (SteamGridDB)…", icon: "image-plus" },
-            { label: current.fav ? "Quitar de favoritos" : "Añadir a favoritos", icon: "star" },
-            { label: current.hidden ? "Mostrar juego" : "Ocultar juego", icon: current.hidden ? "eye" : "eye-off" }
+            { label: qsTr("Jugar"), icon: "play" },
+            { label: qsTr("Respaldar partidas"), icon: "download" },
+            { label: qsTr("Abrir carpeta"), icon: "folder-open" },
+            { label: qsTr("Elegir arte del catálogo Omnia…"), icon: "image-plus" },
+            { label: current.fav ? qsTr("Quitar de favoritos") : qsTr("Añadir a favoritos"), icon: "star" },
+            { label: current.hidden ? qsTr("Mostrar juego") : qsTr("Ocultar juego"), icon: current.hidden ? "eye" : "eye-off" }
         ]
-        items.push({ label: "Desvincular de Omnia…", icon: "trash-2" })
-        if (searchText !== "") items.push({ label: "Borrar filtro de búsqueda", icon: "x" })
+        items.push({ label: qsTr("Desvincular de Omnia…"), icon: "trash-2" })
+        if (searchText !== "") items.push({ label: qsTr("Borrar filtro de búsqueda"), icon: "x" })
         return items
     }
 
     function norm(s) { return (s || "").toString().toLocaleLowerCase() }
     function platformLabel(g) {
         const p = norm(g.platform || "")
-        if (p === "n64") return "N64"
-        if (p === "sw1") return "Switch"
-        if (p === "sw2") return "Switch 2"
+        const names = {n64: qsTr("Nintendo 64"), nes: qsTr("Nintendo Entertainment System"), snes: qsTr("Super Nintendo"),
+            gb: qsTr("Game Boy"), gbc: qsTr("Game Boy Color"), gba: qsTr("Game Boy Advance"), nds: qsTr("Nintendo DS"),
+            gcwii: qsTr("GameCube / Wii"), "3ds": qsTr("Nintendo 3DS"), switch: qsTr("Nintendo Switch"),
+            ps1: qsTr("PlayStation"), ps2: qsTr("PlayStation 2"), psp: qsTr("PlayStation Portable"),
+            sw1: qsTr("Nintendo Switch"), sw2: qsTr("Nintendo Switch 2")}
+        if (names[p]) return names[p]
         if (p === "pc") return "PC"
-        return g.platform || g.src || "Juegos"
+        return g.platform || g.src || qsTr("Juegos")
     }
     function platformColor(key) {
         const k = norm(key)
@@ -341,19 +344,22 @@ Rectangle {
             const game = shell.current
             api.savesInfo(game, function(st, body) {
                 if (!shell.current || shell.current.id !== gid || !shell.selectedPort || shell.selectedPort.id !== pid) return
-                shell.saveInfo = st === 200 ? body : { slots: [], error: body.error || "No se pudieron consultar las partidas (" + st + ")" }
+                shell.saveInfo = st === 200 ? body : { slots: [], error: body.error || qsTr("No se pudieron consultar las partidas (%1)").arg(st) }
             }, pid)
         })
     }
-    function launchCurrent() { if (current && selectedPort) api.launch(current, selectedPort.id) }
+    function launchCurrent() {
+        if (current && current.portAvailable) { api.notify(qsTr("Este juego necesita instalar su port: ábrelo en Big Mode o en la app de escritorio.")); return }
+        if (current && selectedPort) api.launch(current, selectedPort.id)
+    }
     function backupCurrent() {
         if (!current || !selectedPort) return
         api.savesBackup(current, function(st,b) {
-            api.notify(st === 200 ? "Respaldo creado" : (b.error || "No se pudo respaldar"))
+            api.notify(st === 200 ? qsTr("Respaldo creado") : (b.error || qsTr("No se pudo respaldar")))
             saveFor = ""; loadSaves(); api.refresh()
         }, selectedPort.id)
     }
-    function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.notify(b.error || "No se pudo abrir la carpeta") }, selectedPort.id) }
+    function openSaveFolder() { if (current && selectedPort) api.savesOpen(current, function(st,b) { if (st !== 200) api.notify(b.error || qsTr("No se pudo abrir la carpeta")) }, selectedPort.id) }
     function openArt() {
         if (!current) return
         artOpen = true; artKind = "portada"; artSgid = 0; artPage = 0; artIndex = 0; artPending = ({}); artApplying = false
@@ -370,7 +376,7 @@ Rectangle {
             if (request !== shell.artRequestSerial) return
             shell.artBusy = false
             if (!shell.current || shell.current.id !== gid || !shell.artOpen || shell.artKind !== kind) return
-            if (st !== 200) { shell.artError = body.error || "No se pudo consultar SteamGridDB"; if (page === 0) shell.artItems = []; return }
+            if (st !== 200) { shell.artError = body.error || qsTr("No se pudo consultar el catálogo de Omnia"); if (page === 0) shell.artItems = []; return }
             shell.artGames = body.games || []; shell.artSgid = body.sgid || 0; shell.artMore = body.more === true; shell.artPage = page
             shell.artItems = page === 0 ? (body.items || []) : shell.artItems.concat(body.items || [])
             if (page === 0) shell.artIndex = 0
@@ -404,7 +410,7 @@ Rectangle {
         api.artPick(game, kind, chosen.page, chosen.sgid, chosen.index, function(status, body) {
             if (status !== 200) {
                 artApplying = false; api.refresh()
-                api.notify("No se pudo terminar; el arte aplicado hasta ahora se conservó. " + (body.error || "Inténtalo de nuevo."))
+                api.notify(qsTr("No se pudo terminar; el arte aplicado hasta ahora se conservó. %1").arg(body.error || qsTr("Inténtalo de nuevo.")))
                 return
             }
             applyArtKinds(kinds, at + 1, game)
@@ -446,24 +452,24 @@ Rectangle {
         chooseFilter(filterOptions[(Math.max(0,i) + delta + n) % n].key)
     }
     function relativeTime(ts) {
-        if (!ts) return "nunca"
-        const d = new Date(ts * 1000), now = new Date(nowSecs * 1000), fmt = Qt.locale("es_MX")
+        if (!ts) return qsTr("Nunca")
+        const d = new Date(ts * 1000), now = new Date(nowSecs * 1000), fmt = Qt.locale(api.language === "en" ? "en_US" : "es_CO")
         const hm = (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        if (d.getTime() >= start) return "hoy, " + hm
-        if (d.getTime() >= start - 86400000) return "ayer, " + hm
-        return d.getDate() + " " + ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][d.getMonth()]
+        if (d.getTime() >= start) return qsTr("Hoy") + ", " + hm
+        if (d.getTime() >= start - 86400000) return qsTr("Ayer") + ", " + hm
+        return d.toLocaleDateString(fmt, "d MMM")
     }
     function duration(s) {
         const m = Math.floor((s || 0) / 60), h = Math.floor(m / 60)
-        return h ? h + " h " + (m % 60) + " min" : Math.max(1,m) + " min"
+        return h ? qsTr("%1 hr %2 min").arg(h).arg(m % 60) : qsTr("%1 min").arg(Math.max(1,m))
     }
     function thermalColor(celsius) {
         if (celsius >= 85) return "#e7837d"
         if (celsius >= 70) return "#e6b866"
         return canvas.ink2
     }
-    function clockDate(d) { return d.toLocaleDateString(Qt.locale("es_MX"), "dddd d 'de' MMMM").toUpperCase() }
+    function clockDate(d) { return d.toLocaleDateString(Qt.locale(api.language === "en" ? "en_US" : "es_CO"), api.language === "en" ? "dddd, MMMM d" : "dddd d 'de' MMMM").toUpperCase() }
     function restoreControllerFocus() { if (controllerOwner) shell.forceActiveFocus() }
 
     Api { id: api; controlsEnabled: shell.controllerOwner; systemEnabled: shell.sectionMode === "system" || shell.sectionMode === "full" }
@@ -677,7 +683,7 @@ Rectangle {
     // ---- salida de audio: lista de dispositivos; A elige, B cierra
     function audShow() {
         api.loadAudioOutputs(function(items, err) {
-            if (!items.length) { api.notify(err || "No se pudieron leer los dispositivos de audio"); return }
+            if (!items.length) { api.notify(err || qsTr("No se pudieron leer los dispositivos de audio")); return }
             audItems = items
             audIdx = Math.max(0, items.findIndex(function(x) { return x.current }))
             audOpen = true
@@ -687,7 +693,7 @@ Rectangle {
         const it = audItems[i]
         audOpen = false
         if (!it) return
-        api.setAudioOutput(it, function(ok) { api.notify(ok ? "Audio: " + it.label : "No se pudo cambiar la salida de audio") })
+        api.setAudioOutput(it, function(ok) { api.notify(ok ? qsTr("Audio: %1").arg(it.label) : qsTr("No se pudo cambiar la salida de audio")) })
     }
     function audKey(k) {
         const n = audItems.length
@@ -739,7 +745,7 @@ Rectangle {
     }
     function openSettings() {
         api.call("POST", "/settings/open", function(status, body) {
-            if (status !== 200) api.notify(body.error || "No se pudieron abrir los ajustes de Omnia")
+            if (status !== 200) api.notify(body.error || qsTr("No se pudieron abrir los ajustes de Omnia"))
         })
     }
     function activateHead(i) {
@@ -865,7 +871,7 @@ Rectangle {
                 Rectangle { visible: shell.focusZone === "head" && shell.focusIndex === shell.filterOptions.length + 2; anchors.fill: parent; anchors.margins: -4; radius: height / 2; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: settingsMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.openSettings() }
                 ToolTip.visible: settingsMouse.containsMouse
-                ToolTip.text: "Ajustes generales de Omnia"
+                ToolTip.text: qsTr("Ajustes generales de Omnia")
             }
             Rectangle { id: audBtn; visible: api.padOn; width: 34; height: 34; radius: 17; color: shell.audOpen ? canvas.acc : aum.containsMouse ? "#33ffffff" : "#59000000"; border.width: shell.audOpen ? 0 : 1; border.color: "#47f3efe3"
                 LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "speaker"; color: shell.audOpen ? canvas.brandInk : "#f3efe3" }
@@ -879,7 +885,7 @@ Rectangle {
             visible: api.padOn && shell.sectionMode === "full"
             padName: api.padName; iconSize: 17; fontPx: 12; spacing: 7
             textColor: canvas.ink2; fontFamily: canvas.hud
-            hints: [{k:"↑",t:"Jugar"},{k:"A",t:"Seleccionar"},{k:"B",t:"Volver"}]
+            hints: [{k:"↑",t:qsTr("Jugar")},{k:"A",t:qsTr("Seleccionar")},{k:"B",t:qsTr("Volver")}]
         }
         Rectangle {
             id: searchBox; x: 84; y: 54; width: searchBtn.x - 10; height: 34; radius: 17; z: 5; clip: true
@@ -892,7 +898,7 @@ Rectangle {
                 Keys.onReturnPressed: shell.restoreControllerFocus()
                 Keys.onEnterPressed: shell.restoreControllerFocus()
             }
-            Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: "Buscar juego…"; color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
+            Text { visible: !searchField.text; x: 17; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Buscar juego…"); color: "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 17 }
             Text { anchors.right: parent.right; anchors.rightMargin: 45; anchors.verticalCenter: parent.verticalCenter; text: shell.searchText ? shell.visibleGames.length + (shell.visibleGames.length === 1 ? " juego" : " juegos") : ""; color: "#c9f3efe3"; font.family: canvas.hud; font.pixelSize: 14 }
             LucideIcon { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; name: "x"; color: canvas.ink; visible: shell.searchText !== ""
                 MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; anchors.margins: -8; onClicked: shell.searchText = "" }
@@ -943,7 +949,7 @@ Rectangle {
                 id: playButton; height: 48; radius: 24; width: playText.implicitWidth + 52; color: playMouse.containsMouse ? canvas.brandHover : canvas.brandLight
                 Row { id: playText; anchors.centerIn: parent; spacing: 10
                     LucideIcon { name: "play"; width: 18; height: 18; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: "Jugar"; color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: qsTr("Jugar"); color: playButton.color.hslLightness > 0.55 ? "#10150f" : "#f3f6fa"; font.family: canvas.body; font.pixelSize: 21; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Rectangle { visible: shell.focusZone === "hero"; anchors.fill: parent; anchors.margins: -5; radius: 29; color: "transparent"; border.width: 3; border.color: canvas.acc }
                 MouseArea { id: playMouse; cursorShape: Qt.PointingHandCursor; anchors.fill: parent; hoverEnabled: true; onClicked: shell.requestPlay() }
@@ -965,13 +971,13 @@ Rectangle {
         Rectangle { x: 84; y: 112; height: 36; width: padLabel.implicitWidth + 48; radius: 18; color: "#59000000"; border.width: 1; border.color: api.padOn ? "#80e6d9a0" : "#33f3efe3"
             Row { id: padLabel; anchors.centerIn: parent; spacing: 8
                 LucideIcon { width: 20; height: 20; name: "gamepad-2"; color: api.padOn ? canvas.acc : "#80f3efe3"; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: api.padOn ? (api.padName || "Mando conectado") : "Sin mando"; color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: api.padOn ? (api.padName || qsTr("Mando conectado")) : qsTr("Sin mando"); color: api.padOn ? canvas.ink : "#80f3efe3"; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1; anchors.verticalCenter: parent.verticalCenter }
             }
         }
         Item { id: mid; x:760; y:236; width:640; height:260; property var g: shell.selectedPort; visible:shell.sectionMode !== "full"; opacity: api.gameRunning ? .12:1
             Column { width: parent.width; spacing: 0
                 Row { width: parent.width; spacing: 14; height: 22
-                    Text { id: saveHead; text: "PARTIDAS · " + (saveInfo && saveInfo.slots.length ? saveInfo.slots.length + " RANURAS" : "NINGUNA"); color: canvas.acc; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 3.2 }
+                    Text { id: saveHead; text: qsTr("PARTIDAS") + " · " + (saveInfo && saveInfo.slots.length ? qsTr("%1 RANURAS").arg(saveInfo.slots.length) : qsTr("NINGUNA")); color: canvas.acc; font.family: canvas.hud; font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 3.2 }
                     Rectangle { width: parent.width-saveHead.implicitWidth-14; height:1; color:"#47f3efe3"; anchors.verticalCenter:parent.verticalCenter }
                 }
                 Item { width:1; height:8 }
@@ -984,29 +990,29 @@ Rectangle {
                                     Rectangle { width:13; height:13; radius:7; color:modelData.used ? canvas.acc : "transparent"; border.width:2; border.color:modelData.used?canvas.ink:canvas.ink3 }
                                     Item { width:1;height:4 }
                                     Text { text:modelData.name; color:modelData.used?canvas.ink:canvas.ink3; font.family:canvas.hud; font.pixelSize:17; font.weight:Font.DemiBold }
-                                    Text { text:modelData.used ? shell.relativeTime(modelData.mtime) : "vacía"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:14 }
+                                    Text { text:modelData.used ? shell.relativeTime(modelData.mtime) : qsTr("vacía"); color:canvas.ink2; font.family:canvas.body; font.pixelSize:14 }
                                 }
                             }
                         }
                     }
-                    Text { visible: !saveInfo || !saveInfo.slots.length; width:560; wrapMode:Text.WordWrap; text:saveInfo ? (saveInfo.error || "Aún no hay partidas. Aparecerán aquí cuando juegues.") : "Consultando partidas…"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:19 }
+                    Text { visible: !saveInfo || !saveInfo.slots.length; width:560; wrapMode:Text.WordWrap; text:saveInfo ? (saveInfo.error || qsTr("Aún no hay partidas. Aparecerán aquí cuando juegues.")) : qsTr("Consultando partidas…"); color:canvas.ink2; font.family:canvas.body; font.pixelSize:19 }
                 }
                 Row { spacing:10; height:30
                     LucideIcon { name:"menu"; color:canvas.ink3; width:18; height:18; opacity:0.7; anchors.verticalCenter:parent.verticalCenter }
-                    Text { text:"Más opciones: clic derecho · botón Select del mando"; color:canvas.ink3; font.family:canvas.body; font.pixelSize:16; anchors.verticalCenter:parent.verticalCenter }
+                    Text { text:qsTr("Más opciones: clic derecho · botón Select del mando"); color:canvas.ink3; font.family:canvas.body; font.pixelSize:16; anchors.verticalCenter:parent.verticalCenter }
                 }
                 Item { width:1;height:14 }
                 Row { width:parent.width; spacing:14; height:22
-                    Text { id: infoHead; text:"FICHA"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:16; font.weight:Font.DemiBold; font.letterSpacing:3.2 }
+                    Text { id: infoHead; text:qsTr("FICHA"); color:canvas.acc; font.family:canvas.hud; font.pixelSize:16; font.weight:Font.DemiBold; font.letterSpacing:3.2 }
                     Rectangle { width:parent.width-infoHead.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
                 }
                 Item { width:1;height:10 }
                 Row { width:parent.width
                     Repeater { model: current ? [
-                        {v: current.plays ? shell.relativeTime(current.lastPlayed) : "nunca", l:"ÚLTIMA SESIÓN", w:150},
-                        {v:"—", l:"EN DISCO", w:120},
-                        {v:"por defecto", l:"AJUSTES", w:220},
-                        {v: shell.relativeTime(current.lastBackup), l:"ÚLTIMO RESPALDO", w:150}
+                        {v: current.plays ? shell.relativeTime(current.lastPlayed) : qsTr("Nunca"), l:qsTr("ÚLTIMA SESIÓN"), w:150},
+                        {v:"—", l:qsTr("EN DISCO"), w:120},
+                        {v:qsTr("por defecto"), l:qsTr("AJUSTES"), w:220},
+                        {v: shell.relativeTime(current.lastBackup), l:qsTr("ÚLTIMO RESPALDO"), w:150}
                     ] : []
                         delegate: Column { required property var modelData; width:modelData.w; spacing:3
                             Text { width:parent.width-10;text:modelData.v;color:canvas.ink;font.family:canvas.hud;font.pixelSize:22;font.weight:Font.DemiBold;elide:Text.ElideRight }
@@ -1103,7 +1109,7 @@ Rectangle {
                 id: hudContent
                 x: 16; y: 20; width: parent.width - 32; spacing: 0
                 Row { width:parent.width;spacing:14;height:24
-                    Text { id:hudTitle;text:"SISTEMA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
+                    Text { id:hudTitle;text:qsTr("SISTEMA");color:canvas.brand;font.family:canvas.hud;font.pixelSize:16;font.weight:Font.DemiBold;font.letterSpacing:3.2 }
                     Rectangle { width:parent.width-hudTitle.implicitWidth-14;height:1;color:"#47f3efe3";anchors.verticalCenter:parent.verticalCenter }
                 }
                 HudRow { width:parent.width; label:"CPU";sub:api.system.cpu&&api.system.cpu.model?api.system.cpu.model:"";pct:sensors.item?sensors.item.cpu:0;vtext:Math.round(sensors.item?sensors.item.cpu:0)+" %";extra:(sensors.item?Math.round(sensors.item.cpuTemp)+" °C":"—")+(api.system.cpu&&api.system.cpu.ghz?"  "+api.system.cpu.ghz.toFixed(1)+" GHz":"");extraColor:sensors.item?shell.thermalColor(sensors.item.cpuTemp):canvas.ink2;acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
@@ -1112,10 +1118,10 @@ Rectangle {
                 Repeater { model:api.system.disks&&api.system.disks.length?api.system.disks:(api.system.disk?[api.system.disk]:[])
                     HudRow { width:parent.width; required property var modelData;label:modelData.label||"DISCO";sub:modelData.fs||(!modelData.available?"no conectado":"");pct:modelData.total?modelData.used/modelData.total*100:0;vtext:modelData.total?Math.round(modelData.used/1073741824)+"":"—";extra:modelData.total?"/ "+Math.round(modelData.total/1073741824)+" GB":"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 }
-                HudRow { width:parent.width; visible:!!api.system.bat;height:visible?42:0;charge:true;label:"BATERÍA";sub:api.system.ac?"enchufado":"con batería";pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
+                HudRow { width:parent.width; visible:!!api.system.bat;height:visible?42:0;charge:true;label:qsTr("BATERÍA");sub:api.system.ac?qsTr("enchufado"):qsTr("con batería");pct:api.system.bat?api.system.bat.pct:0;vtext:api.system.bat?api.system.bat.pct+" %":"—";extra:"";acc:canvas.acc;ink:canvas.ink;ink2:canvas.ink2;ink3:canvas.ink3 }
                 Item { width:parent.width; height:34
                     Row { anchors.verticalCenter:parent.verticalCenter; spacing:6
-                        Text { text:"PERFIL"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:12; font.letterSpacing:1 }
+                        Text { text:qsTr("PERFIL"); color:canvas.ink3; font.family:canvas.hud; font.pixelSize:12; font.letterSpacing:1 }
                         Text { text:api.system.profile||"No disponible"; color:canvas.ink2; font.family:canvas.hud; font.pixelSize:14; elide:Text.ElideRight; width:92 }
                         Rectangle { width:1; height:18; color:"#477d8da2"; anchors.verticalCenter:parent.verticalCenter }
                         Text { text:"RPM"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:12; font.letterSpacing:1 }
@@ -1180,11 +1186,11 @@ Rectangle {
                                         return badges
                                     }
                                     lastSessionText: {
-                                        if (!slot.entry.plays) return "Sin sesiones"
+                                        if (!slot.entry.plays) return qsTr("Sin sesiones")
                                         const value=shell.relativeTime(slot.entry.lastPlayed)
                                         return value.charAt(0).toUpperCase()+value.slice(1)
                                     }
-                                    playtimeText:slot.entry.totalSecs > 0 ? shell.duration(slot.entry.totalSecs) : "Sin tiempo"
+                                    playtimeText:slot.entry.totalSecs > 0 ? shell.duration(slot.entry.totalSecs) : qsTr("Sin tiempo")
                                     savesCount:slot.selected && shell.saveInfo && shell.saveInfo.slots ? shell.saveInfo.slots.length : 0
                                     saveSlots: {
                                         if (!slot.selected || !shell.saveInfo || !shell.saveInfo.slots) return []
@@ -1194,16 +1200,16 @@ Rectangle {
                                     }
                                     latestSaveText: {
                                         if (!slot.selected) return ""
-                                        if (!shell.saveInfo) return "Buscando la ranura reciente…"
-                                        if (!shell.saveInfo.slots || !shell.saveInfo.slots.length) return shell.saveInfo.configured ? "Aún no hay partidas guardadas" : "Partidas sin configurar"
+                                        if (!shell.saveInfo) return qsTr("Buscando la ranura reciente…")
+                                        if (!shell.saveInfo.slots || !shell.saveInfo.slots.length) return shell.saveInfo.configured ? qsTr("Aún no hay partidas guardadas") : qsTr("Partidas sin configurar")
                                         const slots=shell.saveInfo.slots.slice().sort(function(a,b){return (b.mtime||0)-(a.mtime||0)})
-                                        const when=slots[0].used?shell.relativeTime(slots[0].mtime):"vacía"
-                                        return (slots[0].name||"Partida") + " · " + when.charAt(0).toUpperCase()+when.slice(1)
+                                        const when=slots[0].used?shell.relativeTime(slots[0].mtime):qsTr("vacía")
+                                        return (slots[0].name||qsTr("Partida")) + " · " + when.charAt(0).toUpperCase()+when.slice(1)
                                     }
                                     backupText: {
-                                        if (!slot.selected || !shell.saveInfo) return "Sin respaldo"
+                                        if (!slot.selected || !shell.saveInfo) return qsTr("Sin respaldo")
                                         const backup=shell.saveInfo.lastBackup||slot.entry.lastBackup||(shell.saveInfo.backups&&shell.saveInfo.backups.length?shell.saveInfo.backups[0].mtime:0)||0
-                                        return backup>0 ? "Respaldo · " + shell.relativeTime(backup) : "Sin respaldo"
+                                        return backup>0 ? qsTr("Respaldo · %1").arg(shell.relativeTime(backup)) : qsTr("Sin respaldo")
                                     }
                                     launchFocused:slot.selected && shell.focusZone === "hero"
                                     onPortStepRequested: function(delta) { if(slot.selected) shell.stepPort(delta) }
@@ -1243,7 +1249,7 @@ Rectangle {
                 scale:shell.audOpen?1:0.94; transformOrigin:Item.TopRight
                 Behavior on scale { NumberAnimation { duration:160; easing.type:Easing.OutCubic } }
                 MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons }
-                Text { x:24; y:16; text:"SALIDA DE AUDIO"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:15; font.letterSpacing:3; font.weight:Font.DemiBold }
+                Text { x:24; y:16; text:qsTr("SALIDA DE AUDIO"); color:canvas.acc; font.family:canvas.hud; font.pixelSize:15; font.letterSpacing:3; font.weight:Font.DemiBold }
                 Column { x:12; y:50; width:parent.width-24
                     Repeater { model:shell.audItems
                         delegate: Rectangle { id:ait; required property var modelData; required property int index
@@ -1287,7 +1293,7 @@ Rectangle {
                             } }
                     } }
                 Row { anchors.horizontalCenter:parent.horizontalCenter; spacing:28
-                    Repeater { model:[["A","Escribir"],["B","Borrar"],["X","Mayús"],["Y","Espacio"]]
+                    Repeater { model:[["A","Escribir"],["B","Borrar"],["X",qsTr("Mayús")],["Y","Espacio"]]
                         delegate: Row { required property var modelData; spacing:8
                             Rectangle { width:32; height:32; radius:16; color:"transparent"; border.width:1; border.color:"#8091a9c2"
                                 Text { anchors.centerIn:parent; text:parent.parent.modelData[0]; color:canvas.brand; font.family:canvas.hud; font.bold:true; font.pixelSize:14 } }
@@ -1303,14 +1309,14 @@ Rectangle {
             Rectangle { anchors.fill:parent; color:"#d9050806" }
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; hoverEnabled:true }
             Column { anchors.centerIn:parent; spacing:14; width:900
-                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"EN EJECUCIÓN"; color:canvas.acc; font.family:canvas.hud; font.pixelSize:22; font.weight:Font.DemiBold; font.letterSpacing:5 }
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:qsTr("EN EJECUCIÓN"); color:canvas.acc; font.family:canvas.hud; font.pixelSize:22; font.weight:Font.DemiBold; font.letterSpacing:5 }
                 Item { anchors.horizontalCenter:parent.horizontalCenter; width:520; height:shell.runningGame&&shell.runningGame.logo?140:90
                     Image { id:runLogo; anchors.fill:parent; source:shell.runningGame&&shell.runningGame.logo?shell.runningGame.logo:""; fillMode:Image.PreserveAspectFit; asynchronous:true; visible:status===Image.Ready }
                     Text { visible:!runLogo.visible; anchors.fill:parent; horizontalAlignment:Text.AlignHCenter; verticalAlignment:Text.AlignVCenter; wrapMode:Text.WordWrap
                         text:shell.runningGame?shell.runningGame.name:""; color:canvas.ink; font.family:shell.runningGame&&shell.runningGame.font?shell.runningGame.font:"Hanken Grotesk"; font.pixelSize:48; font.weight:Font.Bold }
                 }
-                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"La estantería vuelve sola al cerrar el juego"; color:canvas.ink2; font.family:canvas.body; font.pixelSize:20 }
-                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"reactivar ahora (Esc)"; color:canvas.ink3; font.family:canvas.hud; font.pixelSize:16; font.letterSpacing:2; font.underline:true
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:qsTr("La estantería vuelve sola al cerrar el juego"); color:canvas.ink2; font.family:canvas.body; font.pixelSize:20 }
+                Text { anchors.horizontalCenter:parent.horizontalCenter; text:qsTr("reactivar ahora (Esc)"); color:canvas.ink3; font.family:canvas.hud; font.pixelSize:16; font.letterSpacing:2; font.underline:true
                     MouseArea { anchors.fill:parent; anchors.margins:-10; cursorShape:Qt.PointingHandCursor; onClicked:shell.runIgnored=true } }
             }
         }
@@ -1370,7 +1376,7 @@ Rectangle {
                             Text {
                                 visible: entry.destructive
                                 leftPadding: 63; topPadding: 7
-                                text: "Acción destructiva"
+                                text: qsTr("Acción destructiva")
                                 color: "#e3867e"
                                 font.family: canvas.body
                                 font.pixelSize: 17
@@ -1415,21 +1421,21 @@ Rectangle {
             property var game: null
             anchors.centerIn: Overlay.overlay
             modal: true
-            title: "Desvincular juego de Omnia"
+            title: qsTr("Desvincular juego de Omnia")
             standardButtons: Dialog.Cancel | Dialog.Yes
             onOpened: {
                 const cancel = standardButton(Dialog.Cancel)
                 const confirm = standardButton(Dialog.Yes)
                 cancel.icon.source = Qt.resolvedUrl("images/lucide/x.svg")
                 confirm.icon.source = Qt.resolvedUrl("images/lucide/trash-2.svg")
-                confirm.text = "Desvincular"
+                confirm.text = qsTr("Desvincular")
                 cancel.forceActiveFocus()
             }
             onClosed: shell.restoreControllerFocus()
             contentItem: Label {
                 text: unlinkDialog.game
-                    ? "Se quitará «" + unlinkDialog.game.name + "» de tu biblioteca y de los datos de Omnia asociados. Sus archivos no se borrarán. Si Omnia lo detectó desde un launcher, no volverá a aparecer mientras siga instalado."
-                    : "Se quitará el juego de la biblioteca de Omnia."
+                    ? qsTr("Se quitará «%1» de tu biblioteca y de los datos de Omnia asociados. Sus archivos no se borrarán. Si Omnia lo detectó desde un launcher, no volverá a aparecer mientras siga instalado.").arg(unlinkDialog.game.name)
+                    : qsTr("Se quitará el juego de la biblioteca de Omnia.")
                 wrapMode: Text.WordWrap
                 color: canvas.ink
                 font.pixelSize: 16
@@ -1441,8 +1447,8 @@ Rectangle {
                 api.removeGame(target, function(status, body) {
                     if (status === 200) {
                         if (shell.selectedId === target.id) shell.selectedId = ""
-                        api.toast = "«" + target.name + "» se quitó de Omnia. Sus archivos siguen en el disco."
-                    } else api.toast = (body && body.error) || "No se pudo desvincular el juego."
+                        api.toast = qsTr("«%1» se quitó de Omnia. Sus archivos siguen en el disco.").arg(target.name)
+                    } else api.toast = (body && body.error) || qsTr("No se pudo desvincular el juego.")
                 })
                 game = null
             }
@@ -1453,12 +1459,12 @@ Rectangle {
             MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:shell.closeArt() }
             Rectangle { id:artPanel; x:360;y:120;width:1200;height:840;radius:24;color:"#ff141a23";border.width:1;border.color:"#637d99" }
             MouseArea { x:artPanel.x;y:artPanel.y;width:artPanel.width;height:artPanel.height;acceptedButtons:Qt.AllButtons }
-            Text { x:392;y:142;text:"ELEGIR ARTE · " + (shell.current ? shell.current.name.toUpperCase() : "");color:canvas.brand;font.family:canvas.hud;font.pixelSize:19;font.letterSpacing:2.5;font.weight:Font.DemiBold }
+            Text { x:392;y:142;text:qsTr("ELEGIR ARTE · %1").arg(shell.current ? shell.current.name.toUpperCase() : "");color:canvas.brand;font.family:canvas.hud;font.pixelSize:19;font.letterSpacing:2.5;font.weight:Font.DemiBold }
             Row { x:392;y:178;spacing:10
                 Repeater { model:shell.artKinds
                     delegate:Rectangle { required property string modelData;readonly property bool active:shell.artKind===modelData
                         height:36;width:kindText.implicitWidth+32;radius:18;color:active?canvas.brand:"#25303d"
-                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?"Portada":(parent.modelData==="fondo"?"Fondo":"Logo");color:parent.active?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
+                        Text { id:kindText;anchors.centerIn:parent;text:parent.modelData==="portada"?qsTr("Portada"):(parent.modelData==="fondo"?qsTr("Fondo"):"Logo");color:parent.active?canvas.brandInk:canvas.ink;font.family:canvas.body;font.pixelSize:16;font.weight:Font.DemiBold }
                         MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill:parent;onClicked:shell.setArtKind(modelData) }
                     }
                 }
@@ -1492,10 +1498,10 @@ Rectangle {
                         }
                         Rectangle { anchors.fill:parent;radius:11;color:"transparent";border.width:artTile.focused?3:(artTile.modelData.cur||shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?2:1);border.color:artTile.focused?canvas.brand:(shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url?canvas.brand:(artTile.modelData.cur?"#7fd99a":"#394656")) }
                         Rectangle { visible:artTile.modelData.cur===true;anchors.left:parent.left;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:"#7fd99a";width:usedText.implicitWidth+16
-                            Text { id:usedText;anchors.centerIn:parent;text:"EN USO";color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
+                            Text { id:usedText;anchors.centerIn:parent;text:qsTr("EN USO");color:"#0c1a10";font.family:canvas.hud;font.pixelSize:11;font.weight:Font.Bold;font.letterSpacing:.5 }
                         }
                         Rectangle { visible:shell.artPending[shell.artKind]&&shell.artPending[shell.artKind].url===artTile.modelData.url;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;height:22;radius:11;color:canvas.brand;width:selText.implicitWidth+16
-                            Text { id:selText;anchors.centerIn:parent;text:"SELECCIONADO";color:canvas.brandInk;font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
+                            Text { id:selText;anchors.centerIn:parent;text:qsTr("SELECCIONADO");color:canvas.brandInk;font.family:canvas.hud;font.pixelSize:10;font.weight:Font.Bold }
                         }
                         Rectangle { anchors.left:parent.left;anchors.bottom:parent.bottom;anchors.margins:7;height:20;radius:10;color:"#d0000000";width:sizeText.implicitWidth+12
                             Text { id:sizeText;anchors.centerIn:parent;text:artTile.modelData.w+"×"+artTile.modelData.h+(artTile.modelData.by?" · "+artTile.modelData.by:"");color:canvas.ink;font.family:canvas.hud;font.pixelSize:10 }
@@ -1504,9 +1510,9 @@ Rectangle {
                     }
                 }
             }
-            Text { x:artGrid.x;y:artGrid.y+artGrid.height/2-14;width:artGrid.width;horizontalAlignment:Text.AlignHCenter;visible:shell.artItems.length===0;text:shell.artBusy?"Buscando en SteamGridDB…":(shell.artError||"Sin resultados para este juego");color:canvas.ink2;font.family:canvas.body;font.pixelSize:18 }
+            Text { x:artGrid.x;y:artGrid.y+artGrid.height/2-14;width:artGrid.width;horizontalAlignment:Text.AlignHCenter;visible:shell.artItems.length===0;text:shell.artBusy?qsTr("Consultando el catálogo de Omnia…"):(shell.artError||qsTr("Sin arte publicado para este juego"));color:canvas.ink2;font.family:canvas.body;font.pixelSize:18 }
             Rectangle { x:384;y:640;width:1152;height:108;radius:16;color:"#202833";border.width:1;border.color:"#394656"
-                Text { x:18;y:8;text:"PREVISUALIZACIÓN ACTUAL / SELECCIONADA";color:canvas.brand;font.family:canvas.hud;font.pixelSize:12;font.letterSpacing:1.4;font.weight:Font.DemiBold }
+                    Text { x:18;y:8;text:qsTr("PREVISUALIZACIÓN ACTUAL / SELECCIONADA");color:canvas.brand;font.family:canvas.hud;font.pixelSize:12;font.letterSpacing:1.4;font.weight:Font.DemiBold }
                 Row { x:18;y:29;spacing:14
                     Repeater { model:["portada","fondo","logo"]
                         delegate:Item { required property string modelData;width:365;height:72
@@ -1518,13 +1524,13 @@ Rectangle {
                     }
                 }
             }
-            Text { x:384;y:770;text:api.padOn?"A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar":"Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar";color:canvas.ink3;font.family:canvas.body;font.pixelSize:12;verticalAlignment:Text.AlignVCenter }
+            Text { x:384;y:770;text:api.padOn?qsTr("A elige · LB/RB tipo · LT/RT edición · Start aceptar · B cancelar"):qsTr("Clic: seleccionar · Tab: tipo · Re Pág/Av Pág: edición · Ctrl+Intro: aceptar");color:canvas.ink3;font.family:canvas.body;font.pixelSize:12;verticalAlignment:Text.AlignVCenter }
             Rectangle { x:artPanel.x+artPanel.width-300;y:766;width:130;height:42;radius:21;color:"#283342";opacity:shell.artApplying?0.55:1
-                Text { anchors.centerIn:parent;text:"Cancelar";color:canvas.ink;font.family:canvas.body;font.pixelSize:15 }
+                Text { anchors.centerIn:parent;text:qsTr("Cancelar");color:canvas.ink;font.family:canvas.body;font.pixelSize:15 }
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying;cursorShape:Qt.PointingHandCursor;onClicked:shell.closeArt() }
             }
             Rectangle { x:artPanel.x+artPanel.width-160;y:766;width:160;height:42;radius:21;color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brand:"#303846";opacity:shell.artApplying?0.55:1
-                Text { anchors.centerIn:parent;text:shell.artApplying?"Aplicando…":"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brandInk:canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
+                Text { anchors.centerIn:parent;text:shell.artApplying?qsTr("Aplicando…"):"Aceptar cambios";color:shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo?canvas.brandInk:canvas.ink3;font.family:canvas.body;font.pixelSize:15;font.weight:Font.DemiBold }
                 MouseArea { anchors.fill:parent;enabled:!shell.artApplying&&!!(shell.artPending.portada||shell.artPending.fondo||shell.artPending.logo);cursorShape:Qt.PointingHandCursor;onClicked:shell.acceptArt() }
             }
             Rectangle { x:1520;y:138;width:32;height:32;radius:16;color:"#25303d"
@@ -1579,7 +1585,7 @@ Rectangle {
             }
             Text {
                 width:parent.width;horizontalAlignment:Text.AlignHCenter
-                text:"JUGANDO AHORA"
+                text:qsTr("JUGANDO AHORA")
                 color:canvas.acc;font.family:canvas.hud;font.pixelSize:19;font.weight:Font.DemiBold;font.letterSpacing:4
             }
             Text {
@@ -1589,7 +1595,7 @@ Rectangle {
             }
             Text {
                 width:parent.width;horizontalAlignment:Text.AlignHCenter
-                text:"La biblioteca volverá al cerrar el juego"
+                text:qsTr("La biblioteca volverá al cerrar el juego")
                 color:canvas.ink2;font.family:canvas.body;font.pixelSize:16
             }
         }
@@ -1623,13 +1629,13 @@ Rectangle {
             }
             Text {
                 width: parent.width; horizontalAlignment: Text.AlignHCenter
-                text: shell.current ? shell.current.name : "Selecciona una versión"
+                text: shell.current ? shell.current.name : qsTr("Selecciona una versión")
                 color: canvas.ink; font.family: canvas.hud; font.pixelSize: 22; font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
             Text {
                 width: parent.width; horizontalAlignment: Text.AlignHCenter
-                text: "ELIGE CÓMO JUGAR"; color: canvas.acc; font.family: canvas.hud
+                text: qsTr("ELIGE CÓMO JUGAR"); color: canvas.acc; font.family: canvas.hud
                 font.pixelSize: 14; font.weight: Font.DemiBold; font.letterSpacing: 3
             }
             Repeater {
@@ -1652,7 +1658,7 @@ Rectangle {
                             Text { width: parent.width; text: modelData.description || shell.platformLabel(shell.current); color: canvas.ink2; font.family: canvas.body; font.pixelSize: 14; elide: Text.ElideRight }
                         }
                     }
-                    Text { visible: modelData.running; anchors.right: parent.right; anchors.rightMargin: 20; anchors.verticalCenter: parent.verticalCenter; text: "EN EJECUCIÓN"; color: canvas.brandLight; font.family: canvas.hud; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                    Text { visible: modelData.running; anchors.right: parent.right; anchors.rightMargin: 20; anchors.verticalCenter: parent.verticalCenter; text: qsTr("EN EJECUCIÓN"); color: canvas.brandLight; font.family: canvas.hud; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 1 }
                     MouseArea { anchors.fill: parent; hoverEnabled:true; cursorShape: Qt.PointingHandCursor; onEntered: parent.hovered=true; onExited: parent.hovered=false; onClicked: shell.choosePlayPort(index) }
                 }
             }
@@ -1662,12 +1668,12 @@ Rectangle {
                     width:138; height:42; radius:21
                     color:cancelMouse.containsMouse?"#303b49":"#a9151c26"
                     border.width:1; border.color:"#66ffffff"
-                    Text { anchors.centerIn:parent; text:"Cancelar"; color:canvas.ink; font.family:canvas.body; font.pixelSize:16; font.weight:Font.DemiBold }
+                    Text { anchors.centerIn:parent; text:qsTr("Cancelar"); color:canvas.ink; font.family:canvas.body; font.pixelSize:16; font.weight:Font.DemiBold }
                     MouseArea { id:cancelMouse; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor; onClicked:shell.portPickerOpen=false }
                 }
                 Text {
                     width:parent.width-152; anchors.verticalCenter:parent.verticalCenter
-                    text: api.padOn ? "Clic en una opción · B cancelar" : "Clic en una opción · Esc cancelar"
+                    text: api.padOn ? qsTr("Clic en una opción · B cancelar") : qsTr("Clic en una opción · Esc cancelar")
                     color: canvas.ink2; font.family: canvas.body; font.pixelSize: 14; wrapMode:Text.WordWrap
                 }
             }

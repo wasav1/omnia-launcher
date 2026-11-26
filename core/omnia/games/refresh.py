@@ -7,6 +7,9 @@ _LOCK = threading.Lock()      # el refresco periódico y el de la API no deben p
 
 
 def port_installed(p: dict) -> bool:
+    rom = p.get("rom")
+    if isinstance(rom, dict) and rom.get("path"):      # el emulador se resuelve al jugar; basta con que exista la ROM
+        return os.path.exists(os.path.expanduser(str(rom["path"])))       # archivo o carpeta de volcado
     chk = p.get("check") or (p.get("launch") or [""])[0]
     return bool(p.get("launch")) and bool(chk) and os.path.exists(os.path.expanduser(chk))
 
@@ -40,7 +43,20 @@ def _refresh(store, detectors) -> dict:
                     keep.append(g)
                 elif g["id"] in found:
                     new = found.pop(g["id"])
-                    keep.append({**g, "ports": new["ports"]})     # conserva arte y ajustes del usuario
+                    merged = {**g, "ports": new["ports"],            # conserva arte y ajustes del usuario
+                              **{k: new[k] for k in ("name", "variant", "played", "platform", "s", "chips", "sub") if k in new}}
+                    new_art = new.get("art") or {}
+                    if new_art.get("sgdb") or "remote" in new_art or "local" in new_art or (g.get("art") or {}).keys() & {"remote", "local"}:
+                        art = dict(g.get("art") or {})
+                        if new_art.get("sgdb"):                      # el nombre de búsqueda del arte lo decide el detector
+                            art["sgdb"] = new_art["sgdb"]
+                        for key in ("remote", "local"):              # arte de la tienda (Heroic) o carátula de Lutris: lo que ve el detector hoy
+                            if new_art.get(key):
+                                art[key] = new_art[key]
+                            else:
+                                art.pop(key, None)
+                        merged["art"] = art
+                    keep.append(merged)
                 else:
                     removed += 1
             games = keep + list(found.values())

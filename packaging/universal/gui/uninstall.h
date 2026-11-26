@@ -14,7 +14,7 @@ public:
         auto title=new QLabel("Desinstalar Omnia");title->setObjectName("PageTitle");layout->addWidget(title);
         auto subtitle=new QLabel("Retira el escritorio de Omnia y sus datos de este usuario.");subtitle->setObjectName("Muted");layout->addWidget(subtitle);
         auto impact = new QHBoxLayout;
-        impact->addWidget(omniaCard("Se eliminará", "Configuración, biblioteca de Omnia, historial, favoritos, clave de SteamGridDB, imágenes descargadas y componentes de escritorio de Omnia.", nullptr, "trash-2", "danger"));
+        impact->addWidget(omniaCard("Se eliminará", "Configuración, biblioteca de Omnia, historial, favoritos, imágenes descargadas y componentes de escritorio de Omnia.", nullptr, "trash-2", "danger"));
         impact->addWidget(omniaCard("Se conservará", "Los archivos de tus juegos, ROMs, emuladores, partidas y respaldos. Las aplicaciones y dependencias compartidas permanecen instaladas.", nullptr, "shield-check", "success"));
         layout->addLayout(impact);
         auto note=omniaCard("Cambios en tu sesión", "Se retirarán los widgets y atajos de Omnia. Se recuperará el fondo anterior cuando exista su respaldo; en otro caso se usará el fondo nativo de Plasma. Al finalizar se reiniciará Plasma unos segundos.", nullptr, "triangle-alert", "danger");layout->addWidget(note);

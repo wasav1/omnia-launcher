@@ -16,8 +16,7 @@ class SettingsWindow : public QDialog {
     QLabel *scanSummary;
     QComboBox *notificationPosition;
     QComboBox *themeChoice;
-    KeyPanel *keyPanel;
-    QCheckBox *clearKey, *mangohud, *keepOmnia;
+    QCheckBox *mangohud, *keepOmnia;
     QLabel *status;
     QPushButton *save;
     bool saving=false;
@@ -104,10 +103,7 @@ public:
         auto positionIndex=notificationPosition->findData(currentPosition);notificationPosition->setCurrentIndex(positionIndex<0?0:positionIndex);
         notificationLayout->addWidget(notificationPosition);
         auto notificationHelp=new QLabel("Los avisos aparecen unos segundos y se desvanecen solos. Esta opción cambia su posición dentro del escritorio de Omnia.");notificationHelp->setWordWrap(true);notificationLayout->addWidget(notificationHelp);notificationLayout->addStretch();addSection(notifications, "Notificaciones", "bell");
-        auto art=new QWidget;auto artLayout=new QVBoxLayout(art);
-        keyPanel=new KeyPanel(backend,initial["key_exists"].toBool(),autoCheck);artLayout->addWidget(keyPanel);
-        clearKey=new QCheckBox("Eliminar la clave guardada al aplicar");artLayout->addWidget(clearKey);artLayout->addStretch();addSection(art, "SteamGridDB", "key-round");
-        connect(clearKey,&QCheckBox::toggled,this,[this](bool on){keyPanel->setEnabled(!on);});
+        auto art=new QLabel("El catálogo de Omnia proporciona artwork publicado para los juegos compatibles. No se necesita una clave API personal.\n\nLas imágenes locales existentes permanecen en tu equipo.");art->setWordWrap(true);art->setMargin(20);addSection(art, "Imágenes", "image");
         auto about=new QLabel("Omnia Desktop Suite\nTu escritorio de juegos para KDE Plasma\n\nBiblioteca, wallpaper animado y monitor del sistema.\nLos ajustes se guardan en tu usuario.\nAplicar reinicia solo el núcleo de Omnia; no requiere contraseña ni reinstalar.");about->setWordWrap(true);about->setMargin(20);addSection(about, "Acerca de", "info");
         navigation->setCurrentRow(0);
         auto uninstall = new QPushButton(lucideIcon("trash-2", QColor("#f08b84")), "Desinstalar Omnia…");
@@ -115,11 +111,10 @@ public:
         connect(uninstall,&QPushButton::clicked,this,[this,path]{if(!saving)QProcess::startDetached(QCoreApplication::applicationFilePath(),{path,"--uninstall"});});
         status=new QLabel;status->setWordWrap(true);layout->addWidget(status);auto footer=new QHBoxLayout;footer->addStretch();auto close=new QPushButton(lucideIcon("x"), "Cerrar");save=new QPushButton(lucideIcon("check"), "Aplicar cambios");save->setProperty("primary",true);save->setProperty("mode","settings");footer->addWidget(close);footer->addWidget(save);layout->addLayout(footer);connect(close,&QPushButton::clicked,this,&QDialog::reject);
         connect(save,&QPushButton::clicked,this,[this]{
-            if(!clearKey->isChecked()&&!keyPanel->key().isEmpty()&&!keyPanel->ready()){status->setText("Valida la nueva clave de SteamGridDB o bórrala para conservar la que ya está guardada.");return;}
             QJsonArray roots;for(int i=0;i<folders->count();++i)roots.append(folders->item(i)->data(Qt::UserRole).toString());
-            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disks",disks->checkedVolumes()},{"steamgriddb_key",keyPanel->keyForSave()},{"clear_key",clearKey->isChecked()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()},{"keep_omnia_session",keepOmnia->isChecked()},{"theme",themeChoice->currentData().toString()}};
+            QJsonObject data{{"external_roots",roots},{"selected_candidates",folders->selectedCandidates()},{"monitor_disks",disks->checkedVolumes()},{"notification_position",notificationPosition->currentData().toString()},{"mangohud_enabled",mangohud->isChecked()},{"keep_omnia_session",keepOmnia->isChecked()},{"theme",themeChoice->currentData().toString()}};
             auto p=new QProcess(this);p->setProcessChannelMode(QProcess::MergedChannels);saving=true;save->setEnabled(false);status->setText("Guardando…");
-            connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){keyPanel->clearInput();clearKey->setChecked(false);folders->clearSelections();}p->deleteLater();});
+            connect(p,qOverload<int,QProcess::ExitStatus>(&QProcess::finished),this,[this,p](int code,QProcess::ExitStatus){saving=false;save->setEnabled(true);status->setText(QString::fromUtf8(p->readAllStandardOutput()));if(code==0||code==2){folders->clearSelections();}p->deleteLater();});
             p->start("python3",{backend,"--save-settings"});if(p->waitForStarted()){p->write(QJsonDocument(data).toJson(QJsonDocument::Compact));p->closeWriteChannel();}else{saving=false;save->setEnabled(true);status->setText("No se pudo guardar la configuración.");p->deleteLater();}
         });
     }

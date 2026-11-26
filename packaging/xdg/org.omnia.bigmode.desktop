@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Omnia Big Mode
+GenericName=Full-screen game library
+GenericName[es]=Biblioteca de juegos a pantalla completa
+Comment=Browse and launch your games in Big Mode
+Comment[es]=Explora e inicia tus juegos en Big Mode
+Exec=omnia-ui --window
+Icon=org.omnia.bigmode
+Terminal=false
+Categories=Game;Utility;
+StartupNotify=true
+StartupWMClass=org.omnia.bigmode.qml6

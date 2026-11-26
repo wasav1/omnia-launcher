@@ -12,11 +12,10 @@ spec.loader.exec_module(installer)
 
 
 class InstallerSettings(unittest.TestCase):
-    def test_preserves_config_and_private_key_when_blank(self):
+    def test_preserves_existing_config_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'config.json').write_text('{"refresh_secs": 42}')
-            installer.write_secret(root / 'steamgriddb.key', 'old-example')
             volume = {'path': tmp, 'uuid': 'sample', 'label': 'PRUEBA'}
             with patch.object(installer.paths, 'config_dir', return_value=root), patch.object(installer, 'volumes', return_value=[volume]):
                 installer.configure({'external_roots': [tmp, tmp], 'monitor_disk': volume})
@@ -24,8 +23,6 @@ class InstallerSettings(unittest.TestCase):
             self.assertEqual(cfg['refresh_secs'], 42)
             self.assertEqual(cfg['external_roots'], [tmp])
             self.assertEqual(cfg['excluded_external_roots'], [])
-            self.assertEqual((root / 'steamgriddb.key').read_text().strip(), 'old-example')
-            self.assertEqual(os.stat(root / 'steamgriddb.key').st_mode & 0o777, 0o600)
 
     def test_missing_volume_does_not_change_config(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -33,45 +30,6 @@ class InstallerSettings(unittest.TestCase):
             with patch.object(installer.paths, 'config_dir', return_value=root), patch.object(installer, 'volumes', return_value=[]), self.assertRaises(ValueError):
                 installer.configure({'monitor_disk': {'path': tmp, 'uuid': 'disconnected'}})
             self.assertFalse((root / 'config.json').exists())
-
-    def test_changed_key_replaces_file_with_private_permissions(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            file = Path(tmp) / 'steamgriddb.key'
-            file.write_text('old'); file.chmod(0o644)
-            installer.write_secret(file, 'new-example')
-            self.assertEqual(file.read_text().strip(), 'new-example')
-            self.assertEqual(file.stat().st_mode & 0o777, 0o600)
-
-
-class ApiKeyValidation(unittest.TestCase):
-    def test_client_identity_and_success(self):
-        from unittest.mock import MagicMock
-        response = MagicMock()
-        response.__enter__.return_value = response
-        response.status = 200
-        response.read.return_value = b'{"success":true,"data":{}}'
-        opener = MagicMock(return_value=response)
-        message, status = installer.validate_key('example-secret', opener)
-        self.assertEqual(status, 0)
-        self.assertEqual(opener.call_args.args[0].get_header('User-agent'), 'omnia')
-        self.assertNotIn('example-secret', message)
-
-    def test_access_block_is_not_reported_as_invalid_key(self):
-        from unittest.mock import MagicMock
-        from urllib.error import HTTPError
-        opener = MagicMock(side_effect=HTTPError('https://example.invalid', 403, 'Forbidden', {}, None))
-        message, status = installer.validate_key('example-secret', opener)
-        self.assertEqual(status, 1)
-        self.assertIn('No se pudo confirmar', message)
-        self.assertNotIn('example-secret', message)
-
-    def test_success_false_is_not_validated(self):
-        from unittest.mock import MagicMock
-        response = MagicMock()
-        response.__enter__.return_value = response
-        response.status = 200
-        response.read.return_value = b'{"success":false}'
-        self.assertEqual(installer.validate_key('example', MagicMock(return_value=response))[1], 1)
 
 
 class SettingsRouteRemoval(unittest.TestCase):

@@ -7,9 +7,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
-import urllib.error
-import socket
 import stat
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +46,7 @@ def set_session_autostart(enabled):
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text('[Desktop Entry]\nType=Application\nName=Omnia: restaurar escritorio\n'
                      'Comment=Aplicar el fondo y el widget de Omnia al iniciar Plasma\n'
-                     f'Exec="{command}"\nIcon=org.omnia.menu\nTerminal=false\nX-KDE-autostart-phase=2\n')
+                     f'Exec="{command}"\nIcon=org.omnia\nTerminal=false\nX-KDE-autostart-phase=2\n')
 
 
 def configure(data, consent=True):
@@ -64,9 +61,6 @@ def configure(data, consent=True):
         if 'theme' in data:
             cfg['theme'] = normalize_theme(data.get('theme'))
         set_session_autostart(cfg['keep_omnia_session'])
-        key = data.get('steamgriddb_key', '').strip()
-        if key:
-            write_secret(paths.config_dir() / 'steamgriddb.key', key)
         write_json_atomic(config_file, cfg)
         return 0
     cfg = load_json(config_file, {})
@@ -134,11 +128,6 @@ def configure(data, consent=True):
         cfg['keep_omnia_session'] = bool(data['keep_omnia_session'])
         set_session_autostart(cfg['keep_omnia_session'])
     write_json_atomic(config_file, cfg)
-    key = data.get('steamgriddb_key', '').strip()
-    if data.get('clear_key'):
-        (paths.config_dir() / 'steamgriddb.key').unlink(missing_ok=True)
-    elif key:
-        write_secret(paths.config_dir() / 'steamgriddb.key', key)
     if added or unlinked:
         library = load_json(paths.config_dir() / 'library.json', {})
         library['games'] = prepared
@@ -146,17 +135,6 @@ def configure(data, consent=True):
     if consent:
         write_json_atomic(paths.config_dir() / 'installer-consent.json', {'accepted': True, 'notice_version': 1})
     return {'added': added, 'unlinked': unlinked}
-
-
-def write_secret(path, text):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, name = tempfile.mkstemp(dir=path.parent, prefix='.omnia-key-')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            f.write(text + '\n')
-        os.replace(name, path)
-    finally:
-        if os.path.exists(name): os.unlink(name)
 
 
 def read_settings_file(name):
@@ -175,37 +153,9 @@ def read_settings_file(name):
         os.close(fd)
 
 
-def validate_key(key, opener=None):
-    """La misma identidad HTTP del cliente de arte; nunca incluye la clave en errores."""
-    if not key:
-        return 'Introduce una clave para validarla.', 1
-    opener = opener or urllib.request.urlopen
-    try:
-        req = urllib.request.Request('https://www.steamgriddb.com/api/v2/games/id/1',
-                                     headers={'Authorization': 'Bearer ' + key, 'User-Agent': 'omnia'})
-        with opener(req, timeout=15) as response:
-            body = json.loads(response.read(1024 * 1024))
-            if response.status == 200 and body.get('success') is True:
-                return '✓ Clave válida. SteamGridDB confirmó el acceso.', 0
-        return 'SteamGridDB no confirmó el acceso. Intenta de nuevo más tarde.', 1
-    except urllib.error.HTTPError as error:
-        messages = {
-            401: 'SteamGridDB rechazó la clave. Revisa que la hayas copiado completa.',
-            403: 'SteamGridDB bloqueó la solicitud (403). No se pudo confirmar si la clave es válida.',
-            429: 'SteamGridDB recibió demasiadas solicitudes. Espera y vuelve a intentar.',
-        }
-        return messages.get(error.code, f'SteamGridDB respondió con un error HTTP {error.code}. Intenta más tarde.'), 1
-    except (TimeoutError, socket.timeout):
-        return 'SteamGridDB tardó demasiado en responder. No se ha validado la clave.', 1
-    except urllib.error.URLError:
-        return 'No se pudo conectar con SteamGridDB. Revisa la conexión y vuelve a intentar.', 1
-    except (ValueError, OSError):
-        return 'No se pudo interpretar la respuesta de SteamGridDB. Intenta más tarde.', 1
-
-
 def logo_path():
-    candidates = [ROOT / 'assets/branding/omnia-icon-bluegray.png', ROOT / 'assets/branding/omnia-logo.png', paths.data_dir() / 'assets/branding/omnia-logo.png',
-                  Path('/usr/share/omnia/assets/branding/omnia-logo.png')]
+    candidates = [ROOT / 'assets/branding/omnia-logo.svg', paths.data_dir() / 'assets/branding/omnia-logo.svg',
+                  Path('/usr/share/omnia/assets/branding/omnia-logo.svg')]
     return str(next((p for p in candidates if p.is_file()), candidates[0]))
 
 
@@ -230,8 +180,7 @@ def main():
                           'available_version': release_label(Path(__file__).parent / 'release.json'),
                           'installed': (paths.config_dir() / 'library.json').exists() or (paths.data_dir() / 'installer/omnia-installer').exists(),
                           'linked_roots': roots,
-                          'mangohud_available': shutil.which('mangohud') is not None,
-                          'key_exists': (paths.config_dir() / 'steamgriddb.key').exists()}))
+                          'mangohud_available': shutil.which('mangohud') is not None}))
     elif mode == '--uninstall-plan':
         from omnia.uninstall import plan
         print(json.dumps(plan()))
@@ -249,16 +198,6 @@ def main():
         data = json.load(sys.stdin)
         games = load_json(paths.config_dir() / 'library.json', {}).get('games', [])
         print(json.dumps(inspect_route(str(data.get('path', '')), games)))
-    elif mode == '--validate-saved-key':
-        file = paths.config_dir() / 'steamgriddb.key'
-        message, status = validate_key(file.read_text().strip() if file.exists() else '')
-        print(message)
-        return status
-    elif mode == '--validate-key':
-        key = sys.stdin.read().strip()
-        message, status = validate_key(key)
-        print(message)
-        return status
     elif mode == '--save-settings':
         data = json.load(sys.stdin)
         stopped = subprocess.run(['systemctl', '--user', 'stop', 'omnia.service'], capture_output=True)

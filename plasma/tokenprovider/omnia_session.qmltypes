@@ -2,6 +2,16 @@ import QtQuick.tooling 1.2
 
 Module {
     Component {
+        name: "BigModeSession"
+        accessSemantics: "reference"
+        prototype: "QObject"
+        exports: ["org.omnia.session/BigModeSession 1.0"]
+        Property { name: "window"; type: "QWindow"; isPointer: true }
+        Property { name: "pointerHidden"; type: "bool" }
+        Signal { name: "mouseUsed" }
+    }
+
+    Component {
         name: "SessionToken"
         accessSemantics: "reference"
         prototype: "QObject"

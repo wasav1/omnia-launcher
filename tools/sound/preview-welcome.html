@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bienvenida de Big Mode · vista previa</title>
+<style>
+html,body{margin:0;height:100%;background:#05080b;color:#f0f3f7;font-family:system-ui,sans-serif}
+main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;box-sizing:border-box}
+#stage{width:min(1280px,96vw);background:#0B0F14;border-radius:14px;overflow:hidden}
+#stage svg{display:block;width:100%;height:auto}
+button{font:500 15px system-ui;padding:10px 22px;border-radius:24px;border:1px solid #336599;background:#16324a;color:#f0f3f7;cursor:pointer}
+button:hover{background:#1d4468}
+p{margin:0;color:#b8c3d0;font-size:13px}
+.tb{transform-box:fill-box;transform-origin:center}
+@keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes conv{from{opacity:0;transform:translate(var(--sx),var(--sy))}to{opacity:1;transform:translate(0,0)}}
+@keyframes rise{from{opacity:0;transform:translateY(90px)}to{opacity:var(--o);transform:translateY(0)}}
+@keyframes pulse{from{opacity:.5;transform:scale(.5)}to{opacity:0;transform:scale(1.7)}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(var(--dx),var(--dy))}}
+@keyframes fade{to{opacity:var(--end)}}
+</style></head><body><main>
+<div id="stage"></div>
+<button id="go">Reproducir con sonido</button>
+<p>Animación «F · Nace de la constelación» con su sonido de 5,8 s (ui/qml/sounds/omnia/welcome.wav). Sube el volumen con calma.</p>
+</main>
+<audio id="aud" src="../../ui/qml/sounds/omnia/welcome.wav" preload="auto"></audio>
+<svg id="meas" width="0" height="0" style="position:absolute"></svg>
+<script>
+const W=680,H=270,CX=340,CY=104,SC=.46;
+const UP_OUT="M151 30C220 27 281 80 287 150C294 221 241 285 169 291C98 297 34 243 29 172C21 98 79 35 151 30Z";
+const UP_IN="M148 94C112 95 85 125 86 163C86 202 115 233 153 235C185 237 208 214 218 185C220 178 225 173 230 170C220 168 215 162 212 152C204 119 182 93 148 94Z";
+const UP=UP_OUT+UP_IN;
+const LOW="M34 194C40 159 91 94 148 94C112 95 85 125 86 163C86 202 115 233 153 235C185 237 208 214 218 185C223 170 229 170 237 166C252 157 261 143 274 144C283 145 288 157 288 172C285 233 237 285 169 291C104 297 51 254 34 194Z";
+const UPC="#8aa4bd",LOWC="#4d6a86",RING="#5B9BE0";
+const logoWrap=i=>`<g transform="translate(${CX},${CY}) scale(${SC}) translate(-160,-160)">${i}</g>`;
+function wave(y,amp,ph){let d=`M0 ${H}L0 ${y}`;for(let x=0;x<=W;x+=20)d+=`L${x} ${(y+amp*Math.sin(x/58+ph)).toFixed(1)}`;return d+`L${W} ${H}Z`;}
+const waves=()=>`<path d="${wave(188,8,0)}" fill="#336599" style="--o:.34;opacity:0;animation:rise 1.4s .1s cubic-bezier(.2,.7,.2,1) forwards"/><path d="${wave(210,10,2)}" fill="#5B9BE0" style="--o:.2;opacity:0;animation:rise 1.4s .35s cubic-bezier(.2,.7,.2,1) forwards"/><path d="${wave(232,7,4)}" fill="#8aa4bd" style="--o:.15;opacity:0;animation:rise 1.4s .6s cubic-bezier(.2,.7,.2,1) forwards"/>`;
+const texts=t0=>`<text x="${CX}" y="238" text-anchor="middle" font-size="12" letter-spacing="3" fill="#B8C3D0" style="opacity:0;animation:fu .6s ${t0}s forwards">TU BIBLIOTECA UNIFICADA</text><text x="${CX}" y="42" text-anchor="middle" font-size="20" fill="#F0F3F7" font-weight="500" style="opacity:0;animation:fu .6s ${t0+.4}s forwards">Bienvenido de nuevo, wsaenz</text><text x="${CX}" y="62" text-anchor="middle" font-size="12" fill="#B8C3D0" style="opacity:0;animation:fu .6s ${t0+.8}s forwards">19 juegos · 2 actualizaciones · Xbox al 100 %</text>`;
+const pulse=t0=>`<circle class="tb" cx="${CX}" cy="${CY}" r="${160*SC*.62}" fill="none" stroke="${RING}" stroke-width="2" style="opacity:0;animation:pulse 1.6s ${t0}s ease-out 2"/>`;
+function bgDots(n,seed){let s='';for(let i=0;i<n;i++){const x=(seed*37+i*89)%W,y=(seed*23+i*53)%160+70,dx=((i*7)%11-5)*3,dy=((i*5)%9-4)*3;s+=`<circle cx="${x}" cy="${y}" r="${i%4===0?2.6:1.8}" fill="${i%3===0?'#5B9BE0':'#8aa4bd'}" style="opacity:0;--end:.5;--dx:${dx}px;--dy:${dy}px;animation:fade .8s ${i*.05}s forwards, drift ${5+i%3}s ${i*.2}s ease-in-out infinite"/>`;}return s;}
+function F(){
+ const m=document.getElementById('meas');
+ function sample(d,n){m.innerHTML=`<path id="mp" d="${d}"/>`;const p=document.getElementById('mp'),L=p.getTotalLength(),o=[];for(let i=0;i<n;i++){const q=p.getPointAtLength(L*i/n);o.push([CX+(q.x-160)*SC,CY+(q.y-160)*SC]);}return o;}
+ const A=sample(UP_OUT,30),B=sample(UP_IN,22);let lines='',dots='';
+ [A,B].forEach((P,k)=>{P.forEach((p,i)=>{const q=P[(i+1)%P.length],len=Math.hypot(q[0]-p[0],q[1]-p[1]).toFixed(1),a=((i*47+k*19)%360)*Math.PI/180;
+  lines+=`<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}" stroke="#5B9BE0" stroke-width="1.6" stroke-dasharray="${len}" stroke-dashoffset="${len}" style="animation:draw .35s ${1.3+i*.03+k*.2}s forwards"/>`;
+  dots+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i%5===0?3.2:2.2}" fill="${i%5===0?'#F0F3F7':'#8aa4bd'}" style="opacity:0;--sx:${(Math.cos(a)*180).toFixed(0)}px;--sy:${(Math.sin(a)*120).toFixed(0)}px;--end:0;animation:conv 1.2s ${i*.025+k*.1}s cubic-bezier(.2,.7,.2,1) forwards, fade .5s 2.6s forwards"/>`;});});
+ return `<svg viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#0B0F14"/>${bgDots(10,5)}${waves()}${lines}${dots}${pulse(2.9)}<g style="opacity:0;animation:fi .8s 2.3s forwards">${logoWrap(`<path d="${UP}" fill-rule="evenodd" fill="${UPC}"/><path d="${LOW}" fill="${LOWC}"/>`)}</g>${texts(3.1)}</svg>`;
+}
+const stage=document.getElementById('stage'),aud=document.getElementById('aud');
+stage.innerHTML='<svg viewBox="0 0 680 270"><rect width="680" height="270" fill="#0B0F14"/></svg>';
+document.getElementById('go').addEventListener('click',()=>{aud.pause();aud.currentTime=0;stage.innerHTML=F();aud.play();});
+</script></body></html>
