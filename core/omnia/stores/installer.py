@@ -4,7 +4,6 @@ Cada instalación es un trabajo con el mismo formato que los de package_installs
 la pantalla Descargas los muestra sin cambios. Al terminar, el juego queda en la biblioteca con el ejecutable de Windows y se
 lanza con umu/Proton (manual.add_game).
 """
-import json
 import os
 import re
 import signal
@@ -180,7 +179,7 @@ class StoreInstalls:
         job = self._jobs[job_id]
         roots = list(self.roots_fn()) + [job["destination"]]
         try:
-            entry = manual.add_game(self.store, {"name": job["name"], "kind": "windows", "exe": exe, "platform": "pc"}, roots)
+            entry = manual.add_game(self.store, {"name": job["name"], "kind": "windows", "exe": exe, "platform": "pc"}, roots, which=self._which)
         except manual.ManualError as e:
             raise StoreError(str(e))
         with self.store.lock:

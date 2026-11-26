@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omnia-core"
-version = "0.3.0"
+version = "0.4.0"
 description = "Núcleo de Omnia: biblioteca unificada de juegos para Linux"
 requires-python = ">=3.11,<3.15"
 dependencies = []
@@ -17,3 +17,7 @@ omnia-first-run = "omnia.firstrun:main"
 
 [tool.setuptools.packages.find]
 where = ["core"]
+
+[tool.ruff.lint]
+# Fix the CI rules explicitly so Ruff updates do not change which checks block a PR.
+select = ["E9", "F", "B023"]

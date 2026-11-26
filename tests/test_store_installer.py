@@ -1,4 +1,3 @@
-import io
 import shutil
 import tempfile
 import threading
@@ -77,9 +76,6 @@ class InstallTests(unittest.TestCase):
         self.exe = self.tmp / "game.exe"
         self.exe.write_bytes(b"MZ")
         self.store = Store(self.tmp / "cfg")
-        which = mock.patch("omnia.manual.shutil.which", return_value="/usr/bin/umu-run")
-        which.start()
-        self.addCleanup(which.stop)
 
     def mgr(self, proc, store=None):
         return StoreInstalls({"epic": store or FakeStore(str(self.exe))}, self.store, lambda: [self.tmp], popen=lambda *a, **k: proc, which=lambda n: "/x/" + n)

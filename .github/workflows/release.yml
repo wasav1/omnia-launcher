@@ -49,22 +49,67 @@ jobs:
           path: dist/Omnia-Game-Suite-*-x86_64.run
           if-no-files-found: error
 
+  appimage:
+    needs: suite-installer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: omnia-game-suite-installer
+          path: dist
+      - name: Descargar herramientas de AppImage y comprobar sus hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir appimage-tools
+          download() {
+            local repo=$1 filename=$2
+            local url digest
+            IFS=$'\t' read -r url digest < <(
+              gh api "repos/AppImage/$repo/releases/tags/continuous" --jq \
+                ".assets[] | select(.name == \"$filename\") | [.browser_download_url, .digest] | @tsv"
+            )
+            [[ $url = https://github.com/AppImage/"$repo"/releases/download/* ]]
+            [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]
+            curl --fail --location --retry 3 "$url" -o "appimage-tools/$filename"
+            printf '%s  %s\n' "${digest#sha256:}" "appimage-tools/$filename" | sha256sum --check
+          }
+          download appimagetool appimagetool-x86_64.AppImage
+          download type2-runtime runtime-x86_64
+          chmod +x appimage-tools/appimagetool-x86_64.AppImage
+      - name: Construir AppImage de Omnia Game Suite
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          chmod +x dist/Omnia-Game-Suite-*.run
+          python3 packaging/suite/build-appimage.py --installer dist/Omnia-Game-Suite-*.run \
+            --appimagetool appimage-tools/appimagetool-x86_64.AppImage --runtime appimage-tools/runtime-x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omnia-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
   draft:
     if: github.ref_type == 'tag'
-    needs: suite-installer
+    needs: [suite-installer, appimage]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: omnia-game-suite-installer
+          pattern: omnia-*
+          merge-multiple: true
           path: dist
-      - name: Crear borrador con un solo instalador
+      - name: Crear borrador de GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          sha256sum dist/*.run
-          gh release create "$GITHUB_REF_NAME" dist/*.run --draft --verify-tag --generate-notes \
+          sha256sum dist/*.run dist/*.AppImage
+          gh release create "$GITHUB_REF_NAME" dist/*.run dist/*.AppImage --draft --verify-tag --generate-notes \
             --title "Omnia Game Suite ${GITHUB_REF_NAME#v}"

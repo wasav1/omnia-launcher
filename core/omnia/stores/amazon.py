@@ -1,6 +1,5 @@
 """Amazon Games mediante nile (configuración propia de Omnia en XDG_CONFIG_HOME/nile)."""
 import json
-import os
 import re
 from pathlib import Path
 

@@ -30,6 +30,7 @@ if ((${#vars[@]})); then systemctl --user import-environment "${vars[@]}"; fi
 if [[ -f $legacy ]]; then
   mv -- "$legacy" "$legacy.pre-suite-$(date +%Y%m%d-%H%M%S)"
 fi
+if [[ ${1:-} == update ]]; then exit 0; fi
 systemctl --user daemon-reload
 systemctl --user reenable omnia.service
 systemctl --user restart omnia.service

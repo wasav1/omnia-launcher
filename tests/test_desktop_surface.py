@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+GEOMETRY_OK = 42
 
 
 @unittest.skipUnless(shutil.which('qml6'), 'Requiere qml6 para probar geometría Qt')
@@ -37,13 +38,14 @@ Window {
             if (first.stage === 0) { first.width = 2560; first.height = 1440; }
             else if (first.stage === 1) { surface.viewport = second.contentItem; }
             else if (first.stage === 2) { second.width = 1536; second.height = 864; }
-            else { console.log("geometry-ok"); Qt.quit(); }
+            else { Qt.exit(GEOMETRY_OK); }
             first.stage++;
         }
     }
 }
-''')
+'''.replace('GEOMETRY_OK', str(GEOMETRY_OK)))
             env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software', QT_FORCE_STDERR_LOGGING='1', QT_LOGGING_TO_CONSOLE='1')
             result = subprocess.run(['qml6', str(root / 'test.qml')], check=False, env=env, capture_output=True, text=True, timeout=15)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn('geometry-ok', result.stdout + result.stderr)
+            # Distinguish a completed geometry check from an early exit even if
+            # Qt sends console output to the system journal.
+            self.assertEqual(result.returncode, GEOMETRY_OK, result.stdout + result.stderr)

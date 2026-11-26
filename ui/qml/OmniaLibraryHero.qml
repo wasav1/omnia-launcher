@@ -1,5 +1,4 @@
 pragma ComponentBehavior: Bound
-pragma Translator: OmniaLibrary
 
 import QtQuick
 
@@ -114,7 +113,7 @@ Item {
                 anchors.centerIn: parent
                 spacing: hero.host.s * 12
                 LucideIcon { width: hero.host.s * 22; height: hero.host.s * 22; name: hero.host.current && hero.host.current.portAvailable ? "download" : "play"; color: hero.host.ink; anchors.verticalCenter: parent.verticalCenter; visible: !playBtn.running }
-                Text { text: playBtn.running ? qsTr("En ejecución") : (hero.host.current && hero.host.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: hero.host.ink; font.family: hero.host.uiFont; font.pixelSize: hero.host.s * 22; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: playBtn.running ? qsTranslate("OmniaLibrary", "En ejecución") : (hero.host.current && hero.host.current.portAvailable ? qsTranslate("OmniaLibrary", "Instalar port") : qsTranslate("OmniaLibrary", "Jugar")); color: hero.host.ink; font.family: hero.host.uiFont; font.pixelSize: hero.host.s * 22; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
             }
             MouseArea { id: playMa; anchors.fill: parent; enabled: !playBtn.running; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: hero.host.play() }
         }
@@ -124,7 +123,7 @@ Item {
             color: detMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0.05, 0.08, 0.12, 0.45)
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.40)
-            Text { anchors.centerIn: parent; text: qsTr("Detalles"); color: hero.host.ink; font.family: hero.host.uiFont; font.pixelSize: hero.host.s * 20; font.weight: Font.Medium }
+            Text { anchors.centerIn: parent; text: qsTranslate("OmniaLibrary", "Detalles"); color: hero.host.ink; font.family: hero.host.uiFont; font.pixelSize: hero.host.s * 20; font.weight: Font.Medium }
             MouseArea { id: detMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: hero.host.openDetails() }
         }
     }

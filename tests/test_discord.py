@@ -1,4 +1,3 @@
-import json
 import socket
 import struct
 import threading

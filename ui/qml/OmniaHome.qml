@@ -6,7 +6,6 @@ import QtQuick.Dialogs
 /** Inicio de Big Mode: contenido público del backend y actividad que ya existe en la biblioteca local. */
 Item {
     id: home
-    property real exitShelfProgress: 0
     property var api
     property var localGames: []
     property string searchText: ""
@@ -341,8 +340,6 @@ Item {
 
             Row {
                 id: bottomRow
-                opacity: 1 - home.exitShelfProgress
-                transform: Translate { y: home.u * 30 * home.exitShelfProgress }
                 width: parent.width; spacing: home.u * 22
                 // juego actual
                 Rectangle {

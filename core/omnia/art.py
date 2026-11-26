@@ -6,7 +6,6 @@ bibliotecas migradas; no contiene clientes, secretos ni llamadas directas a prov
 """
 from __future__ import annotations
 
-import os
 import re
 import threading
 from pathlib import Path
