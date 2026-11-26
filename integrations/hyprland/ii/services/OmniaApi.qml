@@ -35,35 +35,31 @@ Singleton {
 
     // Mando: el panel lo activa solo mientras está abierto (petición larga a /events, como BigMode).
     property bool padPolling: false                // el panel abierto lo activa
-    property bool padWatching: false               // el aviso «mando conectado» lo mantiene activo mientras el ajuste esté encendido
-    readonly property bool padActive: padPolling || padWatching
-    property bool padBaseline: false               // ya se leyó el estado inicial: solo las conexiones posteriores avisan
+    readonly property bool padActive: padPolling
     property int padSeq: -1
     property int padGameRev: -1
+    property int padRevision: -1
     property bool padOn: false
     property string padName: ""
     property string padFamily: ""
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando
     signal padKey(string key)
-    signal padConnected(string name, var battery, string family)
 
     function pollPad() {
         if (!root.padActive) return;
         if (root.token === "") { padRetry.restart(); return; }        // el token aún no cargó (o el núcleo no está): reintenta, no se queda sin escuchar
         const gen = ++root.padGen;
-        request("GET", `/events?since=${root.padSeq}&gameSince=${root.padGameRev}&wait=20`, null, (st, d) => {
+        request("GET", `/events?since=${root.padSeq}&gameSince=${root.padGameRev}&padSince=${root.padRevision}&wait=20`, null, (st, d) => {
             if (gen !== root.padGen || !root.padActive) return;
             if (st === 200 && d) {
                 const first = root.padSeq < 0;
                 root.padSeq = d.seq;
+                root.padRevision = d.padRevision ?? -1;
                 if (d.gameRevision !== undefined) root.padGameRev = d.gameRevision;
-                const wasOn = root.padOn;
                 root.padOn = d.padOn === true;
                 root.padName = d.padName || "";
                 root.padFamily = d.padFamily || d.padLayout || "";
                 root.padBattery = d.padBattery || null;
-                if (root.padBaseline && !wasOn && root.padOn) root.padConnected(root.padName, root.padBattery, root.padFamily);
-                root.padBaseline = true;
                 if (!first && d.events) for (const e of d.events) root.padKey(e.key);
                 Qt.callLater(root.pollPad);
             } else {
@@ -73,7 +69,7 @@ Singleton {
     }
     property int padGen: 0
     onTokenChanged: if (padActive && token !== "") { padSeq = -1; pollPad(); }    // token nuevo (p. ej. tras reiniciar omnia-core)
-    onPadActiveChanged: { if (padActive) { padSeq = -1; padBaseline = false; pollPad(); } else padGen++; }
+    onPadActiveChanged: { if (padActive) { padSeq = -1; pollPad(); } else padGen++; }
     Timer { id: padRetry; interval: 2000; onTriggered: { root.padSeq = -1; root.pollPad(); } }
 
     function toggleFav(id) {

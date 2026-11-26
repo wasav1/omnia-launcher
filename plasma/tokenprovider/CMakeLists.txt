@@ -1,17 +1,19 @@
 cmake_minimum_required(VERSION 3.21)
 project(omnia-session-qml LANGUAGES CXX)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Qml)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml)
 include(GNUInstallDirs)
 set(CMAKE_AUTOMOC ON)
 
 add_library(omnia_sessionplugin MODULE
     plugin.cpp
+    bigmodesession.cpp
+    bigmodesession.h
     sessiontoken.cpp
     sessiontoken.h
 )
 target_compile_features(omnia_sessionplugin PRIVATE cxx_std_17)
-target_link_libraries(omnia_sessionplugin PRIVATE Qt6::Core Qt6::Qml)
+target_link_libraries(omnia_sessionplugin PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
 
 install(TARGETS omnia_sessionplugin LIBRARY DESTINATION session)
 install(FILES qmldir omnia_session.qmltypes DESTINATION session)

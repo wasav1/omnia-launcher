@@ -22,7 +22,6 @@ Singleton {
     readonly property bool barEnabled: activation !== "edge"
     readonly property bool edgeEnabled: activation !== "bar"
     readonly property bool blur: adapter.blur
-    readonly property bool padPrompt: adapter.padPrompt                  // preguntar «¿Abrir Omnia?» al conectar un mando
     readonly property string edgeMonitors: adapter.edgeMonitors          // "rightmost" | "all"
     readonly property int revealDelayMs: Math.max(50, adapter.revealDelayMs)
     readonly property int zoneHeightPct: Math.min(90, Math.max(10, adapter.zoneHeightPct))
@@ -53,7 +52,6 @@ Singleton {
             property string edgeSide: "right"
             property string edgePosition: "center"
             property bool blur: true
-            property bool padPrompt: true
             property string edgeMonitors: "rightmost"
             property int revealDelayMs: 300
             property int zoneHeightPct: 35

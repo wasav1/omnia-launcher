@@ -42,7 +42,8 @@ def patches(target: Path):
     ]
 
 
-OBSOLETE = ["services/OmniaWallpaperLogic.js", "modules/ii/omnia/images/omnia-menu.svg"]       # archivos de versiones anteriores que ya no existen
+OBSOLETE = ["services/OmniaWallpaperLogic.js", "modules/ii/omnia/images/omnia-menu.svg",
+            "services/OmniaPadPrompt.qml", "modules/ii/omnia/OmniaPadPromptWindow.qml"]       # archivos de versiones anteriores que ya no existen
 
 
 def copied_files():

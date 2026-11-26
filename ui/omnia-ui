@@ -7,7 +7,9 @@ TOKEN="${OMNIA_TOKEN_FILE:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omnia/token}"
 PORT_ARG=(); [ -n "${OMNIA_PORT:-}" ] && PORT_ARG=(--port "$OMNIA_PORT")   # solo para pruebas
 QML_FILE="main.qml"
 if [ "${1:-}" = "--manager" ]; then QML_FILE="manager-window.qml"; shift
-elif [ "${1:-}" = "--window" ]; then QML_FILE="main-window.qml"; shift; fi
+elif [ "${1:-}" = "--setup-stores" ]; then QML_FILE="setup-stores-window.qml"; shift
+elif [ "${1:-}" = "--window" ]; then QML_FILE="main-window.qml"; shift
+elif [ "${1:-}" = "--pad-prompt" ]; then QML_FILE="pad-prompt-window.qml"; shift; fi
 EXTRA_ARGS=("$@")
 # MangoHud no debe cargarse en la propia interfaz de Omnia (ni tiene sentido un HUD sobre Big Mode): su capa de Vulkan se cuela en cualquier
 # biblioteca que cree un dispositivo Vulkan (p. ej. QtMultimedia/FFmpeg) y llegó a tumbar Big Mode al abrirlo.
@@ -18,11 +20,11 @@ ensure_core() {
     systemctl --user start omnia.service >/dev/null 2>&1 || true
   fi
 }
-ensure_core
+[[ "$QML_FILE" = "pad-prompt-window.qml" ]] || ensure_core
 # «Borrar sesión web» (Tiendas → Cuentas) deja una marca: se borra la sesión de la ventana de inicio de sesión antes de abrir la interfaz
 CONFIG_BASE0="${XDG_CONFIG_HOME:-}"
 case "$CONFIG_BASE0" in /*) ;; *) CONFIG_BASE0="$HOME/.config" ;; esac
-if [ -e "$CONFIG_BASE0/omnia/clear-web-session" ]; then
+if [ "$QML_FILE" != "pad-prompt-window.qml" ] && [ -e "$CONFIG_BASE0/omnia/clear-web-session" ]; then
   DATA0="${XDG_DATA_HOME:-$HOME/.local/share}"; CACHE0="${XDG_CACHE_HOME:-$HOME/.cache}"
   rm -rf "$DATA0/QtProject/Qml Runtime/QtWebEngine/omnia-stores" "$CACHE0/QtProject/Qml Runtime/QtWebEngine/omnia-stores"
   rm -f "$CONFIG_BASE0/omnia/clear-web-session"
@@ -41,6 +43,9 @@ while true; do
   TRANSLATION_ARG=()
   if [ "$LANGUAGE" = "en" ] && [ -r "$DIR/i18n/qml_en_US.qm" ]; then
     TRANSLATION_ARG=(--translation "$DIR/i18n/qml_en_US.qm")
+  fi
+  if [ "$QML_FILE" = "pad-prompt-window.qml" ]; then
+    exec qml6 "${TRANSLATION_ARG[@]}" "$DIR/$QML_FILE" -- --token "$TOKEN" "${PORT_ARG[@]}"
   fi
   set +e
   qml6 "${TRANSLATION_ARG[@]}" "$DIR/$QML_FILE" -- --token "$TOKEN" "${PORT_ARG[@]}" "${EXTRA_ARGS[@]}"

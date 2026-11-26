@@ -1,10 +1,10 @@
 {
   "id": "omniaPanel",
   "name": "Panel de Omnia",
-  "description": "Panel rápido de Omnia como popout compacto de la barra de Dux, con el mando conectado y su batería.",
+  "description": "Abre Omnia desde su logo en la barra de Dux. El panel muestra el mando conectado y su batería.",
   "version": "3.0.0",
   "author": "Omnia",
-  "icon": "sports_esports",
+  "icon": "apps",
   "type": "widget",
   "capabilities": [
     "dankbar-widget"

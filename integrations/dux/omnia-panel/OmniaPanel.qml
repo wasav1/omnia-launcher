@@ -26,6 +26,26 @@ Item {
     property string status: "loading"          // loading | ok | empty | error
     property string errorText: ""
     property string actionError: ""
+    property var updateStatus: ({phase: "idle", available: "", progress: 0})
+    property string seenUpdate: ""
+    property bool confirmUpdate: false
+    function pollUpdate() {
+        if (token === "") return
+        request("GET", "/suite-update?surface=dux&visible=" + (live ? "1" : "0"), null, (status, body) => {
+            if (status !== 200 || !body) return
+            updateStatus = body
+            if (live && body.phase === "ready" && body.available !== seenUpdate) {
+                seenUpdate = body.available
+                confirmUpdate = true
+            }
+        })
+    }
+    function updateAction(action) {
+        request("POST", "/suite-update/" + action, {}, (status, body) => {
+            if (status !== 200) actionError = body?.error || tr("No se pudo actualizar Omnia.", "Could not update Omnia.")
+            else pollUpdate()
+        })
+    }
     property var games: []
     property string search: ""
     property bool padOn: false
@@ -60,18 +80,6 @@ Item {
     readonly property bool padKnown: padOn && padLevel >= 0
     readonly property color padTone: padOn && !padCharging && padLevel >= 0 && padLevel <= 10 ? "#E86D6D"
         : padOn && !padCharging && padLevel >= 0 && padLevel <= 30 ? "#E8B86D" : padCharging ? "#7FD69F" : Theme.surfaceVariantText
-    readonly property string padShort: {
-        const n = padName.toLowerCase();
-        if (n.indexOf("dualsense") >= 0) return "DualSense";
-        if (n.indexOf("dualshock") >= 0) return "DualShock 4";
-        if (n.indexOf("pro controller") >= 0) return "Pro Controller";
-        if (n.indexOf("joy-con") >= 0) return "Joy-Con";
-        if (n.indexOf("steam") >= 0 || n.indexOf("deck") >= 0) return "Steam Deck";
-        if (n.indexOf("xbox") >= 0) return "Xbox";
-        const words = padName.split(/\s+/).filter(w => w);
-        return words.length ? words.slice(0, 2).join(" ") : root.tr("Mando", "Controller");
-    }
-
     // ---------------- cliente del núcleo ----------------
     function request(method, path, body, cb) {
         const xhr = new XMLHttpRequest();
@@ -101,9 +109,10 @@ Item {
                 errorText = st === 0 ? root.tr("omnia-core no responde.", "omnia-core is not responding.") : ((d && d.error) || (root.tr("Error HTTP ", "HTTP error ") + st));
             }
         });
+    }
+    function refreshPad() {
         request("GET", "/pad", null, (st, d) => {
-            if (st !== 200 || !d) { padOn = false; return; }
-            padOn = d.connected === true;
+            padOn = st === 200 && !!d && d.connected === true;
             padName = padOn ? String(d.name || "") : "";
             const bat = padOn && d.battery ? d.battery : null;
             padLevel = bat && bat.level !== undefined && bat.level !== null ? Math.max(0, Math.min(100, Number(bat.level))) : -1;
@@ -149,8 +158,20 @@ Item {
         return date.toLocaleDateString(Qt.locale(root.language === "en" ? "en_US" : "es_CO"), "d MMM yyyy");
     }
 
-    onLiveChanged: if (live) refresh()
+    onLiveChanged: { if (live) refresh(); pollUpdate(); }
+    Timer {
+        running: root.live && root.token !== ""; repeat: true; triggeredOnStart: true
+        interval: root.updateStatus.phase === "downloading" || root.updateStatus.phase === "applying" ? 900 : 8000
+        onTriggered: root.pollUpdate()
+    }
     Timer { interval: 30000; running: root.live && root.token !== ""; repeat: true; onTriggered: root.refresh() }
+    Timer {
+        interval: 5000
+        running: root.live && root.token !== ""
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.refreshPad()
+    }
     FileView {
         id: tokenFile
         path: (Quickshell.env("XDG_RUNTIME_DIR") || "/run/user/1000") + "/omnia/token"
@@ -158,7 +179,7 @@ Item {
         printErrors: false
         onFileChanged: reload()
         onLoaded: { root.token = text().trim(); root.refresh(); }
-        onLoadFailed: { root.status = "error"; root.errorText = root.tr("omnia-core no está en marcha (falta el token de sesión).", "omnia-core is stopped (session token missing)."); }
+        onLoadFailed: { root.token = ""; root.padOn = false; root.status = "error"; root.errorText = root.tr("omnia-core no está en marcha (falta el token de sesión).", "omnia-core is stopped (session token missing)."); }
     }
 
     // ---------------- interfaz (compacto, una columna) ----------------
@@ -169,26 +190,109 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingS
-            DTextField {
-                Layout.fillWidth: true
-                placeholderText: root.tr("Buscar en toda tu biblioteca…", "Search your entire library…")
-                leftIconName: "search"
-                showClearButton: true
-                onTextChanged: root.search = text
-            }
-            Rectangle {
-                visible: root.padOn
+            Image {
+                Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
-                implicitWidth: chipRow.implicitWidth + Theme.spacingM * 2
-                radius: height / 2
-                color: Theme.surfaceContainerHigh
-                Row {
-                    id: chipRow
-                    anchors.centerIn: parent
-                    spacing: Theme.spacingXS
-                    DIcon { name: "sports_esports"; size: 16; color: root.padTone; anchors.verticalCenter: parent.verticalCenter }
-                    StyledText { visible: root.padKnown; text: root.padLevel + " %" + (root.padCharging ? " ⚡" : ""); color: root.padTone; font.pixelSize: Theme.fontSizeSmall; anchors.verticalCenter: parent.verticalCenter }
-                    StyledText { visible: !root.padKnown; text: root.padShort; color: Theme.surfaceText; font.pixelSize: Theme.fontSizeSmall; anchors.verticalCenter: parent.verticalCenter }
+                source: Qt.resolvedUrl("omnia-mark.svg")
+                sourceSize: Qt.size(56, 56)
+                fillMode: Image.PreserveAspectFit
+            }
+            StyledText {
+                text: root.tr("Panel rápido de Omnia", "Omnia quick panel")
+                color: Theme.surfaceText
+                font.weight: Font.DemiBold
+                Layout.fillWidth: true
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: controllerRow.implicitHeight + Theme.spacingS * 2
+            radius: 10
+            color: Theme.surfaceContainerHigh
+
+            RowLayout {
+                id: controllerRow
+                anchors.fill: parent
+                anchors.margins: Theme.spacingS
+                spacing: Theme.spacingS
+                DIcon {
+                    name: "sports_esports"
+                    size: 18
+                    color: root.padTone
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.padOn ? (root.padName || root.tr("Mando conectado", "Controller connected"))
+                                     : root.tr("Sin mando conectado", "No controller connected")
+                    color: Theme.surfaceText
+                    font.pixelSize: Theme.fontSizeSmall
+                    elide: Text.ElideRight
+                }
+                StyledText {
+                    visible: root.padOn
+                    text: root.padKnown ? root.padLevel + " %" + (root.padCharging ? " ⚡" : "")
+                                        : root.tr("Batería no disponible", "Battery unavailable")
+                    color: root.padTone
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+            }
+        }
+
+        DTextField {
+            Layout.fillWidth: true
+            placeholderText: root.tr("Buscar en toda tu biblioteca…", "Search your entire library…")
+            leftIconName: "search"
+            showClearButton: true
+            onTextChanged: root.search = text
+        }
+
+        Rectangle {
+            visible: !!root.updateStatus.available
+            Layout.fillWidth: true
+            Layout.preferredHeight: updateContents.implicitHeight + 18
+            color: Theme.surfaceContainerHigh
+            radius: 10
+            ColumnLayout {
+                id: updateContents
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 9 }
+                StyledText {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: root.updateStatus.phase === "downloading"
+                        ? root.tr("Descargando Omnia · %1 %", "Downloading Omnia · %1%").arg(root.updateStatus.progress)
+                        : root.updateStatus.phase === "applying" ? root.tr("Aplicando actualización…", "Applying update…")
+                        : root.updateStatus.phase === "ready" && root.confirmUpdate
+                          ? root.tr("Actualización lista. ¿Reiniciar Omnia?", "Update ready. Restart Omnia?")
+                          : root.tr("Omnia %1", "Omnia %1").arg(root.updateStatus.available)
+                    color: Theme.surfaceText
+                }
+                RowLayout {
+                    visible: !["downloading", "applying"].includes(root.updateStatus.phase)
+                    Rectangle {
+                        implicitWidth: updateButton.implicitWidth + 20; implicitHeight: 30
+                        radius: height / 2; color: Theme.surfaceContainerHigh
+                        StyledText {
+                            id: updateButton
+                            anchors.centerIn: parent; color: Theme.surfaceText
+                            text: root.updateStatus.phase === "ready"
+                                ? (root.confirmUpdate ? root.tr("Reiniciar ahora", "Restart now") : root.tr("Reiniciar Omnia", "Restart Omnia"))
+                                : root.tr("Actualizar", "Update")
+                        }
+                        MouseArea {
+                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (root.updateStatus.phase !== "ready") root.updateAction("start")
+                                else if (!root.confirmUpdate) root.confirmUpdate = true
+                                else root.updateAction("apply")
+                            }
+                        }
+                    }
+                    StyledText {
+                        visible: root.confirmUpdate && root.updateStatus.phase === "ready"
+                        text: root.tr("Más tarde", "Later"); color: Theme.surfaceText
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.confirmUpdate = false }
+                    }
                 }
             }
         }

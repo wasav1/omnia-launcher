@@ -11,6 +11,7 @@ dependencies = []
 
 [project.scripts]
 omnia-core = "omnia.service:main"
+omnia-suite-update = "omnia.suite_update:main"
 omnia-setup = "omnia.setup:main"
 omnia-first-run = "omnia.firstrun:main"
 

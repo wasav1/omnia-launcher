@@ -45,7 +45,7 @@ from . import (
 )
 from .events import EventBus
 from .games import refresh as games_refresh
-from . import descriptor, mangohud, sounds
+from . import descriptor, mangohud, sounds, suite_update
 from .games.base import Detector
 from .games.steam import download_jobs as steam_download_jobs
 from .transfer_metrics import TransferMetrics
@@ -84,6 +84,8 @@ class Api:
         self.process_snapshot = procs.Snapshot(scan_fn, ttl=1.0)
         manual.migrate_bedrock_on_linux(store)
         self.bus = bus or EventBus()
+        self.connection_prompt = None
+        self.suite_updater = suite_update.SuiteUpdater()
         self.catalog, self.app_launch_fn = catalog or apps.Catalog(), app_launch_fn
         self.fs_roots, self.backup_root = fs_roots, backup_root
         self.package_installs = package_installs.PackageInstallManager(self.store, self._roots, on_change=self.bus.games_changed)
@@ -100,6 +102,9 @@ class Api:
         self.menu_open, self._last_poll = False, 0.0       # el Big Menu abierto lo comunica la UI; _last_poll evita un estado atascado
         self.routes = {
             "/health": ("GET", False, self.health),
+            "/suite-update": ("GET", True, self.suite_update_status),
+            "/suite-update/start": ("POST", True, self.suite_update_start),
+            "/suite-update/apply": ("POST", True, self.suite_update_apply),
             "/library": ("GET", True, self.library),
             "/library/roots": ("GET", True, self.library_roots),
             "/library/roots/set": ("POST", True, self.library_roots_set),
@@ -163,6 +168,7 @@ class Api:
             "/saves/open": ("POST", True, self.saves_open),
             "/game/metadata": ("GET", True, self.game_metadata),
             "/game/activity": ("GET", True, self.game_activity),
+            "/art/matches": ("GET", True, self.art_matches),
             "/art/browse": ("GET", True, self.art_browse),
             "/art/pick": ("POST", True, self.art_pick),
             "/art/cycle": ("POST", True, self.art_cycle),
@@ -1070,6 +1076,25 @@ class Api:
     def _is_running(self, g, p, cmdlines):
         return self._detector(g).is_running(g, p, cmdlines)
 
+    def suite_update_status(self, q):
+        return self.suite_updater.snapshot(q.get("surface", ""), q.get("visible", "1") != "0")
+
+    def suite_update_start(self, q):
+        try:
+            self.suite_updater.start()
+        except ValueError as exc:
+            raise ApiError(409, str(exc)) from exc
+        return self.suite_updater.snapshot()
+
+    def suite_update_apply(self, q):
+        try:
+            self.suite_updater.apply()
+        except ValueError as exc:
+            raise ApiError(409, str(exc)) from exc
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ApiError(503, "No se pudo iniciar el reinicio de Omnia.") from exc
+        return self.suite_updater.snapshot()
+
     def library(self, q):
         revision = self.store.revision * 1_000_000 + getattr(getattr(self, "bus", None), "game_revision", 0)
         try:
@@ -1116,6 +1141,8 @@ class Api:
                                                  or library_metadata.store_identity(g).get("store") in {"epic", "gog", "amazon"}
                                                  or removal.manual_gog_identity(g)),
                             "canUnlink": g["id"].startswith("manual-") and not g.get("installPackageId"),
+                            "artSearchTitle": ((g.get("art") or {}).get("sgdb") or g["name"])
+                            if g.get("detectedIdentity") or g.get("src") == "Manual" else g["name"],
                             "catalogSlug": g.get("catalogSlug", ""), "installPackageId": g.get("installPackageId", ""),
                             "installPath": g.get("installPath", ""), "installVersion": g.get("installVersion", ""),
                             "sub": _library_label(g.get("sub", ""), language), "variant": g.get("variant", ""), "description": g.get("s", ""),
@@ -1811,6 +1838,18 @@ class Api:
         return {"ok": True}
 
     # --- artwork del catálogo público de Omnia (el núcleo no recibe ni guarda claves de proveedores)
+    def art_matches(self, q):
+        game = self.store.find_game(q.get("id", ""))
+        if not game:
+            raise ApiError(404, "juego desconocido")
+        title = q.get("title", "").strip()
+        if not title or len(title) > 140:
+            raise ApiError(400, "Título no válido.")
+        try:
+            return {"items": online_catalog.find_art_matches(title, game.get("releaseYear"))}
+        except online_catalog.CatalogError as exc:
+            raise ApiError(502, str(exc)) from exc
+
     def art_browse(self, q):
         """Opciones de arte de un juego: la imagen actual del catálogo (solo en la página 0) y una página de SteamGridDB que sirve el backend."""
         g = self.store.find_game(q.get("id", ""))
@@ -1825,13 +1864,16 @@ class Api:
                 raise ValueError
         except ValueError:
             raise ApiError(400, "página no válida")
+        match_id = q.get("match", "")
         slug = g.get("catalogSlug")
-        if not slug:
-            raise ApiError(409, "Este juego no tiene artwork publicado en el catálogo Omnia.")
+        if not slug and not match_id:
+            return {"items": [], "page": page, "more": False, "linked": False, "warning": ""}
+        if match_id and not re.fullmatch(r"[0-9]{1,12}", match_id):
+            raise ApiError(400, "Opciones de arte no válidas.")
         alias = {"portada": "grid", "fondo": "hero", "logo": "logo"}[kind]
         items, warning, linked, more = [], "", True, False
         try:
-            if page == 0:
+            if page == 0 and slug and not match_id:
                 remote = online_catalog.fetch_artwork(slug)
                 current = (((self.store.state.get("catalog_art") or {}).get(slug) or {}).get(alias) or "")
                 items += [{"id": "actual", "url": row["url"], "thumb": row["url"], "w": 0, "h": 0, "by": "Omnia", "cur": row["url"] == current or not current}
@@ -1839,7 +1881,8 @@ class Api:
         except online_catalog.CatalogError as e:
             warning = str(e)
         try:
-            options = online_catalog.fetch_art_options(slug, kind, page)
+            options = (online_catalog.fetch_match_options(match_id, kind, page) if match_id
+                       else online_catalog.fetch_art_options(slug, kind, page))
             linked, more = options["linked"], options["hasMore"]
             have = {i["url"] for i in items}
             items += [{"id": str(o.get("id") or ""), "url": o["url"], "thumb": o["thumb"], "w": o.get("width") or 0, "h": o.get("height") or 0,
@@ -2028,7 +2071,7 @@ class Api:
         return {"ok": True, "index": index}
 
     # --- mando
-    def pad_gate(self) -> bool:
+    def pad_gate(self, big_mode_open: bool = False) -> bool:
         """¿Se entregan los botones del mando a la estantería? No con un juego abierto ni con el escritorio tapado."""
         now = time.time()
         if now - self._gate_t > 1.0:
@@ -2042,23 +2085,29 @@ class Api:
         # Solo vale si la UI sigue viva: su petición larga a /events debe haber llegado hace poco.
         if self.menu_open and time.time() - self._last_poll < 30:
             return self._gate_v
-        return self._gate_v and self.desktop_visible
+        return self._gate_v and (self.desktop_visible or big_mode_open)
 
     def set_menu_state(self, q):
         self.menu_open = str(q.get("open", "0")) not in ("0", "false", "False")
         return {"ok": True, "open": self.menu_open}
 
     def events(self, q):
-        self._last_poll = time.time()
+        prompt_request = q.get("view") == "connection-prompt"
+        if prompt_request and self.connection_prompt is None:
+            raise ApiError(404, "aviso no disponible")
+        if not prompt_request:
+            self._last_poll = time.time()
+        bus = self.connection_prompt.bus if prompt_request else self.bus
         try:
             since, wait = int(q.get("since", -1)), min(25.0, max(0.0, float(q.get("wait", 20))))
             game_since = int(q.get("gameSince", -1))
             pad_since = int(q.get("padSince", -1))
         except ValueError:
             raise ApiError(400, "parámetros no válidos")
-        r = self.bus.wait(since, wait, game_since if game_since >= 0 else None,
-                          pad_since if pad_since >= 0 else None)
-        self._last_poll = time.time()
+        r = bus.wait(since, wait, game_since if game_since >= 0 else None,
+                     pad_since if pad_since >= 0 else None)
+        if not prompt_request:
+            self._last_poll = time.time()
         return r
 
     def pad_status(self, q):

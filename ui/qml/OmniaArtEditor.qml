@@ -25,6 +25,15 @@ Item {
     property string message: ""
     property string tmpDir: ""
     readonly property var current: choice[kind]
+    property var editSearchWithPad: null
+    property string searchTitle: ""
+    property var sourceMatch: null
+    property var matches: []
+    property int matchIndex: 0
+    property bool showMatches: false
+    property bool searching: false
+    property int searchRequest: 0
+    property int sourceRequest: 0
     readonly property bool localActive: !!current && current.t === "local"
     readonly property bool changed: ed.kinds.some(function(k) { return ed.choice[k] !== null })
 
@@ -52,18 +61,72 @@ Item {
     function start(g) {
         game = g; kind = "portada"; index = 0; message = ""; busy = false
         choice = { portada: null, fondo: null, logo: null }
+        searchTitle = (g.artSearchTitle || g.name || "").slice(0, 140)
+        sourceMatch = null
+        matches = []
+        showMatches = false
+        searching = false
+        searchRequest++
+        loadSource()
+        ed.host.api.artTmp(function(st, b) { if (st === 200 && b) ed.tmpDir = b.dir })
+        forceActiveFocus()
+    }
+    function loadSource() {
+        sourceRequest++
         options = { portada: [], fondo: [], logo: [] }
         meta = { portada: { page: 0, more: false, loading: false, linked: true, warning: "" },
                  fondo: { page: 0, more: false, loading: false, linked: true, warning: "" },
                  logo: { page: 0, more: false, loading: false, linked: true, warning: "" } }
         for (const k of ed.kinds) loadKind(k, 0)
-        ed.host.api.artTmp(function(st, b) { if (st === 200 && b) ed.tmpDir = b.dir })
+    }
+    function searchArtwork() {
+        const title = searchTitle.trim()
+        if (!title || busy) return
+        const request = ++searchRequest
+        showMatches = true
+        searching = true
+        matches = []
+        matchIndex = 0
+        message = ""
+        forceActiveFocus()
+        ed.host.api.artMatches(game, title, function(status, body) {
+            if (request !== ed.searchRequest) return
+            ed.searching = false
+            if (status === 200) ed.matches = body.items || []
+            else ed.message = (body && body.error) || qsTr("No se pudo buscar arte.")
+        })
+    }
+    function chooseMatch(match) {
+        if (!match || busy) return
+        sourceMatch = match
+        showMatches = false
+        message = ""
+        loadSource()
+        forceActiveFocus()
+    }
+    function searchWithController() {
+        if (!editSearchWithPad) { searchField.forceActiveFocus(); return }
+        editSearchWithPad(searchTitle, function(value) {
+            ed.forceActiveFocus()
+            if (value !== undefined) {
+                ed.searchTitle = String(value).slice(0, 140)
+                ed.searchArtwork()
+            }
+        })
+    }
+    function cancelMatches() {
+        showMatches = false
+        searching = false
+        searchRequest++
+        message = ""
         forceActiveFocus()
     }
     function loadKind(k, page) {
+        const request = sourceRequest
         const m = Object.assign({}, ed.meta[k]); m.loading = true
         const all = Object.assign({}, ed.meta); all[k] = m; ed.meta = all
         ed.host.api.artBrowse(game, k, page, 0, function(st, body) {
+            if (request !== ed.sourceRequest) return
             const next = Object.assign({}, ed.options)
             const info = Object.assign({}, ed.meta[k]); info.loading = false
             if (st === 200 && body) {
@@ -75,7 +138,7 @@ Item {
             const meta2 = Object.assign({}, ed.meta); meta2[k] = info; ed.meta = meta2
             ed.options = next
             if (page === 0 && k === ed.kind) moveToCurrent()
-        })
+        }, sourceMatch ? sourceMatch.id : "")
     }
     function loadMore() {
         const m = meta[kind]
@@ -183,7 +246,15 @@ Item {
 
     // ---- mando y teclado
     function pad(k) {
-        if (browser.active) return
+        if (browser.active || busy) return
+        if (k === "SELECT") { searchWithController(); return }
+        if (showMatches) {
+            if (k === "u" || k === "l") matchIndex = Math.max(0, matchIndex - 1)
+            else if (k === "d" || k === "r") matchIndex = Math.max(0, Math.min(matches.length - 1, matchIndex + 1))
+            else if (k === "A") chooseMatch(matches[matchIndex])
+            else if (k === "B") cancelMatches()
+            return
+        }
         if (k === "l") move(-1, 0)
         else if (k === "r") move(1, 0)
         else if (k === "u") move(0, -1)
@@ -207,6 +278,7 @@ Item {
         else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) pad("A")
         else if (e.key === Qt.Key_O) pad("Y")
         else if (e.key === Qt.Key_F) pad("X")
+        else if (e.key === Qt.Key_Slash) searchField.forceActiveFocus()
         else if (e.key === Qt.Key_Delete) restore()
         else if (e.key === Qt.Key_Escape) pad("B")
         else return false
@@ -279,8 +351,63 @@ Item {
         // ---- derecha: tipo de imagen y opciones
         Item {
             width: parent.width - parent.width * 0.56 - ed.s * 28; height: parent.height
+            Rectangle {
+                id: searchBox
+                width: parent.width
+                height: ed.s * 44
+                radius: ed.s * 10
+                color: ed.host.surface
+                border.color: searchField.activeFocus ? ed.host.accent : "transparent"
+
+                Rectangle {
+                    id: searchButton
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    width: searchLabel.implicitWidth + ed.s * 22
+                    height: parent.height
+                    radius: parent.radius
+                    color: ed.host.accent
+                    Text {
+                        id: searchLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Buscar arte")
+                        color: ed.host.ink
+                        font.pixelSize: ed.s * 16
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: ed.searchArtwork()
+                    }
+                }
+                TextInput {
+                    id: searchField
+                    anchors { left: parent.left; right: searchButton.left; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
+                    text: ed.searchTitle
+                    maximumLength: 140
+                    clip: true
+                    color: ed.host.ink
+                    font.pixelSize: ed.s * 18
+                    Accessible.name: qsTr("Nombre del juego")
+                    onTextEdited: ed.searchTitle = text
+                    onAccepted: ed.searchArtwork()
+                    Keys.onEscapePressed: ed.forceActiveFocus()
+                }
+            }
+            Text {
+                id: sourceLabel
+                anchors { left: parent.left; right: parent.right; top: searchBox.bottom; topMargin: ed.s * 6 }
+                color: ed.host.ink2
+                font.pixelSize: ed.s * 15
+                visible: !!ed.sourceMatch && !ed.showMatches
+                height: visible ? implicitHeight : 0
+                elide: Text.ElideRight
+                textFormat: Text.PlainText
+                text: ed.sourceMatch ? ed.sourceMatch.name + (ed.sourceMatch.year ? " · " + ed.sourceMatch.year : "") : ""
+            }
             Row {
                 id: kindRow
+                anchors { top: sourceLabel.bottom; topMargin: ed.s * 10 }
+                visible: !ed.showMatches
                 spacing: ed.s * 8
                 Repeater {
                     model: ed.kinds
@@ -295,8 +422,48 @@ Item {
                     }
                 }
             }
+            ListView {
+                id: matchList
+                anchors { left: parent.left; right: parent.right; top: searchBox.bottom; bottom: parent.bottom; topMargin: ed.s * 12 }
+                visible: ed.showMatches
+                clip: true
+                spacing: ed.s * 5
+                model: ed.matches
+                currentIndex: ed.matchIndex
+                delegate: Rectangle {
+                    id: matchRow
+                    required property var modelData
+                    required property int index
+                    width: matchList.width
+                    height: ed.s * 54
+                    radius: ed.s * 9
+                    color: index === ed.matchIndex ? ed.host.accent : ed.host.surface
+                    Text {
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
+                        color: ed.host.ink
+                        font.pixelSize: ed.s * 18
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
+                        text: matchRow.modelData.name + (matchRow.modelData.year ? " · " + matchRow.modelData.year : "")
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: ed.chooseMatch(matchRow.modelData)
+                    }
+                }
+                Text {
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    visible: !ed.matches.length
+                    wrapMode: Text.WordWrap
+                    color: ed.host.ink2
+                    font.pixelSize: ed.s * 18
+                    text: ed.searching ? qsTr("Buscando coincidencias…") : ed.message || qsTr("No se encontraron coincidencias. Prueba otro nombre.")
+                }
+            }
             GridView {
                 id: grid
+                visible: !ed.showMatches
                 anchors { left: parent.left; right: parent.right; top: kindRow.bottom; bottom: parent.bottom; topMargin: ed.s * 16 }
                 cellWidth: ed.tileW + ed.s * 8; cellHeight: ed.tileH + ed.s * 8
                 clip: true; interactive: true
@@ -341,7 +508,7 @@ Item {
                 }
                 Text { visible: ed.options[ed.kind].length <= 1 && !ed.meta[ed.kind].more; anchors.centerIn: parent; width: parent.width * 0.8; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                        color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 18
-                       text: ed.meta[ed.kind].loading ? qsTr("Cargando opciones…") : (!ed.meta[ed.kind].linked ? qsTr("Este juego aún no está enlazado a SteamGridDB: solo está la imagen actual. Puedes usar un archivo tuyo.") : qsTr("No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.")) }
+                       text: ed.meta[ed.kind].loading ? qsTr("Cargando opciones…") : (!ed.meta[ed.kind].linked ? qsTr("Busca el juego por nombre o usa un archivo propio.") : qsTr("No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.")) }
             }
         }
     }
@@ -353,7 +520,8 @@ Item {
         Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("LB RB  Tipo") }
         Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("Y  Mi archivo") }
         Text { visible: ed.localActive && ed.kind !== "logo"; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("X  Encuadre") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("A  Guardar") }
+        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.editSearchWithPad ? qsTr("SELECT  Buscar") : qsTr("/  Buscar") }
+        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.showMatches ? qsTr("A  Elegir juego") : qsTr("A  Guardar") }
         Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("B  Descartar") }
     }
 

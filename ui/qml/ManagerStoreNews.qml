@@ -35,6 +35,19 @@ Column {
         direction = step
         transitionSlide.start()
     }
+    function fallbackItems() {
+        const english = api?.language === "en"
+        return [{
+            source: "omnia",
+            title: english ? "The Legend of Zelda: Ocarina of Time — Longshot" : "The Legend of Zelda: Ocarina of Time — Longshot",
+            summary: english
+                ? "Explore the native Linux port of Ocarina of Time. It requires your own copy of the game."
+                : "Conoce el port nativo de Ocarina of Time para Linux. Requiere tu propia copia del juego.",
+            url: "https://git.magicbean.dev/MagicBeanDev/Longshot/releases",
+            slug: "the-legend-of-zelda-ocarina-of-time-switch-2",
+            originalLanguage: api?.language === "en" ? "en" : "es"
+        }]
+    }
     property var items: []
     property var pendingItems: null
     property int currentIndex: 0
@@ -51,7 +64,10 @@ Column {
             news.busy = false
             if (language !== (news.api.language || "es")) { news.refresh(); return }
             news.loading = status === 200 && !!body.loading
-            if (status !== 200 || !Array.isArray(body.items)) return
+            if (status !== 200 || !Array.isArray(body.items) || !body.items.length) {
+                if (!news.items.length) news.items = news.fallbackItems()
+                return
+            }
             if (news.loading && news.items.length) return
             if (news.items.length <= 1) {
                 news.items = body.items

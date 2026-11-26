@@ -8,4 +8,5 @@ Biblioteca de juegos para Linux: `omnia-core` (Python, solo stdlib) + QML (app d
 4. **Commits locales sí; `git push` nunca** (lo hace el usuario). `sudo` solo lo ejecuta el usuario. No imprimir ni pedir contraseñas/claves; `ADMIN_API_KEY` la carga el usuario con `omnia-admin`.
 5. Núcleo sin dependencias externas. Omnia jamás maneja contraseñas de tiendas de terceros. Descargas de terceros: pedir permiso.
 6. Responde en español; guía al usuario con «Paso N» y cada comando en su bloque ```bash (su shell es fish).
-7. Sonidos en QML: `SoundEffect`, nunca `MediaPlayer` (se cae con la capa global de MangoHud).
+7. Cada entrega local incluye un instalador único `.run` con revisión superior, el comando para ejecutarlo y una tabla de pruebas con la superficie, el flujo y el resultado esperado.
+8. Sonidos en QML: `SoundEffect`, nunca `MediaPlayer` (se cae con la capa global de MangoHud).

@@ -455,10 +455,39 @@ Item {
         }
     }
 
+    Row {
+        id: footer
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: set.s * 26 }
+        spacing: set.s * 24
+        visible: !set.msg
+
+        component Hint: OmniaControlHint {
+            uiScale: set.s
+            uiFont: set.host.uiFont
+            ink: set.host.ink
+            muted: set.host.ink2
+            roundButton: set.host.padOn
+            padFamily: set.api.padFamily || "xbox"
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        LucideIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            width: set.s * 25
+            height: width
+            name: set.host.padOn ? "gamepad-2" : "keyboard"
+            color: set.host.ink2
+        }
+        Hint { padKeys: set.host.padOn ? ["DPAD"] : []; glyph: "↑↓ ←→"; label: qsTr("Mover y ajustar") }
+        Hint { padKeys: set.host.padOn ? ["A"] : []; glyph: "Enter"; label: qsTr("Elegir") }
+        Hint { padKeys: set.host.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Cambiar categoría") }
+        Hint { padKeys: set.host.padOn ? ["B"] : []; glyph: "Esc"; label: qsTr("Volver") }
+    }
     Text {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: set.s * 48; rightMargin: set.s * 48; bottomMargin: set.s * 26 }
-        text: set.msg || qsTr("↑↓ mover · ◀ ▶ ajustar · A elegir · LB / RB cambiar de categoría · B volver")
-        color: set.msg ? set.host.ink : set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 20
+        visible: !!set.msg
+        text: set.msg
+        color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 20
         horizontalAlignment: Text.AlignHCenter
     }
 

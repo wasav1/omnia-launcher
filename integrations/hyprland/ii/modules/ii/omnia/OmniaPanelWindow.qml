@@ -50,9 +50,10 @@ PanelWindow {
     readonly property real padT: atBottom ? ovs : (!horiz ? along : 0)
     readonly property real padB: atTop ? ovs : (!horiz ? along : 0)
 
-    readonly property real bodyW: Math.min(840, modelData.width - padL - padR - 8)
+    readonly property real bodyW: Math.max(1, Math.min(840, modelData.width - padL - padR - 8))
     readonly property real maxBodyH: modelData.height - barH - padT - padB - 8
-    readonly property real bodyH: Math.min(content.implicitHeight, Math.max(260, maxBodyH))
+    // El panel no debe crecer por encima del área visible en monitores bajos.
+    readonly property real bodyH: Math.max(1, Math.min(content.implicitHeight, maxBodyH))
     implicitWidth: bodyW + padL + padR
     implicitHeight: bodyH + padT + padB
 

@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 
-from . import __version__, audio, discord, gamemode, importer, mangohud, online_catalog, pad, paths, security
+from . import __version__, audio, big_mode, discord, gamemode, importer, mangohud, online_catalog, pad, paths, security
 from .api import Api
 from .dbus import DesktopService
 from .games import refresh as games_refresh
@@ -428,7 +428,14 @@ def main(argv=None, detectors=None, stop: threading.Event | None = None) -> int:
     threading.Thread(target=art_worker, args=(store, stop, 1.5, api.bus), daemon=True).start()
     gm_thread = threading.Thread(target=gamemode_worker, args=(api, mode, sessions, stop), name="omnia-gamemode")
     gm_thread.start()
-    reader = pad.PadReader(api.bus, gate=api.pad_gate, log=log.info)
+    ui_launcher = os.environ.get("OMNIA_UI_LAUNCHER")
+    if ui_launcher and os.access(ui_launcher, os.X_OK):
+        api.connection_prompt = big_mode.ConnectionPrompt(ui_launcher, api.port, log, paths.runtime_dir() / "token")
+    prompt = api.connection_prompt
+    reader = pad.PadReader(api.bus, gate=lambda: api.pad_gate(not api.desktop_visible and big_mode.is_open()),
+                           log=log.info,
+                           on_connection_scan=prompt.update if prompt else None,
+                           consume_key=prompt.consume if prompt else None)
     reader.configure(cfg.get("pads") if isinstance(cfg.get("pads"), dict) else {})       # apodo, iconos, zona muerta y vibración de cada mando
     api.pad_reader = reader
     reader.start()

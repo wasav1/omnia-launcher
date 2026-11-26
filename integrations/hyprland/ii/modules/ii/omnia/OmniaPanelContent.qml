@@ -280,7 +280,8 @@ Item {
 
             // ===== izquierda: lista de juegos =====
             Rectangle {
-                Layout.preferredWidth: 300
+                Layout.preferredWidth: Math.min(300, Math.max(190, (parent.width - 14) * 0.38))
+                Layout.minimumWidth: 190
                 Layout.fillHeight: true
                 radius: 20
                 color: OmniaTheme.card(root.blur)

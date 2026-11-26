@@ -285,11 +285,15 @@ class PadReader(threading.Thread):
     """Lee todos los mandos conectados y empuja las teclas al bus. `gate()` decide si se entregan (p. ej. no con un juego abierto)."""
 
     def __init__(self, bus, gate=lambda: True, devices_file="/proc/bus/input/devices", log=lambda *a: None, dev_dir="/dev/input",
-                 power_dir="/sys/class/power_supply", dbus_battery=read_battery_dbus):
+                 power_dir="/sys/class/power_supply", dbus_battery=read_battery_dbus,
+                 on_connection_scan=None, consume_key=None):
         super().__init__(daemon=True, name="omnia-pad")
         self.bus, self.gate, self.devices_file, self.log, self.dev_dir = bus, gate, devices_file, log, dev_dir
         self.power_dir, self.dbus_battery = power_dir, dbus_battery
         self._dbus_cache = {}       # dirección -> (instante, valor): el bus se consulta cada 20 s como máximo
+        self.on_connection_scan = on_connection_scan
+        self.consume_key = consume_key
+        self._connection_baseline = False
         self.stop_event = threading.Event()
         self.open = {}          # fd -> (Device, PadLogic, {código: absinfo})
         self.uniq_by_path = {}
@@ -320,14 +324,17 @@ class PadReader(threading.Thread):
 
     def _rescan(self):
         have = {d.path for d, _, _ in self.open.values()}
-        for dev in discover(self.devices_file, self.dev_dir):
+        devices = discover(self.devices_file, self.dev_dir)
+        added = []
+        for dev in devices:
             if dev.path not in have:
                 try:
                     self._open(dev)
+                    added.append(dev)
                     self.log(f"mando conectado: {dev.name} ({dev.layout})")
                 except OSError as e:
                     self.log(f"no se pudo abrir {dev.path}: {e}")
-        now_paths = {d.path for d in discover(self.devices_file, self.dev_dir)}
+        now_paths = {d.path for d in devices}
         for fd, (dev, _, _) in list(self.open.items()):
             if dev.path not in now_paths:
                 self._close(fd)
@@ -337,6 +344,11 @@ class PadReader(threading.Thread):
             battery = self._battery_from_bus(first[0].uniq)
         self.bus.set_pad(bool(first), first[0].name if first else "", first[0].layout if first else "",
                          self.effective_family(first[0]) if first else "", battery)
+        if self.on_connection_scan:
+            new = added[0] if self._connection_baseline and added else None
+            self.on_connection_scan(bool(first), new is not None, new.name if new else "",
+                                    self.effective_family(new) if new else "")
+        self._connection_baseline = True
 
     # --- ajustes por mando, estado en vivo y vibración (pantalla «Mandos» de Big Mode) ------------------------------------------------
     @staticmethod
@@ -424,10 +436,11 @@ class PadReader(threading.Thread):
         self.log(f"mando desconectado: {dev.name}")
 
     def _emit(self, keys):
-        if keys and self.gate():
-            for k in keys:
-                self.bus.push(k)
-                self._haptic_pulse(k)
+        pending = [key for key in keys if not self.consume_key or not self.consume_key(key)]
+        if pending and self.gate():
+            for key in pending:
+                self.bus.push(key)
+                self._haptic_pulse(key)
 
     def run(self):
         last_scan = 0.0

@@ -1,137 +1,61 @@
-# Omnia
+# Omnia Game Suite
 
-<img src="assets/branding/omnia-logo.svg" alt="Logo de Omnia Desktop Suite" width="220">
+<img src="assets/branding/omnia-game-suite.svg" alt="Omnia Game Suite" width="360">
 
-Biblioteca y gestor de juegos para Linux, con aplicación de escritorio, Big Mode y panel integrado. La aplicación
-`omnia-app` funciona por sí sola; los componentes de escritorio de KDE Plasma se distribuyen aparte como integración
-opcional.
+[Español](#español) · [English](#english) · [Releases](https://github.com/wasav1/omnia-launcher/releases)
 
-**Omnia 0.2.1 · Revisión de paquetes 1.**
+## Español
 
-Esta versión renueva la ficha del juego, el monitor del sistema, el menú contextual y el asistente de instalación,
-actualización, ajustes y desinstalación.
+**Omnia Game Suite** reúne tus juegos y ports de Linux en una biblioteca local que puedes abrir desde Desktop, Big Mode o el panel rápido de Dux.
 
-## Instaladores
+La distribución actual está dirigida a **Hyprland en Arch Linux y derivados de 64 bits**, como CachyOS. La compatibilidad con **KDE Plasma** y **GNOME** está prevista para versiones futuras. **Windows** está en evaluación.
 
-El asistente se construye como **AppImage x86-64** con Qt e iconos incluidos. La salida local se llama
-`Omnia-Installer-0.2.1-1-x86_64.AppImage`. El proyecto también permite generar paquetes de fuentes `.deb`,
-`.pkg.tar.zst`, `.rpm` y un asistente portable `.run`.
+### Instalar o actualizar
 
-Consulta la [guía de construcción y compatibilidad](docs/INSTALADORES.md) para generar el formato de tu distribución.
-El flujo AppImage se validó en Bazzite con la compilación anterior del escritorio.
+1. Descarga el instalador único `Omnia-Game-Suite-<versión>-x86_64.run` desde [GitHub Releases](https://github.com/wasav1/omnia-launcher/releases).
+2. Dale permiso de ejecución y ábrelo desde tu sesión de Hyprland. El asistente comprueba el entorno y detecta una instalación de Omnia anterior.
+3. Elige tus carpetas y, si usas Dux, la integración del panel. Al terminar puedes conectar las cuentas de tiendas compatibles o hacerlo más tarde desde Ajustes.
 
-### Requisitos y compatibilidad
+Cuando haya otra versión disponible, **Actualizar** aparece en Desktop, Big Mode y el panel de Dux. Puedes seguir usando Omnia mientras se prepara. Al elegir **Reiniciar ahora**, el sistema puede pedirte que autorices la instalación. Omnia reinicia su servicio y sus ventanas después de aplicarla.
 
-- Aplicación independiente: **Qt ≥ 6.6**, **Python ≥ 3.11** y systemd de usuario.
-- Integración de escritorio: **KDE Plasma 6**. El instalador universal actual sigue dirigido a Plasma.
-- **systemd de usuario** activo y las dependencias disponibles en los repositorios de tu distribución.
-- Herramientas de compilación Qt/C++; el asistente compila los componentes con la versión de Qt de tu sistema.
-- Conexión a Internet para descargar dependencias, catálogo y artwork publicados por Omnia Backend.
+### Qué puedes hacer
 
-Plasma 5 no está cubierto por los módulos de integración.
+- **Desktop:** explora los ports de Omnia y tus juegos de Steam, Epic, GOG y Amazon. Filtra por origen y sigue las instalaciones compatibles en Descargas.
+- **Big Mode:** navega con mando, teclado o ratón. Continúa tu partida, recorre Biblioteca y Tienda, y gestiona tus cuentas. Incluye aviso al conectar un mando, bienvenida y cierre animados.
+- **Panel rápido:** abre Omnia desde su icono en la barra de Dux, consulta tu biblioteca, revisa qué mando está conectado y su batería, o entra en Big Mode.
+- **Juegos locales:** agrega ejecutables o ROMs que ya tengas. En **Cambiar arte**, busca por título, elige la edición y previsualiza portadas, fondos o logos antes de guardar.
 
-### Aplicación Omnia
+La interfaz está disponible en español e inglés. El inicio de sesión depende de las herramientas de cada tienda. Omnia no solicita contraseñas de tiendas ni claves personales de SteamGridDB y no distribuye ROMs.
 
-Tras instalar el paquete de la aplicación, abre **Omnia** para el gestor o **Omnia Big Mode** para iniciar Big Mode
-directamente desde el menú. También puedes ejecutar `omnia-ui --manager` o `omnia-ui --window`. El gestor, la biblioteca
-y Big Mode comparten la biblioteca y preferencias del mismo servicio local. En Arch/CachyOS, el paquete
-opcional `omnia-hyprland` instala los archivos del panel y el comando reversible `omnia-hyprland install`; este aplica
-el módulo a illogical-impulse cuando el usuario lo solicita. Big Mode incluye
-Inicio conectado al catálogo público de Omnia Backend; funciona con caché cuando no hay conexión. La biblioteca puede
-importar ROMs locales de Nintendo, PlayStation, PS2 y PSP, y permite elegir consola en formatos de disco ambiguos.
-La interfaz se puede usar en español e inglés. Omnia no descarga ROMs ni recibe claves de proveedores de artwork.
+![Asistente de Omnia Game Suite detectando una instalación anterior](docs/screenshots/installer-guided.png)
 
-El `PKGBUILD` de Arch genera paquetes separados: `omnia-core` y `omnia-app` para usar el gestor y Big Mode; `omnia-hyprland`
-para añadir el panel de illogical-impulse; y `omnia-kde` para las integraciones opcionales de Plasma. El panel no se inserta
-en la configuración de illogical-impulse al instalar el paquete: el usuario ejecuta `omnia-hyprland install --dry-run`, revisa
-los cambios y luego `omnia-hyprland install`.
+## English
 
-**Bazzite / Fedora OSTree (Kinoite):** el asistente detecta el sistema inmutable y usa `rpm-ostree` para crear una capa
-con las dependencias de compilación (Qt 6, CMake, PyGObject, etc.). Omnia se instala siempre en `~/.local`; no se
-modifica `/usr`. Si `rpm-ostree` no admite `--apply-live`, será necesario reiniciar para que la capa esté activa antes
-de compilar los componentes QML. Consulta [instalación en Bazzite](docs/INSTALADORES.md#instalación-en-bazzite-ostree).
+**Omnia Game Suite** brings Linux games and ports into one local library accessible from Desktop, Big Mode, or the Dux quick panel.
 
-Los paquetes son `all`, `any` o `noarch` porque distribuyen **fuentes**, no binarios Qt de CachyOS. Eso no garantiza
-compatibilidad con cualquier arquitectura: los componentes y sus dependencias deben poder compilarse en el equipo.
-Omnia instala su wallpaper animado y el widget de biblioteca. No instala ni cambia el tema, los paneles, la decoración
-de ventanas ni la paleta global de Plasma; conserva la configuración visual que ya tenga el usuario.
+The current release targets **Hyprland on 64-bit Arch Linux and Arch-based distributions** such as CachyOS. **KDE Plasma** and **GNOME** support is planned for future versions. **Windows** support is being evaluated.
 
-### Instalar el asistente
+### Install or update
 
-Puedes abrir el paquete con el gestor gráfico de software si tu distribución lo admite, o usar el comando correspondiente
-**desde la carpeta donde lo descargaste**:
+1. Download the single `Omnia-Game-Suite-<version>-x86_64.run` installer from [GitHub Releases](https://github.com/wasav1/omnia-launcher/releases).
+2. Make it executable and open it from your Hyprland session. The installer checks the environment and detects previous Omnia installations.
+3. Choose your folders and, if you use Dux, enable the quick panel integration. Connect supported store accounts at the end, or do it later in Settings.
 
-```sh
-# Debian / Ubuntu / Kubuntu compatibles
-sudo apt install ./omnia-desktop-suite-installer_0.2.1-1_all.deb
+When a new version is available, **Update** appears in Desktop, Big Mode, and the Dux panel. Keep using Omnia while the update is prepared. Choose **Restart now** and authorize installation if prompted. Omnia restarts its service and windows after applying the update.
 
-# Arch Linux / CachyOS / EndeavourOS
-sudo pacman -U ./omnia-desktop-suite-installer-0.2.1-1-any.pkg.tar.zst
+### What you can do
 
-# Fedora KDE
-sudo dnf install ./omnia-desktop-suite-installer-0.2.1-1.fedora.noarch.rpm
+- **Desktop:** browse Omnia ports and games from Steam, Epic, GOG, and Amazon. Filter by source and track supported installations in Downloads.
+- **Big Mode:** browse with a controller, keyboard, or mouse. Continue playing, browse the Library and Store, and manage your accounts. It includes a controller connection prompt and animated opening and closing transitions.
+- **Quick panel:** open Omnia from its icon in the Dux bar, browse your library, check the connected controller and its battery, or enter Big Mode.
+- **Local games:** add executables or ROMs you already own. In **Change artwork**, search by title, choose an edition, and preview covers, backgrounds, or logos before saving.
 
-# openSUSE Tumbleweed
-sudo zypper install ./omnia-desktop-suite-installer-0.2.1-1.opensuse.noarch.rpm
-```
+The interface is available in English and Spanish. Sign-in depends on each store's tools. Omnia does not ask for store passwords or personal SteamGridDB keys and does not distribute ROMs.
 
-Después abre **Omnia Desktop Suite — Instalar o actualizar** desde el menú de aplicaciones de Plasma,
-**como usuario normal, sin sudo**. Instalar el paquete coloca el asistente en el sistema; el escritorio de Omnia
-se configura después, en tu usuario y con tu aceptación.
+## Desarrollo / Development
 
-Para el `.run`, activa **Propiedades → Permisos → Es ejecutable** y ábrelo con doble clic si tu gestor de archivos
-lo permite. También puedes ejecutarlo así, sin sudo:
+El núcleo local usa Python y las interfaces usan Qt Quick (QML). El catálogo y la búsqueda de arte se sirven desde [Omnia Backend](https://github.com/wasav1/omnia-backend).
 
-```sh
-chmod +x Omnia-Desktop-Suite-0.2.1-source.run
-./Omnia-Desktop-Suite-0.2.1-source.run
-```
+The local service uses Python and the user interfaces use Qt Quick (QML). [Omnia Backend](https://github.com/wasav1/omnia-backend) provides the public catalog and artwork search.
 
-### Configurar Omnia
-
-El asistente permite:
-
-1. Leer y aceptar los cambios que realizará en la sesión.
-2. Revisar las rutas ya vinculadas o agregar nuevas ubicaciones; Steam se detecta por sus bibliotecas registradas.
-3. Revisar los candidatos encontrados y seleccionar cuáles agregar, indicando ejecutable o emulador cuando haga falta.
-4. Elegir el volumen que aparecerá en el monitor del sistema con su nombre real.
-5. Confirmar la instalación de los componentes elegidos. Omnia obtiene el artwork del catálogo público de su backend,
-   sin pedir claves personales.
-6. Si también elegiste integrar Omnia con Plasma, el instalador aplica esos cambios a tu usuario y puede reiniciar
-   Plasma; sus paneles podrían desaparecer unos segundos mientras vuelve a iniciar.
-
-La contraseña de administración, si hacen falta dependencias, la solicita **KDE/Polkit**. Omnia no recibe ni guarda esa
-contraseña. Las imágenes y los datos de instalación se gestionan desde Omnia Backend; la biblioteca local permanece
-en este equipo.
-
-Después puedes modificar la configuración desde el engranaje de Omnia o **Omnia — Ajustes generales** en el menú de
-Plasma. Quitar una ruta excluye sus juegos del catálogo sin borrar archivos, partidas ni historial; reañadirla recupera
-sus entradas. Los candidatos sin marcar no se importan.
-
-[Guía completa de instaladores y construcción](docs/INSTALADORES.md).
-
-## Desarrollo
-
-Omnia Desktop Suite es un desarrollo desde cero para KDE Plasma 6. El proyecto reúne el launcher,
-el wallpaper animado, los widgets y la integración con el escritorio en un mismo repositorio.
-
-```text
-core/        núcleo Python: biblioteca, detectores, API local y servicios
-ui/          interfaz QML del launcher
-plasma/      wallpaper, widget nativo y puente de sesión para Plasma 6
-kwin/        scripts de integración con el escritorio
-assets/      logo y recursos visuales
-packaging/   asistente gráfico y construcción de paquetes por distribución
-tests/       pruebas con datos de ejemplo
-```
-
-Los archivos de descarga se adjuntan a **GitHub Releases**, no se guardan como binarios dentro del repositorio.
-Para preparar los paquetes consulta `packaging/distros/build.py`; su salida incluye los nombres de archivo usados arriba,
-`SHA256SUMS` y `manifest.json`. Al publicar otra versión se deben actualizar el tag, los nombres y el estado de pruebas
-en esta tabla para que cada enlace corresponda al paquete anunciado.
-
-## Licencia
-
-El código original de Omnia se distribuye bajo [GPL-3.0-or-later](LICENSE).
-Los recursos de terceros conservan sus licencias, incluidas las [tipografías](assets/fonts/README.md),
-los [iconos Lucide](ui/qml/images/lucide/LICENSE) y las [indicaciones de mando de Kenney](ui/qml/images/pad/LICENSE-Kenney-CC0.txt).
+[Licencia / License · GPL-3.0-or-later](LICENSE).

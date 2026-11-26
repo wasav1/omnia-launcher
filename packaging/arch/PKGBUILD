@@ -36,13 +36,12 @@ package_omnia-core() {
 
 package_omnia-app() {
   pkgdesc="Aplicación independiente de biblioteca y gestión de juegos para Linux"
-  depends=(omnia-core qt6-base qt6-declarative qt6-5compat qt6-svg)
-  optdepends=('qt6-wayland: integración nativa en sesiones Wayland'
-              'qt6-webengine: inicio de sesión de las tiendas dentro de Omnia, sin copiar códigos'
-              'steam: detección de juegos de Steam'
+  depends=(omnia-core qt6-base qt6-declarative qt6-5compat qt6-svg qt6-multimedia qt6-wayland qt6-webengine)
+  optdepends=('steam: detección de juegos de Steam'
               'lutris: detección de juegos de Lutris'
               'heroic-games-launcher-bin: detección de juegos de Heroic')
   cd "$pkgbase-$pkgver"
+  DESTDIR="$pkgdir" cmake --install "$srcdir/omnia-session-build"
   install -Dm755 ui/omnia-ui "$pkgdir/usr/bin/omnia-ui"
   install -d "$pkgdir/usr/share/omnia/ui"
   cp -r ui/qml "$pkgdir/usr/share/omnia/ui/"
@@ -80,7 +79,6 @@ package_omnia-kde() {
     install -d "$pkgdir/usr/share/kwin/scripts/$s"
     cp -r "kwin/$s/." "$pkgdir/usr/share/kwin/scripts/$s/"
   done
-  DESTDIR="$pkgdir" cmake --install "$srcdir/omnia-session-build"
   install -d "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher"
   cp -r plasma/wallpapers/org.omnia.launcher/. "$pkgdir/usr/share/plasma/wallpapers/org.omnia.launcher/"
   install -d "$pkgdir/usr/share/plasma/plasmoids/org.omnia.desktop"

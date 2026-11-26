@@ -450,8 +450,24 @@ QtObject {
     function openInstallationFolder(gameId, done) { call("POST", "/folders/open", done, {gameId: gameId, installation: true}) }
     function openFolder(gameId, folder, done) { call("POST", "/folders/open", done, {gameId: gameId, folder: folder}) }
     function savesOpen(g, done, portId) { call("POST", "/saves/open?" + _q(g, portId), done) }
-    function artBrowse(g, kind, page, sgid, done) {
-        call("GET", "/art/browse?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&page=" + page + "&sgid=" + sgid, done)
+    property var suiteUpdate: ({phase: "idle", current: "", available: "", progress: 0, error: ""})
+    function pollSuiteUpdate(surface, shown) {
+        call("GET", "/suite-update?surface=" + encodeURIComponent(surface) + "&visible=" + (shown ? "1" : "0"), function(status, body) {
+            if (status === 200 && body) api.suiteUpdate = body
+        })
+    }
+    function suiteUpdateAction(action, done) {
+        call("POST", "/suite-update/" + action, function(status, body) {
+            if (status === 200 && body) api.suiteUpdate = body
+            if (done) done(status, body)
+        })
+    }
+    function artMatches(g, title, done) {
+        call("GET", "/art/matches?id=" + encodeURIComponent(g.id) + "&title=" + encodeURIComponent(title), done)
+    }
+    function artBrowse(g, kind, page, sgid, done, match) {
+        call("GET", "/art/browse?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind)
+             + "&page=" + page + "&sgid=" + sgid + "&match=" + encodeURIComponent(match || ""), done)
     }
     function artPick(g, kind, page, sgid, index, done) {
         call("POST", "/art/pick?id=" + encodeURIComponent(g.id) + "&kind=" + encodeURIComponent(kind) + "&page=" + page + "&sgid=" + sgid + "&index=" + index, done)

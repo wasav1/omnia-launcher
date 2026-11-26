@@ -186,7 +186,7 @@ Item {
         Image {
             width: det.s * 36; height: width
             anchors.verticalCenter: parent.verticalCenter
-            source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg")
+            source: Qt.resolvedUrl("images/omnia-mark.svg")
             fillMode: Image.PreserveAspectFit
         }
         Text { text: "Omnia"; anchors.verticalCenter: parent.verticalCenter; color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 28 }
@@ -527,6 +527,7 @@ Item {
             color: det.ink2
         }
         Hint { padKeys: det.host.padOn ? ["A"] : []; glyph: "Enter"; label: qsTr("Aceptar") }
+        Hint { visible: det.host.padOn && det.menuItems.length > 0; padKeys: ["X"]; label: qsTr("Menú") }
         Hint { padKeys: det.host.padOn ? ["LB", "RB"] : []; glyph: "RePág / AvPág"; label: qsTr("Cambiar pestaña") }
         Hint { visible: !det.host.padOn; icon: "mouse"; label: qsTr("Clic en una pestaña") }
         Hint { padKeys: det.host.padOn ? ["B"] : []; glyph: "Esc"; label: qsTr("Volver") }

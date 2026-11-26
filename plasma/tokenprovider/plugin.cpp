@@ -1,4 +1,5 @@
 #include "sessiontoken.h"
+#include "bigmodesession.h"
 
 #include <QQmlEngine>
 #include <QQmlExtensionPlugin>
@@ -12,6 +13,7 @@ class OmniaSessionPlugin final : public QQmlExtensionPlugin
 public:
     void registerTypes(const char *uri) override
     {
+        qmlRegisterType<BigModeSession>(uri, 1, 0, "BigModeSession");
         qmlRegisterSingletonType<SessionToken>(uri, 1, 0, "SessionToken",
             [](QQmlEngine *engine, QJSEngine *) -> QObject * {
                 return new SessionToken(engine);

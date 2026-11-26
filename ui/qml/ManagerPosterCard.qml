@@ -1,6 +1,7 @@
 import QtQuick
 
-/** Tarjeta de exploración basada en carátula, con metadatos sobre un degradado y zoom al pasar el cursor. */
+/** Tarjeta de exploración basada en carátula, con metadatos sobre un degradado y zoom al pasar el cursor.
+ *  Cuando pertenece a una lista desplazable, solo carga el arte cerca del área visible. */
 Item {
     id: card
     property string title: ""
@@ -22,6 +23,14 @@ Item {
         if (!viewport || !emphasized) return Qt.point(0, 0)
         const pos = card.mapToItem(viewport.contentItem, 0, 0)
         return Qt.point(pos.x - viewport.contentX, pos.y - viewport.contentY)
+    }
+    readonly property bool artworkInRange: {
+        if (!viewport) return true
+        const pos = card.mapToItem(viewport.contentItem, 0, 0)
+        const x = pos.x - viewport.contentX, y = pos.y - viewport.contentY
+        const marginX = width, marginY = height
+        return x + width > -marginX && x < viewport.width + marginX
+            && y + height > viewportTop - marginY && y < viewport.height + marginY
     }
     readonly property real enlargement: {
         if (!emphasized) return 1
@@ -57,7 +66,7 @@ Item {
 
         FadedImage {
             anchors.fill: parent
-            source: card.artwork
+            source: card.artworkInRange ? card.artwork : ""
             retainWhileLoading: true
             cornerRadius: cover.radius
         }

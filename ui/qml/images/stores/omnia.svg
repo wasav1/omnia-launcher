@@ -1,14 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 320 320">
-  <defs>
-    <linearGradient id="upper" x1="75" y1="48" x2="260" y2="198" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#FFFFFF"/>
-    </linearGradient>
-    <linearGradient id="lower" x1="100" y1="126" x2="210" y2="288" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#FFFFFF"/>
-    </linearGradient>
-  </defs>
-  <path fill="url(#upper)" fill-rule="evenodd" d="M151 30C220 27 281 80 287 150C294 221 241 285 169 291C98 297 34 243 29 172C21 98 79 35 151 30ZM148 94C112 95 85 125 86 163C86 202 115 233 153 235C185 237 208 214 218 185C220 178 225 173 230 170C220 168 215 162 212 152C204 119 182 93 148 94Z"/>
-  <path fill="url(#lower)" d="M34 194C40 159 91 94 148 94C112 95 85 125 86 163C86 202 115 233 153 235C185 237 208 214 218 185C223 170 229 170 237 166C252 157 261 143 274 144C283 145 288 157 288 172C285 233 237 285 169 291C104 297 51 254 34 194Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="25 20 104 104">
+  <title>Omnia Game Suite</title>
+  <path d="M44 87a36 36 0 0 1 57-42l14-8-1 26-25-9 10-4a29 29 0 1 0-12 49" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="102" cy="96" r="4" fill="#ffffff" />
 </svg>

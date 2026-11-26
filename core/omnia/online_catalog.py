@@ -277,6 +277,34 @@ def fetch_art_options(slug: str, kind: str, page: int = 0, *, base: Path | None 
         raise CatalogError("Opciones de arte no válidas.")
     response = _get("/games/" + urllib.parse.quote(slug, safe="") + "/artwork/options", {"type": _OPTION_KINDS[kind], "page": str(page)},
                     base=base, opener=opener)
+    return _art_options(response)
+
+
+def find_art_matches(title: str, year=None) -> list[dict]:
+    params = {"title": title}
+    if type(year) is int and 1900 <= year <= 2100:
+        params["year"] = str(year)
+    response = _get("/artwork/matches", params)
+    data = response.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        raise CatalogError(response.get("warning") or "El backend no devolvió coincidencias.")
+    return [
+        {"id": row["id"], "name": row["name"], "year": row.get("year")}
+        for row in data["items"][:12]
+        if isinstance(row, dict) and isinstance(row.get("id"), str)
+        and re.fullmatch(r"[0-9]{1,12}", row["id"]) and isinstance(row.get("name"), str)
+    ]
+
+
+def fetch_match_options(match_id: str, kind: str, page: int) -> dict:
+    if not re.fullmatch(r"[0-9]{1,12}", match_id) or kind not in _OPTION_KINDS or not 0 <= page <= 20:
+        raise CatalogError("Opciones de arte no válidas.")
+    return _art_options(_get(f"/artwork/matches/{match_id}/options", {
+        "type": _OPTION_KINDS[kind], "page": str(page),
+    }))
+
+
+def _art_options(response: dict) -> dict:
     data = response.get("data")
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         raise CatalogError("El backend no devolvió opciones de arte.")

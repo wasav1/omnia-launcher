@@ -272,7 +272,8 @@ for script in omnia-showdesktop omnia-watch; do
   cp -a "$ROOT/kwin/$script/." "$DATA/kwin/scripts/$script/"
 done
 install -d "$HOME/.config/systemd/user"
-sed "s|^ExecStart=/usr/bin/omnia-core|ExecStart=$PREFIX/bin/omnia-core|" \
+sed -e "s|^ExecStart=/usr/bin/omnia-core|ExecStart=$PREFIX/bin/omnia-core|" \
+  -e "s|^Environment=OMNIA_UI_LAUNCHER=/usr/bin/omnia-ui|Environment=\"OMNIA_UI_LAUNCHER=$DATA/omnia/ui/omnia-ui\"|" \
   "$ROOT/packaging/systemd/omnia.service" > "$HOME/.config/systemd/user/omnia.service"
 install -d "$PREFIX/bin"
 cat > "$PREFIX/bin/omnia-core" <<EOF

@@ -92,7 +92,7 @@ Item {
     Rectangle {
         id: left
         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-        width: ml.s * 310
+        width: Math.min(310, Math.max(230, parent.width * 0.29))
         color: "#0E141B"
         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: "#1c2733" }
         Text { x: ml.s * 16; y: ml.s * 14; text: qsTr("Biblioteca"); color: manager.ink; font.family: ml.font; font.pixelSize: ml.s * 21; font.weight: Font.Bold }
@@ -108,9 +108,9 @@ Item {
             background: Rectangle { radius: ml.s * 12; color: manager.surface2; border.color: searchField.activeFocus ? "#45CFC9" : "#24FFFFFF"
                 LucideIcon { x: ml.s * 12; anchors.verticalCenter: parent.verticalCenter; width: ml.s * 17; height: width; name: "search"; color: manager.muted } }
         }
-        Row {
+        Flow {
             id: collections
-            anchors { left: parent.left; top: searchField.bottom; topMargin: ml.s * 10; leftMargin: ml.s * 14 }
+            anchors { left: parent.left; right: parent.right; top: searchField.bottom; topMargin: ml.s * 10; leftMargin: ml.s * 14; rightMargin: ml.s * 14 }
             spacing: ml.s * 6
             Repeater {
                 model: [{ k: "all", l: qsTr("Todos") }, { k: "fav", l: qsTr("Favoritos") }, { k: "recent", l: qsTr("Recientes") }]

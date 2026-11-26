@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Window
-import Qt5Compat.GraphicalEffects
 
 /**
  * BigMode: la biblioteca completa de Omnia (pantalla completa): barra superior con filtros, búsqueda y estado del
@@ -14,6 +13,34 @@ import Qt5Compat.GraphicalEffects
 Item {
     id: lib
     focus: true
+
+    Timer {
+        id: mouseIdle
+        interval: 2000
+    }
+    Loader {
+        id: windowIntegration
+        source: "BigModeWindowIntegration.qml"
+    }
+    Binding {
+        target: windowIntegration.item
+        property: "window"
+        value: lib.Window.window
+        when: windowIntegration.status === Loader.Ready
+    }
+    Binding {
+        target: windowIntegration.item
+        property: "pointerHidden"
+        value: (lib.padOn || lib.api.padSeq < 0) && !mouseIdle.running
+        when: windowIntegration.status === Loader.Ready
+    }
+    Connections {
+        target: windowIntegration.item
+        function onMouseUsed() {
+            if (lib.padOn || lib.api.padSeq < 0) mouseIdle.restart()
+        }
+    }
+    onPadOnChanged: mouseIdle.stop()
     // Inyectable para que el gestor y Big Mode compartan el mismo cliente local.
     // En la ventana independiente se usa la instancia propia de esta vista.
     property var backend: null
@@ -50,7 +77,10 @@ Item {
     property var kbCallback: null
     property var kbClosed: null
     function playIntro() { intro.start() }
-    function lastFocus() { lib.forceActiveFocus() }
+    function lastFocus() {
+        if (page === "settings") settings.forceActiveFocus()
+        else lib.forceActiveFocus()
+    }
     // Teclado virtual para otros usos (apodo de un mando): el texto va a `onText` en vivo y `onDone` se llama al cerrar.
     function openKeyboardFor(initial, onText, onDone, mode) {
         kbCallback = onText; kbClosed = onDone; searchFocus = false
@@ -66,10 +96,19 @@ Item {
         }, "path")
     }
     function openStorePort(title, offer) { portDialog.show(offer, title) }
-    function maybeIntro() {
+    function maybeIntro(useFallback) {
         if (introShown || !api.prefsLoaded) return
+        if (!api.introEnabled || api.arg("--game", "") || api.arg("--downloads", "")) {
+            introShown = true
+            return
+        }
+        if (!useFallback && api.revision < 0) {
+            if (!introFallback.running) introFallback.start()
+            return
+        }
+        introFallback.stop()
         introShown = true
-        if (api.introEnabled && api.arg("--game", "") === "" && api.arg("--downloads", "") === "") intro.start()
+        intro.start()
     }
     // Sonidos: el mando y el teclado ponen los suyos en todas las pantallas (los ajustes tienen los propios y la estantería suena al cambiar de página).
     function padSound(k) {
@@ -92,11 +131,25 @@ Item {
     function lastPlayedOf(g) { return Number(g && (g.lastPlayed || (g.played || {}).last) || 0) }
     property int mainNavIndex: -1
     property string settingsFrom: "library"
+    property bool exitConfirmOpen: false
+    property int exitConfirmChoice: 0
+    readonly property int powerIndex: gearIndex + 1
     property string downloadsFrom: "library"
     property bool addOpen: false
     property string addImportPath: ""
     property string addedGameId: ""
-    readonly property int gearIndex: page === "library" ? 4 : 3
+    readonly property int updateIndex: page === "library" ? 4 : 3
+    readonly property int gearIndex: updateIndex + (suiteNotice.available ? 1 : 0)
+    readonly property alias suiteUpdateNotice: suiteNotice
+    SuiteUpdateNotice {
+        id: suiteNotice
+        anchors.fill: parent
+        api: lib.api
+        surface: "big-mode"
+        activeSurface: lib.visible
+        interactionBlocked: intro.active || lib.exiting || lib.exitConfirmOpen || vkb.open || ctxMenu.open
+        uiScale: lib.s
+    }
     function openAddGame() { mainNavIndex = -1; addImportPath = ""; addOpen = true }
     function closeAddGame() { addOpen = false; addImportPath = ""; lib.forceActiveFocus() }
     function selectAddedGame() {
@@ -119,12 +172,14 @@ Item {
         if (i === 0) openHome()
         else if (i === 1) openLibrary()
         else if (i === 2) openStore()
+        else if (i === powerIndex) requestExit()
+        else if (suiteNotice.available && i === updateIndex) suiteNotice.activate()
         else if (i === 3 && page === "library") openAddGame()
         else openSettings()
     }
     function handleMainNav(key) {
         if (mainNavIndex < 0) return false
-        if (key === "l" || key === "r") mainNavIndex = (mainNavIndex + (key === "l" ? gearIndex : 1)) % (gearIndex + 1)
+        if (key === "l" || key === "r") mainNavIndex = (mainNavIndex + (key === "l" ? powerIndex : 1)) % (powerIndex + 1)
         else if (key === "A") activateMainNav(mainNavIndex)
         else if (key === "B" || key === "d" || key === "SELECT") {
             mainNavIndex = -1
@@ -184,6 +239,31 @@ Item {
         page = "settings"; settings.forceActiveFocus()
     }
     function closeSettings() { restorePage(settingsFrom) }
+    readonly property bool exiting: exitAnimation.running
+    property real exitShelfProgress: 0
+    function requestExit() {
+        if (exiting) return
+        exitConfirmChoice = 0
+        exitConfirmOpen = true
+        sfx.play("open")
+    }
+    function finishExitConfirmation() {
+        if (!exitConfirmOpen || exiting) return
+        exitConfirmOpen = false
+        if (exitConfirmChoice === 0) { sfx.play("back"); lib.forceActiveFocus(); return }
+        sfx.play("confirm")
+        exitAnimation.start()
+    }
+    ParallelAnimation {
+        id: exitAnimation
+        NumberAnimation { target: lib; property: "exitShelfProgress"; from: 0; to: 1; duration: 270; easing.type: Easing.InCubic }
+        SequentialAnimation {
+            PauseAnimation { duration: 150 }
+            NumberAnimation { target: lib; property: "opacity"; from: 1; to: 0; duration: 300; easing.type: Easing.InOutQuad }
+        }
+        onFinished: lib.closeRequested()
+    }
+    MouseArea { anchors.fill: parent; z: 300; enabled: lib.exiting; acceptedButtons: Qt.AllButtons }
     function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
     // ---- menú contextual del juego (X / clic derecho / M)
     GameActions { id: gameActions }
@@ -425,7 +505,6 @@ Item {
         else if (page === "home") openLibrary()
         else if (showSystem) showSystem = false
         else if (searchOpen || searchText) { searchText = ""; searchOpen = false; lib.forceActiveFocus() }
-        else lib.closeRequested()
     }
     function duration(secs) {
         const m = Math.round(secs / 60)
@@ -475,7 +554,15 @@ Item {
     Connections {
         target: api
         function onPadKey(k) {
+            if (lib.exiting) return
             if (intro.active) { intro.skip(); return }
+            if (suiteNotice.pad(k)) return
+            if (lib.exitConfirmOpen) {
+                if (k === "l" || k === "r") { lib.exitConfirmChoice = lib.exitConfirmChoice === 0 ? 1 : 0; sfx.play("move") }
+                else if (k === "A") lib.finishExitConfirmation()
+                else if (k === "B") { lib.exitConfirmOpen = false; sfx.play("back"); lib.forceActiveFocus() }
+                return
+            }
             lib.padSound(k)
             if (portDialog.open) { portDialog.pad(k); return }
             if (vkb.open) { vkb.pad(k); return }
@@ -507,7 +594,7 @@ Item {
                 return
             }
             if (lib.detailsOpen) {
-                const dm = { l: "left", r: "right", u: "up", d: "down", A: "accept", B: "back", Y: "menu", LB: "tabprev", RB: "tabnext" }
+                const dm = { l: "left", r: "right", u: "up", d: "down", A: "accept", B: "back", X: "menu", LB: "tabprev", RB: "tabnext" }
                 if (dm[k]) details.nav(dm[k])
                 return
             }
@@ -525,7 +612,20 @@ Item {
         }
     }
     Keys.onPressed: function(e) {
+        if (lib.exiting) { e.accepted = true; return }
         if (intro.active) { intro.skip(); e.accepted = true; return }
+        if (suiteNotice.opened) {
+            e.accepted = suiteNotice.pad(e.key === Qt.Key_Left ? "l" : e.key === Qt.Key_Right ? "r"
+                : e.key === Qt.Key_Escape ? "B" : e.key === Qt.Key_Return || e.key === Qt.Key_Enter ? "A" : "")
+            return
+        }
+        if (lib.exitConfirmOpen) {
+            if (e.key === Qt.Key_Left || e.key === Qt.Key_Right || e.key === Qt.Key_Tab) { lib.exitConfirmChoice = lib.exitConfirmChoice === 0 ? 1 : 0; sfx.play("move") }
+            else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) lib.finishExitConfirmation()
+            else if (e.key === Qt.Key_Escape) { lib.exitConfirmOpen = false; sfx.play("back"); lib.forceActiveFocus() }
+            e.accepted = true
+            return
+        }
         lib.keySound(e)
         if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
@@ -570,7 +670,7 @@ Item {
         else if (e.key === Qt.Key_M || e.key === Qt.Key_Menu) openMenu()
         else if (e.key === Qt.Key_Tab) stepFilter(e.modifiers & Qt.ShiftModifier ? -1 : 1)
         else if (e.key === Qt.Key_Backtab) stepFilter(-1)
-        else if (e.key === Qt.Key_Slash || (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier))) { searchOpen = true; searchInput.forceActiveFocus() }
+        else if (e.key === Qt.Key_Slash || (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier))) { searchOpen = true; header.searchField.forceActiveFocus() }
         else if (e.key === Qt.Key_F) { if (current) api.toggleFav(current) }
         else if (e.key === Qt.Key_F5) api.refresh()
         else if (e.key === Qt.Key_Escape) back()
@@ -664,651 +764,24 @@ Item {
     }
 
     // ================= barra superior =================
-    Item {
-        id: top
+    OmniaBigHeader {
+        id: header
         anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: lib.s * 48; rightMargin: lib.s * 40; topMargin: lib.s * 22 }
-        height: lib.s * 54
-        z: 2
-        visible: lib.mainNavVisible
-
-        Row {
-            id: brand
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: lib.s * 14
-            Image {
-                width: lib.s * 44; height: lib.s * 44
-                anchors.verticalCenter: parent.verticalCenter
-                source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg")
-                fillMode: Image.PreserveAspectFit
-                sourceSize.height: 128
-                smooth: true
-                visible: status === Image.Ready
-            }
-            Text { text: qsTr("Omnia"); anchors.verticalCenter: parent.verticalCenter; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 38; font.weight: Font.Medium }
-        }
-        Rectangle { id: sep1; anchors { left: brand.right; leftMargin: lib.s * 30; verticalCenter: parent.verticalCenter } width: 1; height: lib.s * 36; color: Qt.rgba(1, 1, 1, 0.16) }
-
-        Row {
-            id: mainNav
-            anchors { left: sep1.right; leftMargin: lib.s * 22; verticalCenter: parent.verticalCenter }
-            spacing: lib.s * 6
-            Repeater {
-                model: lib.mainNavTabs
-                delegate: Rectangle {
-                    required property var modelData
-                    required property int index
-                    readonly property bool active: lib.page === modelData.key
-                    height: lib.s * 38
-                    width: navLabel.implicitWidth + lib.s * 28
-                    radius: height / 2
-                    color: active ? lib.accent : navMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
-                    border.width: lib.mainNavIndex === index ? 3 : 0; border.color: lib.ring
-                    Text { id: navLabel; anchors.centerIn: parent; text: modelData.label; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 17; font.weight: active ? Font.DemiBold : Font.Medium }
-                    MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.activateMainNav(index) }
-                }
-            }
-        }
-
-        PlatformPicker {
-            id: chips
-            visible: lib.page === "library"
-            anchors { left: mainNav.right; leftMargin: lib.s * 18; verticalCenter: parent.verticalCenter }
-            width: lib.page === "library" ? implicitWidth : 0
-            options: lib.filterOptions
-            current: lib.filterKey
-            games: lib.api.games
-            padMode: lib.api.padOn
-            padFamily: lib.api.padFamily || "xbox"
-            uiScale: lib.s; ink: lib.ink; ink2: lib.ink2; accent: lib.accent; uiFont: lib.uiFont
-            colorOf: function(key) { return lib.platformColor(key) }
-            onPicked: function(key) { lib.setFilter(key) }
-        }
-        Rectangle { id: sep2; visible: lib.page === "library"; anchors { left: chips.right; leftMargin: lib.s * 18; verticalCenter: parent.verticalCenter } width: visible ? 1 : 0; height: lib.s * 36; color: Qt.rgba(1, 1, 1, 0.16) }
-
-        // búsqueda (no se muestra en el Inicio)
-        Rectangle {
-            id: searchBox
-            visible: lib.page === "library" || lib.page === "all"
-            anchors { left: sep2.right; leftMargin: lib.page === "library" ? lib.s * 18 : lib.s * 12; verticalCenter: parent.verticalCenter }
-            height: lib.s * 42
-            width: lib.searchOpen || lib.searchText ? lib.s * 300 : lib.s * 46
-            radius: height / 2
-            color: Qt.rgba(0.05, 0.08, 0.12, 0.65)
-            border.color: lib.searchOpen || lib.searchFocus ? lib.ring : Qt.rgba(1, 1, 1, 0.26)
-            border.width: lib.searchFocus ? 3 : 1
-            clip: true
-            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-            LucideIcon { id: sIcon; x: lib.s * 13; anchors.verticalCenter: parent.verticalCenter; width: lib.s * 20; height: lib.s * 20; name: "search"; color: lib.ink }
-            TextInput {
-                id: searchInput
-                anchors { left: sIcon.right; leftMargin: lib.s * 10; right: parent.right; rightMargin: lib.s * 14; verticalCenter: parent.verticalCenter }
-                visible: lib.searchOpen || lib.searchText !== ""
-                color: lib.ink
-                selectionColor: lib.accent
-                font.family: lib.uiFont
-                font.pixelSize: lib.s * 18
-                clip: true
-                text: lib.searchText
-                onTextChanged: if (text !== lib.searchText) { lib.searchText = text; Qt.callLater(function() { lib.select(0) }) }
-                Keys.onEscapePressed: { lib.searchOpen = false; lib.searchText = ""; text = ""; lib.forceActiveFocus() }
-                Keys.onReturnPressed: { lib.searchOpen = false; lib.forceActiveFocus() }
-                Text { visible: !parent.text; text: qsTr("Buscar juego…"); color: lib.ink2; font: parent.font; anchors.verticalCenter: parent.verticalCenter }
-            }
-            MouseArea {
-                anchors.fill: parent
-                enabled: !lib.searchOpen
-                cursorShape: Qt.PointingHandCursor
-                onClicked: { lib.searchOpen = true; searchInput.forceActiveFocus() }
-            }
-        }
-
-        Rectangle {
-            visible: lib.page === "library"
-            anchors { left: searchBox.right; leftMargin: lib.s * 8; verticalCenter: parent.verticalCenter }
-            width: lib.s * 42; height: width; radius: width / 2
-            color: addMouse.containsMouse ? lib.surface : "#b30b0f14"
-            border.width: lib.mainNavIndex === 3 ? 3 : 1
-            border.color: lib.mainNavIndex === 3 ? lib.ring : lib.surfaceBorder
-            Accessible.name: qsTr("Añadir juego")
-            Accessible.role: Accessible.Button
-            LucideIcon { anchors.centerIn: parent; width: lib.s * 20; height: width; name: "plus"; color: lib.ink }
-            MouseArea { id: addMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openAddGame() }
-        }
-
-        // cerrar BigMode con el ratón (con mando hay «B Atrás»)
-        Rectangle {
-            id: closeBtn
-            visible: !api.padOn
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            width: visible ? lib.s * 42 : 0; height: lib.s * 42; radius: width / 2
-            color: clMa2.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-            border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.20)
-            LucideIcon { anchors.centerIn: parent; width: lib.s * 18; height: lib.s * 18; name: "x"; color: lib.ink }
-            MouseArea { id: clMa2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.closeRequested() }
-        }
-
-        // ajustes de BigMode
-        Rectangle {
-            id: gearBtn
-            anchors { right: closeBtn.visible ? closeBtn.left : parent.right; rightMargin: closeBtn.visible ? lib.s * 12 : 0; verticalCenter: parent.verticalCenter }
-            width: lib.s * 42; height: lib.s * 42; radius: width / 2
-            color: gearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-            border.width: lib.mainNavIndex === lib.gearIndex ? 3 : 1
-            border.color: lib.mainNavIndex === lib.gearIndex ? lib.ring : Qt.rgba(1, 1, 1, 0.20)
-            LucideIcon { anchors.centerIn: parent; width: lib.s * 20; height: lib.s * 20; name: "settings"; color: lib.ink }
-            MouseArea { id: gearMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openSettings() }
-        }
-
-        Rectangle {
-            id: clockPill
-            anchors { right: gearBtn.left; rightMargin: lib.s * 12; verticalCenter: parent.verticalCenter }
-            width: timeLabel.implicitWidth + lib.s * 28
-            height: lib.s * 42
-            radius: height / 2
-            color: "#b30b0f14"
-            Text {
-                id: timeLabel
-                anchors.centerIn: parent
-                text: lib.clockLabel
-                color: lib.ink
-                font.family: lib.uiFont
-                font.pixelSize: lib.s * 17
-            }
-        }
-        PadBattery {         // visible en todas las pantallas de BigMode junto con el reloj
-            id: padBatteryChip
-            api: lib.api; uiScale: lib.s; uiFont: lib.uiFont; ink: lib.ink; muted: lib.ink2
-            compact: lib.page === "library"
-            anchors { right: sysPill.left; rightMargin: lib.s * 10; verticalCenter: parent.verticalCenter }
-        }
-        Rectangle {          // descargas e instalaciones en curso o fallidas (START en el mando)
-            id: dlPill
-            visible: lib.dlBusy + lib.dlFailed > 0
-            anchors { right: padBatteryChip.left; rightMargin: lib.s * 10; verticalCenter: parent.verticalCenter }
-            width: dlLabel.implicitWidth + lib.s * 60; height: lib.s * 42; radius: height / 2
-            color: dlMouse.containsMouse ? lib.surface : "#b30b0f14"
-            border.color: lib.dlFailed > 0 ? "#80E8B86D" : "#30ffffff"
-            Row {
-                anchors.centerIn: parent; spacing: lib.s * 9
-                LucideIcon { width: lib.s * 19; height: width; name: lib.dlBusy > 0 ? "download" : "info"; color: lib.dlFailed > 0 ? "#E8B86D" : lib.ink2 }
-                Text {
-                    id: dlLabel; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 17
-                    text: lib.dlBusy > 0 ? qsTr("Descargas %1%").arg(lib.dlProgress) + (lib.dlFailed > 0 ? "  ⚠ " + lib.dlFailed : "") : qsTr("%1 fallida(s)").arg(lib.dlFailed)
-                }
-            }
-            MouseArea { id: dlMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openDownloads() }
-        }
-        Rectangle {
-            id: sysPill
-            anchors { right: clockPill.left; rightMargin: lib.s * 10; verticalCenter: parent.verticalCenter }
-            width: systemLabel.implicitWidth + lib.s * 60
-            height: lib.s * 42
-            radius: height / 2
-            color: lib.showSystem || sysMouse.containsMouse ? lib.surface : "#b30b0f14"
-            border.color: "#30ffffff"
-            Row {
-                anchors.centerIn: parent
-                spacing: lib.s * 9
-                LucideIcon { width: lib.s * 19; height: width; name: lib.runningGame ? "gamepad-2" : "activity"; color: lib.ink2 }
-                Text {
-                    id: systemLabel
-                    text: lib.runningGame ? qsTr("Jugando") : qsTr("Sistema")
-                    color: lib.ink
-                    font.family: lib.uiFont
-                    font.pixelSize: lib.s * 17
-                }
-            }
-            MouseArea {
-                id: sysMouse
-                anchors.fill: parent
-                enabled: api.ok && !api.gameRunning
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: lib.showSystem = !lib.showSystem
-            }
-        }
-
-        Rectangle {      // panel Sistema: tres anillos (CPU, GPU, RAM) con temperaturas, y energía, perfil y disco debajo
-            id: sysCard
-            visible: lib.showSystem && api.ok && !api.gameRunning
-            anchors { right: clockPill.right; top: sysPill.bottom; topMargin: lib.s * 10 }
-            width: Math.max(lib.s * 340, clockPill.x + clockPill.width - sysPill.x)       // al menos tan ancho como los botones Sistema y reloj
-            height: sysCol.implicitHeight + lib.s * 36
-            radius: lib.s * 20
-            color: "#141D27"
-            border.color: lib.surfaceBorder
-            readonly property var sys: api.system || ({})
-            function tempColor(t) { return t === undefined ? lib.ink2 : (t <= 70 ? "#7fd69f" : (t <= 85 ? "#E8B86D" : "#E86D6D")) }
-            function tempText(t) { return t === undefined ? "" : Math.round(t) + " °C" }
-            Column {
-                id: sysCol
-                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: lib.s * 18 }
-                spacing: lib.s * 14
-                Row {
-                    width: parent.width
-                    readonly property real cell: width / 3
-                    SystemGauge {
-                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
-                        value: lib.live.cpu_pct === undefined ? -1 : lib.live.cpu_pct / 100
-                        centerText: lib.live.cpu_pct === undefined ? "–" : Math.round(lib.live.cpu_pct) + "%"
-                        label: "CPU"; detail: sysCard.tempText(lib.live.cpu_temp); detailColor: sysCard.tempColor(lib.live.cpu_temp)
-                        ringColor: lib.live.cpu_pct > 90 ? "#E8B86D" : "#5B9BE0"
-                    }
-                    SystemGauge {
-                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
-                        value: lib.live.gpu_pct === undefined ? -1 : lib.live.gpu_pct / 100
-                        centerText: lib.live.gpu_pct === undefined ? "–" : Math.round(lib.live.gpu_pct) + "%"
-                        label: "GPU"; detail: sysCard.tempText(lib.live.gpu_temp); detailColor: sysCard.tempColor(lib.live.gpu_temp)
-                        ringColor: lib.live.gpu_pct > 90 ? "#E8B86D" : "#5B9BE0"
-                    }
-                    SystemGauge {
-                        width: parent.cell; s: lib.s; ink: lib.ink; ink2: lib.ink2; uiFont: lib.uiFont
-                        value: lib.live.ram_total ? lib.live.ram_used / lib.live.ram_total : -1
-                        centerText: lib.live.ram_total ? Math.round(100 * lib.live.ram_used / lib.live.ram_total) + "%" : "–"
-                        label: "RAM"
-                        detail: lib.live.ram_total ? (lib.live.ram_used / 1073741824).toFixed(1) + " / " + (lib.live.ram_total / 1073741824).toFixed(1) + " GB" : ""
-                        ringColor: lib.live.ram_total && lib.live.ram_used / lib.live.ram_total > 0.9 ? "#E8B86D" : "#5B9BE0"
-                    }
-                }
-                Flow {
-                    width: parent.width; spacing: lib.s * 8
-                    layoutDirection: Qt.LeftToRight
-                    Repeater {
-                        model: {
-                            const out = [], sys = sysCard.sys
-                            if (sys.bat && sys.bat.pct !== undefined) out.push({ icon: "activity", text: sys.bat.pct + " %" + (sys.ac ? "  ·  " + qsTr("conectado") : "") })
-                            if (sys.profile) out.push({ icon: "activity", text: sys.profile })
-                            if (sys.disk && sys.disk.total) out.push({ icon: "folder-open", text: Math.round(sys.disk.used / 1073741824) + " / " + Math.round(sys.disk.total / 1073741824) + " GB" })
-                            return out
-                        }
-                        delegate: Rectangle {
-                            required property var modelData
-                            width: chipText.implicitWidth + lib.s * 24; height: lib.s * 32; radius: height / 2
-                            color: "#b30b0f14"; border.color: "#30ffffff"
-                            Text { id: chipText; anchors.centerIn: parent; text: modelData.text; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 15 }
-                        }
-                    }
-                }
-                Text {
-                    visible: !!sysCard.sys.cpu && !!sysCard.sys.cpu.model
-                    width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                    color: lib.ink2; font.family: lib.uiFont; font.pixelSize: lib.s * 14
-                    text: sysCard.sys.cpu ? sysCard.sys.cpu.model + (sysCard.sys.cpu.ghz ? "  ·  " + sysCard.sys.cpu.ghz + " GHz" : "") : ""
-                }
-                Text { visible: lib.live.cpu_pct === undefined && lib.live.gpu_pct === undefined && lib.live.ram_total === undefined; text: qsTr("Sin datos de telemetría"); color: lib.ink2
-                       font.family: lib.uiFont; font.pixelSize: lib.s * 18 }
-            }
-        }
+        host: lib
     }
 
-    // ================= ficha del juego =================
-    Item {
+    OmniaLibraryHero {
         id: hero
-        visible: lib.page === "library" && lib.current !== null
-        property string gameId: lib.current ? lib.current.id : ""
-        onGameIdChanged: heroIn.restart()
-        transform: Translate { id: heroShift }
-        ParallelAnimation {
-            id: heroIn
-            NumberAnimation { target: hero; property: "opacity"; from: 0; to: 1; duration: 320; easing.type: Easing.OutCubic }
-            NumberAnimation { target: heroShift; property: "y"; from: lib.s * 16; to: 0; duration: 320; easing.type: Easing.OutCubic }
-        }
-        x: lib.contentInset
-        y: lib.s * 104
-        width: lib.s * 760
-        height: lib.s * 330
-
-        // logo del juego o, si no hay, el nombre en grande
-        Item {
-            id: logoBox
-            width: lib.s * 540; height: lib.s * 182
-            Image {
-                id: logoImg
-                anchors.fill: parent
-                source: lib.current && lib.current.logo ? lib.current.logo : ""
-                fillMode: Image.PreserveAspectFit
-                horizontalAlignment: Image.AlignLeft
-                verticalAlignment: Image.AlignBottom
-                asynchronous: true
-                smooth: true
-                mipmap: true
-                sourceSize.width: Math.round(lib.s * 1080)
-                visible: status === Image.Ready
-            }
-            Text {
-                visible: logoImg.status !== Image.Ready
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                text: lib.current ? lib.current.name : ""
-                color: lib.ink
-                font.family: lib.current && lib.current.font ? lib.current.font : lib.uiFont
-                font.pixelSize: lib.s * 64
-                font.weight: Font.Bold
-                wrapMode: Text.WordWrap
-                maximumLineCount: 2
-                elide: Text.ElideRight
-                lineHeight: 0.95
-            }
-        }
-        Rectangle { id: rule; anchors { top: logoBox.bottom; topMargin: lib.s * 18 } width: lib.s * 46; height: lib.s * 3; radius: 2; color: lib.ring }
-        Text {
-            id: blurb
-            anchors { top: rule.bottom; topMargin: lib.s * 16 }
-            width: lib.s * 560
-            text: lib.current ? (lib.current.description || "").replace(/\s+/g, " ").trim() : ""
-            visible: text.length > 0
-            height: visible ? implicitHeight : 0
-            color: lib.ink
-            opacity: 0.92
-            font.family: lib.uiFont
-            font.pixelSize: lib.s * 22
-            lineHeight: 1.25
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
-        }
-        Text {
-            id: sessionSummary
-            anchors { top: blurb.bottom; topMargin: visible ? lib.s * 8 : 0 }
-            visible: text.length > 0
-            height: text.length > 0 ? implicitHeight : 0
-            text: {
-                const data = lib.gameActivity
-                const parts = lib.current ? [lib.subtitle(lib.current)] : []
-                if (data?.lastPlayed > 0)
-                    parts.push("Última sesión: " + Qt.formatDate(new Date(data.lastPlayed * 1000), Locale.ShortFormat))
-                if (data?.totalSecs > 0)
-                    parts.push("Tiempo jugado: " + lib.duration(data.totalSecs))
-                return parts.join(" · ")
-            }
-            color: lib.ink2
-            font.family: lib.uiFont
-            font.pixelSize: lib.s * 16
-            leftPadding: (summaryIcon.visible ? summaryIcon.width : 0) + lib.s * 10      // el logo de consola puede ser ancho (p. ej. Switch 2)
-            PlatIcon {
-                id: summaryIcon
-                visible: lib.current !== null
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                key: lib.current ? lib.norm(lib.current.platform) : ""
-                size: lib.s * 20; color: lib.ink2
-            }
-        }
-        Row {
-            anchors { top: sessionSummary.bottom; topMargin: lib.s * 18 }
-            spacing: lib.s * 14
-            Rectangle {      // Jugar
-                id: playBtn
-                readonly property bool running: lib.current && lib.current.running
-                width: lib.s * 265; height: lib.s * 50
-                radius: lib.s * 10
-                opacity: running ? 0.7 : 1
-                gradient: Gradient {
-                    GradientStop { position: 0; color: playMa.containsMouse ? Qt.lighter(lib.accent, 1.35) : Qt.lighter(lib.accent, 1.2) }
-                    GradientStop { position: 1; color: playMa.containsMouse ? Qt.lighter(lib.accent, 1.1) : lib.accent }
-                }
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.22)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: lib.s * 12
-                    LucideIcon { width: lib.s * 22; height: lib.s * 22; name: lib.current && lib.current.portAvailable ? "download" : "play"; color: lib.ink; anchors.verticalCenter: parent.verticalCenter; visible: !playBtn.running }
-                    Text { text: playBtn.running ? qsTr("En ejecución") : (lib.current && lib.current.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 22; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
-                }
-                MouseArea { id: playMa; anchors.fill: parent; enabled: !playBtn.running; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.play() }
-            }
-            Rectangle {      // Detalles
-                width: lib.s * 160; height: lib.s * 50
-                radius: height / 2
-                color: detMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0.05, 0.08, 0.12, 0.45)
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.40)
-                Text { anchors.centerIn: parent; text: qsTr("Detalles"); color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 20; font.weight: Font.Medium }
-                MouseArea { id: detMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lib.openDetails() }
-            }
-        }
+        host: lib
     }
 
-    // ================= estantería =================
-    ListView {
+    OmniaBigShelf {
         id: shelf
-        visible: lib.page === "library"
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: lib.s * 108 + (transferBar.visible ? transferBar.height + lib.s * 15 : 0) }
-        anchors.leftMargin: lib.contentInset
-        anchors.rightMargin: lib.contentInset
-        readonly property real zoomGutter: Math.ceil(lib.libraryCoverWidth * 0.024) + lib.s * 3
-        leftMargin: zoomGutter
-        rightMargin: zoomGutter
-        readonly property real minX: originX - leftMargin
-        readonly property real reflectH: lib.s * 68
-        readonly property real headroom: lib.s * 30      // hueco superior para que el rebote no se recorte
-        height: lib.s * 310 + reflectH + headroom
-        orientation: ListView.Horizontal
-        spacing: lib.s * 18
-        model: lib.visibleGames
-        currentIndex: lib.index
-        // El desplazamiento es propio (no el de ListView) para separarlo de la selección: la rueda mueve la estantería sin cambiar
-        // el juego seleccionado y los saltos de página llevan la selección a la página nueva.
-        highlightFollowsCurrentItem: false
-        highlightRangeMode: ListView.NoHighlightRange
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: false          // sin arrastre: la estantería avanza con la rueda, las flechas, los gatillos o la navegación
-        readonly property real cardStep: lib.libraryCoverWidth + spacing                 // ancho de una tarjeta más su separación
-        readonly property real hlBegin: fadeOk ? fadeWidth + zoomGutter : zoomGutter     // la tarjeta seleccionada queda entre estos dos bordes
-        readonly property real hlEnd: width * 0.62
-        readonly property real maxX: Math.max(minX, originX + contentWidth - width + rightMargin)
-        readonly property int perPage: Math.max(2, Math.floor((width + spacing) / cardStep))   // tarjetas completas que caben
-        property bool paging: false
-        function clampX(x) { return Math.max(minX, Math.min(maxX, x)) }
-        function scrollTo(x, animate, ms) {
-            x = clampX(x)
-            scrollAnim.stop()
-            if (!animate) { contentX = x; return }
-            scrollAnim.duration = ms || 260
-            scrollAnim.to = x
-            scrollAnim.restart()
-        }
-        function scrollBy(dx) { scrollTo((scrollAnim.running ? scrollAnim.to : contentX) + dx, true, 160) }
-        // Lo mismo que hacía highlightRangeMode: ApplyRange: la tarjeta seleccionada queda dentro de [hlBegin, hlEnd].
-        function revealIndex(i, animate) {
-            if (count <= 0 || contentWidth + leftMargin + rightMargin <= width || i <= 0) { scrollTo(minX, animate); return }
-            if (i >= count - 1) { scrollTo(maxX, animate); return }
-            const left = originX + i * cardStep, right = left + lib.libraryCoverWidth
-            if (left < contentX + hlBegin) scrollTo(left - hlBegin, animate)
-            else if (right > contentX + hlEnd) scrollTo(right - hlEnd, animate)
-        }
-        // Salta una página (los juegos visibles menos uno, para conservar una referencia) y lleva la selección a su primera tarjeta.
-        function page(dir) {
-            const n = lib.visibleGames.length
-            if (n === 0) return
-            const jump = Math.max(1, perPage - 1)
-            const from = Math.max(0, Math.min(n - 1, Math.round(((scrollAnim.running ? scrollAnim.to : contentX) + hlBegin - originX) / cardStep)))
-            const first = Math.max(0, Math.min(n - 1, from + dir * jump))
-            paging = true
-            lib.select(first)
-            paging = false
-            revealIndex(first, true)
-            sfx.play("page")
-        }
-        NumberAnimation { id: scrollAnim; target: shelf; property: "contentX"; duration: 260; easing.type: Easing.OutCubic }
-        Connections {
-            target: lib
-            function onIndexChanged() { if (!shelf.paging) shelf.revealIndex(lib.index, true) }
-        }
-        onCountChanged: Qt.callLater(function() { shelf.revealIndex(lib.index, false) })
-        onWidthChanged: Qt.callLater(function() { shelf.revealIndex(lib.index, false) })
-        // Rueda del mouse (o del panel táctil): desplaza la estantería una tarjeta por muesca, sin tocar la selección.
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: function(ev) {
-                const d = ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x
-                if (d !== 0) shelf.scrollBy(-d / 120 * shelf.cardStep)
-            }
-        }
-        clip: true
-        cacheBuffer: 1200
-        // Las tarjetas que quedan cortadas en un extremo se desvanecen hacia ese extremo (solo del lado donde hay más contenido).
-        // Con el renderizador por software no hay shaders y se omite.
-        readonly property bool fadeOk: GraphicsInfo.api !== GraphicsInfo.Software
-        readonly property real fadeWidth: Math.min(lib.s * 120, width * 0.3)
-        // El desvanecido izquierdo se aplica siempre que la seleccionada no sea la primera (aunque la lista esté en su inicio): la
-        // primera asoma desvanecida mientras se está sobre la segunda y vuelve a verse normal al volver a ella. Se anima.
-        property real leftAmount: lib.index > 0 || !atXBeginning ? 1 : 0
-        Behavior on leftAmount { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-        layer.enabled: fadeOk && contentWidth > width
-        layer.effect: OpacityMask {
-            maskSource: Rectangle {
-                width: shelf.width; height: shelf.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 1 - shelf.leftAmount) }
-                    GradientStop { position: Math.max(0.001, shelf.leftAmount * shelf.fadeWidth / shelf.width); color: "#FF000000" }
-                    GradientStop { position: shelf.atXEnd ? 0.999 : 1 - shelf.fadeWidth / shelf.width; color: "#FF000000" }
-                    GradientStop { position: 1; color: shelf.atXEnd ? "#FF000000" : "#00000000" }
-                }
-            }
-        }
-        delegate: Item {
-            id: card
-            required property var modelData
-            required property int index
-            readonly property bool sel: index === lib.index
-            width: lib.libraryCoverWidth
-            height: shelf.height
-            z: card.sel ? 2 : cardMa.containsMouse ? 1 : 0
-            Item {
-                id: face
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: shelf.reflectH + (card.sel ? lib.s * 8 : 0) }
-                height: card.sel ? lib.libraryFocusedCoverHeight : lib.libraryCoverHeight
-                scale: card.sel ? 1.038 : cardMa.containsMouse ? 1.025 : 1
-                // rebote al cambiar de selección: la seleccionada sube con sobreimpulso y se asienta
-                Behavior on height { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.6 } }
-                Behavior on anchors.bottomMargin { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 3.2 } }
-                Behavior on scale { NumberAnimation { duration: 140 } }
-
-                Rectangle {      // tarjeta sin portada
-                    id: tile
-                    anchors.fill: parent
-                    radius: lib.s * 20
-                    color: "#16ffffff"          // sin arte: translúcida
-                    border.color: "#1fffffff"; border.width: 1
-                    visible: cover.status !== Image.Ready
-                    Text {
-                        anchors.centerIn: parent
-                        width: parent.width - lib.s * 30
-                        horizontalAlignment: Text.AlignHCenter
-                        text: card.modelData.name
-                        color: lib.ink
-                        font.family: lib.uiFont
-                        font.pixelSize: lib.s * 30
-                        font.weight: Font.Bold
-                        wrapMode: Text.WordWrap
-                        visible: cover.status !== Image.Ready
-                    }
-                }
-                Image {
-                    id: cover
-                    anchors.fill: parent
-                    source: card.modelData.portada || ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    smooth: true
-                    mipmap: true
-                    sourceSize.height: Math.round(lib.s * 768)
-                    visible: false
-                }
-                Rectangle { id: coverMask; anchors.fill: parent; radius: lib.s * 20; visible: false }
-                OpacityMask { anchors.fill: parent; source: cover; maskSource: coverMask; visible: cover.status === Image.Ready }
-                Rectangle {      // anillo de selección
-                    anchors.fill: parent
-                    radius: coverMask.radius
-                    color: "#243DD8D0"
-                    border.width: card.sel ? Math.max(2, lib.s * 4) : Math.max(1, lib.s * 2)
-                    border.color: card.sel ? lib.ring : "#6CE2DC"
-                    opacity: card.sel || cardMa.containsMouse ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 140 } }
-                }
-                Rectangle {      // «en ejecución»
-                    visible: card.modelData.running
-                    anchors { left: parent.left; top: parent.top; margins: lib.s * 12 }
-                    width: runTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
-                    color: "#6fc3a0"
-                    Text { id: runTxt; anchors.centerIn: parent; text: qsTr("En juego"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 14; font.weight: Font.DemiBold }
-                }
-                Rectangle {      // port disponible
-                    visible: !!card.modelData.portAvailable
-                    anchors { left: parent.left; bottom: parent.bottom; margins: lib.s * 10 }
-                    width: portTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
-                    color: "#5b9be0"
-                    Text { id: portTxt; anchors.centerIn: parent; text: qsTr("Port disponible"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 13; font.weight: Font.DemiBold }
-                }
-                Rectangle {      // actualización disponible
-                    visible: !!card.modelData.updateAvailable && !card.modelData.portAvailable
-                    anchors { left: parent.left; bottom: parent.bottom; margins: lib.s * 10 }
-                    width: updTxt.implicitWidth + lib.s * 20; height: lib.s * 26; radius: height / 2
-                    color: "#e0a24b"
-                    Text { id: updTxt; anchors.centerIn: parent; text: qsTr("Actualización"); color: lib.base; font.family: lib.uiFont; font.pixelSize: lib.s * 13; font.weight: Font.DemiBold }
-                }
-                Rectangle {      // favorito
-                    visible: card.modelData.fav
-                    anchors { right: parent.right; top: parent.top; margins: lib.s * 12 }
-                    width: lib.s * 30; height: lib.s * 30; radius: width / 2
-                    color: Qt.rgba(0.04, 0.06, 0.08, 0.7)
-                    LucideIcon { anchors.centerIn: parent; width: lib.s * 16; height: lib.s * 16; name: "star"; color: "#f5b83d" }
-                }
-            }
-            // reflejo corto de espejo bajo la tarjeta (Canvas, sin shaders)
-            ReflectionImage {
-                anchors { left: parent.left; right: parent.right; top: face.bottom; topMargin: lib.s * 3 }
-                height: shelf.reflectH - lib.s * 3
-                source: card.modelData.portada || ""
-                cardHeight: face.height
-                radius: lib.s * 20
-                strength: card.sel ? 0.32 : 0.24
-                tileColor: card.modelData.pal ? Qt.darker(card.modelData.pal[1] || "#223244", 1.4) : "#223244"
-            }
-            MouseArea {
-                id: cardMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: function(m) {
-                    sfx.play(m.button === Qt.RightButton ? "menu" : "move")
-                    lib.select(card.index)
-                    if (m.button === Qt.RightButton) lib.openMenu(card.modelData)
-                }
-                onDoubleClicked: function(m) { if (m.button === Qt.LeftButton) { lib.select(card.index); lib.play() } }
-            }
-        }
-    }
-
-    Repeater {      // flechas para el ratón: saltan una página. Con mando se sustituyen por LT / RT, que hacen lo mismo
-
-        model: [-1, 1]
-        delegate: Rectangle {
-            id: shelfArrow
-            required property int modelData
-            readonly property bool previous: modelData < 0
-            visible: lib.page === "library" && shelf.contentWidth + shelf.leftMargin + shelf.rightMargin > shelf.width
-                && (previous ? !shelf.atXBeginning : !shelf.atXEnd)
-            x: previous ? shelf.x - width - lib.s * 12 : shelf.x + shelf.width + lib.s * 12
-            y: shelf.y + shelf.headroom + (shelf.height - shelf.headroom - shelf.reflectH - height) / 2
-            width: lib.s * 42
-            height: width
-            radius: width / 2
-            color: shelfArrowMouse.containsMouse ? lib.accent : lib.surface
-            border.color: "#40ffffff"
-            Accessible.role: Accessible.Button
-            Accessible.name: previous ? qsTr("Página anterior") : qsTr("Página siguiente")
-            LucideIcon { visible: !lib.padOn; anchors.centerIn: parent; width: lib.s * 21; height: width; name: shelfArrow.previous ? "arrow-left" : "arrow-right"; color: lib.ink }
-            PadGlyph { visible: lib.padOn; anchors.centerIn: parent; size: lib.s * 34; family: lib.api.padFamily || "xbox"; key: shelfArrow.previous ? "LT" : "RT" }
-            MouseArea {
-                id: shelfArrowMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: shelf.page(shelfArrow.modelData)
-            }
-        }
+        opacity: 1 - lib.exitShelfProgress
+        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
+        host: lib
+        sounds: sfx
+        transferInset: transferBar.visible ? transferBar.height + lib.s * 15 : 0
     }
 
     TransferStrip {
@@ -1388,6 +861,8 @@ Item {
     // ================= ver todos =================
     OmniaAllGames {
         id: allGames
+        opacity: 1 - lib.exitShelfProgress
+        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
         visible: lib.page === "all"
         host: lib
         games: lib.api.games
@@ -1477,6 +952,7 @@ Item {
     // ================= inicio del catálogo =================
     OmniaHome {
         id: home
+        exitShelfProgress: lib.exitShelfProgress
         anchors.fill: parent
         visible: lib.page === "home"
         api: lib.api            // «api: api» se resolvía a la propiedad del propio Inicio (nula)
@@ -1545,6 +1021,10 @@ Item {
     // ================= editor de arte (menú contextual → Cambiar arte) =================
     OmniaArtEditor {
         id: artEditor
+        editSearchWithPad: function(initial, done) {
+            let value = initial
+            lib.openKeyboardFor(initial, text => value = text, accepted => done(accepted ? value : undefined))
+        }
         anchors { left: parent.left; right: parent.right; top: parent.top
             bottom: transferBar.visible ? transferBar.top : parent.bottom }
         host: lib
@@ -1569,7 +1049,9 @@ Item {
     }
     OmniaBigStore {
         id: bigStoreView
-        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: transferBar.visible ? transferBar.top : footer.top
+        opacity: 1 - lib.exitShelfProgress
+        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: transferBar.visible ? transferBar.top : footer.top
                   leftMargin: lib.s * 66; rightMargin: lib.s * 66; topMargin: lib.s * 18; bottomMargin: lib.s * 22 }
         host: lib
         accounts: bigStoreAccounts
@@ -1607,13 +1089,65 @@ Item {
         Text { id: toastTxt; anchors.centerIn: parent; text: api.toast; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 18 }
     }
 
+    Rectangle {
+        anchors.fill: parent
+        z: 100
+        visible: lib.exitConfirmOpen
+        color: "#B8000000"
+        MouseArea { anchors.fill: parent }
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - lib.s * 64, lib.s * 620)
+            height: exitDialogContent.implicitHeight + lib.s * 48
+            radius: lib.s * 20
+            color: "#192F46"
+            border.width: 1
+            border.color: lib.surfaceBorder
+            Column {
+                id: exitDialogContent
+                anchors { fill: parent; margins: lib.s * 24 }
+                spacing: lib.s * 16
+                Text { text: qsTr("¿Cerrar Big Mode?"); color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 28; font.weight: Font.DemiBold }
+                Text { width: parent.width; text: qsTr("Volverás al escritorio. ¿Quieres cerrar Big Mode?"); wrapMode: Text.WordWrap; color: lib.ink2; font.family: lib.uiFont; font.pixelSize: lib.s * 19 }
+                Row {
+                    anchors.right: parent.right
+                    spacing: lib.s * 12
+                    Repeater {
+                        model: [qsTr("Cancelar"), qsTr("Cerrar Big Mode")]
+                        delegate: Rectangle {
+                            required property string modelData
+                            required property int index
+                            width: exitButtonText.implicitWidth + lib.s * 38
+                            height: lib.s * 46
+                            radius: height / 2
+                            color: lib.exitConfirmChoice === index ? lib.accent : Qt.rgba(1, 1, 1, 0.08)
+                            border.width: lib.exitConfirmChoice === index ? 2 : 1
+                            border.color: lib.exitConfirmChoice === index ? lib.ring : lib.surfaceBorder
+                            Text { id: exitButtonText; anchors.centerIn: parent; text: modelData; color: lib.ink; font.family: lib.uiFont; font.pixelSize: lib.s * 17; font.weight: Font.DemiBold }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { lib.exitConfirmChoice = index; lib.finishExitConfirmation() }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Component.onCompleted: forceActiveFocus()
 
     // ================= sonidos y bienvenida =================
     OmniaSounds { id: sfx; api: lib.api; muted: lib.api.gameRunning || lib.api.covered }
     OmniaIntro { id: intro; anchors.fill: parent; host: lib }
-    Connections { target: lib.api; function onPrefsLoadedChanged() { lib.maybeIntro() } }
-    Timer { interval: 60; running: true; onTriggered: lib.maybeIntro() }
+    Connections {
+        target: lib.api
+        function onPrefsLoadedChanged() { lib.maybeIntro(false) }
+        function onRevisionChanged() { lib.maybeIntro(false) }
+    }
+    Timer { interval: 60; running: true; onTriggered: lib.maybeIntro(false) }
+    Timer { id: introFallback; interval: 450; onTriggered: lib.maybeIntro(true) }
     property bool padSoundsArmed: false
     Timer { interval: 4000; running: true; onTriggered: lib.padSoundsArmed = true }
     Connections { target: lib.api; function onPadOnChanged() { if (lib.padSoundsArmed && !intro.active) sfx.play(lib.api.padOn ? "pad-on" : "pad-off") } }
