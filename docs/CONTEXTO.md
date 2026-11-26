@@ -94,6 +94,14 @@ integración con Dux (botón con el logo y estado del mando dentro del popout), 
 
 ## 7. Registro de cambios
 
+- 2026-11-26 — Se sincronizaron las ramas con GitHub. El release v0.4.0 adjunta el .run y el AppImage, ambos con los tres paquetes nativos. La rama de integración del backend recupera el trabajo acumulado desde el snapshot y lo aplica sobre main de GitHub, conservando la migración 0004 y los identificadores N64 de main. Pasaron 346 pruebas de Vitest, nueve pruebas Python y el typecheck del backend. En Launcher pasaron 691 de 692 pruebas y sigue el fallo conocido de geometría de Desktop fuera de pantalla.
+
+- 2026-11-26 — El README bilingüe amplía la descripción de las funciones de Omnia Game Suite e incorpora trece capturas aportadas por el usuario del panel de Dux, Desktop y Big Mode.
+
+- 2026-11-26 — El asistente solo crea las páginas de carpetas, cuentas y bienvenida en instalaciones nuevas. Se limitó el ancho del contenido y se reorganizaron las acciones y el progreso. Instaladores locales 0.4.0-3.
+
+- 2026-11-26 — Big Mode recupera la bienvenida de la constelación y cierra al confirmar Power. El asistente omite carpetas y cuentas en una actualización, muestra progreso y permite reiniciar el servicio y las interfaces abiertas. La revisión 0.4.0-2 prepara el release con .run, AppImage y los tres paquetes nativos de Arch para Hyprland. El README incluye capturas reales de Desktop, Big Mode y Dux. Se verificó el avance del asistente con una actualización simulada, se compiló el AppImage y pasaron 691 de 692 pruebas. Persiste el fallo conocido de geometría de Desktop fuera de pantalla.
+
 - 2026-11-26 — Se sincronizó el Launcher con el merge del PR #2 y se alineó la versión 0.4.0 del núcleo, los metadatos Python y el paquete Arch. Se verificaron los tres paquetes del instalador único 0.4.0-1 y el arranque del asistente fuera de pantalla. Pasaron 691 de 692 pruebas. Persiste el fallo conocido de geometría de Desktop fuera de pantalla.
 
 - 2026-11-26 — Se aplica el logo de Omnia Game Suite en Desktop, Big Mode, iconos del sistema y panel rápido. La barra de Dux muestra el SVG azul sólido y el popout consulta el nombre y la batería del mando cada cinco segundos mientras está abierto. Se fija la entrega de un instalador único `.run` por revisión local. Revisión 0.3.0-141. Se verificaron la sintaxis QML, el renderizado de los SVG, los tres paquetes dentro del instalador y la apertura del asistente fuera de pantalla. La regresión aislada dio 691/692; persiste el fallo conocido de geometría de Desktop fuera de pantalla. Pendiente la prueba en Dux con mando físico.

@@ -226,10 +226,44 @@ def _ui_processes():
             continue
 
 
+def restart_suite(running, surfaces, embedded):
+    desktop = any(kind == "desktop" for kind, _ in running)
+    standalone = any(kind == "big-mode" for kind, _ in running)
+    for _, pid in running:
+        try:
+            os.kill(pid, 15)
+        except ProcessLookupError:
+            pass
+    _run(["systemctl", "--user", "daemon-reload"])
+    _run(["systemctl", "--user", "reenable", "omnia.service"])
+    _run(["systemctl", "--user", "restart", "omnia.service"])
+    dux = paths.config_dir().parent / "dms" / "plugins" / "omnia-panel"
+    if dux.is_dir():
+        subprocess.run(["/usr/share/omnia/dux/install.sh"], check=False, timeout=20)
+        if "dux" in surfaces:
+            subprocess.run(["dms", "ipc", "call", "omniaPanel", "open"], check=False, timeout=8)
+    def reopen(mode, *flags):
+        _run(["systemd-run", "--user", "--quiet", "--collect", "--",
+              "/usr/bin/omnia-ui", mode, *flags], timeout=10)
+    if desktop:
+        reopen("--manager", *(["--open-big-mode", "1"] if embedded else []))
+    if standalone:
+        reopen("--window")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument("--restart-installed", action="store_true")
     parser.add_argument("surfaces", nargs="*")
     args = parser.parse_args(argv)
+    if args.restart_installed:
+        try:
+            running = list(_ui_processes())
+            standalone = any(kind == "big-mode" for kind, _ in running)
+            restart_suite(running, args.surfaces, is_open() and not standalone)
+            return 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            parser.exit(1, f"{exc}\n")
     updater = SuiteUpdater()
     try:
         asset = json.loads(updater.receipt.read_text())
@@ -245,25 +279,7 @@ def main(argv=None):
         with tempfile.TemporaryDirectory(dir=updater.directory) as tmp:
             packages = suite_bundle.stage_packages(updater.bundle, Path(tmp), target)
             apply_packages(packages)
-        for _, pid in running:
-            try:
-                os.kill(pid, 15)
-            except ProcessLookupError:
-                pass
-        _run(["systemctl", "--user", "daemon-reload"])
-        _run(["systemctl", "--user", "restart", "omnia.service"])
-        dux = paths.config_dir().parent / "dms" / "plugins" / "omnia-panel"
-        if dux.is_dir():
-            subprocess.run(["/usr/share/omnia/dux/install.sh"], check=False, timeout=20)
-            if "dux" in args.surfaces:
-                subprocess.run(["dms", "ipc", "call", "omniaPanel", "open"], check=False, timeout=8)
-        def reopen(mode, *flags):
-            _run(["systemd-run", "--user", "--quiet", "--collect", "--",
-                  "/usr/bin/omnia-ui", mode, *flags], timeout=10)
-        if desktop:
-            reopen("--manager", *(["--open-big-mode", "1"] if embedded else []))
-        if standalone:
-            reopen("--window")
+        restart_suite(running, args.surfaces, embedded)
         updater.receipt.unlink(missing_ok=True)
         updater.bundle.unlink(missing_ok=True)
         return 0

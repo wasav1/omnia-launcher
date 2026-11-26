@@ -185,5 +185,9 @@ Desktop, Big Mode, and Omnia service · Included</translation>
         <source>Abrir Big Mode</source>
         <translation>Open Big Mode</translation>
     </message>
+    <message><source>Compatibilidad</source><translation>Compatibility</translation></message>
+    <message><source>Omnia %1 ya está instalado. Este asistente contiene %2.</source><translation>Omnia %1 is already installed. This installer contains %2.</translation></message>
+    <message><source>Polkit solicita autorización para actualizar los paquetes.</source><translation>Polkit requests authorization to update the packages.</translation></message>
+    <message><source>Reiniciar ahora</source><translation>Restart now</translation></message>
 </context>
 </TS>

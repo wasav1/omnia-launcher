@@ -19,7 +19,7 @@ PYTHONPATH=core python3 -m unittest discover -s tests   # 692 pruebas
 /usr/lib/qt6/bin/qmllint ui/qml/<archivo>.qml
 env OMNIA_PKGREL=N packaging/arch/build-local.sh         # → /tmp/omnia-pkg/*.pkg.tar.zst (4 paquetes)
 ```
-Instalador único local 0.4.0-1: `/tmp/omnia-game-suite-040/Omnia-Game-Suite-0.4.0-x86_64.run`. El usuario ejecuta ese archivo desde Hyprland y autoriza la instalación con Polkit. Se genera con `packaging/suite/build-suite.py --packages <carpeta de makepkg> --output <salida>`. Las actualizaciones de Desktop, Big Mode y el popout de Dux consultan una sola publicación verificada de GitHub Releases. La prueba de actualización publicada queda para después del PR de versión y la publicación de v0.4.0.
+Instalador único local 0.4.0-3: `/tmp/omnia-game-suite-040r3/Omnia-Game-Suite-0.4.0-x86_64.run`. El usuario ejecuta ese archivo desde Hyprland y autoriza la instalación con Polkit. Se genera con `packaging/suite/build-suite.py --packages <carpeta de makepkg> --output <salida>`. Las actualizaciones de Desktop, Big Mode y el popout de Dux consultan una sola publicación verificada de GitHub Releases. Probar la detección de instalación existente, el salto de las carpetas, el progreso y el reinicio. El borrador de v0.4.0 adjuntará el .run y el AppImage. Ambos contienen los tres paquetes nativos de Arch.
 Backend (`~/Proyectos/omnia-backend`): `npx vitest run` (346), `python3 -m unittest discover -s tools/release-packages`, `npx wrangler deploy`, `npm run db:migrate`.
 
 ## 3. Cómo verificar

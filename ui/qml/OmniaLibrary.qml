@@ -147,7 +147,7 @@ Item {
         api: lib.api
         surface: "big-mode"
         activeSurface: lib.visible
-        interactionBlocked: intro.active || lib.exiting || lib.exitConfirmOpen || vkb.open || ctxMenu.open
+        interactionBlocked: intro.active || lib.exitConfirmOpen || vkb.open || ctxMenu.open
         uiScale: lib.s
     }
     function openAddGame() { mainNavIndex = -1; addImportPath = ""; addOpen = true }
@@ -239,31 +239,18 @@ Item {
         page = "settings"; settings.forceActiveFocus()
     }
     function closeSettings() { restorePage(settingsFrom) }
-    readonly property bool exiting: exitAnimation.running
-    property real exitShelfProgress: 0
     function requestExit() {
-        if (exiting) return
         exitConfirmChoice = 0
         exitConfirmOpen = true
         sfx.play("open")
     }
     function finishExitConfirmation() {
-        if (!exitConfirmOpen || exiting) return
+        if (!exitConfirmOpen) return
         exitConfirmOpen = false
         if (exitConfirmChoice === 0) { sfx.play("back"); lib.forceActiveFocus(); return }
         sfx.play("confirm")
-        exitAnimation.start()
+        lib.closeRequested()
     }
-    ParallelAnimation {
-        id: exitAnimation
-        NumberAnimation { target: lib; property: "exitShelfProgress"; from: 0; to: 1; duration: 270; easing.type: Easing.InCubic }
-        SequentialAnimation {
-            PauseAnimation { duration: 150 }
-            NumberAnimation { target: lib; property: "opacity"; from: 1; to: 0; duration: 300; easing.type: Easing.InOutQuad }
-        }
-        onFinished: lib.closeRequested()
-    }
-    MouseArea { anchors.fill: parent; z: 300; enabled: lib.exiting; acceptedButtons: Qt.AllButtons }
     function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
     // ---- menú contextual del juego (X / clic derecho / M)
     GameActions { id: gameActions }
@@ -554,7 +541,6 @@ Item {
     Connections {
         target: api
         function onPadKey(k) {
-            if (lib.exiting) return
             if (intro.active) { intro.skip(); return }
             if (suiteNotice.pad(k)) return
             if (lib.exitConfirmOpen) {
@@ -612,7 +598,6 @@ Item {
         }
     }
     Keys.onPressed: function(e) {
-        if (lib.exiting) { e.accepted = true; return }
         if (intro.active) { intro.skip(); e.accepted = true; return }
         if (suiteNotice.opened) {
             e.accepted = suiteNotice.pad(e.key === Qt.Key_Left ? "l" : e.key === Qt.Key_Right ? "r"
@@ -777,8 +762,6 @@ Item {
 
     OmniaBigShelf {
         id: shelf
-        opacity: 1 - lib.exitShelfProgress
-        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
         host: lib
         sounds: sfx
         transferInset: transferBar.visible ? transferBar.height + lib.s * 15 : 0
@@ -861,8 +844,6 @@ Item {
     // ================= ver todos =================
     OmniaAllGames {
         id: allGames
-        opacity: 1 - lib.exitShelfProgress
-        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
         visible: lib.page === "all"
         host: lib
         games: lib.api.games
@@ -952,7 +933,6 @@ Item {
     // ================= inicio del catálogo =================
     OmniaHome {
         id: home
-        exitShelfProgress: lib.exitShelfProgress
         anchors.fill: parent
         visible: lib.page === "home"
         api: lib.api            // «api: api» se resolvía a la propiedad del propio Inicio (nula)
@@ -1049,8 +1029,6 @@ Item {
     }
     OmniaBigStore {
         id: bigStoreView
-        opacity: 1 - lib.exitShelfProgress
-        transform: Translate { y: lib.s * 30 * lib.exitShelfProgress }
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: transferBar.visible ? transferBar.top : footer.top
                   leftMargin: lib.s * 66; rightMargin: lib.s * 66; topMargin: lib.s * 18; bottomMargin: lib.s * 22 }
         host: lib
