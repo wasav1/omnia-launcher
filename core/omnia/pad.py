@@ -378,8 +378,8 @@ class PadReader(threading.Thread):
             labels = dict(BUTTONS.get(dev.layout, BUTTONS["xbox"]))
             labels.update({BTN_THUMBL: "LS", BTN_THUMBR: "RS"})
             axes = st["axes"]
-            val = lambda code: axes.get(code, 0.0)
-            zone = lambda v: 0.0 if abs(v) < dz else round(v, 3)
+            val = lambda code, axes=axes: axes.get(code, 0.0)
+            zone = lambda v, dz=dz: 0.0 if abs(v) < dz else round(v, 3)
             xbox_bt = ABS_GAS in info or ABS_BRAKE in info
             right = (ABS_Z, ABS_RZ) if xbox_bt else (ABS_RX, ABS_RY)
             trig = (ABS_GAS, ABS_BRAKE) if xbox_bt else (ABS_Z, ABS_RZ)

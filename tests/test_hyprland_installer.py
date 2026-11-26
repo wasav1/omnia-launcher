@@ -2,7 +2,6 @@ import importlib.machinery
 import importlib.util
 import os
 import shutil
-import stat
 import tempfile
 import types
 import unittest

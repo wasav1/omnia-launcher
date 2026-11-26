@@ -1,5 +1,4 @@
 pragma ComponentBehavior: Bound
-pragma Translator: OmniaLibrary
 
 import QtQuick
 import Qt5Compat.GraphicalEffects
@@ -176,21 +175,21 @@ Item {
                     anchors { left: parent.left; top: parent.top; margins: shelf.host.s * 12 }
                     width: runTxt.implicitWidth + shelf.host.s * 20; height: shelf.host.s * 26; radius: height / 2
                     color: "#6fc3a0"
-                    Text { id: runTxt; anchors.centerIn: parent; text: qsTr("En juego"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 14; font.weight: Font.DemiBold }
+                    Text { id: runTxt; anchors.centerIn: parent; text: qsTranslate("OmniaLibrary", "En juego"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 14; font.weight: Font.DemiBold }
                 }
                 Rectangle {      // port disponible
                     visible: !!card.modelData.portAvailable
                     anchors { left: parent.left; bottom: parent.bottom; margins: shelf.host.s * 10 }
                     width: portTxt.implicitWidth + shelf.host.s * 20; height: shelf.host.s * 26; radius: height / 2
                     color: "#5b9be0"
-                    Text { id: portTxt; anchors.centerIn: parent; text: qsTr("Port disponible"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 13; font.weight: Font.DemiBold }
+                    Text { id: portTxt; anchors.centerIn: parent; text: qsTranslate("OmniaLibrary", "Port disponible"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 13; font.weight: Font.DemiBold }
                 }
                 Rectangle {      // actualización disponible
                     visible: !!card.modelData.updateAvailable && !card.modelData.portAvailable
                     anchors { left: parent.left; bottom: parent.bottom; margins: shelf.host.s * 10 }
                     width: updTxt.implicitWidth + shelf.host.s * 20; height: shelf.host.s * 26; radius: height / 2
                     color: "#e0a24b"
-                    Text { id: updTxt; anchors.centerIn: parent; text: qsTr("Actualización"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 13; font.weight: Font.DemiBold }
+                    Text { id: updTxt; anchors.centerIn: parent; text: qsTranslate("OmniaLibrary", "Actualización"); color: shelf.host.base; font.family: shelf.host.uiFont; font.pixelSize: shelf.host.s * 13; font.weight: Font.DemiBold }
                 }
                 Rectangle {      // favorito
                     visible: card.modelData.fav
@@ -243,7 +242,7 @@ Item {
             color: shelfArrowMouse.containsMouse ? shelf.host.accent : shelf.host.surface
             border.color: "#40ffffff"
             Accessible.role: Accessible.Button
-            Accessible.name: previous ? qsTr("Página anterior") : qsTr("Página siguiente")
+            Accessible.name: previous ? qsTranslate("OmniaLibrary", "Página anterior") : qsTranslate("OmniaLibrary", "Página siguiente")
             LucideIcon { visible: !shelf.host.padOn; anchors.centerIn: parent; width: shelf.host.s * 21; height: width; name: shelfArrow.previous ? "arrow-left" : "arrow-right"; color: shelf.host.ink }
             PadGlyph { visible: shelf.host.padOn; anchors.centerIn: parent; size: shelf.host.s * 34; family: shelf.host.api.padFamily || "xbox"; key: shelfArrow.previous ? "LT" : "RT" }
             MouseArea {

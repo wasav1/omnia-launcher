@@ -1,5 +1,4 @@
 pragma ComponentBehavior: Bound
-pragma Translator: OmniaLibrary
 
 import QtQuick
 
@@ -26,7 +25,7 @@ Item {
             smooth: true
             visible: status === Image.Ready
         }
-        Text { text: qsTr("Omnia"); anchors.verticalCenter: parent.verticalCenter; color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 38; font.weight: Font.Medium }
+        Text { text: qsTranslate("OmniaLibrary", "Omnia"); anchors.verticalCenter: parent.verticalCenter; color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 38; font.weight: Font.Medium }
     }
     Rectangle { id: sep1; anchors { left: brand.right; leftMargin: head.host.s * 30; verticalCenter: parent.verticalCenter } width: 1; height: head.host.s * 36; color: Qt.rgba(1, 1, 1, 0.16) }
 
@@ -95,7 +94,7 @@ Item {
             onTextChanged: if (text !== head.host.searchText) { head.host.searchText = text; Qt.callLater(function() { head.host.select(0) }) }
             Keys.onEscapePressed: { head.host.searchOpen = false; head.host.searchText = ""; text = ""; head.host.forceActiveFocus() }
             Keys.onReturnPressed: { head.host.searchOpen = false; head.host.forceActiveFocus() }
-            Text { visible: !parent.text; text: qsTr("Buscar juego…"); color: head.host.ink2; font: parent.font; anchors.verticalCenter: parent.verticalCenter }
+            Text { visible: !parent.text; text: qsTranslate("OmniaLibrary", "Buscar juego…"); color: head.host.ink2; font: parent.font; anchors.verticalCenter: parent.verticalCenter }
         }
         MouseArea {
             anchors.fill: parent
@@ -112,7 +111,7 @@ Item {
         color: addMouse.containsMouse ? head.host.surface : "#b30b0f14"
         border.width: head.host.mainNavIndex === 3 ? 3 : 1
         border.color: head.host.mainNavIndex === 3 ? head.host.ring : head.host.surfaceBorder
-        Accessible.name: qsTr("Añadir juego")
+        Accessible.name: qsTranslate("OmniaLibrary", "Añadir juego")
         Accessible.role: Accessible.Button
         LucideIcon { anchors.centerIn: parent; width: head.host.s * 20; height: width; name: "plus"; color: head.host.ink }
         MouseArea { id: addMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.openAddGame() }
@@ -158,7 +157,7 @@ Item {
         color: powerMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
         border.width: head.host.mainNavIndex === head.host.powerIndex || head.host.exitConfirmOpen ? 3 : 1
         border.color: head.host.mainNavIndex === head.host.powerIndex || head.host.exitConfirmOpen ? head.host.ring : head.host.surfaceBorder
-        Accessible.name: qsTr("Cerrar Big Mode")
+        Accessible.name: qsTranslate("OmniaLibrary", "Cerrar Big Mode")
         Accessible.role: Accessible.Button
         LucideIcon { anchors.centerIn: parent; width: head.host.s * 20; height: width; name: "power"; color: head.host.ink }
         MouseArea { id: powerMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.requestExit() }
@@ -198,7 +197,7 @@ Item {
             LucideIcon { width: head.host.s * 19; height: width; name: head.host.dlBusy > 0 ? "download" : "info"; color: head.host.dlFailed > 0 ? "#E8B86D" : head.host.ink2 }
             Text {
                 id: dlLabel; color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 17
-                text: head.host.dlBusy > 0 ? qsTr("Descargas %1%").arg(head.host.dlProgress) + (head.host.dlFailed > 0 ? "  ⚠ " + head.host.dlFailed : "") : qsTr("%1 fallida(s)").arg(head.host.dlFailed)
+                text: head.host.dlBusy > 0 ? qsTranslate("OmniaLibrary", "Descargas %1%").arg(head.host.dlProgress) + (head.host.dlFailed > 0 ? "  ⚠ " + head.host.dlFailed : "") : qsTranslate("OmniaLibrary", "%1 fallida(s)").arg(head.host.dlFailed)
             }
         }
         MouseArea { id: dlMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.openDownloads() }
@@ -217,7 +216,7 @@ Item {
             LucideIcon { width: head.host.s * 19; height: width; name: head.host.runningGame ? "gamepad-2" : "activity"; color: head.host.ink2 }
             Text {
                 id: systemLabel
-                text: head.host.runningGame ? qsTr("Jugando") : qsTr("Sistema")
+                text: head.host.runningGame ? qsTranslate("OmniaLibrary", "Jugando") : qsTranslate("OmniaLibrary", "Sistema")
                 color: head.host.ink
                 font.family: head.host.uiFont
                 font.pixelSize: head.host.s * 17
@@ -281,7 +280,7 @@ Item {
                 Repeater {
                     model: {
                         const out = [], sys = sysCard.sys
-                        if (sys.bat && sys.bat.pct !== undefined) out.push({ icon: "activity", text: sys.bat.pct + " %" + (sys.ac ? "  ·  " + qsTr("conectado") : "") })
+                        if (sys.bat && sys.bat.pct !== undefined) out.push({ icon: "activity", text: sys.bat.pct + " %" + (sys.ac ? "  ·  " + qsTranslate("OmniaLibrary", "conectado") : "") })
                         if (sys.profile) out.push({ icon: "activity", text: sys.profile })
                         if (sys.disk && sys.disk.total) out.push({ icon: "folder-open", text: Math.round(sys.disk.used / 1073741824) + " / " + Math.round(sys.disk.total / 1073741824) + " GB" })
                         return out
@@ -301,7 +300,7 @@ Item {
                 color: head.host.ink2; font.family: head.host.uiFont; font.pixelSize: head.host.s * 14
                 text: sysCard.sys.cpu ? sysCard.sys.cpu.model + (sysCard.sys.cpu.ghz ? "  ·  " + sysCard.sys.cpu.ghz + " GHz" : "") : ""
             }
-            Text { visible: head.host.live.cpu_pct === undefined && head.host.live.gpu_pct === undefined && head.host.live.ram_total === undefined; text: qsTr("Sin datos de telemetría"); color: head.host.ink2
+            Text { visible: head.host.live.cpu_pct === undefined && head.host.live.gpu_pct === undefined && head.host.live.ram_total === undefined; text: qsTranslate("OmniaLibrary", "Sin datos de telemetría"); color: head.host.ink2
                    font.family: head.host.uiFont; font.pixelSize: head.host.s * 18 }
         }
     }

@@ -4,7 +4,6 @@ Cada instalación es un trabajo con el mismo formato que los de package_installs
 la pantalla Descargas los muestra sin cambios. Al terminar, el juego queda en la biblioteca con el ejecutable de Windows y se
 lanza con umu/Proton (manual.add_game).
 """
-import json
 import os
 import re
 import signal

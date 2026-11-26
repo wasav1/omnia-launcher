@@ -17,3 +17,7 @@ omnia-first-run = "omnia.firstrun:main"
 
 [tool.setuptools.packages.find]
 where = ["core"]
+
+[tool.ruff.lint]
+# Fix the CI rules explicitly so Ruff updates do not change which checks block a PR.
+select = ["E9", "F", "B023"]

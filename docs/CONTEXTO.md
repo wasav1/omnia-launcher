@@ -94,6 +94,8 @@ integración con Dux (botón con el logo y estado del mando dentro del popout), 
 
 ## 7. Registro de cambios
 
+- 2026-11-26 — El PR #3 detenía Python en Ruff y QML en la directiva Translator. Se fijaron las reglas de comprobación de código de Ruff, se retiraron importaciones sin uso, se ligó el estado de cada mando a sus funciones y se mantuvo el contexto OmniaLibrary con qsTranslate. La prueba de geometría usa un código de salida explícito. Pasaron las 692 pruebas, Ruff y la compilación de 92 archivos QML. Instaladores 0.4.0-4.
+
 - 2026-11-26 — Se sincronizaron las ramas con GitHub. El release v0.4.0 adjunta el .run y el AppImage, ambos con los tres paquetes nativos. La rama de integración del backend recupera el trabajo acumulado desde el snapshot y lo aplica sobre main de GitHub, conservando la migración 0004 y los identificadores N64 de main. Pasaron 346 pruebas de Vitest, nueve pruebas Python y el typecheck del backend. En Launcher pasaron 691 de 692 pruebas y sigue el fallo conocido de geometría de Desktop fuera de pantalla.
 
 - 2026-11-26 — El README bilingüe amplía la descripción de las funciones de Omnia Game Suite e incorpora trece capturas aportadas por el usuario del panel de Dux, Desktop y Big Mode.
