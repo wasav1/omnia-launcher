@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import socket
+import ssl
 import tarfile
 import tempfile
 import threading
@@ -115,9 +116,12 @@ class _PublicHTTPSConnection(http.client.HTTPSConnection):
 
 
 class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self):
+        self._tls_context = ssl.create_default_context()
+        super().__init__(context=self._tls_context)
+
     def https_open(self, request):
-        # Python 3.12+ ya no guarda `_check_hostname`: el contexto por defecto verifica certificado y hostname.
-        return self.do_open(_PublicHTTPSConnection, request, context=self._context)
+        return self.do_open(_PublicHTTPSConnection, request, context=self._tls_context)
 
 
 class _SafeRedirect(urllib.request.HTTPRedirectHandler):

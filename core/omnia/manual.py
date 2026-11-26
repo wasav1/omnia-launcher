@@ -27,7 +27,7 @@ def _inside(path: str, roots) -> bool:
     return any(real == str(r) or real.startswith(str(r).rstrip("/") + "/") for r in map(os.path.realpath, roots))
 
 
-def add_game(store, data: dict, roots, gopher64=None, which=shutil.which, identity=None, catalog_slug="", art_title="") -> dict:
+def add_game(store, data: dict, roots, gopher64=None, which=None, identity=None, catalog_slug="", art_title="") -> dict:
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 80:
         raise ManualError("Pon un nombre al juego (hasta 80 letras).")
@@ -49,7 +49,8 @@ def add_game(store, data: dict, roots, gopher64=None, which=shutil.which, identi
                 raise ManualError("Elige el ejecutable del juego.")
             install = os.path.dirname(exe)
             if kind == "windows":
-                if not which("umu-run"):
+                find_executable = shutil.which if which is None else which
+                if not find_executable("umu-run"):
                     raise ManualError("Falta umu-launcher para ejecutar juegos de Windows.")
                 prefix = str(Path.home() / "Juegos/PC/_Prefijos" / slug(name))
                 launch = ["env", "GAMEID=umu-0", "PROTONPATH=GE-Proton", "WINEPREFIX=" + prefix, "umu-run", exe]

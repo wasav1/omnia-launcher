@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import ssl
 import shutil
 import tarfile
 import tempfile
@@ -210,8 +211,9 @@ class PublicHTTPSHandlerCompat(unittest.TestCase):
         handler = pi._PublicHTTPSHandler()
         with mock.patch.object(handler, "do_open", return_value="ok") as do_open:
             self.assertEqual(handler.https_open(object()), "ok")
-        self.assertIs(do_open.call_args.kwargs["context"], handler._context)
-        self.assertTrue(handler._context.check_hostname)
+        context = do_open.call_args.kwargs["context"]
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
 
 
 class PickUpdateTests(unittest.TestCase):
