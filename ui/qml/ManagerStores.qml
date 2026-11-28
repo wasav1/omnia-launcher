@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Theme.js" as Theme
 import QtQuick.Dialogs
 
 // Tiendas de la app de escritorio: una biblioteca unificada (Steam, Epic, GOG, Amazon) con filtros por tienda.
@@ -306,6 +307,15 @@ Item {
     }
 
     // ---- cuentas
+    // Botón de la hoja de cuentas con el estilo del rediseño D (Ajustes → Tiendas y cuentas).
+    component AccountButton: Button {
+        id: ab
+        property bool primary: false
+        implicitHeight: 34
+        leftPadding: 14; rightPadding: 14
+        contentItem: Text { text: ab.text; color: ab.primary ? Theme.color.accentInk : Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; font.weight: ab.primary ? Font.DemiBold : Font.Normal; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
+        background: Rectangle { radius: Theme.radius.sm; color: ab.primary ? Theme.color.accent : (ab.hovered ? Theme.color.glassFillStrong : Theme.color.inset); border.color: ab.primary ? "transparent" : Theme.color.glassBorder }
+    }
     Rectangle {
         visible: st.accountsOpen && !st.controllerHost && !st.accountsContainer
         anchors.fill: parent; color: "#B0000000"; z: 20
@@ -319,10 +329,11 @@ Item {
                 id: accCol
                 parent: st.accountsContainer || accountSheet
                 visible: st.accountsOpen
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: st.s * 22 }
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: st.accountsContainer ? 0 : st.s * 22 }
                 spacing: st.s * 12
-                Text { text: qsTr("Cuentas de tiendas"); color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 20; font.weight: Font.DemiBold }
+                Text { visible: !st.accountsContainer; text: qsTr("Cuentas de tiendas"); color: st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 20; font.weight: Font.DemiBold }
                 Text { width: parent.width; wrapMode: Text.Wrap; color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13
+                       visible: !st.accountsContainer
                        text: qsTr("Inicias sesión en el navegador de cada tienda. Omnia nunca ve tu contraseña: solo guarda la sesión en este equipo.") }
                 Repeater {
                     model: ["steam", "epic", "gog", "amazon"]
@@ -330,7 +341,7 @@ Item {
                         id: acc
                         required property string modelData
                         readonly property var info: st.status(modelData)
-                        width: accCol.width; height: accIn.implicitHeight + st.s * 24; radius: st.s * 12; color: st.manager.surface2
+                        width: accCol.width; height: accIn.implicitHeight + st.s * 24; radius: Theme.radius.md; color: Theme.color.inset; border.color: Theme.color.glassBorder
                         Column {
                             id: accIn
                             anchors { left: parent.left; right: parent.right; top: parent.top; margins: st.s * 12 }
@@ -356,10 +367,10 @@ Item {
                             Row {
                                 visible: st.connecting !== acc.modelData
                                 spacing: st.s * 8
-                                Button { visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
-                                Button { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "steam" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
-                                Button { visible: acc.modelData === "steam" && acc.info && acc.info.logged_in; text: qsTr("Actualizar"); onClicked: st.startLink("steam") }
-                                Button { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
+                                AccountButton { primary: true; visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
+                                AccountButton { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "steam" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
+                                AccountButton { visible: acc.modelData === "steam" && acc.info && acc.info.logged_in; text: qsTr("Actualizar"); onClicked: st.startLink("steam") }
+                                AccountButton { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
                             }
                             Column {
                                 visible: st.linking === acc.modelData
@@ -370,7 +381,7 @@ Item {
                                 Row {
                                     spacing: st.s * 8; width: parent.width
                                     TextField { id: codeField; width: parent.width - connectBtn.width - st.s * 8; placeholderText: qsTr("Pega aquí el código o la dirección"); text: st.pasted; onTextEdited: st.pasted = text; onAccepted: st.finishLink() }
-                                    Button { id: connectBtn; text: st.busy ? qsTr("Conectando…") : qsTr("Conectar"); onClicked: st.finishLink() }
+                                    AccountButton { id: connectBtn; primary: true; text: st.busy ? qsTr("Conectando…") : qsTr("Conectar"); onClicked: st.finishLink() }
                                 }
                             }
                         }
@@ -381,9 +392,9 @@ Item {
                 Text { visible: !!st.message; width: parent.width; text: st.message; wrapMode: Text.Wrap; color: st.manager.ink }
                 Row {
                     spacing: st.s * 8
-                    Button { text: qsTr("Actualizar"); onClicked: st.refreshStores() }
-                    Button { text: qsTr("Borrar sesión web"); onClicked: api.clearStoresWebSession(function(code, body) { st.message = code === 200 ? qsTr("Listo: la sesión web se borrará al abrir Omnia otra vez.") : qsTr("No se pudo marcar el borrado.") }) }
-                    Button { visible: !st.accountsContainer; text: qsTr("Cerrar"); onClicked: { st.accountsOpen = false; st.linking = "" } }
+                    AccountButton { text: qsTr("Actualizar"); onClicked: st.refreshStores() }
+                    AccountButton { text: qsTr("Borrar sesión web"); onClicked: api.clearStoresWebSession(function(code, body) { st.message = code === 200 ? qsTr("Listo: la sesión web se borrará al abrir Omnia otra vez.") : qsTr("No se pudo marcar el borrado.") }) }
+                    AccountButton { visible: !st.accountsContainer; text: qsTr("Cerrar"); onClicked: { st.accountsOpen = false; st.linking = "" } }
                 }
             }
         }

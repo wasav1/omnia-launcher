@@ -50,6 +50,10 @@ Item {
         selectPage("settings")
     }
     property string catalogLinkTargetId: ""
+    // Efecto cristal (Ajustes → Apariencia); se apaga solo mientras haya un juego abierto.
+    readonly property bool gameRunning: (api.games || []).some(g => g.running)
+    readonly property bool glassActive: api.glassEffect && !gameRunning
+    readonly property Item glassBackdrop: glassActive ? ambient : null
     property var bigModeWindow: null
     readonly property alias desktopBackend: api
     readonly property color bg: "#0B0F14"
@@ -503,7 +507,7 @@ Item {
         height: Theme.size.topBarHeight
         radius: Theme.radius.lg
         strong: true
-        backdrop: ambient
+        backdrop: manager.glassBackdrop
         backdropRect: Qt.rect(x, y, width, height)
 
         Row {
@@ -655,7 +659,7 @@ Item {
             manager: manager
             api: api
             stores: storesView
-            backdrop: ambient
+            backdrop: manager.glassBackdrop
             onChooseInstallFolder: folderDialogs.openInstallFolder()
         }
 
@@ -694,8 +698,7 @@ Item {
             manager: manager
             api: api
             stores: storesView
-            contentPad: content.pad
-            contentTop: content.top0
+            backdrop: manager.glassBackdrop
             onChooseInstallFolder: folderDialogs.openInstallFolder()
         }
     }

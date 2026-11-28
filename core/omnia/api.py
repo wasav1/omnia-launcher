@@ -112,6 +112,7 @@ class Api:
             "/settings": ("GET", True, self.settings),
             "/settings/language": ("POST", True, self.settings_language),
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
+            "/settings/glass": ("POST", True, self.settings_glass),
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
             "/settings/mangohud": ("POST", True, self.settings_mangohud),
@@ -448,6 +449,7 @@ class Api:
         return {"notification_position": position, "theme": theme, "theme_accent": accent_for(theme),
                 "language": language, "install_root": install_root,
                 "animated_background": cfg.get("animated_background", True) is not False,
+                "glass_effect": cfg.get("glass_effect", True) is not False,
                 "update_check": cfg.get("update_check", True) is not False,
                 "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
                 "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
@@ -841,6 +843,23 @@ class Api:
             cfg["mangohud_enabled"] = enabled
             write_json_atomic(config_path, cfg)
         return {"ok": True, "mangohud": enabled}
+
+    def settings_glass(self, q):
+        """Activa o desactiva el efecto cristal (desenfoque) de las superficies del rediseño D.
+
+        Apagado, los paneles se dibujan casi opacos: ahorra GPU en equipos modestos."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        enabled = body.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ApiError(400, "enabled debe ser verdadero o falso.")
+        config_path = self.store.dir / "config.json"
+        from .store import write_json_atomic
+        with self.store.lock:
+            cfg = load_json(config_path, {})
+            cfg = cfg if isinstance(cfg, dict) else {}
+            cfg["glass_effect"] = enabled
+            write_json_atomic(config_path, cfg)
+        return {"ok": True, "glass_effect": enabled}
 
     def settings_update_check(self, q):
         """Activa o desactiva el aviso de «Actualización disponible» de los ports instalados."""
