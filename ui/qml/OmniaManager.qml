@@ -14,7 +14,6 @@ Item {
     property int onlinePageSize: 30
     property string exploreFilter: "all"
     property string exploreSort: "year-desc"
-    property var exploreDetailGame: null
     property var detailGame: null
     property var storeDetailItem: null
     property var packageOptions: []
@@ -152,9 +151,10 @@ Item {
     function startCatalogLink(game) {
         catalogLinkTargetId = game.id
         query = ""
-        page = "catalog"
+        page = "library"
         loadOnline(1)
         storesView.open()
+        managerLibrary.catalog.focusSearch()
     }
     function cancelCatalogLink() {
         catalogLinkTargetId = ""
@@ -192,8 +192,7 @@ Item {
         target: api
         function onGamesChanged() { if (!manager.argsApplied && api.games.length > 0) manager.applyLaunchArgs() }
     }
-    function openGameInLibrary(game) { page = "library"; if (game) managerLibrary.selId = game.id }
-    function openLocalExploreDetail(game) { if (game) exploreDetailGame = game }
+    function openGameInLibrary(game) { selectPage("library"); if (game) managerLibrary.selectGame(game.id) }
     function libraryAction(act) {
         if (act === "add") addWizardOpen = true
         else if (act === "roms") folderDialogs.openRomFolder()
@@ -331,15 +330,17 @@ Item {
     function storeLogo(key) {
         return ({ steam: "images/stores/steam.svg", epic: "images/stores/epic.svg", gog: "images/stores/gog.svg", amazon: "images/stores/amazon.svg" })[key] || ""
     }
+    // Desde la fase 2 el Catálogo vive dentro de Biblioteca: «catalog» y «stores» llevan ahí y
+    // ponen el foco en el buscador del Catálogo.
     function selectPage(key) {
-        if (key === "stores") key = "catalog"
+        const toCatalog = key === "catalog" || key === "stores"
+        if (toCatalog) key = "library"
         if (key === "home" && onlineGames.length === 0 && !onlineBusy) loadOnline(1)
-        if (key !== "catalog" && catalogLinkTargetId) catalogLinkTargetId = ""
+        if (key !== "library" && catalogLinkTargetId) catalogLinkTargetId = ""
         page = key
-        if (key === "catalog") loadOnline()
-        if (key === "catalog") storesView.open()
+        if (key === "library") { loadOnline(); storesView.open() }
+        if (toCatalog) { if (managerLibrary.detailFloating) managerLibrary.closeDetail(); managerLibrary.catalog.focusSearch() }
         if (key === "installs") loadInstallations()
-        if (key === "stores") storesView.open()
         if (key === "stats") statsView.open()
         if (key === "settings") loadRoots()
     }
@@ -516,7 +517,6 @@ Item {
                 model: [
                     {key: "home", label: qsTr("Inicio"), icon: "layout-grid"},
                     {key: "library", label: qsTr("Biblioteca"), icon: "folder-open"},
-                    {key: "catalog", label: qsTr("Catálogo"), icon: "package-plus"},
                     {key: "installs", label: qsTr("Descargas"), icon: "download"},
                     {key: "stats", label: qsTr("Estadísticas"), icon: "activity"},
                     {key: "settings", label: qsTr("Ajustes"), icon: "settings"}
@@ -641,23 +641,15 @@ Item {
         }
 
         // Biblioteca local
+        // Biblioteca + Catálogo en tres paneles (Instalados · Catálogo · ficha).
         ManagerLibrary {
             id: managerLibrary
             anchors.fill: parent
             visible: manager.page === "library"
             manager: manager
             api: api
-        }
-
-        // Explorar: componente de página con dependencias de anfitrión explícitas.
-        ManagerExplore {
-            anchors.fill: parent
-            visible: manager.page === "catalog"
-            manager: manager
-            api: api
             stores: storesView
-            contentPad: content.pad
-            contentTop: content.top0
+            backdrop: ambient
         }
 
         // Estadísticas de juego
@@ -673,7 +665,7 @@ Item {
         ManagerStores {
             id: storesView
             anchors.fill: parent
-            visible: manager.page === "catalog" || manager.storeSettingsOpen
+            visible: manager.storeSettingsOpen
             accountsContainer: manager.storeSettingsOpen ? managerSettings.accountsContainer : null
             compactHost: true
             manager: manager

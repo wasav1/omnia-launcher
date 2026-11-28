@@ -17,8 +17,10 @@ class TopBarSource(unittest.TestCase):
         self.assertIn('GlassPanel {\n        id: topbar', text)
         self.assertNotIn('navWidth', text)
         self.assertNotIn('topbar.right', text)
-        for page in ('"home"', '"library"', '"catalog"', '"installs"', '"stats"', '"settings"'):
+        for page in ('"home"', '"library"', '"installs"', '"stats"', '"settings"'):
             self.assertIn('key: ' + page, text)
+        # Desde la fase 2 el Catálogo vive dentro de Biblioteca.
+        self.assertNotIn('key: "catalog"', text)
         self.assertIn('sequence: "Ctrl+K"', text)
 
     def test_top_bar_reorganizes_at_fixed_breakpoints(self):
