@@ -5,8 +5,8 @@ import "Theme.js" as Theme
 
 /** Menú rápido de Big Mode (rediseño D, fase 5a). Se abre con el botón Guía del mando, con el
  *  botón de la barra superior o con Ctrl+M. Reúne lo que se cambia sin salir del sofá: volumen,
- *  monitor de rendimiento (HUD), todos los ajustes, volver al escritorio, suspender y apagar.
- *  Perfil de energía y límite de FPS llegan con la fase 7 (integración con el sistema).
+ *  perfil de energía y límite de FPS (fase 7), HUD de rendimiento, todos los ajustes, volver al escritorio,
+ *  suspender y apagar.
  *
  *  Mando: ↑/↓ mueven, ←/→ cambian el volumen o el interruptor, A elige, B o Guía cierran.
  *  Apagar pide confirmación: hay que elegirlo dos veces. */
@@ -26,7 +26,9 @@ Item {
 
     readonly property var items: [
         { key: "volume", label: qsTr("Volumen"), icon: "speaker" },
-        { key: "hud", label: qsTr("Monitor de rendimiento"), icon: "activity" },
+        { key: "profile", label: qsTr("Perfil de energía"), icon: "power" },
+        { key: "fps", label: qsTr("Límite de FPS"), icon: "gamepad-2" },
+        { key: "hud", label: qsTr("HUD de rendimiento"), icon: "activity" },
         { key: "settings", label: qsTr("Todos los ajustes"), icon: "settings" },
         { key: "desktop", label: qsTr("Ir al escritorio"), icon: "monitor" },
         { key: "suspend", label: qsTr("Suspender"), icon: "clock" },
@@ -38,6 +40,7 @@ Item {
         confirmShutdown = false
         open = true
         refreshVolume()
+        if (api.loadPower) api.loadPower()
         menu.forceActiveFocus()
     }
     function hide() { open = false; confirmShutdown = false }
@@ -61,17 +64,32 @@ Item {
             if (status === 200 && body) { menu.volume = Math.min(100, Number(body.volume) || 0); menu.muted = body.muted === true }
         })
     }
-    function toggleHud() {
-        if (!api.mangohudInstalled && !api.mangohud) { api.notify(qsTr("Necesita MangoHud: instálalo desde el gestor de paquetes.")); return }
-        api.setMangohud(!api.mangohud, function(status, body) {
-            if (status !== 200) menu.api.notify((body && body.error) || qsTr("No se pudo guardar el ajuste."))
-        })
+    function saved(status, body) {
+        if (status !== 200) menu.api.notify((body && body.error) || qsTr("No se pudo guardar el ajuste."))
+    }
+    // HUD: se muestra u oculta en todos los juegos con MangoHud (no_display en el archivo de Omnia).
+    function toggleHud() { api.setPerformance({ hud_visible: !api.hudVisible }, saved) }
+    function stepFps(direction) {
+        const list = api.fpsLimits || [0]
+        const i = Math.max(0, list.indexOf(api.fpsLimit))
+        const next = list[Math.max(0, Math.min(list.length - 1, i + direction))]
+        if (next !== api.fpsLimit) api.setPerformance({ fps_limit: next }, saved)
+    }
+    function stepProfile(direction, wrap) {
+        const list = (api.powerProfile && api.powerProfile.profiles) || []
+        if (!list.length) { api.notify(qsTr("El perfil de energía no está disponible en este equipo.")); return }
+        const i = Math.max(0, list.indexOf(api.powerProfile.current))
+        let n = i + direction
+        n = wrap ? (n + list.length) % list.length : Math.max(0, Math.min(list.length - 1, n))
+        if (n !== i) api.setPowerProfile(list[n], saved)
     }
     function activate(i) {
         const key = items[i] ? items[i].key : ""
         if (key !== "shutdown") confirmShutdown = false
         if (key === "volume") toggleMute()
         else if (key === "hud") toggleHud()
+        else if (key === "profile") stepProfile(1, true)
+        else if (key === "fps") stepFps(1)
         else if (key === "settings") { hide(); settingsRequested() }
         else if (key === "desktop") { hide(); desktopRequested() }
         else if (key === "suspend") { hide(); api.power("suspend") }
@@ -83,7 +101,9 @@ Item {
     function adjust(direction) {          // ←/→
         const key = items[current].key
         if (key === "volume") changeVolume(direction * 5)
-        else if (key === "hud") { if ((direction > 0) !== api.mangohud) toggleHud() }
+        else if (key === "hud") { if ((direction > 0) !== api.hudVisible) toggleHud() }
+        else if (key === "profile") stepProfile(direction, false)
+        else if (key === "fps") stepFps(direction)
     }
     function move(delta) {
         current = (current + delta + items.length) % items.length
@@ -193,19 +213,32 @@ Item {
                             text: menu.volume < 0 ? "…" : (menu.muted ? qsTr("Silencio") : menu.volume + " %")
                             color: Theme.color.soft; font.family: Theme.font.numeric; font.pixelSize: menu.s * 22; font.weight: Font.DemiBold }
                     }
+                    // perfil y límite de FPS: valor actual con flechas
+                    Row {
+                        visible: row.modelData.key === "profile" || row.modelData.key === "fps"
+                        anchors { right: parent.right; rightMargin: menu.s * 20; verticalCenter: parent.verticalCenter }
+                        spacing: menu.s * 10
+                        LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: menu.s * 20; height: width; name: "chevron-left"; color: row.focused ? Theme.color.accentLight : Theme.color.muted }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: row.modelData.key === "fps" ? menu.api.fpsLabel(menu.api.fpsLimit)
+                                : (menu.api.powerProfile && menu.api.powerProfile.available ? menu.api.profileLabel(menu.api.powerProfile.current) : qsTr("No disponible"))
+                            color: Theme.color.ink; font.family: menu.host.uiFont; font.pixelSize: menu.s * 19; font.weight: Font.DemiBold
+                        }
+                        LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: menu.s * 20; height: width; name: "chevron-right"; color: row.focused ? Theme.color.accentLight : Theme.color.muted }
+                    }
                     // HUD: interruptor
                     Rectangle {
                         visible: row.modelData.key === "hud"
                         anchors { right: parent.right; rightMargin: menu.s * 20; verticalCenter: parent.verticalCenter }
                         width: menu.s * 58; height: menu.s * 32; radius: height / 2
-                        color: menu.api.mangohud ? Theme.color.accent : Theme.color.inset
-                        border.color: menu.api.mangohud ? Theme.color.accent : Theme.color.glassBorderStrong
-                        opacity: menu.api.mangohudInstalled || menu.api.mangohud ? 1 : 0.45
+                        color: menu.api.hudVisible ? Theme.color.accent : Theme.color.inset
+                        border.color: menu.api.hudVisible ? Theme.color.accent : Theme.color.glassBorderStrong
                         Rectangle {
-                            x: menu.api.mangohud ? parent.width - width - menu.s * 4 : menu.s * 4
+                            x: menu.api.hudVisible ? parent.width - width - menu.s * 4 : menu.s * 4
                             anchors.verticalCenter: parent.verticalCenter
                             width: menu.s * 24; height: width; radius: width / 2
-                            color: menu.api.mangohud ? Theme.color.accentInk : Theme.color.soft
+                            color: menu.api.hudVisible ? Theme.color.accentInk : Theme.color.soft
                             Behavior on x { NumberAnimation { duration: 120 } }
                         }
                     }

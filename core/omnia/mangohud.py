@@ -2,17 +2,23 @@
 
 Omnia escribe `MangoHud.conf` en su carpeta de configuración y se lo pasa a MangoHud con `MANGOHUD_CONFIGFILE`; no toca el
 `~/.config/MangoHud` del usuario. El archivo lleva una marca en la primera línea: mientras esté, Omnia lo regenera cuando cambia el
-diseño; si el usuario la borra para editarlo a mano, Omnia lo respeta y no lo vuelve a escribir."""
+diseño; si el usuario la borra para editarlo a mano, Omnia lo respeta y no lo vuelve a escribir.
+
+Desde la fase 7 del rediseño D el archivo también lleva dos ajustes de Omnia (guardados en `config.json`):
+`fps_limit` (0 = sin límite) y `hud_visible` (False = el HUD empieza oculto; Shift derecho + F12 lo muestra).
+Así el límite ya no se pierde cuando Omnia regenera el archivo. Shift izquierdo + F1 alterna el límite en el juego."""
 from __future__ import annotations
 
 import functools
+import json
 import os
 import re
 import subprocess
 from pathlib import Path
 
 OWNED = "# omnia-generado"                  # cualquier versión del archivo que escribió Omnia (se actualiza); sin esta marca es del usuario
-MARKER = OWNED + " v4"
+MARKER = OWNED + " v5"
+FPS_LIMITS = (0, 30, 40, 45, 50, 60, 75, 90, 120, 144)     # opciones de Ajustes y del Menú rápido (0 = sin límite)
 FONT_NAME = "Rajdhani-SemiBold.ttf"
 FONT_DIRS = (Path("/usr/share/omnia/ui/qml/fonts"), Path(__file__).resolve().parents[2] / "assets" / "fonts")
 
@@ -148,13 +154,39 @@ def find_font(dirs=FONT_DIRS) -> str:
     return ""
 
 
-def render(font: str | None = None, hardware: dict | None = None) -> str:
+def options_from(config_dir) -> dict:
+    """{fps_limit, hud_visible} desde `config.json` de Omnia, con valores seguros si falta o está dañado."""
+    try:
+        cfg = json.loads((Path(config_dir) / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cfg = {}
+    cfg = cfg if isinstance(cfg, dict) else {}
+    fps = cfg.get("fps_limit", 0)
+    return {"fps_limit": fps if isinstance(fps, int) and not isinstance(fps, bool) and fps in FPS_LIMITS else 0,
+            "hud_visible": cfg.get("hud_visible", True) is not False}
+
+
+def _options_block(options: dict | None) -> str:
+    options = options or {}
+    fps = options.get("fps_limit", 0)
+    lines = []
+    if isinstance(fps, int) and fps > 0:
+        lines += [f"fps_limit={fps},0", "fps_limit_method=late"]
+    lines.append("toggle_fps_limit=Shift_L+F1")
+    if options.get("hud_visible", True) is False:
+        lines.append("no_display")
+    return "\n".join(lines) + "\n"
+
+
+def render(font: str | None = None, hardware: dict | None = None, options: dict | None = None) -> str:
     font = find_font() if font is None else font
     hw = _hardware() if hardware is None else hardware
     gpu_extra = (f"pci_dev={hw['pci']}\n" if hw.get("pci") else "") + (f"gpu_text={hw['gpu']}\n" if hw.get("gpu") else "")
     cpu_extra = f"cpu_text={hw['cpu']}\n" if hw.get("cpu") else ""
     line = f"font_file={font}\n" if font and "\n" not in font else ""
-    return f"{MARKER}\n# Quita la línea de arriba si quieres editar este archivo a mano: Omnia dejará de reescribirlo.\n" + _BODY.format(font=line, gpu_extra=gpu_extra, cpu_extra=cpu_extra)
+    return (f"{MARKER}\n# Quita la línea de arriba si quieres editar este archivo a mano: Omnia dejará de reescribirlo.\n"
+            + _BODY.format(font=line, gpu_extra=gpu_extra, cpu_extra=cpu_extra)
+            + "# Ajustes de Omnia (Ajustes → Juegos y rendimiento, o el Menú rápido de Big Mode)\n" + _options_block(options))
 
 
 def ensure(config_dir) -> Path:
@@ -168,7 +200,7 @@ def ensure(config_dir) -> Path:
         return path
     if current is not None and not current.startswith(OWNED):
         return path
-    text = render()
+    text = render(options=options_from(config_dir))
     if current != text:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)

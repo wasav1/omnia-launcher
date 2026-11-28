@@ -42,8 +42,15 @@ Window {
         property bool padOn: true
         property string padName: "Mando Xbox"
         property var padBattery: ({ level: 72 })
-        property bool mangohud: false
-        property bool mangohudInstalled: true
+        property bool hudVisible: true
+        property int fpsLimit: 0
+        readonly property var fpsLimits: [0, 30, 40, 45, 60]
+        property var powerProfile: ({ available: true, profiles: ["power-saver", "balanced", "performance"], current: "balanced" })
+        function loadPower() {}
+        function fpsLabel(v) { return v > 0 ? v + " FPS" : "Sin límite" }
+        function profileLabel(k) { return k }
+        function setPerformance(c, done) { if (c.hud_visible !== undefined) hudVisible = c.hud_visible; if (c.fps_limit !== undefined) fpsLimit = c.fps_limit; done(200, {}) }
+        function setPowerProfile(p, done) { powerProfile = { available: true, profiles: powerProfile.profiles, current: p }; done(200, {}) }
         property int level: 40
         property bool mute: false
         property string powered: ""
@@ -52,7 +59,6 @@ Window {
             if (changes.muted !== undefined) mute = changes.muted
             done(200, { volume: level, muted: mute })
         }
-        function setMangohud(v, done) { mangohud = v; done(200, {}) }
         function power(a) { powered = a }
         function notify(t) {}
     }
@@ -79,14 +85,25 @@ Window {
         menu.pad("A")
         if (!fakeApi.mute || !menu.muted) return fail("A on volume toggles mute")
         menu.pad("d"); menu.pad("r")
-        if (!fakeApi.mangohud) return fail("right on HUD turns it on")
-        menu.pad("u"); menu.pad("u")
+        if (fakeApi.powerProfile.current !== "performance") return fail("right on the profile goes up: " + fakeApi.powerProfile.current)
+        menu.pad("r")
+        if (fakeApi.powerProfile.current !== "performance") return fail("the profile stops at the last one")
+        menu.pad("A")
+        if (fakeApi.powerProfile.current !== "power-saver") return fail("A cycles the profile")
+        menu.pad("d"); menu.pad("r"); menu.pad("r"); menu.pad("r")
+        if (fakeApi.fpsLimit !== 45) return fail("fps steps: " + fakeApi.fpsLimit)
+        menu.pad("l")
+        if (fakeApi.fpsLimit !== 40) return fail("left lowers the limit: " + fakeApi.fpsLimit)
+        menu.pad("d"); menu.pad("l")
+        if (fakeApi.hudVisible) return fail("left on HUD hides it")
+        menu.current = 0
+        menu.pad("u")
         if (menu.current !== menu.items.length - 1) return fail("up from the top wraps to the last item")
         menu.pad("A")
         if (fakeApi.powered !== "" || !menu.confirmShutdown) return fail("shutdown needs a second press")
         menu.pad("u")
         if (menu.confirmShutdown) return fail("moving away cancels the shutdown confirmation")
-        menu.current = 2; menu.pad("A")
+        menu.current = 4; menu.pad("A")
         if (!settingsAsked || menu.open) return fail("settings closes the menu and asks the host")
         menu.show(); menu.current = menu.items.length - 1; menu.pad("A"); menu.pad("A")
         if (fakeApi.powered !== "shutdown" || menu.open) return fail("second press powers off: " + fakeApi.powered)

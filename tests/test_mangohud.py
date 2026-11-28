@@ -75,7 +75,10 @@ class MangoHudStyleTests(unittest.TestCase):
         for line in ("horizontal_separator_dot", "window_padding_x=24", "concave_top_corners=14", "background_alpha=0.55"):
             self.assertIn(line + "\n", text)
         lines = text.splitlines()
-        self.assertEqual(lines[-2:], ["frame_timing", "frametime_color=5B9BE0"])               # la gráfica de tiempos de fotograma va al final de la fila
+        hud = lines[:lines.index("# Ajustes de Omnia (Ajustes → Juegos y rendimiento, o el Menú rápido de Big Mode)")]
+        self.assertEqual(hud[-2:], ["frame_timing", "frametime_color=5B9BE0"])                 # la gráfica de tiempos de fotograma va al final de la fila
+        # después solo van ajustes sin elementos visibles (límite de FPS, atajo, HUD oculto)
+        self.assertTrue(all(l.split("=")[0] in {"fps_limit", "fps_limit_method", "toggle_fps_limit", "no_display"} for l in lines[len(hud) + 1:]))
         self.assertNotIn("custom_text", text)                        # el relleno ya no se simula con elementos en blanco (daban divisores en los extremos)
 
     def test_an_older_omnia_file_is_updated(self):

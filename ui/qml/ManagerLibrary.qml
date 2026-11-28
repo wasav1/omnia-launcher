@@ -451,6 +451,13 @@ Item {
                                 Text { anchors.centerIn: parent; text: qsTr("Actualizar"); color: "white"; font.family: ml.font; font.pixelSize: 15; font.weight: Font.DemiBold }
                                 MouseArea { anchors.fill: parent; enabled: !!page.g && !page.g.running; cursorShape: Qt.PointingHandCursor; onClicked: manager.updateFor(page.g) } }
                         }
+                        Rectangle {      // juego de Ubisoft (Lutris) que lanza con el GUID: Ubisoft Connect puede quedarse en «Initializing»
+                            visible: !!page.g && !!page.g.ubisoftFix
+                            width: parent.width; height: ubiNote.implicitHeight + 20; radius: 12; color: "#1F2F44"; border.color: "#3B6A99"
+                            Text { id: ubiNote; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 14 }
+                                wrapMode: Text.WordWrap; color: manager.ink; font.family: ml.font; font.pixelSize: 14
+                                text: page.g && page.g.ubisoftFix ? qsTr("Este juego lanza Ubisoft Connect con un identificador que a veces lo deja en «Initializing». Omnia encontró su número de producto (%1): usa Administrar → Corregir lanzamiento de Ubisoft.").arg(page.g.ubisoftFix.productId) : "" }
+                        }
                         Rectangle {      // port disponible
                             visible: !!page.g && !!page.g.portAvailable
                             width: parent.width; height: portNote.implicitHeight + 24; radius: 12; color: "#1F2F44"; border.color: "#3B6A99"
@@ -561,6 +568,7 @@ Item {
                             { l: page.g.hidden ? qsTr("Mostrar en biblioteca") : qsTr("Ocultar de la biblioteca"), k: "hide" },
                             { l: page.g.catalogSlug ? qsTr("Cambiar ficha del catálogo…") : qsTr("Vincular con el catálogo…"), k: "link" },
                             { l: qsTr("Quitar vínculo del catálogo"), k: "unlink", only: !!page.g.catalogSlug },
+                        { l: qsTr("Corregir lanzamiento de Ubisoft"), k: "ubisoft", only: !!page.g.ubisoftFix },
                             { l: qsTr("Desinstalar juego"), k: "uninstall", only: (page.g.canUninstall || page.g.installPackageId) && !page.g.running, danger: true },
                             { l: qsTr("Quitar de Omnia…"), k: "remove", danger: true }
                         ].filter(function(x) { return x.only === undefined || x.only }) : []

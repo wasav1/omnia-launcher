@@ -34,6 +34,7 @@ from . import (
     pad,
     port_catalog,
     power,
+    power_profile,
     procs,
     removal,
     roms,
@@ -116,6 +117,10 @@ class Api:
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/glass": ("POST", True, self.settings_glass),
             "/settings/news": ("POST", True, self.settings_news),
+            "/settings/performance": ("POST", True, self.settings_performance),
+            "/settings/power-profile": ("POST", True, self.settings_power_profile),
+            "/system/power": ("GET", True, self.system_power),
+            "/game/ubisoft-fix": ("POST", True, self.game_ubisoft_fix),
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
             "/settings/mangohud": ("POST", True, self.settings_mangohud),
@@ -455,6 +460,7 @@ class Api:
                 "animated_background": cfg.get("animated_background", True) is not False,
                 "glass_effect": cfg.get("glass_effect", True) is not False,
                 "news_stores": self._news_stores(cfg),
+                **mangohud.options_from(self.store.dir),
                 "update_check": cfg.get("update_check", True) is not False,
                 "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
                 "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
@@ -771,6 +777,67 @@ class Api:
             return {"ok": True, "store": store.logout()}
         except StoreError as e:
             raise ApiError(400, str(e))
+
+    # --- fase 7: rendimiento (límite de FPS y HUD en MangoHud), perfil de energía y Ubisoft desde Lutris ---
+    def settings_performance(self, q):
+        """Guarda `fps_limit` (0 = sin límite) y/o `hud_visible`, y reescribe el MangoHud.conf de Omnia al instante."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        changes = {}
+        if "fps_limit" in body:
+            fps = body["fps_limit"]
+            if not isinstance(fps, int) or isinstance(fps, bool) or fps not in mangohud.FPS_LIMITS:
+                raise ApiError(400, "fps_limit debe ser uno de: " + ", ".join(str(v) for v in mangohud.FPS_LIMITS))
+            changes["fps_limit"] = fps
+        if "hud_visible" in body:
+            if not isinstance(body["hud_visible"], bool):
+                raise ApiError(400, "hud_visible debe ser verdadero o falso.")
+            changes["hud_visible"] = body["hud_visible"]
+        if not changes:
+            raise ApiError(400, "indica fps_limit o hud_visible.")
+        self._update_config(**changes)
+        path = mangohud.ensure(self.store.dir)
+        options = mangohud.options_from(self.store.dir)
+        try:
+            managed = path.read_text(encoding="utf-8").startswith(mangohud.OWNED)
+        except OSError:
+            managed = False
+        return {"ok": True, **options, "managed": managed}
+
+    def system_power(self, q):
+        """Perfil de energía (powerprofilesctl) y tope actual de la CPU (solo lectura)."""
+        run = getattr(self, "power_run", subprocess.run)
+        return {"ok": True, "profile": power_profile.status(run), "cpu": power_profile.cpu_cap(getattr(self, "sys_root", "/sys"))}
+
+    def settings_power_profile(self, q):
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        profile = body.get("profile")
+        try:
+            out = power_profile.set_profile(profile if isinstance(profile, str) else "", getattr(self, "power_run", subprocess.run))
+        except power_profile.PowerProfileError as e:
+            raise ApiError(400, str(e))
+        return {"ok": True, "profile": out}
+
+    def game_ubisoft_fix(self, q):
+        """Hace que un juego de Ubisoft importado de Lutris lance con su número de producto (copia de respaldo .omnia.bak)."""
+        from .games import ubisoft_lutris
+        game_id = q.get("id", "")
+        game = next((g for g in self.store.games() if g.get("id") == game_id), None)
+        fix = (game or {}).get("ubisoftFix") or {}
+        detector = self.detectors_by_src.get("lutris")
+        if not game or not fix or detector is None or not hasattr(detector, "config_file"):
+            raise ApiError(404, "Este juego no necesita la corrección de Ubisoft.")
+        path = detector.config_file(fix.get("configpath", ""))
+        current = ubisoft_lutris.check(path, game.get("name", ""), "") if path else {}
+        if not current:
+            raise ApiError(409, "El juego ya lanza con su número de producto o cambió en Lutris.")
+        try:
+            backup = ubisoft_lutris.apply(path, current["productId"])
+        except (OSError, ValueError) as e:
+            raise ApiError(400, str(e))
+        self.store.set_games([{k: v for k, v in g.items() if k != "ubisoftFix"} if g.get("id") == game_id else g
+                              for g in self.store.games()])
+        self.bus.games_changed()
+        return {"ok": True, "productId": current["productId"], "backup": str(backup)}
 
     NEWS_STORES = ("omnia", "steam", "epic", "gog", "amazon")
 
@@ -1209,6 +1276,7 @@ class Api:
                             "ports": port_rows, "folder": self._folder(ports), "romCopy": merged_copies["by_primary"].get(g["id"]),
                             "portAvailable": self._port_available(g, installed_slugs),
                             "updateAvailable": self._update_available(g, install_records),
+                            "ubisoftFix": {"productId": (g.get("ubisoftFix") or {}).get("productId", "")} if g.get("ubisoftFix") else None,
                             "folderActions": desc.get("actions", []), "requirements": desc.get("requirements", []),
                             "lastExit": (self.store.state.get("last_exit") or {}).get(g["id"]),
                             "running": any(row["running"] for row in port_rows),

@@ -23,7 +23,7 @@ Item {
         { k: "general", icon: "settings", l: qsTr("General"), d: qsTr("Idioma y avisos de actualización de los ports.") },
         { k: "library", icon: "folder-open", l: qsTr("Biblioteca y carpetas"), d: qsTr("Dónde se instalan los juegos y qué carpetas revisa Omnia.") },
         { k: "stores", icon: "key-round", l: qsTr("Tiendas y cuentas"), d: qsTr("Conecta Steam, Epic, GOG y Amazon. Omnia nunca ve tus contraseñas.") },
-        { k: "games", icon: "gamepad-2", l: qsTr("Juegos y rendimiento"), d: qsTr("Monitor de rendimiento sobre los juegos que lanzas desde Omnia.") },
+        { k: "games", icon: "gamepad-2", l: qsTr("Juegos y rendimiento"), d: qsTr("HUD de MangoHud, límite de FPS y perfil de energía del equipo.") },
         { k: "news", icon: "bell", l: qsTr("Novedades"), d: qsTr("Qué tiendas aparecen en el Inicio y en el panel rápido: ofertas, juegos gratis, lanzamientos y noticias.") },
         { k: "appearance", icon: "image", l: qsTr("Apariencia"), d: qsTr("Aspecto de la app de escritorio.") },
         { k: "bigmode", icon: "monitor", l: qsTr("Big Mode"), d: qsTr("Fondo, sonidos y bienvenida de la interfaz para mando.") },
@@ -249,7 +249,6 @@ Item {
                 // ---- Juegos y rendimiento
                 SettingRow {
                     visible: settings.section === "games"
-                    divider: false
                     title: qsTr("Monitor de rendimiento en los juegos")
                     description: settings.api.mangohudInstalled
                         ? qsTr("Muestra FPS, GPU, CPU, VRAM y RAM en una sola línea, con el estilo de Omnia, sobre los juegos que lanzas desde aquí.")
@@ -259,6 +258,61 @@ Item {
                         enabled: settings.api.mangohudInstalled || settings.api.mangohud
                         onChangeRequested: v => settings.api.setMangohud(v, settings.saved)
                     }
+                }
+                SettingRow {
+                    visible: settings.section === "games"
+                    title: qsTr("Mostrar el HUD al empezar a jugar")
+                    description: qsTr("Si lo apagas, el HUD empieza oculto. En el juego, Shift derecho + F12 lo muestra u oculta.")
+                    SettingSwitch { value: settings.api.hudVisible; onChangeRequested: v => settings.api.setPerformance({ hud_visible: v }, settings.saved) }
+                }
+                SettingRow {
+                    visible: settings.section === "games"
+                    title: qsTr("Límite de FPS")
+                    description: qsTr("Se aplica a los juegos con MangoHud (también los de Steam y Lutris). En el juego, Shift izquierdo + F1 lo quita y lo vuelve a poner.")
+                    ComboBox {
+                        id: fpsBox
+                        width: 200; height: 34
+                        model: settings.api.fpsLimits.map(v => settings.api.fpsLabel(v))
+                        currentIndex: Math.max(0, settings.api.fpsLimits.indexOf(settings.api.fpsLimit))
+                        onActivated: index => settings.api.setPerformance({ fps_limit: settings.api.fpsLimits[index] }, settings.saved)
+                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: fpsBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: fpsBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
+                    }
+                }
+                SettingRow {
+                    visible: settings.section === "games"
+                    title: qsTr("Perfil de energía")
+                    description: settings.api.powerProfile.available
+                        ? qsTr("El perfil del sistema (power-profiles-daemon). Tu control térmico puede cambiarlo solo mientras juegas.")
+                        : (settings.api.powerProfile.error || qsTr("Consultando…"))
+                    ComboBox {
+                        id: profileBox
+                        visible: settings.api.powerProfile.available === true
+                        width: 200; height: 34
+                        model: (settings.api.powerProfile.profiles || []).map(p => settings.api.profileLabel(p))
+                        currentIndex: Math.max(0, (settings.api.powerProfile.profiles || []).indexOf(settings.api.powerProfile.current))
+                        onActivated: index => settings.api.setPowerProfile(settings.api.powerProfile.profiles[index], settings.saved)
+                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: profileBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: profileBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
+                    }
+                }
+                SettingRow {
+                    visible: settings.section === "games" && settings.api.cpuCap.max_mhz > 0
+                    divider: false
+                    title: qsTr("Tope de la CPU")
+                    description: qsTr("Lo pone tu script de control térmico al jugar; Omnia solo lo muestra.")
+                    Text {
+                        text: settings.api.cpuCap.capped
+                              ? qsTr("%1 GHz de %2 GHz").arg((settings.api.cpuCap.limit_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1)).arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1))
+                              : qsTr("Sin tope · %1 GHz").arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1))
+                        color: settings.api.cpuCap.capped ? Theme.color.warning : Theme.color.soft
+                        font.family: Theme.font.family; font.pixelSize: Theme.font.size.bodyLarge; font.weight: Font.DemiBold
+                    }
+                }
+                Timer {          // perfil y tope de CPU al día mientras se ve la sección
+                    interval: 5000; repeat: true; triggeredOnStart: true
+                    running: settings.visible && settings.section === "games"
+                    onTriggered: settings.api.loadPower()
                 }
 
                 // ---- Novedades

@@ -276,6 +276,10 @@ Item {
             else api.notify((body && body.error) || qsTr("No se pudo retirar el vínculo."))
         }, {id: game.id, slug: ""})
         else if (act === "remove") confirmationDialogs.unlinkGame(game)
+        else if (act === "ubisoft") api.fixUbisoft(game, function(status, body) {
+            api.notify(status === 200 ? qsTr("Listo: %1 ahora lanza con el número de producto %2 de Ubisoft. La configuración anterior quedó en una copia .omnia.bak.").arg(game.name).arg(body.productId)
+                                      : ((body && body.error) || qsTr("No se pudo corregir el lanzamiento.")))
+        })
     }
     function installPortFor(game) {         // «Port disponible»: abre la ficha del catálogo con su paquete, licencia y botón Instalar
         if (!game || !game.portAvailable) return

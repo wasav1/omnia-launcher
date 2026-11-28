@@ -66,6 +66,11 @@ QtObject {
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property bool glassEffect: true         // efecto cristal del rediseño D (Ajustes → Apariencia)
     property var newsStores: ["omnia", "steam", "epic", "gog", "amazon"]   // tiendas con novedades (Ajustes → Novedades)
+    property int fpsLimit: 0                // límite de FPS en el MangoHud.conf de Omnia (0 = sin límite)
+    property bool hudVisible: true          // el HUD empieza visible (Shift derecho + F12 lo alterna en el juego)
+    readonly property var fpsLimits: [0, 30, 40, 45, 50, 60, 75, 90, 120, 144]
+    property var powerProfile: ({ available: false, profiles: [], current: "" })   // powerprofilesctl
+    property var cpuCap: ({ limit_mhz: 0, max_mhz: 0, capped: false })
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
     property string padFamily: ""          // tipo de mando para los iconos: xbox | ps | switch | deck
     property int padSeq: -1
@@ -287,6 +292,8 @@ QtObject {
                 api.animatedBackground = body.animated_background !== false
                 api.glassEffect = body.glass_effect !== false
                 if (Array.isArray(body.news_stores)) api.newsStores = body.news_stores
+                api.fpsLimit = Number(body.fps_limit) || 0
+                api.hudVisible = body.hud_visible !== false
                 api.updateCheck = body.update_check !== false
                 api.mangohud = body.mangohud === true
                 api.mangohudInstalled = body.mangohud_installed !== false
@@ -520,6 +527,34 @@ QtObject {
             if (status === 200) api.animatedBackground = body.animated_background !== false
             if (done) done(status, body)
         }, {enabled: enabled})
+    }
+    function setPerformance(changes, done) {
+        call("POST", "/settings/performance", function(status, body) {
+            if (status === 200 && body) { api.fpsLimit = Number(body.fps_limit) || 0; api.hudVisible = body.hud_visible !== false }
+            if (done) done(status, body)
+        }, changes)
+    }
+    function loadPower(done) {
+        call("GET", "/system/power", function(status, body) {
+            if (status === 200 && body) { api.powerProfile = body.profile || api.powerProfile; api.cpuCap = body.cpu || api.cpuCap }
+            if (done) done(status, body)
+        })
+    }
+    function setPowerProfile(profile, done) {
+        call("POST", "/settings/power-profile", function(status, body) {
+            if (status === 200 && body && body.profile) api.powerProfile = body.profile
+            if (done) done(status, body)
+        }, {profile: profile})
+    }
+    function profileLabel(key) {
+        return ({ "power-saver": qsTr("Ahorro de energía"), "balanced": qsTr("Equilibrado"), "performance": qsTr("Rendimiento") })[key] || key
+    }
+    function fpsLabel(value) { return value > 0 ? qsTr("%1 FPS").arg(value) : qsTr("Sin límite") }
+    function fixUbisoft(game, done) {
+        call("POST", "/game/ubisoft-fix?id=" + encodeURIComponent(game.id), function(status, body) {
+            if (status === 200) api.refresh()
+            if (done) done(status, body)
+        })
     }
     function setNewsStores(stores, done) {
         call("POST", "/settings/news", function(status, body) {
