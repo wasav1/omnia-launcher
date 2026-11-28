@@ -45,11 +45,14 @@ Cada fase: rama propia, pruebas (`PYTHONPATH=core python3 -m unittest discover -
 
 Orden recomendado: **0 → 1 → 2**, luego **3 → 5 → 6 → 4 → 7** (la 4 depende de fuentes externas).
 
-## 4. Decisiones pendientes del dueño
+## 4. Decisiones
 
-1. **Botones del mando en la Biblioteca de Big Mode.**
-   - A (recomendada): mantener LB/RB = filtro y LT/RT = página; cambiar de sección con el botón Vista.
-   - B (como el prototipo): LB/RB = sección y LT/RT = filtro; la página pasa a mantener pulsada la cruceta.
+**Tomadas**
+
+1. **Botones del mando en la Biblioteca de Big Mode** (2026-11-28): se mantiene lo actual. LB/RB = filtro, LT/RT = página de la estantería; las secciones (Inicio, Biblioteca, Catálogo, Descargas) se cambian con el botón **Vista**. Los prototipos que muestran LB/RB en el menú y LT/RT en el filtro quedan superados en este punto.
+
+**Pendientes del dueño**
+
 2. **Fuente de ofertas y gratis.** Recomendado: agregarlas en `omnia-backend` (Cloudflare) con caché, empezando por Steam, Epic, GOG y Omnia; Prime Gaming, Ubisoft y EA quedan pendientes hasta tener una fuente fiable. El núcleo sigue sin dependencias externas.
 3. **Coste del cristal.** Propuesta: Ajustes → Apariencia permite desactivarlo, y se apaga solo mientras haya un juego abierto.
 
