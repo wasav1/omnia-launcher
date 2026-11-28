@@ -1,8 +1,8 @@
 {
   "id": "omniaPanel",
   "name": "Panel de Omnia",
-  "description": "Abre Omnia desde su logo en la barra de Dux. El panel muestra el mando conectado y su batería.",
-  "version": "3.0.0",
+  "description": "Abre Omnia desde su logo en la barra de Dux: juego seleccionado, recientes, favoritos, novedades de las tiendas, descarga activa y el mando conectado con su batería.",
+  "version": "3.1.0",
   "author": "Omnia",
   "icon": "apps",
   "type": "widget",
