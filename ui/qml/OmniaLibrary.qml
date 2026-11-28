@@ -586,6 +586,8 @@ Item {
                 else if (k === "u") home.nav("up")
                 else if (k === "d") home.nav("down")
                 else if (k === "A") home.accept()
+                else if (k === "LB") home.nav("tabprev")
+                else if (k === "RB") home.nav("tabnext")
                 else if (k === "B") lib.back()
                 return
             }
@@ -647,6 +649,8 @@ Item {
             else if (e.key === Qt.Key_Up) home.nav("up")
             else if (e.key === Qt.Key_Down) home.nav("down")
             else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) home.accept()
+            else if (e.key === Qt.Key_Tab) home.nav(e.modifiers & Qt.ShiftModifier ? "tabprev" : "tabnext")
+            else if (e.key === Qt.Key_Backtab) home.nav("tabprev")
             else if (e.key === Qt.Key_Escape) back()
             else { e.accepted = false; return }
             e.accepted = true
@@ -847,7 +851,7 @@ Item {
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
             Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
-            Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
+            Hint { visible: (lib.page === "store" && !bigStoreView.detail) || (lib.page === "home" && !home.detail); padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail && !bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
             Hint { visible: lib.page === "store" && !!bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "M"; label: qsTr("Menú") }
