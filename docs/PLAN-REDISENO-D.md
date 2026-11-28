@@ -1,6 +1,6 @@
 # Plan — rediseño «D · Aurora + Estudio»
 
-Creado: 2026-11-28. Estado: **en implementación**. Fase 0 hecha (2026-11-28, `ui/qml/Theme.js` y `ui/qml/GlassPanel.qml`); siguiente: fase 1.
+Creado: 2026-11-28. Estado: **en implementación**. Fases 0 y 1 hechas (2026-11-28); siguiente: fase 2, Biblioteca + Catálogo.
 
 Prototipos navegables (lienzo de diseño, privado del dueño del proyecto):
 <https://claude.ai/artifact/YNhRvAo7xdX8NK55TC4XqC> — fila **D** (Desktop y panel rápido) y fila **D · Big Mode**.
@@ -35,7 +35,7 @@ Cada fase: rama propia, pruebas (`PYTHONPATH=core python3 -m unittest discover -
 | Fase | Contenido | Archivos principales | Tamaño |
 |---|---|---|---|
 | **0 · Base** ✅ | `Theme.js` (`.pragma library`, sin `qmldir` para no alterar la importación implícita de la carpeta): colores, radios, espaciados y **tamaños fijos** (paneles 300 / 688 / 380 px, carátulas 152 × 203 px, puntos de reorganización 1360 y 900 px). `GlassPanel.qml` sobre `FrostedSurface`, con opción para desactivar el cristal. Sin cambios visibles. | `ui/qml/Theme.js`, `ui/qml/GlassPanel.qml`, `tests/test_theme_glass.py` | Pequeña |
-| **1 · Barra superior de Desktop** | Quitar la barra lateral; barra de cristal arriba; Ctrl K; eliminar el escalado `cs`; reorganización por anchos fijos. | `OmniaManager.qml` | Media |
+| **1 · Barra superior de Desktop** ✅ | Quitar la barra lateral; barra de cristal arriba; Ctrl K; eliminar el escalado `cs`; reorganización por anchos fijos. | `OmniaManager.qml` | Media |
 | **2 · Biblioteca + Catálogo** | Vista de tres paneles con buscadores independientes, Ver todos agrupado, ficha oculta hasta elegir y flotante bajo 1360 px. «Explorar» sale del menú. Partir en 2–3 entregas. | `ManagerLibrary` + `ManagerExplore` → `ManagerLibraryView` (+ `InstalledPanel`, `CatalogPanel`, `DetailPanel`); reutilizar `OmniaAllGames` | Grande |
 | **3 · Ajustes** | Pantalla con categorías; al principio solo los ajustes que ya existen. | `ManagerSettings.qml` | Media |
 | **4 · Novedades por tienda** | Tipos oferta / gratis / lanzamiento / actualización; filtros por tienda; Ajustes → Novedades; Inicio de Desktop nuevo. | `store_news.py`, `api.py`, `ManagerHome`, `ManagerStoreNews`; probablemente `omnia-backend` | Grande |
@@ -64,3 +64,4 @@ Orden recomendado: **0 → 1 → 2**, luego **3 → 5 → 6 → 4 → 7** (la 4 
 ## 6. Notas de implementación
 
 - **Fase 0.** `Theme.js` reúne colores (texto, acento, cristal, estados, tiendas), radios, espaciados, fuentes del proyecto (Hanken Grotesk; Rajdhani para números) y tamaños fijos; `posterColumns(ancho)` y `catalogWidth(ventana, fichaAbierta)` calculan columnas y ancho del Catálogo sin escalar nada. `GlassPanel` desenfoca su `backdrop` con `FrostedSurface`, añade velo, borde y brillo superior, y cae a un panel casi opaco sin `backdrop` o con `glass: false`. En Qt sin pantalla (`QT_QPA_PLATFORM=offscreen`) el desenfoque no se dibuja; la prueba automática comprueba la lógica y la apariencia se revisa en una ventana real con GPU.
+- **Fase 1.** `OmniaManager` cambia la barra lateral por una barra de cristal (`GlassPanel`, 60 px) con logo, «Omnia» y los menús Inicio, Biblioteca, Catálogo, Descargas, Estadísticas y Ajustes; a la derecha, campo Ctrl K, aviso de actualización y Big Mode. Detrás hay un fondo ambiental (`ambient`) para que el cristal tenga qué desenfocar. Reorganización sin escalar: < 1280 px el campo Ctrl K pasa a botón; < 1040 px los menús muestran solo el ícono (con su nombre al pasar el mouse); el aviso de actualización muestra el texto desde 1480 px. `cs` ya valía 1 antes de esta fase, así que los tamaños de las páginas no cambian. `CommandPalette.qml` (Ctrl K) busca juegos sin distinguir tildes (Jugar / Ficha) y ofrece ir a cada sección, abrir Big Mode o agregar un juego; el texto se expone como `text` para pruebas. «Catálogo» sigue siendo su propia página hasta la fase 2.

@@ -110,6 +110,8 @@ var size = {
 // Por debajo de estos anchos de ventana la interfaz se reorganiza.
 var breakpoint = {
     threePanels: 1360,     // menos: la ficha pasa a panel flotante
+    commandField: 1280,    // menos: el campo Ctrl K de la barra superior se vuelve un botón
+    navIcons: 1040,        // menos: los menús de la barra superior muestran solo el ícono
     compact: 900           // menos: Instalados se esconde tras un botón
 };
 

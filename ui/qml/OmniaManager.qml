@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import Qt5Compat.GraphicalEffects
+import "Theme.js" as Theme
 
 /** Centro de control de escritorio de Omnia: biblioteca, catálogo y acceso a Big Mode. */
 Item {
@@ -60,9 +62,11 @@ Item {
     // El tamaño de ventana reorganiza el contenido, no reduce los controles ni la tipografía.
     readonly property real s: 1
     readonly property real cs: 1
-    readonly property bool compactNav: width < 1120
+    // Tamaños fijos (Theme.js): la barra superior no escala, solo se reorganiza.
+    readonly property bool commandCompact: width < Theme.breakpoint.commandField
+    readonly property bool navIconsOnly: width < Theme.breakpoint.navIcons
+    readonly property bool compactNav: navIconsOnly
     readonly property bool narrowContent: width < 880
-    readonly property real navWidth: compactNav ? 72 : 220
     readonly property var recentGames: {
         const games = (api.games || []).filter(g => !g.hidden)
         games.sort((a,b) => Number(b.added || 0) - Number(a.added || 0))
@@ -464,95 +468,132 @@ Item {
             ? item.catalogMatch : null
     }
 
-    Rectangle { anchors.fill: parent; color: manager.bg }
+    Rectangle { anchors.fill: parent; color: Theme.color.background }
 
-    // ---------------- navegación persistente
-    Rectangle {
-        id: topbar
-        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-        width: manager.navWidth
-        color: "#0A121B"
-        Rectangle { anchors { top: parent.top; bottom: parent.bottom; right: parent.right } width: 1; color: "#203140" }
-        Column {
-            id: brandRow
-            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: manager.compactNav ? 0 : manager.cs * 22; topMargin: manager.cs * 24 }
-            spacing: manager.cs * 5
-            Row {
-                x: manager.compactNav ? (parent.width - width) / 2 : 0
-                spacing: manager.cs * 9
-                Image { width: manager.cs * 30; height: manager.cs * 30; anchors.verticalCenter: parent.verticalCenter; source: Qt.resolvedUrl("images/omnia-mark.svg"); fillMode: Image.PreserveAspectFit; sourceSize.height: 96 }
-                Column {
-                    visible: !manager.compactNav
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text { text: "Omnia"; color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 19; font.weight: Font.Bold }
-                    Text { text: "GAME SUITE"; color: "#8496A8"; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 9; font.weight: Font.DemiBold; font.letterSpacing: 1.5 }
-                }
-            }
+    // ---------------- fondo ambiental: lo que desenfoca el cristal de la barra superior
+    Item {
+        id: ambient
+        anchors.fill: parent
+        RadialGradient {
+            x: parent.width * 0.35; y: -parent.height * 0.75
+            width: parent.width * 0.9; height: width
+            opacity: 0.45
+            gradient: Gradient { GradientStop { position: 0.0; color: Theme.color.accent } GradientStop { position: 0.5; color: "transparent" } }
         }
-        Column {
-            anchors { left: parent.left; right: parent.right; top: brandRow.bottom; topMargin: manager.cs * 42; leftMargin: manager.compactNav ? manager.cs * 8 : manager.cs * 10; rightMargin: manager.compactNav ? manager.cs * 8 : manager.cs * 10 }
-            spacing: manager.cs * 7
+        RadialGradient {
+            x: -parent.width * 0.25; y: parent.height * 0.3
+            width: parent.width * 0.7; height: width
+            opacity: 0.25
+            gradient: Gradient { GradientStop { position: 0.0; color: "#7B3FBF" } GradientStop { position: 0.5; color: "transparent" } }
+        }
+    }
+
+    // ---------------- navegación superior: logo, «Omnia» y menús
+    GlassPanel {
+        id: topbar
+        anchors { left: parent.left; right: parent.right; top: parent.top
+            leftMargin: Theme.size.pageMargin; rightMargin: Theme.size.pageMargin; topMargin: Theme.size.topBarMarginTop }
+        height: Theme.size.topBarHeight
+        radius: Theme.radius.lg
+        strong: true
+        backdrop: ambient
+        backdropRect: Qt.rect(x, y, width, height)
+
+        Row {
+            id: brand
+            anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+            spacing: 10
+            Image { anchors.verticalCenter: parent.verticalCenter; width: 28; height: 28; source: Qt.resolvedUrl("images/omnia-mark.svg"); fillMode: Image.PreserveAspectFit; sourceSize.height: 96 }
+            Text { anchors.verticalCenter: parent.verticalCenter; text: "Omnia"; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 21; font.weight: Font.Bold }
+        }
+        Rectangle { id: brandDivider; anchors { left: brand.right; leftMargin: 18; verticalCenter: parent.verticalCenter } width: 1; height: 24; color: Theme.color.glassBorderStrong }
+
+        Row {
+            id: navRow
+            anchors { left: brandDivider.right; leftMargin: 14; verticalCenter: parent.verticalCenter }
+            spacing: 4
             Repeater {
                 model: [
-                    {key:"home",label:qsTr("Inicio"),icon:"layout-grid"},
-                    {key:"library",label:qsTr("Biblioteca"),icon:"folder-open"},
-                    {key:"catalog",label:qsTr("Explorar"),icon:"search"},
-                    {key:"stats",label:qsTr("Estadísticas"),icon:"activity"},
-                    {key:"installs",label:qsTr("Descargas"),icon:"download"}
+                    {key: "home", label: qsTr("Inicio"), icon: "layout-grid"},
+                    {key: "library", label: qsTr("Biblioteca"), icon: "folder-open"},
+                    {key: "catalog", label: qsTr("Catálogo"), icon: "package-plus"},
+                    {key: "installs", label: qsTr("Descargas"), icon: "download"},
+                    {key: "stats", label: qsTr("Estadísticas"), icon: "activity"},
+                    {key: "settings", label: qsTr("Ajustes"), icon: "settings"}
                 ]
                 delegate: Rectangle {
-                    id: menuItem
+                    id: navItem
                     required property var modelData
                     readonly property bool on: manager.page === modelData.key
-                    width: parent.width; height: manager.cs * 44; radius: manager.cs * 11
-                    color: on ? "#153E4A" : (navMouse.containsMouse ? "#142330" : "transparent")
-                    Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: manager.cs * 3; radius: width / 2; color: "#20C4C2"; visible: menuItem.on }
-                    LucideIcon { x: manager.compactNav ? (parent.width - width) / 2 : manager.cs * 13; anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 18; height: width; name: menuItem.modelData.icon; color: menuItem.on ? "#43D4CF" : (navMouse.containsMouse ? manager.ink : "#91A1B1") }
-                    Text { id: menuLabel; visible: !manager.compactNav; anchors { left: parent.left; leftMargin: manager.cs * 43; verticalCenter: parent.verticalCenter } text: menuItem.modelData.label; color: menuItem.on || navMouse.containsMouse ? manager.ink : "#AAB6C2"
-                        font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 14; font.weight: menuItem.on ? Font.DemiBold : Font.Medium }
-                    ToolTip.visible: navMouse.containsMouse && manager.compactNav
-                    ToolTip.text: menuItem.modelData.label
+                    width: manager.navIconsOnly ? Theme.size.control : navLabel.implicitWidth + 32
+                    height: Theme.size.control
+                    radius: 12
+                    color: on ? "#24FFFFFF" : (navMouse.containsMouse ? Theme.color.glassFill : "transparent")
+                    LucideIcon { visible: manager.navIconsOnly; anchors.centerIn: parent; width: 18; height: 18; name: navItem.modelData.icon; color: navItem.on ? Theme.color.inkStrong : Theme.color.soft }
+                    Text { id: navLabel; visible: !manager.navIconsOnly; anchors.centerIn: parent; text: navItem.modelData.label
+                        color: navItem.on ? Theme.color.inkStrong : Theme.color.soft
+                        font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.DemiBold }
+                    ToolTip.visible: manager.navIconsOnly && navMouse.containsMouse
+                    ToolTip.text: navItem.modelData.label
                     ToolTip.delay: 450
-                    MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage(menuItem.modelData.key) }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: navItem.modelData.label
+                    MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage(navItem.modelData.key) }
                 }
             }
         }
-        Column {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: manager.compactNav ? manager.cs * 8 : manager.cs * 12; rightMargin: manager.compactNav ? manager.cs * 8 : manager.cs * 12; bottomMargin: manager.cs * 28 }
-            spacing: manager.cs * 9
+
+        Row {
+            id: topActions
+            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            spacing: 8
             Rectangle {
+                id: commandField
+                width: manager.commandCompact ? Theme.size.control : 260
+                height: Theme.size.control; radius: 12
+                color: Theme.color.inset
+                border.color: commandMouse.containsMouse ? Theme.color.glassBorderStrong : Theme.color.glassBorder
+                LucideIcon { x: manager.commandCompact ? (parent.width - width) / 2 : 12; anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: "search"; color: Theme.color.muted }
+                Text { visible: !manager.commandCompact; x: 36; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Buscar o ejecutar…"); color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 13 }
+                Rectangle { visible: !manager.commandCompact; anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    width: 44; height: 20; radius: 6; color: "transparent"; border.color: Theme.color.glassBorderStrong
+                    Text { anchors.centerIn: parent; text: "Ctrl K"; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 11 } }
+                ToolTip.visible: manager.commandCompact && commandMouse.containsMouse
+                ToolTip.text: qsTr("Buscar o ejecutar (Ctrl K)")
+                ToolTip.delay: 450
+                MouseArea { id: commandMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: commandPalette.show() }
+            }
+            Rectangle {
+                id: updateChip
+                readonly property bool showLabel: manager.width >= 1480
                 visible: suiteNotice.available
-                width: parent.width; height: manager.cs * 40; radius: height / 2
-                color: "#214B67"
+                width: showLabel ? updateRow.implicitWidth + 24 : Theme.size.control
+                height: Theme.size.control; radius: 12
+                color: Theme.color.accentSoft; border.color: Theme.color.accent
                 Row {
+                    id: updateRow
                     anchors.centerIn: parent; spacing: 6
-                    LucideIcon { width: 16; height: 16; name: "download"; color: manager.ink }
-                    Text {
-                        visible: !manager.compactNav; color: manager.ink; text: suiteNotice.label
-                        font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter
-                    }
+                    LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: "download"; color: Theme.color.ink }
+                    Text { visible: updateChip.showLabel; anchors.verticalCenter: parent.verticalCenter; text: suiteNotice.label; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 12 }
                 }
                 ToolTip.visible: updateMouse.containsMouse
                 ToolTip.text: suiteNotice.label
                 MouseArea { id: updateMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: suiteNotice.activate() }
             }
             Rectangle {
-                width: parent.width; height: manager.cs * 40; radius: height / 2; color: "#103A42"; border.color: "#247B80"
-                Row { anchors.centerIn: parent; spacing: manager.cs * 8; LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 16; height: width; name: "gamepad-2"; color: "#4DD5D0" } Text { visible: !manager.compactNav; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Big Mode"); color: manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 13; font.weight: Font.DemiBold } }
-                ToolTip.visible: manager.compactNav && bigModeMouse.containsMouse
-                ToolTip.text: qsTr("Big Mode")
-                ToolTip.delay: 450
+                id: bigModeButton
+                width: bigModeRow.implicitWidth + 28
+                height: Theme.size.control; radius: 12
+                color: bigModeMouse.containsMouse ? Theme.color.accentLight : Theme.color.accent
+                Row {
+                    id: bigModeRow
+                    anchors.centerIn: parent; spacing: 8
+                    LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: "gamepad-2"; color: Theme.color.accentInk }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Big Mode"); color: Theme.color.accentInk; font.family: Theme.font.family; font.pixelSize: 13; font.weight: Font.Bold }
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Big Mode")
                 MouseArea { id: bigModeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.openBigMode() }
-            }
-            Rectangle {
-                width: parent.width; height: manager.cs * 40; radius: manager.cs * 10
-                color: manager.page === "settings" ? "#153E4A" : (gearMouse.containsMouse ? "#142330" : "transparent")
-                LucideIcon { x: manager.compactNav ? (parent.width - width) / 2 : manager.cs * 13; anchors.verticalCenter: parent.verticalCenter; width: manager.cs * 18; height: width; name: "settings"; color: manager.page === "settings" ? "#43D4CF" : manager.muted }
-                Text { visible: !manager.compactNav; anchors { left: parent.left; leftMargin: manager.cs * 43; verticalCenter: parent.verticalCenter } text: qsTr("Ajustes"); color: manager.page === "settings" || gearMouse.containsMouse ? manager.ink : "#AAB6C2"; font.family: "Hanken Grotesk"; font.pixelSize: manager.cs * 14 }
-                ToolTip.visible: manager.compactNav && gearMouse.containsMouse
-                ToolTip.text: qsTr("Ajustes")
-                ToolTip.delay: 450
-                MouseArea { id: gearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: manager.selectPage("settings") }
             }
         }
     }
@@ -560,7 +601,7 @@ Item {
     // ---------------- barra inferior (añadir juego, descargas y estado)
     Rectangle {
         id: statusbar
-        anchors { left: topbar.right; right: parent.right; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: manager.cs * 26
         color: "#0A121B"
         Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top } height: 1; color: "#1c2733" }
@@ -573,7 +614,7 @@ Item {
 
     TransferStrip {
         id: activeTransfer
-        anchors { left: topbar.right; right: parent.right; bottom: statusbar.top
+        anchors { left: parent.left; right: parent.right; bottom: statusbar.top
             leftMargin: manager.s * 18; rightMargin: manager.s * 18 }
         jobs: manager.installJobs
         uiScale: manager.s
@@ -587,9 +628,9 @@ Item {
 
     Item {
         id: content
-        anchors { left: topbar.right; right: parent.right; top: parent.top; bottom: activeTransfer.top }
-        property real pad: manager.narrowContent ? 18 : (manager.compactNav ? 24 : 34)
-        readonly property real top0: manager.narrowContent ? 20 : 30
+        anchors { left: parent.left; right: parent.right; top: topbar.bottom; bottom: activeTransfer.top }
+        property real pad: manager.narrowContent ? 18 : 28
+        readonly property real top0: manager.narrowContent ? 12 : 18
         // Inicio: resumen, novedades y estanterías.
         ManagerHome {
             anchors.fill: parent
@@ -693,6 +734,17 @@ Item {
         z: 20
         manager: manager
         api: api
+    }
+
+    // Paleta de comandos (Ctrl K): jugar, abrir fichas e ir a cualquier sección.
+    CommandPalette {
+        id: commandPalette
+        manager: manager
+        games: api.games
+    }
+    Shortcut {
+        sequence: "Ctrl+K"
+        onActivated: commandPalette.open ? commandPalette.hide() : commandPalette.show()
     }
 
     Component {
