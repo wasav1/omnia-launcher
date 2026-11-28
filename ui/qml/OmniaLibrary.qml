@@ -133,13 +133,19 @@ Item {
     property string settingsFrom: "library"
     property bool exitConfirmOpen: false
     property int exitConfirmChoice: 0
-    readonly property int powerIndex: gearIndex + 1
+    // Índices de la barra con mando: 0–3 pestañas, luego «Añadir» (solo en Biblioteca), el aviso de
+    // actualización (si hay) y el Menú rápido, que es el último.
+    readonly property int powerIndex: menuIndex
     property string downloadsFrom: "library"
     property bool addOpen: false
     property string addImportPath: ""
     property string addedGameId: ""
-    readonly property int updateIndex: page === "library" ? 4 : 3
-    readonly property int gearIndex: updateIndex + (suiteNotice.available ? 1 : 0)
+    readonly property int addIndex: page === "library" ? 4 : -1
+    readonly property int updateIndex: page === "library" ? 5 : 4
+    readonly property int menuIndex: updateIndex + (suiteNotice.available ? 1 : 0)
+    readonly property int gearIndex: menuIndex
+    // Efecto cristal de la barra (Ajustes → Apariencia); se apaga mientras haya un juego abierto.
+    readonly property Item glassBackdrop: api.glassEffect && !api.gameRunning ? gameBackdrop : null
     readonly property alias suiteUpdateNotice: suiteNotice
     SuiteUpdateNotice {
         id: suiteNotice
@@ -159,7 +165,8 @@ Item {
     }
     readonly property bool mainNavVisible: page === "home" || page === "library" || page === "all" || page === "store"
     readonly property var mainNavTabs: [
-        {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Tienda")}
+        {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Catálogo")},
+        {key:"downloads", label:qsTr("Descargas")}
     ]
     onPageChanged: { mainNavIndex = -1; searchFocus = false; searchOpen = false }
     function focusMainNav(preferStore) {
@@ -172,10 +179,10 @@ Item {
         if (i === 0) openHome()
         else if (i === 1) openLibrary()
         else if (i === 2) openStore()
-        else if (i === powerIndex) requestExit()
+        else if (i === 3) openDownloads()
+        else if (i === menuIndex) quickMenu.show()
         else if (suiteNotice.available && i === updateIndex) suiteNotice.activate()
-        else if (i === 3 && page === "library") openAddGame()
-        else openSettings()
+        else if (i === addIndex) openAddGame()
     }
     function handleMainNav(key) {
         if (mainNavIndex < 0) return false
@@ -543,6 +550,8 @@ Item {
         function onPadKey(k) {
             if (intro.active) { intro.skip(); return }
             if (suiteNotice.pad(k)) return
+            if (quickMenu.open) { lib.padSound(k === "MODE" ? "B" : k); quickMenu.pad(k); return }
+            if (k === "MODE" && !lib.exitConfirmOpen && !api.covered) { lib.padSound("X"); quickMenu.show(); return }
             if (lib.exitConfirmOpen) {
                 if (k === "l" || k === "r") { lib.exitConfirmChoice = lib.exitConfirmChoice === 0 ? 1 : 0; sfx.play("move") }
                 else if (k === "A") lib.finishExitConfirmation()
@@ -612,6 +621,7 @@ Item {
             return
         }
         lib.keySound(e)
+        if (e.key === Qt.Key_M && (e.modifiers & Qt.ControlModifier)) { quickMenu.toggle(); e.accepted = true; return }
         if (portDialog.open) { e.accepted = portDialog.key(e); return }
         if (ctxMenu.open) { e.accepted = ctxMenu.key(e); return }
         if (vkb.open) { e.accepted = vkb.key(e); return }
@@ -624,7 +634,7 @@ Item {
         }
         if (mainNavVisible && (e.modifiers & Qt.ControlModifier)) {
             const i = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4].indexOf(e.key)
-            if (i >= 0) { activateMainNav(i === 3 ? gearIndex : i); e.accepted = true; return }
+            if (i >= 0) { activateMainNav(i); e.accepted = true; return }
             if (e.key === Qt.Key_O && page === "library") { openAddGame(); e.accepted = true; return }
         }
         if (searchOpen) return                              // el campo de texto maneja el teclado
@@ -753,6 +763,14 @@ Item {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: lib.s * 48; rightMargin: lib.s * 40; topMargin: lib.s * 22 }
         host: lib
+    }
+
+    OmniaQuickMenu {
+        id: quickMenu
+        host: lib
+        onOpenChanged: if (!open) lib.restorePage(lib.page)
+        onSettingsRequested: lib.openSettings()
+        onDesktopRequested: lib.closeRequested()
     }
 
     OmniaLibraryHero {

@@ -1,8 +1,10 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "Theme.js" as Theme
 
-/** Encabezado de Big Mode: navegación principal, búsqueda, estado del sistema y cierre. */
+/** Encabezado de Big Mode (rediseño D): barra de cristal con navegación principal (Inicio, Biblioteca,
+ *  Catálogo, Descargas), búsqueda, estado del sistema y el botón del Menú rápido (también con Guía). */
 Item {
     id: head
     required property var host
@@ -11,6 +13,21 @@ Item {
     height: head.host.s * 54
     z: 2
     visible: head.host.mainNavVisible
+
+    GlassPanel {          // la barra de cristal sobresale un poco del contenido del encabezado
+        id: bar
+        anchors { fill: parent; leftMargin: -head.host.s * 18; rightMargin: -head.host.s * 12; topMargin: -head.host.s * 10; bottomMargin: -head.host.s * 10 }
+        z: -1
+        radius: head.host.s * 26
+        strong: true
+        backdrop: head.host.glassBackdrop
+        backdropRect: {
+            void (bar.x + bar.y + bar.width + bar.height + head.x + head.y)
+            if (!head.host.glassBackdrop) return Qt.rect(0, 0, 0, 0)
+            const p = bar.mapToItem(head.host.glassBackdrop, 0, 0)
+            return Qt.rect(p.x, p.y, bar.width, bar.height)
+        }
+    }
 
     Row {
         id: brand
@@ -43,9 +60,9 @@ Item {
                 height: head.host.s * 38
                 width: navLabel.implicitWidth + head.host.s * 28
                 radius: height / 2
-                color: active ? head.host.accent : navMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                color: active ? Theme.color.accentSoft : navMouse.containsMouse ? Theme.color.glassFill : "transparent"
                 border.width: head.host.mainNavIndex === index ? 3 : 0; border.color: head.host.ring
-                    Text { id: navLabel; anchors.centerIn: parent; text: navItem.modelData.label; color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 17; font.weight: navItem.active ? Font.DemiBold : Font.Medium }
+                    Text { id: navLabel; anchors.centerIn: parent; text: navItem.modelData.label; color: navItem.active ? Theme.color.accentLight : head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 17; font.weight: navItem.active ? Font.DemiBold : Font.Medium }
                     MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.activateMainNav(navItem.index) }
             }
         }
@@ -109,8 +126,8 @@ Item {
         anchors { left: searchBox.right; leftMargin: head.host.s * 8; verticalCenter: parent.verticalCenter }
         width: head.host.s * 42; height: width; radius: width / 2
         color: addMouse.containsMouse ? head.host.surface : "#b30b0f14"
-        border.width: head.host.mainNavIndex === 3 ? 3 : 1
-        border.color: head.host.mainNavIndex === 3 ? head.host.ring : head.host.surfaceBorder
+        border.width: head.host.mainNavIndex === head.host.addIndex ? 3 : 1
+        border.color: head.host.mainNavIndex === head.host.addIndex ? head.host.ring : head.host.surfaceBorder
         Accessible.name: qsTranslate("OmniaLibrary", "Añadir juego")
         Accessible.role: Accessible.Button
         LucideIcon { anchors.centerIn: parent; width: head.host.s * 20; height: width; name: "plus"; color: head.host.ink }
@@ -138,34 +155,29 @@ Item {
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: head.host.suiteUpdateNotice.activate() }
     }
 
-    // ajustes de BigMode
+    // Menú rápido (botón Guía): volumen, HUD, ajustes, escritorio, suspender y apagar
     Rectangle {
-        id: gearBtn
-        anchors { right: powerBtn.left; rightMargin: head.host.s * 10; verticalCenter: parent.verticalCenter }
-        width: head.host.s * 42; height: head.host.s * 42; radius: width / 2
-        color: gearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-        border.width: head.host.mainNavIndex === head.host.gearIndex ? 3 : 1
-        border.color: head.host.mainNavIndex === head.host.gearIndex ? head.host.ring : Qt.rgba(1, 1, 1, 0.20)
-        LucideIcon { anchors.centerIn: parent; width: head.host.s * 20; height: head.host.s * 20; name: "settings"; color: head.host.ink }
-        MouseArea { id: gearMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.openSettings() }
-    }
-
-    Rectangle {
-        id: powerBtn
+        id: menuBtn
         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-        width: head.host.s * 42; height: width; radius: width / 2
-        color: powerMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0.05, 0.08, 0.12, 0.72)
-        border.width: head.host.mainNavIndex === head.host.powerIndex || head.host.exitConfirmOpen ? 3 : 1
-        border.color: head.host.mainNavIndex === head.host.powerIndex || head.host.exitConfirmOpen ? head.host.ring : head.host.surfaceBorder
-        Accessible.name: qsTranslate("OmniaLibrary", "Cerrar Big Mode")
+        width: menuRow.implicitWidth + head.host.s * 30; height: head.host.s * 42; radius: height / 2
+        readonly property bool focused: head.host.mainNavIndex === head.host.menuIndex
+        color: menuMa.containsMouse || focused ? Theme.color.accentSoft : Qt.rgba(0.05, 0.08, 0.12, 0.72)
+        border.width: focused || head.host.exitConfirmOpen ? 3 : 1
+        border.color: focused || head.host.exitConfirmOpen ? head.host.ring : Theme.color.glassBorderStrong
+        Accessible.name: qsTranslate("OmniaLibrary", "Menú rápido")
         Accessible.role: Accessible.Button
-        LucideIcon { anchors.centerIn: parent; width: head.host.s * 20; height: width; name: "power"; color: head.host.ink }
-        MouseArea { id: powerMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.requestExit() }
+        Row {
+            id: menuRow
+            anchors.centerIn: parent; spacing: head.host.s * 9
+            LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: head.host.s * 20; height: width; name: "menu"; color: head.host.ink }
+            Text { anchors.verticalCenter: parent.verticalCenter; text: qsTranslate("OmniaLibrary", "Menú rápido"); color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 17 }
+        }
+        MouseArea { id: menuMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.activateMainNav(head.host.menuIndex) }
     }
 
     Rectangle {
         id: clockPill
-        anchors { right: gearBtn.left; rightMargin: head.host.s * 12; verticalCenter: parent.verticalCenter }
+        anchors { right: menuBtn.left; rightMargin: head.host.s * 12; verticalCenter: parent.verticalCenter }
         width: timeLabel.implicitWidth + head.host.s * 28
         height: head.host.s * 42
         radius: height / 2
