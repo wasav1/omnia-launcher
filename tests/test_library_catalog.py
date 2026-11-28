@@ -97,6 +97,11 @@ Window {
         grid.groupBy = "state"
         if (labels() !== "Jugando ahora:1,Con actualización:1,Favoritos:1,Jugados:1,Sin jugar:1") return fail("state " + labels())
         if (Theme.catalogWidth(860, true) !== 820) return fail("compact catalog width " + Theme.catalogWidth(860, true))
+        // tarjetas de novedades del Inicio: mínimo 240 px, crecen, máx. 6 por fila
+        const g1 = Theme.cardGrid(1880, 240, 6, 16), g2 = Theme.cardGrid(1400, 240, 6, 16), g3 = Theme.cardGrid(500, 240, 6, 16)
+        if (g1.columns !== 6 || g1.width !== 300) return fail("cardGrid 1880 " + JSON.stringify(g1))
+        if (g2.columns !== 5 || g2.width !== 267) return fail("cardGrid 1400 " + JSON.stringify(g2))
+        if (g3.columns !== 2 || g3.width !== 242) return fail("cardGrid 500 " + JSON.stringify(g3))
         Qt.exit(CHECKS_OK)
     }
 }

@@ -23,6 +23,7 @@ Item {
     property bool loading: true
     property string storeFilter: "all"          // all | steam | epic | gog | amazon | omnia
     property int featuredIndex: 0
+    property var expanded: ({})                 // secciones abiertas con «Ver todo» (por defecto, dos filas)
 
     readonly property var stores: [
         { k: "all", l: qsTr("Todas") }, { k: "steam", l: "Steam" }, { k: "epic", l: "Epic" },
@@ -156,7 +157,7 @@ Item {
                 id: topRow
                 readonly property bool side: width >= 1100
                 width: parent.width
-                height: side ? 300 : 300 + 20 + sideCol.implicitHeight
+                height: side ? 300 : 300 + 20 + 140
 
                 Rectangle {
                     id: hero
@@ -251,17 +252,19 @@ Item {
                     }
                 }
 
-                Column {
+                Grid {          // al lado del destacado; en ventanas angostas, debajo y en dos columnas
                     id: sideCol
                     x: topRow.side ? hero.width + 20 : 0
                     y: topRow.side ? 0 : 320
                     width: topRow.side ? 436 : parent.width
+                    columns: topRow.side || !continueCard.visible ? 1 : 2
                     spacing: 20
+                    readonly property real cellWidth: columns === 1 ? width : (width - spacing) / 2
                     // seguir jugando
                     GlassPanel {
                         id: continueCard
                         readonly property var g: (home.manager.recentGames || [])[0] || null
-                        width: parent.width; height: 140
+                        width: sideCol.cellWidth; height: 140
                         visible: !!g
                         backdrop: home.backdrop
                         backdropRect: home.backdropRectOf(continueCard)
@@ -289,7 +292,7 @@ Item {
                     GlassPanel {
                         id: dlCard
                         readonly property var jobs: home.manager.activeInstalls || []
-                        width: parent.width; height: topRow.side ? (continueCard.visible ? 140 : 300) : 140
+                        width: sideCol.cellWidth; height: topRow.side ? (continueCard.visible ? 140 : 300) : 140
                         backdrop: home.backdrop
                         backdropRect: home.backdropRectOf(dlCard)
                         Column {
@@ -371,66 +374,97 @@ Item {
                 delegate: Column {
                     id: homeSection
                     required property var modelData
+                    // Cuadrícula como la del Catálogo: mínimo fijo, crecen hasta llenar el ancho, máx. 6 por fila.
+                    readonly property var grid: Theme.cardGrid(width, Theme.size.newsCardMinWidth, Theme.size.newsCardMaxColumns, Theme.size.newsCardGap)
+                    readonly property int cardHeight: Math.round(grid.width * 0.43) + 104
+                    readonly property bool expanded: !!home.expanded[modelData.key]
+                    readonly property int shown: expanded ? modelData.items.length : Math.min(modelData.items.length, grid.columns * 2)
                     width: body.width
                     spacing: 12
-                    Row {
-                        spacing: 10
-                        Text { id: sectionTitle; text: homeSection.modelData.title; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 18; font.weight: Font.Bold }
-                        Text { anchors.baseline: sectionTitle.baseline; text: String(homeSection.modelData.items.length); color: Theme.color.muted; font.family: Theme.font.numeric; font.pixelSize: 15; font.weight: Font.DemiBold }
+                    Item {
+                        width: parent.width; height: 26
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 10
+                            Text { id: sectionTitle; text: homeSection.modelData.title; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 18; font.weight: Font.Bold }
+                            Text { anchors.baseline: sectionTitle.baseline; text: String(homeSection.modelData.items.length); color: Theme.color.muted; font.family: Theme.font.numeric; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+                        Text {
+                            visible: homeSection.modelData.items.length > homeSection.grid.columns * 2
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            text: homeSection.expanded ? qsTr("Ver menos") : qsTr("Ver todo (%1)").arg(homeSection.modelData.items.length)
+                            color: moreMa.containsMouse ? Theme.color.ink : Theme.color.accentLight
+                            font.family: Theme.font.family; font.pixelSize: 13; font.weight: Font.DemiBold
+                            MouseArea {
+                                id: moreMa
+                                anchors.fill: parent; anchors.margins: -6
+                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const next = Object.assign({}, home.expanded)
+                                    next[homeSection.modelData.key] = !homeSection.expanded
+                                    home.expanded = next
+                                }
+                            }
+                        }
                     }
-                    ListView {
-                        id: row
-                        width: parent.width; height: 214
-                        orientation: ListView.Horizontal
-                        spacing: 16
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-                        model: homeSection.modelData.items
-                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
-                        delegate: Rectangle {
-                            id: card
-                            required property var modelData
-                            width: 260; height: 214; radius: 18
-                            color: cardMa.containsMouse ? "#17FFFFFF" : Theme.color.glassFill
-                            border.color: cardMa.containsMouse ? Theme.color.accent : Theme.color.glassBorder
-                            clip: true
-                            Rectangle {
-                                id: art
-                                width: parent.width; height: 112; color: "#141E2B"
-                                FadedImage { anchors.fill: parent; source: card.modelData.artwork || ""; cornerRadius: 0 }
-                                Rectangle {
-                                    x: 8; y: 8; height: 22; width: artStore.implicitWidth + 16; radius: 11
-                                    color: "#A605090F"; border.color: "#2EFFFFFF"
-                                    Row { id: artStore; anchors.centerIn: parent; spacing: 6
-                                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; radius: 2; color: home.storeColor(card.modelData.source) }
-                                        Text { text: home.storeName(card.modelData.source); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 11; font.weight: Font.Bold } }
+                    Grid {
+                        columns: homeSection.grid.columns
+                        columnSpacing: Theme.size.newsCardGap
+                        rowSpacing: Theme.size.newsCardGap
+                        Repeater {
+                            model: homeSection.modelData.items.slice(0, homeSection.shown)
+                            delegate: Rectangle {
+                                id: card
+                                required property var modelData
+                                readonly property int artHeight: Math.round(width * 0.43)
+                                width: homeSection.grid.width; height: homeSection.cardHeight; radius: 18
+                                color: cardMa.containsMouse ? "#17FFFFFF" : Theme.color.glassFill
+                                border.color: cardMa.containsMouse ? Theme.color.accent : Theme.color.glassBorder
+                                Item {      // arte con solo las esquinas de arriba redondeadas
+                                    id: art
+                                    x: 1; y: 1
+                                    width: parent.width - 2; height: card.artHeight
+                                    clip: true
+                                    Rectangle { width: parent.width; height: parent.height + 17; radius: 17; color: "#141E2B" }
+                                    FadedImage { width: parent.width; height: parent.height + 17; source: card.modelData.artwork || ""; cornerRadius: 17 }
+                                    Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 1; color: Theme.color.glassBorder }
+                                    Rectangle {
+                                        x: 8; y: 8; height: 22; width: artStore.implicitWidth + 16; radius: 11
+                                        color: "#A605090F"; border.color: "#2EFFFFFF"
+                                        Row { id: artStore; anchors.centerIn: parent; spacing: 6
+                                            Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; radius: 2; color: home.storeColor(card.modelData.source) }
+                                            Text { text: home.storeName(card.modelData.source); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 11; font.weight: Font.Bold } }
+                                    }
+                                    Rectangle {
+                                        anchors { right: parent.right; top: parent.top; margins: 8 }
+                                        height: 22; width: badgeText.implicitWidth + 16; radius: 11
+                                        color: home.kindColor(card.modelData)
+                                        Text { id: badgeText; anchors.centerIn: parent; text: home.kindBadge(card.modelData); color: Theme.color.accentInk; font.family: Theme.font.family; font.pixelSize: 11; font.weight: Font.ExtraBold }
+                                    }
+                                }
+                                Column {
+                                    anchors { left: parent.left; right: parent.right; top: art.bottom; margins: 14; topMargin: 11 }
+                                    spacing: 4
+                                    Text { width: parent.width; text: card.modelData.title; elide: Text.ElideRight; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 15; font.weight: Font.Bold }
+                                    Text { width: parent.width; text: home.subtitle(card.modelData); elide: Text.ElideRight; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 12 }
+                                }
+                                Row {
+                                    anchors { left: parent.left; right: action.left; rightMargin: 8; bottom: parent.bottom; margins: 14 }
+                                    spacing: 6
+                                    clip: true
+                                    Text { anchors.verticalCenter: parent.verticalCenter; text: card.modelData.price || ""; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; visible: card.modelData.kind === "deal" && !!card.modelData.originalPrice; text: card.modelData.originalPrice || ""; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 11; font.strikeout: true }
                                 }
                                 Rectangle {
-                                    anchors { right: parent.right; top: parent.top; margins: 8 }
-                                    height: 22; width: badgeText.implicitWidth + 16; radius: 11
-                                    color: home.kindColor(card.modelData)
-                                    Text { id: badgeText; anchors.centerIn: parent; text: home.kindBadge(card.modelData); color: Theme.color.accentInk; font.family: Theme.font.family; font.pixelSize: 11; font.weight: Font.ExtraBold }
+                                    id: action
+                                    anchors { right: parent.right; bottom: parent.bottom; margins: 12 }
+                                    height: 30; width: actionText.implicitWidth + 26; radius: 10
+                                    color: cardMa.containsMouse ? Theme.color.accent : "#14FFFFFF"
+                                    border.color: cardMa.containsMouse ? "transparent" : "#2EFFFFFF"
+                                    Text { id: actionText; anchors.centerIn: parent; text: home.actionLabel(card.modelData); color: cardMa.containsMouse ? Theme.color.accentInk : Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 12; font.weight: Font.DemiBold }
                                 }
+                                MouseArea { id: cardMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.open(card.modelData) }
                             }
-                            Column {
-                                anchors { left: parent.left; right: parent.right; top: art.bottom; margins: 12; topMargin: 10 }
-                                spacing: 4
-                                Text { width: parent.width; text: card.modelData.title; elide: Text.ElideRight; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 15; font.weight: Font.Bold }
-                                Text { width: parent.width; text: home.subtitle(card.modelData); elide: Text.ElideRight; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 12 }
-                            }
-                            Row {
-                                anchors { left: parent.left; bottom: parent.bottom; margins: 12 }
-                                spacing: 6
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: card.modelData.price || ""; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold }
-                                Text { anchors.verticalCenter: parent.verticalCenter; visible: card.modelData.kind === "deal" && !!card.modelData.originalPrice; text: card.modelData.originalPrice || ""; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 11; font.strikeout: true }
-                            }
-                            Rectangle {
-                                anchors { right: parent.right; bottom: parent.bottom; margins: 12 }
-                                height: 28; width: actionText.implicitWidth + 24; radius: 9
-                                color: "#14FFFFFF"; border.color: "#2EFFFFFF"
-                                Text { id: actionText; anchors.centerIn: parent; text: home.actionLabel(card.modelData); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 12; font.weight: Font.DemiBold }
-                            }
-                            MouseArea { id: cardMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.open(card.modelData) }
                         }
                     }
                 }

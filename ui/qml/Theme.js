@@ -97,6 +97,10 @@ var size = {
     posterMaxWidth: 240,   // las carátulas crecen hasta aquí para llenar el ancho…
     posterMaxColumns: 6,   // …sin pasar de 6 columnas; si sobra espacio, la cuadrícula se centra
 
+    newsCardMinWidth: 240, // tarjetas de novedades del Inicio: mínimo fijo…
+    newsCardMaxColumns: 6, // …y como mucho 6 por fila; crecen para llenar el ancho
+    newsCardGap: 16,
+
     listRow: 56,
     listThumb: 40,
 
@@ -131,6 +135,13 @@ function posterLayout(width) {
     var w = Math.floor((width - (columns - 1) * size.posterGap) / columns);
     w = Math.max(size.posterWidth, Math.min(size.posterMaxWidth, w));
     return { columns: columns, width: w, height: Math.round(w * size.posterHeight / size.posterWidth) };
+}
+
+// Cuadrícula de tarjetas que crecen: tantas columnas como quepan con `minWidth` (máx. `maxColumns`)
+// y cada tarjeta estirada para llenar el ancho exacto, sin cortes ni huecos.
+function cardGrid(width, minWidth, maxColumns, gap) {
+    var columns = Math.max(1, Math.min(maxColumns, Math.floor((width + gap) / (minWidth + gap))));
+    return { columns: columns, width: Math.floor((width - (columns - 1) * gap) / columns) };
 }
 
 // Ancho del Catálogo según la ventana y si la ficha está abierta.
