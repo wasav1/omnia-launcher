@@ -58,7 +58,7 @@ Item {
                         required property var modelData
                         readonly property bool on: st.days === modelData.d
                         width: chipText.implicitWidth + st.s * 34; height: st.s * 38; radius: height / 2
-                        color: on ? "#45CFC9" : (ma.containsMouse ? st.manager.surface2 : st.manager.surface)
+                        color: on ? "#4DA3FF" : (ma.containsMouse ? st.manager.surface2 : st.manager.surface)
                         Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l; color: chip.on ? "#0B0F14" : st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 14; font.weight: Font.DemiBold }
                         MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: st.days = chip.modelData.d }
                     }
@@ -106,7 +106,7 @@ Item {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                 height: Math.max(bar.modelData.secs > 0 ? st.s * 4 : st.s * 2, bars.height * bar.modelData.secs / st.maxDay)
                                 radius: st.s * 4
-                                color: bar.modelData.secs <= 0 ? "#26FFFFFF" : (bar.index === (st.info.days || []).length - 1 ? "#45CFC9" : "#178C96")
+                                color: bar.modelData.secs <= 0 ? "#26FFFFFF" : (bar.index === (st.info.days || []).length - 1 ? "#4DA3FF" : "#178C96")
                             }
                             Text { anchors { horizontalCenter: parent.horizontalCenter; top: parent.bottom; topMargin: st.s * 6 } visible: st.days <= 14
                                    text: st.dayLabel(bar.modelData.start); color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 11 }
@@ -129,7 +129,7 @@ Item {
                             required property var modelData
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.l; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 13; font.underline: st.allTime === modelData.a
-                            color: st.allTime === modelData.a ? "#45CFC9" : st.manager.muted
+                            color: st.allTime === modelData.a ? "#4DA3FF" : st.manager.muted
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: st.allTime = modelData.a }
                         }
                     }

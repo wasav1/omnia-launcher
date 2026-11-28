@@ -2733,7 +2733,7 @@
 <context>
     <name>OmniaArtEditor</name>
     <message>
-        <location filename="../OmniaArtEditor.qml" line="+16"/>
+        <location filename="../OmniaArtEditor.qml" line="+19"/>
         <source>Portada</source>
         <translation>Cover</translation>
     </message>
@@ -2759,12 +2759,13 @@
     </message>
     <message>
         <location line="+48"/>
-        <location line="+127"/>
+        <location line="+158"/>
+        <location line="+257"/>
         <source>Guardando…</source>
         <translation>Saving…</translation>
     </message>
     <message>
-        <location line="-123"/>
+        <location line="-411"/>
         <source>No se pudo guardar el arte.</source>
         <translation>Could not save the artwork.</translation>
     </message>
@@ -2779,22 +2780,23 @@
         <translation>Could not prepare the image.</translation>
     </message>
     <message>
-        <location line="+96"/>
+        <location line="+118"/>
         <source>Descartar</source>
         <translation>Dismiss</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+8"/>
         <source>Cambiar arte</source>
         <translation>Change artwork</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+13"/>
+        <location line="+257"/>
         <source>Guardar</source>
         <translation>Save</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="-236"/>
         <source>Así se verá tu biblioteca</source>
         <translation>This is how your library will look</translation>
     </message>
@@ -2874,7 +2876,7 @@
         <translation>Search for the game by name or choose a local file.</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+15"/>
         <source>←↑↓→  Elegir</source>
         <translation>←↑↓→  Select</translation>
     </message>
@@ -2919,7 +2921,17 @@
         <translation>B  Dismiss</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+7"/>
+        <source>Clic para elegir · Tab cambia de tipo · O usa un archivo propio · F encuadre · Supr restaura · Esc cierra</source>
+        <translation>Click to choose · Tab changes type · O uses your own file · F framing · Del restores · Esc closes</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>Cancelar</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <location line="+26"/>
         <source>Elige una imagen (%1)</source>
         <translation>Choose an image (%1)</translation>
     </message>
@@ -4814,7 +4826,7 @@
         <translation>Could not load the catalog.</translation>
     </message>
     <message>
-        <location line="+235"/>
+        <location line="+237"/>
         <source>Sin conexión: los paquetes en caché no se pueden instalar.</source>
         <translation>Offline: cached packages cannot be installed.</translation>
     </message>
@@ -4874,8 +4886,8 @@
         <translation>Folder removed; files remain on disk.</translation>
     </message>
     <message>
-        <location line="-219"/>
-        <location line="+220"/>
+        <location line="-221"/>
+        <location line="+222"/>
         <source>No se pudo actualizar la biblioteca.</source>
         <translation>Could not update the library.</translation>
     </message>
@@ -5078,7 +5090,7 @@
         <translation>Game added to library.</translation>
     </message>
     <message>
-        <location filename="../OmniaManager.qml" line="-136"/>
+        <location filename="../OmniaManager.qml" line="-138"/>
         <source>Elige una ficha para vincularla con el juego seleccionado.</source>
         <translation>Choose a catalog entry to link with the selected game.</translation>
     </message>
@@ -5093,7 +5105,7 @@
         <translation>Could not link the catalog entry.</translation>
     </message>
     <message>
-        <location line="+97"/>
+        <location line="+99"/>
         <source>Vínculo del catálogo retirado.</source>
         <translation>Catalog link removed.</translation>
     </message>
@@ -5103,7 +5115,7 @@
         <translation>Could not remove the catalog link.</translation>
     </message>
     <message>
-        <location line="-197"/>
+        <location line="-199"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
@@ -5114,12 +5126,12 @@
     </message>
     <message>
         <location line="+10"/>
-        <location line="+247"/>
+        <location line="+249"/>
         <source>Omnia · ports</source>
         <translation>Omnia · ports</translation>
     </message>
     <message>
-        <location line="-244"/>
+        <location line="-246"/>
         <source>En biblioteca</source>
         <translation>In library</translation>
     </message>
@@ -5129,7 +5141,7 @@
         <translation>Available to install</translation>
     </message>
     <message>
-        <location line="+290"/>
+        <location line="+292"/>
         <source>Actualizado: %1</source>
         <translation>Updated: %1</translation>
     </message>
@@ -5186,7 +5198,7 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <translation>No emulator selected. Choose one when you play.</translation>
     </message>
     <message>
-        <location filename="../OmniaManager.qml" line="-411"/>
+        <location filename="../OmniaManager.qml" line="-413"/>
         <source>Ver opciones de instalación</source>
         <translation>View installation options</translation>
     </message>

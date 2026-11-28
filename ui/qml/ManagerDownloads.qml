@@ -43,7 +43,7 @@ Item {
                 required property var modelData
                 readonly property bool on: dl.tab === modelData.key
                 width: chipText.implicitWidth + dl.s * 34; height: dl.s * 38; radius: height / 2
-                color: on ? "#45CFC9" : (chipMa.containsMouse ? manager.surface2 : manager.surface)
+                color: on ? "#4DA3FF" : (chipMa.containsMouse ? manager.surface2 : manager.surface)
                 Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.label + (chip.modelData.n > 0 ? "  " + chip.modelData.n : "")
                        color: chip.on ? "#0B0F14" : manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 14; font.weight: Font.DemiBold }
                 MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dl.tab = chip.modelData.key }
@@ -102,7 +102,7 @@ Item {
                     visible: !card.bad
                     width: parent.width; height: dl.s * 6; radius: height / 2; color: manager.surface2
                     Rectangle { width: parent.width * Math.max(0, Math.min(1, Number(card.modelData.progress || 0) / 100)); height: parent.height; radius: height / 2
-                                color: card.modelData.status === "completed" ? "#4FBF86" : "#45CFC9"; Behavior on width { NumberAnimation { duration: 200 } } }
+                                color: card.modelData.status === "completed" ? "#4FBF86" : "#4DA3FF"; Behavior on width { NumberAnimation { duration: 200 } } }
                 }
                 Text { width: parent.width; elide: Text.ElideMiddle; font.family: "Hanken Grotesk"; font.pixelSize: dl.s * 12
                        color: card.bad ? "#E8B86D" : manager.muted

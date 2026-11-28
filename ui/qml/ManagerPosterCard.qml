@@ -16,7 +16,7 @@ Item {
     property Flickable viewport: null
     property real viewportTop: 0
     property bool selected: false
-    property color highlightColor: "#6CE2DC"
+    property color highlightColor: "#9CD0FF"
     readonly property bool emphasized: hovered || selected
     // Keep the hit area fixed and move the enlarged artwork inward at the viewport edges.
     readonly property point viewportPosition: {
@@ -101,7 +101,7 @@ Item {
                 visible: card.store !== ""
                 width: parent.width
                 text: card.store
-                color: "#70E0D9"
+                color: "#9CD0FF"
                 font.family: "Hanken Grotesk"
                 font.pixelSize: 10 * card.scaleFactor
                 font.weight: Font.Bold

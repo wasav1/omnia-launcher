@@ -61,7 +61,7 @@ Item {
     readonly property color surface2: "#192837"
     readonly property color ink: "#F0F3F7"
     readonly property color muted: "#B8C3D0"
-    readonly property color accent: "#167E87"
+    readonly property color accent: Theme.color.accent        // azul de Omnia (antes turquesa)
     // El tamaño de ventana reorganiza el contenido, no reduce los controles ni la tipografía.
     readonly property real s: 1
     readonly property real cs: 1
@@ -213,7 +213,7 @@ Item {
         contextualOffer = offer
         desktopMenu.items = [{key: "offer", label: qsTr("Ver opciones de instalación"), icon: "download"}]
         desktopMenu.title = offer.name
-        desktopMenu.show()
+        desktopMenu.show(pointer.point.position)
         desktopMenu.forceActiveFocus()
     }
     function openGameMenu(game) {
@@ -222,13 +222,14 @@ Item {
         contextualOffer = null
         desktopMenu.items = gameActions.entries(game)
         desktopMenu.title = game.name
-        desktopMenu.show()
+        desktopMenu.show(pointer.point.position)
         desktopMenu.forceActiveFocus()
     }
-    OmniaContextMenu {
+    // Posición del puntero en la ventana: el menú contextual se abre junto a él.
+    HoverHandler { id: pointer }
+    DesktopContextMenu {
         id: desktopMenu
         anchors.fill: parent; z: 50
-        uiScale: manager.s; ink: manager.ink; ink2: manager.muted; accent: manager.accent
         Keys.onPressed: event => event.accepted = desktopMenu.key(event)
         onActivated: key => {
             const game = manager.contextualGame
@@ -245,13 +246,14 @@ Item {
         id: desktopArt
         anchors.fill: parent; z: 48
         visible: false
+        desktop: true
         host: QtObject {
             readonly property real s: manager.s
             readonly property var api: manager.desktopBackend
-            readonly property color surface: manager.surface
-            readonly property color ink: manager.ink
-            readonly property color ink2: manager.muted
-            readonly property color accent: manager.accent
+            readonly property color surface: "#141E2B"
+            readonly property color ink: Theme.color.ink
+            readonly property color ink2: Theme.color.muted
+            readonly property color accent: Theme.color.accent
             readonly property color pageShade: "#F00B1118"
             readonly property string uiFont: "Hanken Grotesk"
             function keySound(event) {}

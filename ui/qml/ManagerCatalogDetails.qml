@@ -116,7 +116,7 @@ Rectangle {
                     source: details.manager.storeDetailItem ? details.manager.storeLogo(details.manager.storeDetailItem.store) : ""
                     fillMode: Image.PreserveAspectFit
                 }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: details.manager.storeDetailItem ? (details.stores.names[details.manager.storeDetailItem.store] || "") : ""; color: "#66D5D0"; font.family: "Hanken Grotesk"; font.pixelSize: details.manager.s * 12; font.weight: Font.Bold; font.letterSpacing: 1 }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: details.manager.storeDetailItem ? (details.stores.names[details.manager.storeDetailItem.store] || "") : ""; color: "#9CD0FF"; font.family: "Hanken Grotesk"; font.pixelSize: details.manager.s * 12; font.weight: Font.Bold; font.letterSpacing: 1 }
             }
             Text { width: parent.width; text: details.manager.storeDetailItem ? details.manager.storeDetailItem.name : ""; color: details.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: details.manager.s * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
             Text { width: parent.width; text: details.manager.storeDetailItem ? ((details.manager.storeDetailItem.local && details.manager.storeDetailItem.local.platform) || "PC") + "  ·  " + (details.stores.names[details.manager.storeDetailItem.store] || "") : ""; color: details.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: details.manager.s * 15 }

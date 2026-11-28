@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "Theme.js" as Theme
 
 /** Editor de arte de Big Mode (menú contextual → «Cambiar arte»). A la izquierda, tu biblioteca en miniatura con lo que eliges;
  *  a la derecha, las pestañas Portada / Fondo / Logo y sus opciones. Moverte por las miniaturas la aplica al instante en la vista previa;
@@ -11,7 +12,9 @@ Item {
     required property var host
     property var game: null
     signal back()
-    readonly property real s: ed.host.s
+    // Desktop: ventana de cristal centrada con tamaños de escritorio, botones abajo y ayudas de teclado y ratón.
+    property bool desktop: false
+    readonly property real s: ed.host.s * (ed.desktop ? 0.72 : 1)
     readonly property var kinds: ["portada", "fondo", "logo"]
     readonly property var kindLabels: ({ portada: qsTr("Portada"), fondo: qsTr("Fondo"), logo: qsTr("Logo") })
     property string kind: "portada"
@@ -287,242 +290,321 @@ Item {
     Keys.onPressed: function(e) { e.accepted = ed.key(e) }
 
     // ================= interfaz =================
-    Rectangle { anchors.fill: parent; color: ed.host.pageShade }
+    // Big Mode: pantalla completa. Desktop: ventana de cristal centrada sobre un velo (clic fuera = descartar).
     Rectangle {
-        id: backB
-        x: ed.s * 48; y: ed.s * 30
-        width: bRow.implicitWidth + ed.s * 44; height: ed.s * 54; radius: height / 2
-        color: Qt.rgba(0.05, 0.08, 0.12, 0.70); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.26)
-        Row {
-            id: bRow; anchors.centerIn: parent; spacing: ed.s * 10
-            LucideIcon { width: ed.s * 26; height: ed.s * 26; name: "chevron-left"; color: ed.host.ink; anchors.verticalCenter: parent.verticalCenter }
-            Text { text: qsTr("Descartar"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 24; anchors.verticalCenter: parent.verticalCenter }
-        }
-        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.back() }
+        anchors.fill: parent
+        color: ed.desktop ? "#B3040710" : ed.host.pageShade
+        MouseArea { anchors.fill: parent; enabled: ed.desktop; onClicked: ed.back() }
     }
-    Text { anchors { left: backB.right; leftMargin: ed.s * 22; verticalCenter: backB.verticalCenter } color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 36; font.weight: Font.Medium
-           text: qsTr("Cambiar arte") + (ed.game ? "  ·  " + ed.game.name : "") }
     Rectangle {
-        id: saveB
-        anchors { right: parent.right; rightMargin: ed.s * 48; verticalCenter: backB.verticalCenter }
-        width: saveRow.implicitWidth + ed.s * 48; height: ed.s * 54; radius: height / 2
-        color: ed.changed ? ed.host.accent : Qt.rgba(0.05, 0.08, 0.12, 0.70); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.26)
-        Row { id: saveRow; anchors.centerIn: parent; spacing: ed.s * 10
-            Text { text: ed.busy ? qsTr("Guardando…") : qsTr("Guardar"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 24; font.weight: Font.DemiBold } }
-        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.save() }
-    }
+        id: stage
+        readonly property real pad: ed.desktop ? 24 : ed.s * 48
+        anchors.centerIn: parent
+        width: ed.desktop ? Math.min(parent.width - 64, 1200) : parent.width
+        height: ed.desktop ? Math.min(parent.height - 64, 800) : parent.height
+        radius: ed.desktop ? Theme.radius.xl : 0
+        color: ed.desktop ? "#FA0E1622" : "transparent"
+        border.width: ed.desktop ? 1 : 0
+        border.color: Theme.color.glassBorderStrong
+        MouseArea { anchors.fill: parent; enabled: ed.desktop }
 
-    Row {
-        anchors { left: parent.left; right: parent.right; top: backB.bottom; bottom: hints.top; leftMargin: ed.s * 48; rightMargin: ed.s * 48; topMargin: ed.s * 26; bottomMargin: ed.s * 14 }
-        spacing: ed.s * 28
-        // ---- izquierda: tu biblioteca en miniatura
+        // ---- cabecera
         Item {
-            width: parent.width * 0.56; height: parent.height
-            Text { id: prevTitle; text: qsTr("Así se verá tu biblioteca"); color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20 }
-            Rectangle {
-                id: screen
-                anchors { left: parent.left; right: parent.right; top: prevTitle.bottom; topMargin: ed.s * 10 }
-                height: width * 9 / 16; radius: ed.s * 16; clip: true; color: "#1c2736"
-                Image { anchors.fill: parent; source: ed.previewUrl("fondo"); smooth: true; asynchronous: true
-                        fillMode: ed.previewFit("fondo") ? Image.PreserveAspectFit : Image.PreserveAspectCrop }
-                Rectangle { anchors.fill: parent; color: Qt.rgba(0.04, 0.06, 0.08, 0.32) }
-                Image {
-                    id: prevLogo
-                    x: parent.width * 0.04; y: parent.height * 0.18; width: parent.width * 0.34; height: parent.height * 0.22
-                    source: ed.previewUrl("logo"); fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft; smooth: true; asynchronous: true
-                }
-                Text { x: parent.width * 0.04; y: parent.height * 0.43; color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 17
-                       text: ed.game ? ed.game.name : "" }
+            id: header
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: stage.pad; rightMargin: stage.pad; topMargin: ed.desktop ? 20 : ed.s * 30 }
+            height: ed.desktop ? 36 : ed.s * 54
+            Rectangle {      // Big Mode: Descartar arriba a la izquierda
+                id: backB
+                visible: !ed.desktop
+                width: visible ? bRow.implicitWidth + ed.s * 44 : 0; height: parent.height; radius: height / 2
+                color: Qt.rgba(0.05, 0.08, 0.12, 0.70); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.26)
                 Row {
-                    x: parent.width * 0.04; anchors.bottom: parent.bottom; anchors.bottomMargin: parent.height * 0.06; spacing: parent.width * 0.015
-                    Rectangle {
-                        width: screen.width * 0.085; height: width * 1.5; radius: ed.s * 7; color: "#243142"; clip: true
-                        Image { anchors.fill: parent; source: ed.previewUrl("portada"); smooth: true; asynchronous: true
-                                fillMode: ed.previewFit("portada") ? Image.PreserveAspectFit : Image.PreserveAspectCrop }
-                        Rectangle { anchors.fill: parent; color: "transparent"; radius: parent.radius; border.width: 2; border.color: ed.host.accent }
-                    }
-                    Repeater { model: 4; Rectangle { required property int index; width: screen.width * 0.085; height: width * 1.5; radius: ed.s * 7; color: Qt.rgba(1, 1, 1, 0.08) } }
+                    id: bRow; anchors.centerIn: parent; spacing: ed.s * 10
+                    LucideIcon { width: ed.s * 26; height: ed.s * 26; name: "chevron-left"; color: ed.host.ink; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: qsTr("Descartar"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 24; anchors.verticalCenter: parent.verticalCenter }
                 }
-            }
-            Text { anchors { left: parent.left; right: parent.right; top: screen.bottom; topMargin: ed.s * 10 } wrapMode: Text.WordWrap; color: ed.host.ink2
-                   font.family: ed.host.uiFont; font.pixelSize: ed.s * 17
-                   text: ed.message !== "" ? ed.message : (ed.meta[ed.kind].warning !== "" ? ed.meta[ed.kind].warning : qsTr("Opciones de SteamGridDB. La estantería, la ficha y la lista usan estas mismas imágenes; nada cambia hasta que pulses Guardar.")) }
-        }
-        // ---- derecha: tipo de imagen y opciones
-        Item {
-            width: parent.width - parent.width * 0.56 - ed.s * 28; height: parent.height
-            Rectangle {
-                id: searchBox
-                width: parent.width
-                height: ed.s * 44
-                radius: ed.s * 10
-                color: ed.host.surface
-                border.color: searchField.activeFocus ? ed.host.accent : "transparent"
-
-                Rectangle {
-                    id: searchButton
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    width: searchLabel.implicitWidth + ed.s * 22
-                    height: parent.height
-                    radius: parent.radius
-                    color: ed.host.accent
-                    Text {
-                        id: searchLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Buscar arte")
-                        color: ed.host.ink
-                        font.pixelSize: ed.s * 16
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: ed.searchArtwork()
-                    }
-                }
-                TextInput {
-                    id: searchField
-                    anchors { left: parent.left; right: searchButton.left; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
-                    text: ed.searchTitle
-                    maximumLength: 140
-                    clip: true
-                    color: ed.host.ink
-                    font.pixelSize: ed.s * 18
-                    Accessible.name: qsTr("Nombre del juego")
-                    onTextEdited: ed.searchTitle = text
-                    onAccepted: ed.searchArtwork()
-                    Keys.onEscapePressed: ed.forceActiveFocus()
-                }
+                MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.back() }
             }
             Text {
-                id: sourceLabel
-                anchors { left: parent.left; right: parent.right; top: searchBox.bottom; topMargin: ed.s * 6 }
-                color: ed.host.ink2
-                font.pixelSize: ed.s * 15
-                visible: !!ed.sourceMatch && !ed.showMatches
-                height: visible ? implicitHeight : 0
+                anchors { left: backB.right; leftMargin: ed.desktop ? 0 : ed.s * 22; right: topRight.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
                 elide: Text.ElideRight
-                textFormat: Text.PlainText
-                text: ed.sourceMatch ? ed.sourceMatch.name + (ed.sourceMatch.year ? " · " + ed.sourceMatch.year : "") : ""
+                color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.desktop ? Theme.font.size.heading : ed.s * 36; font.weight: ed.desktop ? Font.Bold : Font.Medium
+                text: qsTr("Cambiar arte") + (ed.game ? "  ·  " + ed.game.name : "")
             }
-            Row {
-                id: kindRow
-                anchors { top: sourceLabel.bottom; topMargin: ed.s * 10 }
-                visible: !ed.showMatches
-                spacing: ed.s * 8
-                Repeater {
-                    model: ed.kinds
-                    delegate: Rectangle {
-                        id: kc
-                        required property string modelData
-                        readonly property bool on: ed.kind === modelData
-                        width: kt.implicitWidth + ed.s * 34; height: ed.s * 42; radius: height / 2
-                        color: on ? ed.host.accent : Qt.rgba(1, 1, 1, 0.08)
-                        Text { id: kt; anchors.centerIn: parent; text: ed.kindLabels[kc.modelData] + (ed.choice[kc.modelData] ? "  •" : ""); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 19 }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.setKind(kc.modelData) }
-                    }
+            Item {
+                id: topRight
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                width: ed.desktop ? closeB.width : saveB.width; height: parent.height
+                Rectangle {  // Big Mode: Guardar arriba a la derecha
+                    id: saveB
+                    visible: !ed.desktop
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    width: saveRow.implicitWidth + ed.s * 48; height: parent.height; radius: height / 2
+                    color: ed.changed ? ed.host.accent : Qt.rgba(0.05, 0.08, 0.12, 0.70); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.26)
+                    Row { id: saveRow; anchors.centerIn: parent; spacing: ed.s * 10
+                        Text { text: ed.busy ? qsTr("Guardando…") : qsTr("Guardar"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 24; font.weight: Font.DemiBold } }
+                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.save() }
+                }
+                Rectangle {  // Desktop: cerrar (X)
+                    id: closeB
+                    visible: ed.desktop
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    width: 34; height: 34; radius: 17
+                    color: closeMa.containsMouse ? Theme.color.glassFillStrong : "transparent"
+                    LucideIcon { anchors.centerIn: parent; width: 18; height: 18; name: "x"; color: Theme.color.soft }
+                    MouseArea { id: closeMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.back() }
                 }
             }
-            ListView {
-                id: matchList
-                anchors { left: parent.left; right: parent.right; top: searchBox.bottom; bottom: parent.bottom; topMargin: ed.s * 12 }
-                visible: ed.showMatches
-                clip: true
-                spacing: ed.s * 5
-                model: ed.matches
-                currentIndex: ed.matchIndex
-                delegate: Rectangle {
-                    id: matchRow
-                    required property var modelData
-                    required property int index
-                    width: matchList.width
-                    height: ed.s * 54
-                    radius: ed.s * 9
-                    color: index === ed.matchIndex ? ed.host.accent : ed.host.surface
-                    Text {
-                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
+        }
+
+        Row {
+            anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top; leftMargin: stage.pad; rightMargin: stage.pad; topMargin: ed.desktop ? 16 : ed.s * 26; bottomMargin: ed.desktop ? 12 : ed.s * 14 }
+            spacing: ed.s * 28
+            // ---- izquierda: tu biblioteca en miniatura
+            Item {
+                width: parent.width * 0.56; height: parent.height
+                Text { id: prevTitle; text: qsTr("Así se verá tu biblioteca"); color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20 }
+                Rectangle {
+                    id: screen
+                    anchors { left: parent.left; right: parent.right; top: prevTitle.bottom; topMargin: ed.s * 10 }
+                    height: width * 9 / 16; radius: ed.s * 16; clip: true; color: "#1c2736"
+                    Image { anchors.fill: parent; source: ed.previewUrl("fondo"); smooth: true; asynchronous: true
+                            fillMode: ed.previewFit("fondo") ? Image.PreserveAspectFit : Image.PreserveAspectCrop }
+                    Rectangle { anchors.fill: parent; color: Qt.rgba(0.04, 0.06, 0.08, 0.32) }
+                    Image {
+                        id: prevLogo
+                        x: parent.width * 0.04; y: parent.height * 0.18; width: parent.width * 0.34; height: parent.height * 0.22
+                        source: ed.previewUrl("logo"); fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft; smooth: true; asynchronous: true
+                    }
+                    Text { x: parent.width * 0.04; y: parent.height * 0.43; color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 17
+                           text: ed.game ? ed.game.name : "" }
+                    Row {
+                        x: parent.width * 0.04; anchors.bottom: parent.bottom; anchors.bottomMargin: parent.height * 0.06; spacing: parent.width * 0.015
+                        Rectangle {
+                            width: screen.width * 0.085; height: width * 1.5; radius: ed.s * 7; color: "#243142"; clip: true
+                            Image { anchors.fill: parent; source: ed.previewUrl("portada"); smooth: true; asynchronous: true
+                                    fillMode: ed.previewFit("portada") ? Image.PreserveAspectFit : Image.PreserveAspectCrop }
+                            Rectangle { anchors.fill: parent; color: "transparent"; radius: parent.radius; border.width: 2; border.color: ed.host.accent }
+                        }
+                        Repeater { model: 4; Rectangle { required property int index; width: screen.width * 0.085; height: width * 1.5; radius: ed.s * 7; color: Qt.rgba(1, 1, 1, 0.08) } }
+                    }
+                }
+                Text { anchors { left: parent.left; right: parent.right; top: screen.bottom; topMargin: ed.s * 10 } wrapMode: Text.WordWrap; color: ed.host.ink2
+                       font.family: ed.host.uiFont; font.pixelSize: ed.s * 17
+                       text: ed.message !== "" ? ed.message : (ed.meta[ed.kind].warning !== "" ? ed.meta[ed.kind].warning : qsTr("Opciones de SteamGridDB. La estantería, la ficha y la lista usan estas mismas imágenes; nada cambia hasta que pulses Guardar.")) }
+            }
+            // ---- derecha: tipo de imagen y opciones
+            Item {
+                width: parent.width - parent.width * 0.56 - ed.s * 28; height: parent.height
+                Rectangle {
+                    id: searchBox
+                    width: parent.width
+                    height: ed.s * 44
+                    radius: ed.s * 10
+                    color: ed.host.surface
+                    border.color: searchField.activeFocus ? ed.host.accent : "transparent"
+
+                    Rectangle {
+                        id: searchButton
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        width: searchLabel.implicitWidth + ed.s * 22
+                        height: parent.height
+                        radius: parent.radius
+                        color: ed.host.accent
+                        Text {
+                            id: searchLabel
+                            anchors.centerIn: parent
+                            text: qsTr("Buscar arte")
+                            color: ed.host.ink
+                            font.pixelSize: ed.s * 16
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: ed.searchArtwork()
+                        }
+                    }
+                    TextInput {
+                        id: searchField
+                        anchors { left: parent.left; right: searchButton.left; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
+                        text: ed.searchTitle
+                        maximumLength: 140
+                        clip: true
                         color: ed.host.ink
                         font.pixelSize: ed.s * 18
-                        elide: Text.ElideRight
-                        textFormat: Text.PlainText
-                        text: matchRow.modelData.name + (matchRow.modelData.year ? " · " + matchRow.modelData.year : "")
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: ed.chooseMatch(matchRow.modelData)
+                        Accessible.name: qsTr("Nombre del juego")
+                        onTextEdited: ed.searchTitle = text
+                        onAccepted: ed.searchArtwork()
+                        Keys.onEscapePressed: ed.forceActiveFocus()
                     }
                 }
                 Text {
-                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                    visible: !ed.matches.length
-                    wrapMode: Text.WordWrap
+                    id: sourceLabel
+                    anchors { left: parent.left; right: parent.right; top: searchBox.bottom; topMargin: ed.s * 6 }
                     color: ed.host.ink2
-                    font.pixelSize: ed.s * 18
-                    text: ed.searching ? qsTr("Buscando coincidencias…") : ed.message || qsTr("No se encontraron coincidencias. Prueba otro nombre.")
+                    font.pixelSize: ed.s * 15
+                    visible: !!ed.sourceMatch && !ed.showMatches
+                    height: visible ? implicitHeight : 0
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                    text: ed.sourceMatch ? ed.sourceMatch.name + (ed.sourceMatch.year ? " · " + ed.sourceMatch.year : "") : ""
                 }
-            }
-            GridView {
-                id: grid
-                visible: !ed.showMatches
-                anchors { left: parent.left; right: parent.right; top: kindRow.bottom; bottom: parent.bottom; topMargin: ed.s * 16 }
-                cellWidth: ed.tileW + ed.s * 8; cellHeight: ed.tileH + ed.s * 8
-                clip: true; interactive: true
-                model: ed.tiles
-                currentIndex: ed.index
-                delegate: Item {
-                    id: cell
-                    required property var modelData
-                    required property int index
-                    width: grid.cellWidth; height: grid.cellHeight
-                    readonly property bool sel: index === ed.index
-                    Rectangle {
-                        width: ed.tileW; height: ed.tileH; radius: ed.s * 10; clip: true
-                        color: Qt.rgba(1, 1, 1, 0.07)
-                        Image { visible: cell.modelData.k === "cat"; anchors.fill: parent; source: cell.modelData.k === "cat" ? cell.modelData.url : ""; asynchronous: true; smooth: true; fillMode: Image.PreserveAspectCrop }
-                        Rectangle { visible: cell.modelData.k === "cat" && cell.modelData.cur; anchors { left: parent.left; bottom: parent.bottom; margins: ed.s * 5 }
-                                    width: curT.implicitWidth + ed.s * 12; height: ed.s * 20; radius: height / 2; color: "#CC0b1016"
-                                    Text { id: curT; anchors.centerIn: parent; text: qsTr("Actual"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 12 } }
-                        Image { visible: cell.modelData.k === "local" && ed.localActive; anchors.fill: parent; asynchronous: true; smooth: true
-                                source: ed.localActive ? "file://" + ed.current.path : ""; fillMode: Image.PreserveAspectCrop }
-                        Column {
-                            visible: cell.modelData.k !== "cat" && !(cell.modelData.k === "local" && ed.localActive)
-                            anchors.centerIn: parent; spacing: ed.s * 4
-                            LucideIcon { anchors.horizontalCenter: parent.horizontalCenter; width: ed.s * 26; height: width; color: ed.host.ink2
-                                         name: cell.modelData.k === "local" ? "folder-open" : (cell.modelData.k === "fit" ? "layout-grid" : (cell.modelData.k === "more" ? "chevron-right" : "eye-off")) }
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 15
-                                   text: cell.modelData.k === "local" ? qsTr("Mi archivo…") : (cell.modelData.k === "fit" ? (ed.current && ed.current.fit === "fit" ? qsTr("Ajustar") : qsTr("Rellenar")) : (cell.modelData.k === "more" ? (ed.meta[ed.kind].loading ? qsTr("Cargando…") : qsTr("Ver más")) : qsTr("Original"))) }
-                        }
-                        Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"
-                                    border.width: cell.sel ? 3 : 1; border.color: cell.sel ? ed.host.accent : Qt.rgba(1, 1, 1, 0.12) }
-                        MouseArea {
-                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                ed.index = cell.index
-                                if (cell.modelData.k === "local") ed.chooseLocal()
-                                else if (cell.modelData.k === "more") ed.loadMore()
-                                else if (cell.modelData.k === "fit") ed.toggleFit()
-                                else ed.applyCursor()
-                            }
+                Row {
+                    id: kindRow
+                    anchors { top: sourceLabel.bottom; topMargin: ed.s * 10 }
+                    visible: !ed.showMatches
+                    spacing: ed.s * 8
+                    Repeater {
+                        model: ed.kinds
+                        delegate: Rectangle {
+                            id: kc
+                            required property string modelData
+                            readonly property bool on: ed.kind === modelData
+                            width: kt.implicitWidth + ed.s * 34; height: ed.s * 42; radius: height / 2
+                            color: on ? ed.host.accent : Qt.rgba(1, 1, 1, 0.08)
+                            Text { id: kt; anchors.centerIn: parent; text: ed.kindLabels[kc.modelData] + (ed.choice[kc.modelData] ? "  •" : ""); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 19 }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.setKind(kc.modelData) }
                         }
                     }
                 }
-                Text { visible: ed.options[ed.kind].length <= 1 && !ed.meta[ed.kind].more; anchors.centerIn: parent; width: parent.width * 0.8; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                       color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 18
-                       text: ed.meta[ed.kind].loading ? qsTr("Cargando opciones…") : (!ed.meta[ed.kind].linked ? qsTr("Busca el juego por nombre o usa un archivo propio.") : qsTr("No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.")) }
+                ListView {
+                    id: matchList
+                    anchors { left: parent.left; right: parent.right; top: searchBox.bottom; bottom: parent.bottom; topMargin: ed.s * 12 }
+                    visible: ed.showMatches
+                    clip: true
+                    spacing: ed.s * 5
+                    model: ed.matches
+                    currentIndex: ed.matchIndex
+                    delegate: Rectangle {
+                        id: matchRow
+                        required property var modelData
+                        required property int index
+                        width: matchList.width
+                        height: ed.s * 54
+                        radius: ed.s * 9
+                        color: index === ed.matchIndex ? ed.host.accent : ed.host.surface
+                        Text {
+                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: ed.s * 10 }
+                            color: ed.host.ink
+                            font.pixelSize: ed.s * 18
+                            elide: Text.ElideRight
+                            textFormat: Text.PlainText
+                            text: matchRow.modelData.name + (matchRow.modelData.year ? " · " + matchRow.modelData.year : "")
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: ed.chooseMatch(matchRow.modelData)
+                        }
+                    }
+                    Text {
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        visible: !ed.matches.length
+                        wrapMode: Text.WordWrap
+                        color: ed.host.ink2
+                        font.pixelSize: ed.s * 18
+                        text: ed.searching ? qsTr("Buscando coincidencias…") : ed.message || qsTr("No se encontraron coincidencias. Prueba otro nombre.")
+                    }
+                }
+                GridView {
+                    id: grid
+                    visible: !ed.showMatches
+                    anchors { left: parent.left; right: parent.right; top: kindRow.bottom; bottom: parent.bottom; topMargin: ed.s * 16 }
+                    cellWidth: ed.tileW + ed.s * 8; cellHeight: ed.tileH + ed.s * 8
+                    clip: true; interactive: true
+                    model: ed.tiles
+                    currentIndex: ed.index
+                    delegate: Item {
+                        id: cell
+                        required property var modelData
+                        required property int index
+                        width: grid.cellWidth; height: grid.cellHeight
+                        readonly property bool sel: index === ed.index
+                        Rectangle {
+                            width: ed.tileW; height: ed.tileH; radius: ed.s * 10; clip: true
+                            color: Qt.rgba(1, 1, 1, 0.07)
+                            Image { visible: cell.modelData.k === "cat"; anchors.fill: parent; source: cell.modelData.k === "cat" ? cell.modelData.url : ""; asynchronous: true; smooth: true; fillMode: Image.PreserveAspectCrop }
+                            Rectangle { visible: cell.modelData.k === "cat" && cell.modelData.cur; anchors { left: parent.left; bottom: parent.bottom; margins: ed.s * 5 }
+                                        width: curT.implicitWidth + ed.s * 12; height: ed.s * 20; radius: height / 2; color: "#CC0b1016"
+                                        Text { id: curT; anchors.centerIn: parent; text: qsTr("Actual"); color: ed.host.ink; font.family: ed.host.uiFont; font.pixelSize: ed.s * 12 } }
+                            Image { visible: cell.modelData.k === "local" && ed.localActive; anchors.fill: parent; asynchronous: true; smooth: true
+                                    source: ed.localActive ? "file://" + ed.current.path : ""; fillMode: Image.PreserveAspectCrop }
+                            Column {
+                                visible: cell.modelData.k !== "cat" && !(cell.modelData.k === "local" && ed.localActive)
+                                anchors.centerIn: parent; spacing: ed.s * 4
+                                LucideIcon { anchors.horizontalCenter: parent.horizontalCenter; width: ed.s * 26; height: width; color: ed.host.ink2
+                                             name: cell.modelData.k === "local" ? "folder-open" : (cell.modelData.k === "fit" ? "layout-grid" : (cell.modelData.k === "more" ? "chevron-right" : "eye-off")) }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 15
+                                       text: cell.modelData.k === "local" ? qsTr("Mi archivo…") : (cell.modelData.k === "fit" ? (ed.current && ed.current.fit === "fit" ? qsTr("Ajustar") : qsTr("Rellenar")) : (cell.modelData.k === "more" ? (ed.meta[ed.kind].loading ? qsTr("Cargando…") : qsTr("Ver más")) : qsTr("Original"))) }
+                            }
+                            Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"
+                                        border.width: cell.sel ? 3 : 1; border.color: cell.sel ? ed.host.accent : Qt.rgba(1, 1, 1, 0.12) }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    ed.index = cell.index
+                                    if (cell.modelData.k === "local") ed.chooseLocal()
+                                    else if (cell.modelData.k === "more") ed.loadMore()
+                                    else if (cell.modelData.k === "fit") ed.toggleFit()
+                                    else ed.applyCursor()
+                                }
+                            }
+                        }
+                    }
+                    Text { visible: ed.options[ed.kind].length <= 1 && !ed.meta[ed.kind].more; anchors.centerIn: parent; width: parent.width * 0.8; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                           color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 18
+                           text: ed.meta[ed.kind].loading ? qsTr("Cargando opciones…") : (!ed.meta[ed.kind].linked ? qsTr("Busca el juego por nombre o usa un archivo propio.") : qsTr("No hay otras imágenes de este tipo. Puedes usar un archivo tuyo.")) }
+                }
             }
         }
-    }
-    Row {
-        id: hints
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: ed.s * 48; bottomMargin: ed.s * 28 }
-        spacing: ed.s * 30
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("←↑↓→  Elegir") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("LB RB  Tipo") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("Y  Mi archivo") }
-        Text { visible: ed.localActive && ed.kind !== "logo"; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("X  Encuadre") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.editSearchWithPad ? qsTr("SELECT  Buscar") : qsTr("/  Buscar") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.showMatches ? qsTr("A  Elegir juego") : qsTr("A  Guardar") }
-        Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("B  Descartar") }
+
+        // ---- pie: ayudas (mando en Big Mode; teclado y ratón en Desktop) y, en Desktop, Cancelar / Guardar
+        Item {
+            id: footer
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: stage.pad; rightMargin: stage.pad; bottomMargin: ed.desktop ? 18 : ed.s * 28 }
+            height: ed.desktop ? 40 : hints.implicitHeight
+            Row {
+                id: hints
+                visible: !ed.desktop
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                spacing: ed.s * 30
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("←↑↓→  Elegir") }
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("LB RB  Tipo") }
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("Y  Mi archivo") }
+                Text { visible: ed.localActive && ed.kind !== "logo"; color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("X  Encuadre") }
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.editSearchWithPad ? qsTr("SELECT  Buscar") : qsTr("/  Buscar") }
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: ed.showMatches ? qsTr("A  Elegir juego") : qsTr("A  Guardar") }
+                Text { color: ed.host.ink2; font.family: ed.host.uiFont; font.pixelSize: ed.s * 20; text: qsTr("B  Descartar") }
+            }
+            Text {
+                visible: ed.desktop
+                anchors { left: parent.left; right: deskButtons.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                elide: Text.ElideRight
+                color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: Theme.font.size.small
+                text: qsTr("Clic para elegir · Tab cambia de tipo · O usa un archivo propio · F encuadre · Supr restaura · Esc cierra")
+            }
+            Row {
+                id: deskButtons
+                visible: ed.desktop
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                spacing: 10
+                Rectangle {
+                    width: cancelText.implicitWidth + 32; height: Theme.size.control; radius: Theme.radius.sm
+                    color: cancelMa.containsMouse ? Theme.color.glassFillStrong : Theme.color.inset; border.color: Theme.color.glassBorder
+                    Text { id: cancelText; anchors.centerIn: parent; text: qsTr("Cancelar"); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body }
+                    MouseArea { id: cancelMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.back() }
+                }
+                Rectangle {
+                    width: deskSave.implicitWidth + 36; height: Theme.size.control; radius: Theme.radius.sm
+                    color: ed.changed ? (deskSaveMa.containsMouse ? Theme.color.accentLight : Theme.color.accent) : Theme.color.inset
+                    border.color: ed.changed ? "transparent" : Theme.color.glassBorder
+                    opacity: ed.changed || ed.busy ? 1 : 0.6
+                    Text { id: deskSave; anchors.centerIn: parent; text: ed.busy ? qsTr("Guardando…") : qsTr("Guardar")
+                        color: ed.changed ? Theme.color.accentInk : Theme.color.muted; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; font.weight: Font.Bold }
+                    MouseArea { id: deskSaveMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ed.save() }
+                }
+            }
+        }
     }
 
     // explorador de archivos (mando y teclado) para elegir una imagen propia

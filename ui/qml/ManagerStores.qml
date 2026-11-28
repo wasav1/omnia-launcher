@@ -233,7 +233,7 @@ Item {
                 readonly property bool on: st.filter === modelData.k
                 readonly property int n: modelData.k === "all" ? st.allItems.length : st.count(modelData.k)
                 width: chipText.implicitWidth + st.s * 34; height: st.s * 38; radius: height / 2
-                color: on ? "#45CFC9" : (chipMa.containsMouse ? st.manager.surface2 : st.manager.surface)
+                color: on ? "#4DA3FF" : (chipMa.containsMouse ? st.manager.surface2 : st.manager.surface)
                 Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.l + (chip.n > 0 ? "  " + chip.n : "")
                        color: chip.on ? "#0B0F14" : st.manager.ink; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 14; font.weight: Font.DemiBold }
                 MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: st.filter = chip.modelData.k }
