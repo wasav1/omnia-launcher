@@ -49,6 +49,7 @@ from .events import EventBus
 from .games import refresh as games_refresh
 from . import descriptor, mangohud, sounds, suite_update
 from .games.base import Detector
+from .games.rom_folders import clean_title
 from .games.steam import download_jobs as steam_download_jobs
 from .transfer_metrics import TransferMetrics
 from .store import load_json
@@ -166,6 +167,8 @@ class Api:
             "/game/scan-folder": ("GET", True, self.game_scan_folder),
             "/rom/scan": ("GET", True, self.rom_scan),
             "/rom/add": ("POST", True, self.rom_add),
+            "/add/scan": ("GET", True, self.add_scan),
+            "/add/batch": ("POST", True, self.add_batch),
             "/game/remove": ("POST", True, self.game_remove),
             "/saves/suggest": ("GET", True, self.saves_suggest),
             "/import/find": ("GET", True, lambda q: {"candidates": importer.find_legacy()}),
@@ -1831,6 +1834,179 @@ class Api:
         except (OSError, RuntimeError) as exc:
             raise ApiError(400, "No se pudo revisar esa carpeta.") from exc
         return scan
+
+    # ── Añadir juegos (entrega 4): una carpeta → todo lo que se puede añadir, sin elegir el tipo a mano ──
+    def _classify_exe(self, candidate: dict) -> dict:
+        """Ejecutable encontrado → juego de PC o port conocido (misma regla que /game/suggest)."""
+        path = candidate["path"]
+        name = candidate.get("name") or Path(path).stem
+        if not candidate.get("recognized"):     # sin título propio: «hollow_knight» → la carpeta del juego, «Hollow Knight»
+            folder = next((p.name for p in Path(path).parents
+                           if p.name.casefold() not in {"bin", "bin64", "x64", "x86_64", "linux", "linux64", "game", "binaries", "win64"}), "")
+            if folder:
+                name = folder
+        item = {"type": "game", "path": path, "name": name, "kind": candidate.get("kind", "native"),
+                "template": "", "platform": candidate.get("platform", "pc"), "recognized": candidate.get("recognized", ""),
+                "existingId": candidate.get("existingId", "")}
+        if templates.bedrock_on_linux_appimage(path):
+            item.update(type="port", name="Minecraft Bedrock", kind="port", template="bedrock-on-linux",
+                        recognized="BedrockOnLinux · Minecraft Bedrock")
+            return item
+        port = port_catalog.identify(path)
+        if port:
+            item.update(type="port", name=port["game"], kind="port", template=port["template"], platform=port["platform"],
+                        recognized=port["port"], install=port.get("install", ""), priority=port.get("launcher_priority", 0))
+        return item
+
+    def _rom_owner(self, path: str) -> dict | None:
+        """Juego de la biblioteca que ya lanza esta ROM o volcado (None si ninguno)."""
+        real = os.path.realpath(path)
+        for game in self.store.games():
+            for port in game.get("ports", []):
+                if not isinstance(port, dict):
+                    continue
+                check = port.get("check", "")
+                check = os.path.realpath(os.path.expanduser(check)) if isinstance(check, str) and check else ""
+                argv = port.get("launch") or []
+                rom = port.get("rom") if isinstance(port.get("rom"), dict) else {}
+                if real in (check, rom.get("path")) or (isinstance(argv, list) and real in argv):
+                    return game
+        return None
+
+    def _exe_items(self, folder) -> tuple[list, bool]:
+        scan = executable_identity.scan_folder(folder, self._roots(), self.store.games(),
+                                               lambda: self._stores()["steam"].library())
+        items, ports = [], {}
+        for candidate in scan.get("candidates", []):
+            item = self._classify_exe(candidate)
+            if item["type"] == "port":            # un port con varios ejecutables (wrapper y binario) cuenta una vez
+                key = (item["template"], item.get("install") or os.path.dirname(item["path"]))
+                rank = (item.pop("priority", 0), port_catalog.version_key(item["path"]))
+                if key in ports and ports[key][0] >= rank:
+                    continue
+                ports[key] = (rank, item)
+            else:
+                items.append(item)
+        return [item for _, item in ports.values()] + items, bool(scan.get("limited"))
+
+    def _find_ports(self, names, exclude=(), first=()) -> list:
+        """Busca en las bibliotecas permitidas un port conocido del juego de una ROM o volcado (carpetas con el nombre del port,
+        sin bajar más de 4 niveles ni pasar de 4000 carpetas). Devuelve los que no están ya en la biblioteca."""
+        wanted = {port_catalog.normalize(f) for record in port_catalog.CATALOG.values()
+                  if any(online_catalog.words_match(record["game"], n) or online_catalog.words_match(n, record["game"]) for n in names)
+                  for f in record["folders"]}
+        if not wanted:
+            return []
+        found, visited = [], 0
+        roots = [r for r in first if self._allowed(r)] + fsbrowse._real_roots(self._roots())
+        for root in dict.fromkeys(os.path.realpath(r) for r in roots):     # primero la carpeta que se revisó
+            stack = [(root, 0)]
+            while stack and visited < 4000:
+                current, depth = stack.pop()
+                visited += 1
+                try:
+                    with os.scandir(current) as entries:
+                        dirs = [e.path for e in entries if not e.name.startswith(".") and e.is_dir(follow_symlinks=False)]
+                except OSError:
+                    continue
+                for path in dirs:
+                    if port_catalog.normalize(os.path.basename(path)) in wanted:
+                        try:
+                            exe_items, _ = self._exe_items(Path(path))
+                        except (OSError, RuntimeError, ValueError):
+                            continue
+                        found += [i for i in exe_items if i["type"] == "port" and not i["existingId"] and i["path"] not in exclude
+                                  and i["path"] not in {f["path"] for f in found}]
+                    elif depth < 4:
+                        stack.append((path, depth + 1))
+        return found
+
+    def add_scan(self, q):
+        """Todo lo que se puede añadir de una carpeta: ports conocidos, juegos de PC, ROMs y volcados, con su tipo ya decidido.
+
+        Cada elemento trae `key` (su ruta), `type` (port | game | rom), nombre, plataforma y `existingId` si ya está en la
+        biblioteca. Las ROMs traen también sistema y emuladores; si en la misma carpeta hay un port del mismo juego, `portKey`."""
+        raw = q.get("path")
+        if not isinstance(raw, str) or not raw or len(raw) > 4096 or "\0" in raw or not os.path.isabs(raw):
+            raise ApiError(400, "Elige una carpeta de juegos.")
+        try:
+            folder = Path(raw).resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ApiError(400, "Elige una carpeta de juegos.") from exc
+        if not folder.is_dir() or not self._allowed(str(folder)):
+            raise ApiError(403, "Esa carpeta está fuera de las bibliotecas permitidas.")
+        try:
+            exe_items, limited = self._exe_items(folder)
+        except (OSError, RuntimeError, ValueError):
+            exe_items, limited = [], False
+        try:
+            rom_scan = roms.scan(str(folder), self._roots())
+        except roms.RomScanError:
+            rom_scan = {"items": [], "truncated": False}
+        rom_items = []
+        dumps = [r["path"] for r in rom_scan.get("items", []) if r.get("format") == "folder"]
+        exe_items = [i for i in exe_items if not any(i["path"].startswith(d.rstrip("/") + "/") for d in dumps)]
+        for rom in rom_scan.get("items", []):
+            owner = self._rom_owner(rom["path"])
+            emulators = rom.get("emulators") or []
+            item = {"type": "rom", "path": rom["path"], "name": rom["name"] if rom.get("format") == "folder" else clean_title(rom.get("fileName", ""), rom["name"]),
+                    "platform": rom["system"], "system": rom["system"], "systemName": rom.get("systemName", ""),
+                    "systemOptions": rom.get("systemOptions", []), "emulators": emulators,
+                    "emulator": (emulators[0].get("id", "") if emulators and isinstance(emulators[0], dict) else ""),
+                    "dump": rom.get("format") == "folder" or rom["path"].lower().endswith(".nup"),
+                    "fileName": rom.get("fileName", ""), "existingId": owner["id"] if owner else ""}
+            port = next((p for p in exe_items if p["type"] == "port" and (online_catalog.words_match(p["name"], item["name"])
+                                                                          or online_catalog.words_match(item["name"], p["name"]))), None)
+            if port:
+                item["portKey"] = port["path"]
+            rom_items.append(item)
+        items = exe_items + rom_items
+        for item in items:
+            item["key"] = item["path"]
+            item.pop("install", None)
+            item.pop("priority", None)
+        order = {"port": 0, "game": 1, "rom": 2}
+        items.sort(key=lambda i: (order[i["type"]], bool(i["existingId"]), str(i.get("systemName", "")).casefold(), i["name"].casefold()))
+        return {"root": str(folder), "items": items, "limited": limited or bool(rom_scan.get("truncated"))}
+
+    def add_batch(self, q):
+        """Añade varios elementos de /add/scan de una vez. Los que fallan se cuentan aparte sin detener el resto.
+
+        Tras añadir una ROM o un volcado sin su port en la selección, busca ese port en las bibliotecas (`portsFound`); si no
+        aparece, la biblioteca ofrecerá «Instalar port» cuando el catálogo publique uno."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        raw = body.get("items")
+        if not isinstance(raw, list) or not raw or len(raw) > 300:
+            raise ApiError(400, "Elige qué añadir (hasta 300 a la vez).")
+        added, failed, rom_names = [], [], []
+        chosen = {str(i.get("path")) for i in raw if isinstance(i, dict)}
+        for item in raw:
+            if not isinstance(item, dict) or not isinstance(item.get("path"), str) or not isinstance(item.get("name"), str):
+                failed.append({"path": "", "error": "elemento no válido"})
+                continue
+            kind = item.get("type")
+            try:
+                if kind == "rom":
+                    out = self.rom_add({"_body": {"path": item["path"], "name": item["name"], "system": str(item.get("system", "")),
+                                                  "emulator": str(item.get("emulator", "")),
+                                                  "catalogSlug": str(item.get("catalogSlug") or "")}})
+                    rom_names.append(item["name"])
+                elif kind in ("port", "game"):
+                    data = {"name": item["name"], "exe": item["path"], "inspectExecutable": True, "platform": str(item.get("platform") or "pc")}
+                    if kind == "port" and item.get("template") in templates.TEMPLATES:
+                        data["template"] = item["template"]
+                    else:
+                        data["kind"] = "windows" if item["path"].lower().endswith(".exe") else "native"
+                    out = self.game_add({"_body": data})
+                else:
+                    raise ApiError(400, "tipo no válido")
+                added.append({"id": out["id"], "name": item["name"], "type": kind, "existing": bool(out.get("existing"))})
+            except ApiError as exc:
+                failed.append({"path": item["path"], "name": item["name"], "error": exc.msg})
+        self.bus.games_changed()
+        first = [body["root"]] if isinstance(body.get("root"), str) and os.path.isabs(body["root"]) else []
+        ports = self._find_ports(rom_names, exclude=chosen, first=first) if rom_names else []
+        return {"ok": bool(added), "added": added, "failed": failed, "portsFound": ports}
 
     def rom_scan(self, q):
         try:

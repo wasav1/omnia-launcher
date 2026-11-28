@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import threading
+import re
 import time
 
 from . import __version__, audio, big_mode, discord, gamemode, importer, mangohud, online_catalog, pad, paths, security
@@ -33,8 +34,8 @@ def auto_link_catalog(store, items) -> int:
             current = game.get("catalogSlug", "")
             if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
                 continue            # ya tiene una ficha válida (puede ser una elección manual del usuario)
-            is_rom = any(isinstance(q, dict) and isinstance(q.get("rom"), dict) for q in game.get("ports", []))
-            slug = online_catalog.match_local_game(game, items, fuzzy=is_rom)
+            # Nombre parecido para todos (entrega 4): solo se enlaza si hay una única candidata de la misma plataforma.
+            slug = online_catalog.match_local_game(game, items, fuzzy=True)
             if slug and slug != current:
                 game["catalogSlug"] = slug
                 changed += 1
@@ -55,7 +56,7 @@ def search_candidates(store, items) -> list:
         current = game.get("catalogSlug", "")
         if current and online_catalog.platform_compatible(game.get("platform"), platforms.get(current)):
             continue
-        for query in _search_queries(game.get("name")):
+        for query in art_queries(game.get("name"), trim=True)[:3]:
             try:
                 body = online_catalog.list_games({"q": query, "pageSize": 30})
             except online_catalog.CatalogError:
@@ -65,6 +66,21 @@ def search_candidates(store, items) -> list:
                     seen.add(str(item["slug"]))
                     out.append(item)
     return out
+
+
+def art_queries(*names, trim=False) -> list:
+    """Títulos para buscar, del más fiel al más suelto: el nombre tal cual, sus últimas palabras (solo con `trim`) y su forma
+    canónica (sin ®/™, edición ni romanos). Las últimas palabras solo sirven para buscar fichas, que luego se comprueban por
+    nombre; el arte se usa tal cual llega, así que no se busca con un trozo del título. Sin repetidos y como mucho cuatro."""
+    out, seen = [], set()
+    for name in names:
+        variants = _search_queries(name) if trim else [str(name or "").strip()]
+        for query in [*variants, online_catalog.canonical_title(name)]:
+            key = re.sub(r"[^a-z0-9]", "", query.lower())
+            if query and key not in seen:
+                seen.add(key)
+                out.append(query)
+    return out[:4]
 
 
 def _search_queries(name) -> list:
@@ -186,7 +202,11 @@ def sync_unlinked_art(store, game, retry_at) -> bool:
         # Manual imports keep the executable's ProductName/Desktop Entry title
         # as an art search alias, even if the visible library title was edited.
         art_title = (game.get("art") or {}).get("sgdb") if identified or game.get("src") == "Manual" else title
-        assets = online_catalog.lookup_pc_artwork(art_title or title, game.get("releaseYear"), steam_id)
+        assets = {}
+        for query in art_queries(art_title or title):      # nombre parecido: se prueba sin edición ni ®/™ si falla
+            assets = online_catalog.lookup_pc_artwork(query, game.get("releaseYear"), steam_id)
+            if assets:
+                break
     except online_catalog.CatalogError:
         return False
     found = {}

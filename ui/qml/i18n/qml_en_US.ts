@@ -4,150 +4,189 @@
 <context>
     <name>AddGame</name>
     <message>
-        <location filename="../AddGame.qml" line="+44"/>
-        <source>Emulador N64 (Gopher64)</source>
-        <translation>N64 emulator (Gopher64)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Minecraft Bedrock (BedrockOnLinux)</source>
-        <translation>Minecraft Bedrock (BedrockOnLinux)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Longshot (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>Longshot (The Legend of Zelda: Ocarina of Time port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Hookshot (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>Hookshot (The Legend of Zelda: Ocarina of Time port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>NX2navi (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>NX2navi (The Legend of Zelda: Ocarina of Time port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Savage Wind (port de The Legend of Zelda: Breath of the Wild)</source>
-        <translation>Savage Wind (The Legend of Zelda: Breath of the Wild port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>TOTK Recomp (port de The Legend of Zelda: Tears of the Kingdom)</source>
-        <translation>TOTK Recomp (The Legend of Zelda: Tears of the Kingdom port)</translation>
-    </message>
-    <message>
-        <location line="+16"/>
-        <source>No se pudo identificar este archivo</source>
-        <translation>Could not identify this file</translation>
-    </message>
-    <message>
-        <location line="+8"/>
-        <source>Reconocido como %1</source>
-        <translation>Recognized as %1</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Revisa el nombre antes de añadirlo.</source>
-        <translation>Check the name before adding it.</translation>
-    </message>
-    <message>
-        <location line="+19"/>
-        <source>Elige la ROM del juego</source>
-        <translation>Choose the game ROM</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Elige el ejecutable del port</source>
-        <translation>Choose the port executable</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>Juego de Windows (.exe) con Proton</source>
-        <translation>Windows game (.exe) with Proton</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Elige el .exe; Omnia lo ejecuta con umu-launcher</source>
-        <translation>Choose the .exe; Omnia runs it with umu-launcher</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Juego nativo u otro ejecutable</source>
-        <translation>Native game or other executable</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Elige el archivo que lo inicia</source>
-        <translation>Choose the file that launches it</translation>
-    </message>
-    <message>
-        <location line="+2"/>
+        <location filename="../AddGame.qml" line="+49"/>
         <source>Importar mi biblioteca anterior…</source>
         <translation>Import my previous library…</translation>
     </message>
     <message>
-        <location line="+0"/>
-        <source>Vista previa e importación de ports y emuladores de Bazzite</source>
-        <translation>Preview and import Bazzite ports and emulators</translation>
-    </message>
-    <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Cancelar</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location line="+6"/>
-        <source>Añadir «%1»</source>
-        <translation>Add “%1”</translation>
-    </message>
-    <message>
-        <location line="-4"/>
-        <location line="+9"/>
-        <source>Volver</source>
-        <translation>Back</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>Elegir su carpeta de partidas ahora</source>
-        <translation>Choose its save folder now</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Abre la gestión de partidas para este juego</source>
-        <translation>Open save management for this game</translation>
-    </message>
-    <message>
-        <location line="+0"/>
+        <location line="+16"/>
         <source>Cerrar</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location line="+8"/>
-        <source>No se pudo añadir la carpeta.</source>
-        <translation>Could not add the folder.</translation>
-    </message>
-    <message>
-        <location line="+43"/>
-        <source>Añadido a la biblioteca</source>
-        <translation>Added to library</translation>
-    </message>
-    <message>
-        <location line="+43"/>
-        <source>Añadir un juego</source>
-        <translation>Add a game</translation>
+        <location line="-23"/>
+        <source>Port</source>
+        <translation>Port</translation>
     </message>
     <message>
         <location line="+0"/>
-        <source>Nombre del juego</source>
-        <translation>Game name</translation>
+        <source>ROM</source>
+        <translation>ROM</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>PC</source>
+        <translation>PC</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Todo</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Elegir una carpeta</source>
+        <translation>Choose a folder</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Omnia revisa ports, juegos de PC, ROMs y volcados; luego eliges cuáles añadir</source>
+        <translation>Omnia checks ports, PC games, ROMs and dumps; then you choose which to add</translation>
     </message>
     <message>
         <location line="+1"/>
+        <source>Un solo archivo</source>
+        <translation>A single file</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Un ejecutable, AppImage, .exe o ROM concreto</source>
+        <translation>A specific executable, AppImage, .exe or ROM</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Vista previa e importación de ports y emuladores</source>
+        <translation>Preview and import ports and emulators</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Buscando juegos, ports y ROMs…</source>
+        <translation>Looking for games, ports and ROMs…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Añadiendo…</source>
+        <translation>Adding…</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Añadir %1 seleccionados</source>
+        <translation>Add %1 selected</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Buscar: %1</source>
+        <translation>Search: %1</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Buscar por nombre, consola o archivo</source>
+        <translation>Search by name, console or file</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Mostrando: %1 · LB/RB cambia</source>
+        <translation>Showing: %1 · LB/RB changes</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Ya en tu biblioteca</source>
+        <translation>Already in your library</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Su port está en la carpeta</source>
+        <translation>Its port is in the folder</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Añadir también el port: %1</source>
+        <translation>Also add the port: %1</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>No se pudo usar esa carpeta.</source>
+        <translation>That folder couldn&apos;t be used.</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>No se pudo revisar esa carpeta.</source>
+        <translation>That folder couldn&apos;t be checked.</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Omnia no reconoce ese archivo como juego, port o ROM.</source>
+        <translation>Omnia doesn&apos;t recognize that file as a game, port or ROM.</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>No se encontraron juegos, ports ni ROMs en esa carpeta.</source>
+        <translation>No games, ports or ROMs were found in that folder.</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>La carpeta es muy grande: se muestra una parte.</source>
+        <translation>The folder is very large: only part of it is shown.</translation>
+    </message>
+    <message>
+        <location line="+27"/>
+        <source>No se pudo añadir.</source>
+        <translation>Couldn&apos;t add.</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Se añadió 1 juego a la biblioteca.</source>
+        <translation>1 game was added to the library.</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Se añadieron %1 juegos a la biblioteca.</source>
+        <translation>%1 games were added to the library.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>%1 no se pudieron añadir.</source>
+        <translation>%1 couldn&apos;t be added.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Si hay un port publicado, la biblioteca mostrará «Instalar port».</source>
+        <translation>If a port is published, the library will show “Install port”.</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>Port añadido: %1</source>
+        <translation>Port added: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>No se pudo añadir el port.</source>
+        <translation>Couldn&apos;t add the port.</translation>
+    </message>
+    <message>
+        <location line="+79"/>
         <source>Listo</source>
         <translation>Done</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Elige qué añadir</source>
+        <translation>Choose what to add</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Añadir juegos</source>
+        <translation>Add games</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>A marcar  ·  X todos  ·  LB/RB tipo  ·  Y añadir  ·  SELECT buscar  ·  B volver</source>
+        <translation>A check  ·  X all  ·  LB/RB type  ·  Y add  ·  SELECT search  ·  B back</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -155,125 +194,39 @@
         <translation>↑↓ select  ·  Enter/A confirm  ·  Esc/B back</translation>
     </message>
     <message>
-        <location line="+6"/>
-        <source>¿Qué tipo de juego quieres añadir? Omnia sabe dónde guardan sus partidas los ports y emuladores compatibles.</source>
-        <translation>What kind of game do you want to add? Omnia knows where compatible ports and emulators store their save files.</translation>
+        <location line="+8"/>
+        <source>Steam, Epic, GOG, Heroic y Lutris se detectan solos. Para lo demás, elige una carpeta: Omnia reconoce cada juego, port o ROM.</source>
+        <translation>Steam, Epic, GOG, Heroic and Lutris are detected automatically. For everything else, choose a folder: Omnia recognizes each game, port or ROM.</translation>
     </message>
     <message>
-        <location line="+39"/>
-        <source>Elige la ROM</source>
-        <translation>Choose the ROM</translation>
+        <location line="+1"/>
+        <source>%1 de %2 marcados · %3</source>
+        <translation>%1 of %2 checked · %3</translation>
     </message>
     <message>
-        <location line="+0"/>
-        <source>Elige el ejecutable</source>
-        <translation>Choose the executable</translation>
+        <location line="+19"/>
+        <source>Elige la carpeta de juegos</source>
+        <translation>Choose the games folder</translation>
     </message>
     <message>
-        <location line="+10"/>
-        <source>Selecciona el ejecutable del juego</source>
-        <translation>Select the game executable</translation>
+        <location line="+12"/>
+        <source>Elige el archivo del juego</source>
+        <translation>Choose the game file</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>Selecciona el archivo del juego</source>
+        <translation>Select the game file</translation>
     </message>
     <message>
         <location line="+2"/>
-        <source>Ejecutables y juegos (*)</source>
-        <translation>Executables and games (*)</translation>
+        <source>Todos los archivos (*)</source>
+        <translation>All files (*)</translation>
     </message>
     <message>
-        <location line="+0"/>
-        <source>Ejecutables de Linux (*)</source>
-        <translation>Linux executables (*)</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Juegos de Windows (*.exe)</source>
-        <translation>Windows games (*.exe)</translation>
-    </message>
-    <message>
-        <location line="-196"/>
-        <source>Este juego ya está en tu biblioteca.</source>
-        <translation>This game is already in your library.</translation>
-    </message>
-    <message>
-        <location line="+31"/>
-        <source>Buscando juegos…</source>
-        <translation>Searching for games…</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Añadir sin vincular</source>
-        <translation>Add without linking</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <location line="+7"/>
+        <location line="-210"/>
         <source>Ver en la biblioteca</source>
         <translation>View in library</translation>
-    </message>
-    <message>
-        <location line="-5"/>
-        <source>Editar nombre</source>
-        <translation>Edit name</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>Buscar ficha</source>
-        <translation>Find catalog entry</translation>
-    </message>
-    <message>
-        <location line="+99"/>
-        <source>Elegir ficha del catálogo</source>
-        <translation>Choose catalog entry</translation>
-    </message>
-    <message>
-        <location line="-114"/>
-        <source>Buscar ejecutables en una carpeta</source>
-        <translation>Scan a folder for executables</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Omnia detecta ejecutables sin iniciarlos</source>
-        <translation>Omnia detects executables without running them</translation>
-    </message>
-    <message>
-        <location line="+9"/>
-        <source>Buscando ejecutables…</source>
-        <translation>Scanning for executables…</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Volver a elegir origen</source>
-        <translation>Choose source again</translation>
-    </message>
-    <message>
-        <location line="+22"/>
-        <source>No se pudieron revisar los ejecutables de la carpeta.</source>
-        <translation>Could not scan executables in the folder.</translation>
-    </message>
-    <message>
-        <location line="+82"/>
-        <source>Ejecutables encontrados</source>
-        <translation>Executables found</translation>
-    </message>
-    <message>
-        <location line="+10"/>
-        <source>Revisando archivos compatibles…</source>
-        <translation>Checking compatible files…</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Elige qué ejecutable quieres añadir. Omnia no lo iniciará durante la detección.</source>
-        <translation>Choose which executable to add. Omnia will not run it during detection.</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>No se encontraron ejecutables compatibles en la carpeta.</source>
-        <translation>No compatible executables were found in this folder.</translation>
-    </message>
-    <message>
-        <location line="+59"/>
-        <source>Elige la carpeta que quieres revisar</source>
-        <translation>Choose a folder to scan</translation>
     </message>
 </context>
 <context>
@@ -290,7 +243,7 @@
         <translation>Error %1</translation>
     </message>
     <message>
-        <location line="+103"/>
+        <location line="+106"/>
         <source>Ahorro de energía</source>
         <translation>Power saver</translation>
     </message>
@@ -1024,180 +977,243 @@
 <context>
     <name>ManagerAddGame</name>
     <message>
-        <location filename="../ManagerAddGame.qml" line="+55"/>
-        <source>Emulador N64 (Gopher64)</source>
-        <translation>N64 emulator (Gopher64)</translation>
+        <location filename="../ManagerAddGame.qml" line="+53"/>
+        <source>Port</source>
+        <translation>Port</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>Minecraft Bedrock (BedrockOnLinux)</source>
-        <translation>Minecraft Bedrock (BedrockOnLinux)</translation>
+        <location line="+0"/>
+        <source>ROM</source>
+        <translation>ROM</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>Longshot (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>Longshot (The Legend of Zelda: Ocarina of Time port)</translation>
+        <location line="+0"/>
+        <location line="+241"/>
+        <source>PC</source>
+        <translation>PC</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>Hookshot (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>Hookshot (The Legend of Zelda: Ocarina of Time port)</translation>
+        <location line="-230"/>
+        <source>No se pudo usar esa carpeta.</source>
+        <translation>That folder couldn&apos;t be used.</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>NX2navi (port de The Legend of Zelda: Ocarina of Time)</source>
-        <translation>NX2navi (The Legend of Zelda: Ocarina of Time port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Savage Wind (port de The Legend of Zelda: Breath of the Wild)</source>
-        <translation>Savage Wind (The Legend of Zelda: Breath of the Wild port)</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>TOTK Recomp (port de The Legend of Zelda: Tears of the Kingdom)</source>
-        <translation>TOTK Recomp (The Legend of Zelda: Tears of the Kingdom port)</translation>
+        <location line="+12"/>
+        <source>No se pudo revisar esa carpeta.</source>
+        <translation>That folder couldn&apos;t be checked.</translation>
     </message>
     <message>
         <location line="+10"/>
-        <source>Añadiendo la carpeta a tu biblioteca…</source>
-        <translation>Adding folder to your library…</translation>
+        <source>Omnia no reconoce ese archivo como juego, port o ROM.</source>
+        <translation>Omnia doesn&apos;t recognize that file as a game, port or ROM.</translation>
     </message>
     <message>
-        <location line="+3"/>
-        <source>No se pudo añadir la carpeta.</source>
-        <translation>Could not add the folder.</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <location line="+264"/>
-        <source>Buscando juegos…</source>
-        <translation>Finding games…</translation>
-    </message>
-    <message>
-        <location line="-229"/>
-        <source>Identificando el archivo…</source>
-        <translation>Identifying the file…</translation>
+        <location line="+1"/>
+        <source>No se encontraron juegos, ports ni ROMs en esa carpeta.</source>
+        <translation>No games, ports or ROMs were found in that folder.</translation>
     </message>
     <message>
         <location line="+23"/>
-        <source>Reconocido como %1</source>
-        <translation>Recognized as %1</translation>
+        <source>No se pudo añadir.</source>
+        <translation>Couldn&apos;t add.</translation>
     </message>
     <message>
-        <location line="-19"/>
-        <location line="+19"/>
-        <source>Revisa el nombre antes de añadirlo.</source>
-        <translation>Check the name before adding it.</translation>
+        <location line="+12"/>
+        <source>No se pudo añadir el port.</source>
+        <translation>Couldn&apos;t add the port.</translation>
     </message>
     <message>
-        <location line="+33"/>
-        <source>Elige la ROM del juego</source>
-        <translation>Choose the game ROM</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Elige el ejecutable del port</source>
-        <translation>Choose the port executable</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>Juego de Windows (.exe) con Proton</source>
-        <translation>Windows game (.exe) with Proton</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Omnia lo ejecuta con umu-launcher</source>
-        <translation>Omnia runs it with umu-launcher</translation>
-    </message>
-    <message>
-        <location line="+19"/>
+        <location line="+39"/>
         <source>Elige la carpeta de juegos</source>
         <translation>Choose the games folder</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+3"/>
         <source>Elige el archivo del juego</source>
         <translation>Choose the game file</translation>
     </message>
     <message>
+        <location line="+34"/>
+        <source>Listo</source>
+        <translation>Done</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Steam, Epic, GOG, Heroic y Lutris se detectan solos.</source>
+        <translation>Steam, Epic, GOG, Heroic and Lutris are detected automatically.</translation>
+    </message>
+    <message>
         <location line="+1"/>
-        <source>Archivos compatibles (%1)</source>
-        <translation>Compatible files (%1)</translation>
+        <source>Arte y ficha se buscan solos por el nombre del juego.</source>
+        <translation>Art and details are found automatically from the game&apos;s name.</translation>
+    </message>
+    <message>
+        <location line="+28"/>
+        <source>Elegir una carpeta</source>
+        <translation>Choose a folder</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Omnia revisa la carpeta y sus subcarpetas: ports, juegos de PC, ROMs y volcados (NUP, exefs + romfs). Luego eliges cuáles añadir.</source>
+        <translation>Omnia checks the folder and its subfolders: ports, PC games, ROMs and dumps (NUP, exefs + romfs). Then you choose which to add.</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Un solo archivo</source>
+        <translation>A single file</translation>
     </message>
     <message>
         <location line="+0"/>
+        <source>Un ejecutable, AppImage, .exe o ROM concreto</source>
+        <translation>A specific executable, AppImage, .exe or ROM</translation>
+    </message>
+    <message>
+        <location line="+29"/>
+        <source>Buscando juegos, ports y ROMs…</source>
+        <translation>Looking for games, ports and ROMs…</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>Buscar por nombre, consola o archivo</source>
+        <translation>Search by name, console or file</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>Todo</source>
+        <translation>All</translation>
+    </message>
+    <message>
         <location line="+0"/>
+        <source>Ports</source>
+        <translation>Ports</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>ROMs</source>
+        <translation>ROMs</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>Quitar todos</source>
+        <translation>Uncheck all</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Marcar todos</source>
+        <translation>Check all</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>%1 de %2 nuevos marcados</source>
+        <translation>%1 of %2 new checked</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>Ports reconocidos</source>
+        <translation>Recognized ports</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>ROMs y volcados</source>
+        <translation>ROMs and dumps</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Juegos de PC</source>
+        <translation>PC games</translation>
+    </message>
+    <message>
+        <location line="+29"/>
+        <source>Ya en tu biblioteca</source>
+        <translation>Already in your library</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Su port está en la carpeta</source>
+        <translation>Its port is in the folder</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Volcado</source>
+        <translation>Dump</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Nada coincide con «%1».</source>
+        <translation>Nothing matches “%1”.</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>Se añadió 1 juego a la biblioteca.</source>
+        <translation>1 game was added to the library.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Se añadieron %1 juegos a la biblioteca.</source>
+        <translation>%1 games were added to the library.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>No se añadió ningún juego nuevo.</source>
+        <translation>No new games were added.</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Encontramos el port de lo que añadiste</source>
+        <translation>We found the port for what you added</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>Añadir port</source>
+        <translation>Add port</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Si una ROM o un volcado tiene un port publicado en el catálogo, su ficha en la biblioteca mostrará «Instalar port».</source>
+        <translation>If a ROM or dump has a port published in the catalog, its library page will show “Install port”.</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>No se pudieron añadir</source>
+        <translation>Couldn&apos;t be added</translation>
+    </message>
+    <message>
+        <location line="+26"/>
+        <source>Enter cierra</source>
+        <translation>Enter closes</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>La carpeta es muy grande: se muestra una parte. Elige una subcarpeta para ver el resto.</source>
+        <translation>The folder is very large: only part of it is shown. Choose a subfolder to see the rest.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Clic o Espacio marca · Ctrl+F busca · Ctrl+A marca todos · Esc vuelve</source>
+        <translation>Click or Space checks · Ctrl+F searches · Ctrl+A checks all · Esc goes back</translation>
+    </message>
+    <message>
+        <location line="+23"/>
+        <source>Añadiendo…</source>
+        <translation>Adding…</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Añadir %1</source>
+        <translation>Add %1</translation>
+    </message>
+    <message>
+        <location line="-322"/>
         <source>Todos los archivos (*)</source>
         <translation>All files (*)</translation>
     </message>
     <message>
-        <location line="+26"/>
+        <location line="+33"/>
         <source>Añadir juego</source>
         <translation>Add game</translation>
     </message>
     <message>
-        <location line="+11"/>
-        <source>Origen</source>
-        <translation>Source</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Detección</source>
-        <translation>Detection</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Confirmación</source>
-        <translation>Confirmation</translation>
-    </message>
-    <message>
-        <location line="+28"/>
-        <source>¿Qué quieres añadir? Steam, Heroic y Lutris se detectan solos.</source>
-        <translation>What would you like to add? Steam, Heroic, and Lutris are detected automatically.</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>Carpeta de juegos</source>
-        <translation>Game folder</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Omnia detecta solo los juegos y ROMs que haya dentro</source>
-        <translation>Omnia detects games and ROMs in the folder automatically</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>ROM de consola</source>
-        <translation>Console ROM</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Busca ROMs en una carpeta y elige emulador</source>
-        <translation>Scan a folder for ROMs and choose an emulator</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Ejecutable o AppImage</source>
-        <translation>Executable or AppImage</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Juego nativo, AppImage o .exe de Windows</source>
-        <translation>Native game, AppImage, or Windows .exe</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Port o emulador compatible</source>
-        <translation>Compatible port or emulator</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Longshot, Gopher64, BedrockOnLinux y más</source>
-        <translation>Longshot, Gopher64, BedrockOnLinux, and more</translation>
-    </message>
-    <message>
-        <location line="+1"/>
+        <location line="+42"/>
         <source>Importar mi biblioteca anterior</source>
         <translation>Import my previous library</translation>
     </message>
@@ -1207,37 +1223,12 @@
         <translation>Preview and import ports and emulators</translation>
     </message>
     <message>
-        <location line="+32"/>
-        <source>Elige el tipo de juego</source>
-        <translation>Choose a game type</translation>
-    </message>
-    <message>
-        <location line="+25"/>
-        <source>Añadido a la biblioteca.</source>
-        <translation>Added to your library.</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>Nombre del juego</source>
-        <translation>Game name</translation>
-    </message>
-    <message>
-        <location line="+67"/>
-        <source>Cancelar</source>
-        <translation>Cancel</translation>
-    </message>
-    <message>
-        <location line="+0"/>
+        <location line="+234"/>
         <source>Atrás</source>
         <translation>Back</translation>
     </message>
     <message>
         <location line="+12"/>
-        <source>Siguiente</source>
-        <translation>Next</translation>
-    </message>
-    <message>
-        <location line="+0"/>
         <source>Terminar</source>
         <translation>Finish</translation>
     </message>
@@ -1245,67 +1236,6 @@
         <location line="+0"/>
         <source>Ver en la biblioteca</source>
         <translation>View in library</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Añadir a la biblioteca</source>
-        <translation>Add to library</translation>
-    </message>
-    <message>
-        <location line="-279"/>
-        <source>No se pudo identificar el archivo.</source>
-        <translation>Could not identify the file.</translation>
-    </message>
-    <message>
-        <location line="+9"/>
-        <source>Este juego ya está en tu biblioteca.</source>
-        <translation>This game is already in your library.</translation>
-    </message>
-    <message>
-        <location line="+207"/>
-        <source>Buscar ficha</source>
-        <translation>Find catalog entry</translation>
-    </message>
-    <message>
-        <location line="+8"/>
-        <source>Añadir sin vincular</source>
-        <translation>Add without linking</translation>
-    </message>
-    <message>
-        <location line="+7"/>
-        <source>Se muestran los primeros 80 ejecutables. Elige una subcarpeta para revisar más.</source>
-        <translation>Showing the first 80 executables. Choose a subfolder to scan more.</translation>
-    </message>
-    <message>
-        <location line="-264"/>
-        <source>Buscando ejecutables en la carpeta…</source>
-        <translation>Scanning the folder for executables…</translation>
-    </message>
-    <message>
-        <location line="+9"/>
-        <source>No se pudieron revisar los ejecutables de la carpeta.</source>
-        <translation>Could not scan executables in the folder.</translation>
-    </message>
-    <message numerus="yes">
-        <location line="+3"/>
-        <source>Se encontraron %n ejecutable(s). Elige uno para añadirlo.</source>
-        <translation>
-            <numerusform>Found %n executable. Choose one to add.</numerusform>
-            <numerusform>Found %n executables. Choose one to add.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <location line="+1"/>
-        <source>Se detectaron %n juego(s) nuevos. No hay ejecutables sueltos para importar.</source>
-        <translation>
-            <numerusform>Detected %n new game. No standalone executables are available to import.</numerusform>
-            <numerusform>Detected %n new games. No standalone executables are available to import.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>No se encontraron juegos ni ejecutables compatibles en esa carpeta.</source>
-        <translation>No games or compatible executables were found in this folder.</translation>
     </message>
 </context>
 <context>
@@ -5088,6 +5018,11 @@
         <location filename="../ManagerAddFlows.qml" line="+26"/>
         <source>Juego añadido a la biblioteca.</source>
         <translation>Game added to library.</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>%1 juegos añadidos a la biblioteca.</source>
+        <translation>%1 games added to the library.</translation>
     </message>
     <message>
         <location filename="../OmniaManager.qml" line="-138"/>

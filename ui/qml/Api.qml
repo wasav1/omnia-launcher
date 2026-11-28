@@ -496,6 +496,9 @@ QtObject {
     function templates(done) { call("GET", "/templates", done) }
     function addGame(body, done) { call("POST", "/game/add", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, body) }
     function suggestGame(path, done) { call("GET", "/game/suggest?path=" + encodeURIComponent(path), done) }
+    // Entrega 4: todo lo que se puede añadir de una carpeta (ports, PC, ROMs, volcados) y alta de varios a la vez.
+    function addScan(path, done) { call("GET", "/add/scan?path=" + encodeURIComponent(path), done) }
+    function addBatch(items, root, done) { call("POST", "/add/batch", function (st, b) { if (st === 200) api.refresh(); done(st, b) }, {items: items, root: root || ""}) }
     function scanGameFolder(path, done) { call("GET", "/game/scan-folder?path=" + encodeURIComponent(path), done) }
     function manualMatches(name, done) {
         catalogGames({q: name.trim(), page: 1, pageSize: 12}, function(status, body) {

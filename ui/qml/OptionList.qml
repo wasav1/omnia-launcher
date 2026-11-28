@@ -1,6 +1,7 @@
 import QtQuick
 
-// Lista vertical de opciones que se maneja con teclado, ratón y mando. items: [{text, sub, disabled, accent}].
+// Lista vertical de opciones que se maneja con teclado, ratón y mando. items: [{text, sub, disabled, accent, check, tag}].
+// `check` (true/false) dibuja una casilla a la izquierda; `tag`, una etiqueta a la derecha.
 ListView {
     id: lv
     property var items: []
@@ -44,8 +45,25 @@ ListView {
         color: cur ? Qt.rgba(lv.accentColor.r, lv.accentColor.g, lv.accentColor.b, 0.28) : (hov.containsMouse && !modelData.disabled ? Qt.rgba(1, 1, 1, 0.07) : "transparent")
         border.width: cur ? 2 : 0; border.color: Qt.lighter(lv.accentColor, 1.15)
         opacity: modelData.disabled ? 0.4 : 1
+        Rectangle {
+            id: box
+            visible: row.modelData.check !== undefined
+            anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+            width: 26; height: 26; radius: 8
+            color: row.modelData.check ? lv.accentColor : "transparent"
+            border.width: 2; border.color: row.modelData.check ? lv.accentColor : "#A9BDD3"
+            Text { anchors.centerIn: parent; visible: row.modelData.check === true; text: "✓"; color: "#06121F"; font.pixelSize: 17; font.bold: true }
+        }
+        Rectangle {
+            id: tag
+            visible: !!row.modelData.tag
+            anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+            width: tagText.implicitWidth + 20; height: 28; radius: 14; color: Qt.rgba(1, 1, 1, 0.08)
+            Text { id: tagText; anchors.centerIn: parent; text: row.modelData.tag || ""; color: "#C9D6E4"; font.pixelSize: 14; font.bold: true }
+        }
         Column {
-            anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }
+            anchors { verticalCenter: parent.verticalCenter; left: box.visible ? box.right : parent.left; right: tag.visible ? tag.left : parent.right
+                      leftMargin: box.visible ? 16 : 18; rightMargin: 18 }
             spacing: 2
             Text { width: parent.width; elide: Text.ElideRight; text: row.modelData.text; font.pixelSize: 19
                    color: row.modelData.accent ? "#7fd69f" : "#EEF4FB"; font.bold: row.modelData.accent === true }

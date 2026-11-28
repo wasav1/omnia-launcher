@@ -10,6 +10,7 @@ import hashlib
 import json
 import re
 import threading
+import unicodedata
 import time
 import urllib.error
 import urllib.parse
@@ -185,8 +186,33 @@ def platform_compatible(local_platform: str, catalog_platforms) -> bool:
     return not allowed or not known or bool(allowed & known)
 
 
+# Etiquetas de edición que se quitan: «edition» con su tipo (Special Edition…) y estas frases sueltas. Palabras como «gold» o «special»
+# solas no se quitan (Pokémon Gold no es Pokémon Silver).
+_EDITION_KINDS = ("special", "gold", "complete", "deluxe", "ultimate", "definitive", "anniversary", "premium", "collector'?s",
+                  "enhanced", "standard", "digital", "legendary", "platinum", "extended", "royal", "director'?s")
+_EDITION_WORDS = ("game of the year", "director's cut", "directors cut", "goty", "remastered")
+_ROMAN = {"ii": "2", "v": "5", "iii": "3", "iv": "4", "vi": "6", "vii": "7", "viii": "8", "ix": "9", "xi": "11", "xii": "12",
+          "xiii": "13", "xiv": "14", "xv": "15", "xvi": "16"}
+
+
+def canonical_title(value) -> str:
+    """Título para comparar nombres parecidos: sin ®/™/©, acentos ni etiquetas de edición, «&» como «and» y números romanos en cifras.
+
+    «The Witcher® 3: Wild Hunt – Game of the Year Edition» y «The Witcher 3 Wild Hunt» dan lo mismo. Se usa al buscar ficha
+    y arte; el nombre que se muestra no cambia."""
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[®™©]", " ", text).lower().replace("&", " and ")
+    text = re.sub(r"[\(\[][^)\]]*[\)\]]", " ", text)
+    for word in _EDITION_WORDS:
+        text = re.sub(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])", " ", text)
+    text = re.sub(r"(?<![a-z0-9])(?:(?:" + "|".join(_EDITION_KINDS) + r")\s+)?edition(?![a-z0-9])", " ", text)
+    words = [_ROMAN.get(w, w) for w in re.findall(r"[a-z0-9]+", text)]
+    return " ".join(words)
+
+
 def _name_key(value) -> str:
-    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+    return re.sub(r"[^a-z0-9]", "", canonical_title(value))
 
 
 _STOP_WORDS = {"the", "of", "a", "an", "and", "usa", "us", "europe", "eu", "japan", "jp", "rev", "v1", "ntsc", "pal"}
@@ -194,8 +220,7 @@ _STOP_WORDS = {"the", "of", "a", "an", "and", "usa", "us", "europe", "eu", "japa
 
 def _words(value) -> list:
     """Palabras significativas de un título o nombre de archivo: sin etiquetas entre ( ) o [ ] ni palabras vacías."""
-    text = re.sub(r"[\(\[][^)\]]*[\)\]]", " ", str(value or "").lower())
-    return [w for w in re.findall(r"[a-z0-9]+", text) if w not in _STOP_WORDS]
+    return [w for w in canonical_title(value).split() if w not in _STOP_WORDS]
 
 
 def _word_in(word: str, words: list) -> bool:

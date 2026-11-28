@@ -213,7 +213,8 @@ class NameMatching(unittest.TestCase):
         self.assertEqual(self.link("Mario Kart 64", platform="sw1"), "")                 # otra consola
         self.assertEqual(self.link("Legend of Zelda - Ocarina of Time (U) [!]", fuzzy=False), "")  # solo con ROMs
 
-    def test_service_uses_words_only_for_roms(self):
+    def test_service_links_similar_names_for_every_game(self):
+        """Entrega 4: la ficha se busca por nombre parecido en todos los juegos, no solo en las ROMs."""
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         st = Store(tmp)
@@ -221,5 +222,5 @@ class NameMatching(unittest.TestCase):
             {"id": "r", "name": "Mario Kart 64 (USA)", "platform": "n64", "ports": [{"id": "p", "rom": {"path": "/x"}}]},
             {"id": "m", "name": "Mario Kart 64 (USA)", "platform": "n64", "ports": [{"id": "p"}]},
         ])
-        self.assertEqual(service.auto_link_catalog(st, self.CAT), 1)
-        self.assertEqual({g["id"]: g.get("catalogSlug") for g in st.games()}, {"r": "mk64", "m": None})
+        self.assertEqual(service.auto_link_catalog(st, self.CAT), 2)
+        self.assertEqual({g["id"]: g.get("catalogSlug") for g in st.games()}, {"r": "mk64", "m": "mk64"})

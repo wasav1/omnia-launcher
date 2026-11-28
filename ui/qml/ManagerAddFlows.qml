@@ -25,6 +25,11 @@ Item {
                 addFlows.manager.openGameInLibrary({id: id})
                 addFlows.api.notify(qsTranslate("OmniaManager", "Juego añadido a la biblioteca."))
             }
+            onAddedMany: function(count) {
+                addFlows.manager.addWizardOpen = false
+                addFlows.api.refresh()
+                addFlows.api.notify(qsTranslate("OmniaManager", "%1 juegos añadidos a la biblioteca.").arg(count))
+            }
             onImportRequested: function(path) {
                 addFlows.manager.importPath = path
                 addFlows.manager.addWizardOpen = false
