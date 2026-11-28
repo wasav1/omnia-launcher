@@ -172,18 +172,18 @@ Item {
                 required property var modelData
                 readonly property var g: modelData.game
                 readonly property bool on: g.id === ml.selId && ml.detailShown
-                width: gameList.width; height: Theme.size.listRow - 8; radius: Theme.radius.sm
+                width: gameList.width; height: Theme.size.listRow; radius: Theme.radius.sm
                 color: on ? Theme.color.accentSoft : (rowMa.containsMouse ? Theme.color.glassFill : "transparent")
                 Row {
                     anchors { left: parent.left; leftMargin: 8; right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
                     spacing: 10
                     Item {
-                        width: 34; height: 34; anchors.verticalCenter: parent.verticalCenter
-                        Rectangle { anchors.fill: parent; radius: 8; color: Theme.color.inset }
-                        FadedImage { anchors.fill: parent; source: row.g.portada || ""; cornerRadius: 8 }
+                        width: Theme.size.listThumb; height: Theme.size.listThumb; anchors.verticalCenter: parent.verticalCenter
+                        Rectangle { anchors.fill: parent; radius: 9; color: Theme.color.inset }
+                        FadedImage { anchors.fill: parent; source: row.g.portada || ""; cornerRadius: 9 }
                     }
-                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 44; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : (row.g.updateAvailable ? "  ⟳" : "")); elide: Text.ElideRight
-                        color: row.g.hidden ? Theme.color.muted : Theme.color.ink; font.family: ml.font; font.pixelSize: Theme.font.size.body; font.weight: row.on ? Font.DemiBold : Font.Normal }
+                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - Theme.size.listThumb - 10; text: row.g.name + (row.g.fav ? "  ★" : "") + (row.g.portAvailable ? "  ⬇" : (row.g.updateAvailable ? "  ⟳" : "")); elide: Text.ElideRight
+                        color: row.g.hidden ? Theme.color.muted : Theme.color.ink; font.family: ml.font; font.pixelSize: Theme.font.size.bodyLarge + 1; font.weight: row.on ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: mouse => { if (mouse.button === Qt.RightButton) manager.openGameMenu(row.g); else ml.selectGame(row.g.id) }
@@ -244,9 +244,10 @@ Item {
         width: Theme.size.panelDetail
         visible: ml.detailShown
         z: 5
-        strong: ml.detailFloating
-        glass: !ml.detailFloating
-        fill: ml.detailFloating ? "#D90A0F17" : Theme.color.glassFill      // flotante: casi opaca para no mezclarse con el Catálogo
+        // Casi opaca siempre (anclada o flotante): el texto de la ficha se lee sobre un fondo parejo.
+        strong: true
+        glass: false
+        fill: "#D90A0F17"
         backdrop: ml.backdrop
         backdropRect: ml.backdropRectOf(detail)
 

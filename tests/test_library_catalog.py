@@ -86,6 +86,12 @@ Window {
         if (cat.columns !== 4) return fail("688 px -> 4 columns, got " + cat.columns)
         cat.width = 1084
         if (cat.columns !== 6) return fail("1084 px -> 6 columns, got " + cat.columns)
+        if (cat.layout.width !== 163) return fail("cards must grow to fill: " + cat.layout.width)
+        cat.width = 2400
+        if (cat.columns !== 6 || cat.layout.width !== 240 || cat.layout.height !== 321) return fail("max 6 columns of 240 px: " + JSON.stringify(cat.layout))
+        cat.width = 300
+        if (cat.columns !== 1 || cat.layout.width !== 240) return fail("narrow " + JSON.stringify(cat.layout))
+        cat.width = 1084
         if (cat.items.length !== 4) return fail("items " + cat.items.length)
         cat.text = "red DEAD"
         if (cat.items.length !== 1) return fail("filter " + cat.items.length)

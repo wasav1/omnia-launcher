@@ -28,7 +28,8 @@ GlassPanel {
         if (!q) return all
         return all.filter(i => normalize(i.name + " " + (i.store || "") + " " + (i.platform || "")).includes(q))
     }
-    readonly property int columns: Theme.posterColumns(width - 2 * pad)
+    readonly property var layout: Theme.posterLayout(width - 2 * pad)
+    readonly property int columns: layout.columns
 
     function choose(entry) {
         const m = cat.manager
@@ -166,8 +167,8 @@ GlassPanel {
 
         Column {
             id: gridBody
-            readonly property real gridWidth: cat.columns * Theme.size.posterWidth + (cat.columns - 1) * Theme.size.posterGap
-            x: cat.pad
+            readonly property real gridWidth: cat.columns * cat.layout.width + (cat.columns - 1) * Theme.size.posterGap
+            x: Math.max(cat.pad, (grid.width - gridWidth) / 2)
             y: 6
             width: gridWidth
             spacing: 14
@@ -182,7 +183,7 @@ GlassPanel {
                     delegate: Item {
                         id: cell
                         required property var modelData
-                        width: Theme.size.posterWidth; height: Theme.size.posterHeight
+                        width: cat.layout.width; height: cat.layout.height
                         z: poster.hovered ? 1 : 0
                         ManagerPosterCard {
                             id: poster

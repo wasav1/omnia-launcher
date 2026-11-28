@@ -94,6 +94,8 @@ var size = {
     posterWidth: 152,
     posterHeight: 203,
     posterGap: 14,
+    posterMaxWidth: 240,   // las carátulas crecen hasta aquí para llenar el ancho…
+    posterMaxColumns: 6,   // …sin pasar de 6 columnas; si sobra espacio, la cuadrícula se centra
 
     listRow: 56,
     listThumb: 40,
@@ -119,6 +121,16 @@ var breakpoint = {
 function posterColumns(width) {
     var w = size.posterWidth + size.posterGap;
     return Math.max(1, Math.floor((width + size.posterGap) / w));
+}
+
+// Distribución de la cuadrícula del Catálogo: tantas columnas como quepan con la carátula
+// mínima (máx. 6) y carátulas estiradas para llenar el ancho, hasta posterMaxWidth.
+// La proporción se conserva (152 × 203).
+function posterLayout(width) {
+    var columns = Math.min(size.posterMaxColumns, posterColumns(width));
+    var w = Math.floor((width - (columns - 1) * size.posterGap) / columns);
+    w = Math.max(size.posterWidth, Math.min(size.posterMaxWidth, w));
+    return { columns: columns, width: w, height: Math.round(w * size.posterHeight / size.posterWidth) };
 }
 
 // Ancho del Catálogo según la ventana y si la ficha está abierta.
