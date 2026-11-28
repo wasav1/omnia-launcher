@@ -189,5 +189,15 @@ Desktop, Big Mode, and Omnia service · Included</translation>
     <message><source>Omnia %1 ya está instalado. Este asistente contiene %2.</source><translation>Omnia %1 is already installed. This installer contains %2.</translation></message>
     <message><source>Polkit solicita autorización para actualizar los paquetes.</source><translation>Polkit requests authorization to update the packages.</translation></message>
     <message><source>Reiniciar ahora</source><translation>Restart now</translation></message>
+    <message>
+        <location filename="wizard.cpp" line="333"/>
+        <source>Último paso para el panel rápido: en Ajustes de Dux → Complementos, activa «Panel de Omnia». Después, en Widgets de la barra → Agregar widget, añade «Panel de Omnia».</source>
+        <translation>Last step for the quick panel: in Dux Settings → Plugins, enable “Panel de Omnia”. Then, in Bar widgets → Add widget, add “Panel de Omnia”.</translation>
+    </message>
+    <message>
+        <location filename="wizard.cpp" line="339"/>
+        <source>Abrir Ajustes de Dux</source>
+        <translation>Open Dux Settings</translation>
+    </message>
 </context>
 </TS>

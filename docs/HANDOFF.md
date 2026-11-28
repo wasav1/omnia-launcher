@@ -1,6 +1,6 @@
 # Omnia — guía de traspaso (para continuar con otra persona o IA)
 
-Actualizada: 2026-11-26. Léela entera, luego `AGENTS.md` (reglas) y la sección 5 de `docs/CONTEXTO.md` (estado). El historial detallado está al final de CONTEXTO.md.
+Actualizada: 2026-11-28. Léela entera, luego `AGENTS.md` (reglas) y la sección 5 de `docs/CONTEXTO.md` (estado). El historial detallado está al final de CONTEXTO.md.
 
 ## 1. Cómo trabaja el dueño del proyecto
 - Idioma: español. Explicaciones cortas, sin jerga innecesaria.
@@ -39,6 +39,7 @@ Backend (`~/Proyectos/omnia-backend`): `npx vitest run` (346), `python3 -m unitt
 - Backend: `src/` (Hono), `migrations/`, `seeds/`, `tools/release-packages/{build_packages,discover}.py + ports.json`, `tools/game-metadata/apply.py`.
 
 ## 5. Pendientes por prioridad
+- Asistente 0.4.0-6: probar en una instalación nueva con Dux que la página final muestre el último paso del panel rápido y que «Abrir Ajustes de Dux» abra los ajustes; sin Dux, el aviso no debe aparecer.
 - Antes de la fase 5: el usuario validó 0.3.0-139. Probar 0.3.0-140 con el instalador único en Hyprland, detectar la versión instalada, mantener biblioteca y cuentas, abrir el paso opcional de tiendas y verificar Desktop, BM y Dux. Con la primera versión posterior publicada, validar la descarga compartida y el reinicio de las ventanas y del servicio. Después del visto bueno, preparar commits, PR, merge y release.
 1. **Acciones del usuario**: la regresión de modularidad está cerrada; el usuario validó 0.3.0-133/134/135 en BM. Quedan verificaciones generales de producto: Inicio y Explorar completos; Ajustes (General, Biblioteca, Big Mode, Cuentas de tiendas y Acerca de); fichas de catálogo/tienda e instalación de un port; escáner de ROMs; alta/importación; menús de gestión de juegos; imágenes y transferencias; y mando físico en Desktop, BM y panel rápido. También falta revisar Desktop en 800×560, 1024×768 y tamaño habitual, y Hyprland en monitores bajos/estrechos. Los flujos del servicio real, tiendas y publicación están enumerados en los puntos 2–5 y requieren intervención/cuentas del usuario.
 2. **Discord** (solo Big Mode): nivel A presencia HECHO (`core/omnia/discord.py`, pestaña Discord de los ajustes de BM; falta probarlo con el Application ID del usuario), nivel B voz (Client Secret tecleado por el usuario en su terminal). Discord Flatpak: socket `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-0` requiere un `flatpak override`.

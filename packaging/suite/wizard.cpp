@@ -329,7 +329,31 @@ int main(int argc, char **argv)
             QObject::connect(button, &QPushButton::clicked, done, [mode = entry.second] { launch(mode); });
             doneLayout->addWidget(button);
         }
-        wizard.addPage(done);
+        // Dux no deja que otro programa añada widgets a su barra: el último paso lo hace el usuario.
+        auto *duxStep = new QLabel(QObject::tr("Último paso para el panel rápido: en Ajustes de Dux → Complementos, "
+                                               "activa «Panel de Omnia». Después, en Widgets de la barra → Agregar widget, "
+                                               "añade «Panel de Omnia»."));
+        duxStep->setObjectName("duxStep");
+        duxStep->setWordWrap(true);
+        duxStep->setStyleSheet("QLabel#duxStep { background:#16283b; border:1px solid #2f5677; border-radius:10px; padding:12px; }");
+        auto *duxSettings = new QPushButton(QObject::tr("Abrir Ajustes de Dux"));
+        QObject::connect(duxSettings, &QPushButton::clicked, done, [] {
+            QProcess process;
+            process.setProcessEnvironment(hostEnvironment());
+            process.setProgram("/usr/bin/dms");
+            process.setArguments({"ipc", "call", "settings", "focusOrToggle"});
+            process.startDetached();
+        });
+        doneLayout->addSpacing(12);
+        doneLayout->addWidget(duxStep);
+        doneLayout->addWidget(duxSettings);
+        const int donePage = wizard.addPage(done);
+        QObject::connect(&wizard, &QWizard::currentIdChanged, done, [=](int page) {
+            if (page != donePage) return;
+            const bool showDux = dux && dux->isChecked();
+            duxStep->setVisible(showDux);
+            duxSettings->setVisible(showDux);
+        });
     }
     wizard.show();
     return app.exec();

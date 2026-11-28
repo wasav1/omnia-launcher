@@ -94,6 +94,8 @@ integración con Dux (botón con el logo y estado del mando dentro del popout), 
 
 ## 7. Registro de cambios
 
+- 2026-11-28 — La página final del asistente (`packaging/suite/wizard.cpp`) explica el último paso del panel rápido cuando se eligió la integración con Dux: activar «Panel de Omnia» en Ajustes de Dux → Complementos y añadirlo en Widgets de la barra. Incluye el botón «Abrir Ajustes de Dux» (`dms ipc call settings focusOrToggle`, con el entorno del sistema). Motivo: Dux no permite que otro programa añada widgets a su barra y, tras instalar 0.4.0, el panel no aparecía hasta hacerlo a mano. Traducción inglesa en `wizard_en_US.ts`; prueba `tests/test_suite_wizard_dux_step.py`. Pasaron 695 pruebas y el asistente compila. Instalador 0.4.0-6.
+
 - 2026-11-26 — Las pruebas de importación e instalación ya pueden simular la detección de umu-run, y la descarga de ports configura TLS explícitamente en todas las versiones de Python admitidas. Ruff y la suite en Python 3.11–3.14 terminaron sin fallos. Instaladores 0.4.0-5.
 
 - 2026-11-26 — El PR #3 detenía Python en Ruff y QML en la directiva Translator. Se fijaron las reglas de comprobación de código de Ruff, se retiraron importaciones sin uso, se ligó el estado de cada mando a sus funciones y se mantuvo el contexto OmniaLibrary con qsTranslate. La prueba de geometría usa un código de salida explícito. Pasaron las 692 pruebas, Ruff y la compilación de 92 archivos QML. Instaladores 0.4.0-4.
