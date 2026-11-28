@@ -189,18 +189,17 @@ Item {
         Qt.callLater(function() {
             if (!bigStore.visible || bigStore.detail || !grid.headerItem) return
             if (bigStore.zone === 3 && bigStore.gridGames.length) {
-                grid.positionViewAtIndex(bigStore.gridIndex, GridView.Contain)
                 const card = grid.itemAtIndex(bigStore.gridIndex)
-                if (card && bigStore.filtersPinned && card.y < grid.contentY + stickyFilters.height)
-                    grid.contentY = card.y - stickyFilters.height
+                if (!card) { grid.positionViewAtIndex(bigStore.gridIndex, GridView.Contain); return }
+                const sticky = bigStore.filtersPinned ? stickyFilters.height : 0
+                smoothGrid.showRange(card.y - sticky, card.y + card.height, bigStore.s * 12)
                 return
             }
             const header = grid.headerItem
-            if (bigStore.zone === 0) grid.positionViewAtBeginning()
-            else if (bigStore.zone === 1) grid.contentY = header.y + header.recentRow.y
+            if (bigStore.zone === 0) smoothGrid.scrollTo(grid.originY)
+            else if (bigStore.zone === 1) smoothGrid.scrollTo(header.y + header.recentRow.y)
             else if (bigStore.zone === 2 && !bigStore.filtersPinned)
-                grid.contentY = header.y + header.filterRow.y
-            grid.returnToBounds()
+                smoothGrid.scrollTo(header.y + header.filterRow.y)
         })
     }
     function selectGrid(index) {
@@ -297,8 +296,8 @@ Item {
         }
         if (key === "LB" || key === "RB") { setFilter(filter + (key === "LB" ? -1 : 1)); return }
         if (key === "X") { search(); return }
-        if (key === "Y" || key === "START") { host.openDownloads(); return }
-        if (key === "B") { host.openLibrary(); return }
+        if (key === "Y") { host.openDownloads(); return }
+        if (key === "B") { host.back(); return }
         if (key === "u" || key === "d") {
             if (zone === 3) {
                 const next = gridIndex + (key === "u" ? -columns : columns)
@@ -416,6 +415,7 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         keyNavigationEnabled: false
+        SmoothScroll { id: smoothGrid; view: grid }
         cellWidth: Math.max(1, Math.floor(width / bigStore.columns))
         cellHeight: bigStore.cardHeight + bigStore.cardGap
         model: bigStore.accounts.ready ? bigStore.gridGames : []

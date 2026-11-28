@@ -121,9 +121,28 @@ Item {
         }
     }
 
-    Rectangle {
+    Rectangle {          // Ver todos (también Y en el mando y V en el teclado)
+        id: viewAllBtn
         visible: head.host.page === "library"
         anchors { left: searchBox.right; leftMargin: head.host.s * 8; verticalCenter: parent.verticalCenter }
+        width: viewAllRow.implicitWidth + head.host.s * 28; height: head.host.s * 42; radius: height / 2
+        color: viewAllMa.containsMouse ? head.host.surface : "#b30b0f14"
+        border.width: head.host.mainNavIndex === head.host.viewAllIndex ? 3 : 1
+        border.color: head.host.mainNavIndex === head.host.viewAllIndex ? head.host.ring : head.host.surfaceBorder
+        Accessible.name: qsTranslate("OmniaLibrary", "Ver todos")
+        Accessible.role: Accessible.Button
+        Row {
+            id: viewAllRow
+            anchors.centerIn: parent; spacing: head.host.s * 8
+            LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: head.host.s * 19; height: width; name: "layout-grid"; color: head.host.ink }
+            Text { anchors.verticalCenter: parent.verticalCenter; text: qsTranslate("OmniaLibrary", "Ver todos"); color: head.host.ink; font.family: head.host.uiFont; font.pixelSize: head.host.s * 17 }
+        }
+        MouseArea { id: viewAllMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: head.host.openAll() }
+    }
+
+    Rectangle {
+        visible: head.host.page === "library"
+        anchors { left: viewAllBtn.right; leftMargin: head.host.s * 8; verticalCenter: parent.verticalCenter }
         width: head.host.s * 42; height: width; radius: width / 2
         color: addMouse.containsMouse ? head.host.surface : "#b30b0f14"
         border.width: head.host.mainNavIndex === head.host.addIndex ? 3 : 1

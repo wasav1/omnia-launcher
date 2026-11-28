@@ -140,8 +140,9 @@ Item {
     property bool addOpen: false
     property string addImportPath: ""
     property string addedGameId: ""
-    readonly property int addIndex: page === "library" ? 4 : -1
-    readonly property int updateIndex: page === "library" ? 5 : 4
+    readonly property int viewAllIndex: page === "library" ? 4 : -1
+    readonly property int addIndex: page === "library" ? 5 : -1
+    readonly property int updateIndex: page === "library" ? 6 : 4
     readonly property int menuIndex: updateIndex + (suiteNotice.available ? 1 : 0)
     readonly property int gearIndex: menuIndex
     // Efecto cristal de la barra (Ajustes → Apariencia); se apaga mientras haya un juego abierto.
@@ -172,7 +173,7 @@ Item {
     onPageChanged: { mainNavIndex = -1; searchFocus = false; searchOpen = false }
     function focusMainNav(preferStore) {
         searchFocus = false
-        mainNavIndex = page === "downloads" ? 3 : preferStore === true || page === "store" ? 2 : page === "home" ? 0 : 1
+        mainNavIndex = page === "downloads" ? 3 : page === "store" ? 2 : page === "home" ? 0 : 1
         lib.forceActiveFocus()
     }
     function activateMainNav(i) {
@@ -184,6 +185,7 @@ Item {
         else if (i === menuIndex) quickMenu.show()
         else if (suiteNotice.available && i === updateIndex) suiteNotice.activate()
         else if (i === addIndex) openAddGame()
+        else if (i === viewAllIndex) openAll()
     }
     function handleMainNav(key) {
         if (mainNavIndex < 0) return false
@@ -229,6 +231,7 @@ Item {
     function closeArt() { page = "library"; lib.forceActiveFocus() }
     function openDownloads() {
         if (page !== "downloads") downloadsFrom = page
+        remember("downloads")
         page = "downloads"; downloads.forceActiveFocus()
     }
     function restorePage(from) {
@@ -240,7 +243,7 @@ Item {
         else if (from === "settings") settings.forceActiveFocus()
         else lib.forceActiveFocus()
     }
-    function closeDownloads() { restorePage(downloadsFrom); pollDownloads() }
+    function closeDownloads() { if (!backSection()) restorePage(downloadsFrom); pollDownloads() }
     Timer { interval: 2000; repeat: true; running: api.ok && lib.visible && lib.page !== "downloads"; triggeredOnStart: true; onTriggered: lib.pollDownloads() }
     function openSettings() {
         if (page !== "settings") settingsFrom = page
@@ -259,7 +262,7 @@ Item {
         sfx.play("confirm")
         lib.closeRequested()
     }
-    function openAll() { if (!api.games.length) return; page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
+    function openAll() { if (!api.games.length) return; remember("all"); page = "all"; allGames.selId = current ? current.id : ""; allGames.rebuild(); lib.forceActiveFocus() }
     // ---- menú contextual del juego (X / clic derecho / M)
     GameActions { id: gameActions }
     function menuItems(g) { return gameActions.entries(g) }
@@ -334,9 +337,25 @@ Item {
         portDialog.show(g.updateAvailable, g.name, g.id)
     }
     function openKeyboard() { searchFocus = false; searchOpen = false; vkb.show(searchText) }
-    function openLibrary() { page = "library"; lib.forceActiveFocus() }
-    function openHome() { page = "home"; lib.forceActiveFocus() }
-    function openStore() { page = "store"; bigStoreView.open(); bigStoreView.forceActiveFocus() }
+    // ---- historial: B vuelve a la sección anterior (Inicio → Biblioteca → Catálogo → Descargas, en el orden en que llegaste)
+    readonly property var sectionPages: ["home", "library", "store", "downloads", "all"]
+    property var sectionHistory: []
+    function remember(next) {
+        if (page === next || sectionPages.indexOf(page) < 0) return
+        sectionHistory = sectionHistory.filter(p => p !== page).concat([page]).slice(-12)
+    }
+    function backSection() {
+        const list = sectionHistory.slice()
+        let prev = list.pop()
+        while (prev && prev === page) prev = list.pop()
+        sectionHistory = list
+        if (prev) { restorePage(prev); if (prev === "store") bigStoreView.open(); return true }
+        if (page !== "home") { openHome(); return true }
+        return false
+    }
+    function openLibrary() { remember("library"); page = "library"; lib.forceActiveFocus() }
+    function openHome() { remember("home"); page = "home"; lib.forceActiveFocus() }
+    function openStore() { remember("store"); page = "store"; bigStoreView.open(); bigStoreView.forceActiveFocus() }
     function openLocalFromHome(id, thenPlay) {
         const at = api.games.findIndex(g => g.id === id)
         if (at < 0) return
@@ -494,12 +513,11 @@ Item {
         if (page === "art") closeArt()
         else if (page === "downloads") closeDownloads()
         else if (page === "settings") closeSettings()
-        else if (page === "all") openLibrary()
         else if (detailsOpen) closeDetails()
         else if (page === "home" && home.detail) home.closeCatalogDetails()
-        else if (page === "home") openLibrary()
         else if (showSystem) showSystem = false
         else if (searchOpen || searchText) { searchText = ""; searchOpen = false; lib.forceActiveFocus() }
+        else backSection()
     }
     function duration(secs) {
         const m = Math.round(secs / 60)
@@ -551,8 +569,9 @@ Item {
         function onPadKey(k) {
             if (intro.active) { intro.skip(); return }
             if (suiteNotice.pad(k)) return
-            if (quickMenu.open) { lib.padSound(k === "MODE" ? "B" : k); quickMenu.pad(k); return }
-            if (k === "MODE" && !lib.exitConfirmOpen && !api.covered) { lib.padSound("X"); quickMenu.show(); return }
+            // Start abre y cierra el Menú rápido en todo Big Mode (el botón Guía queda libre para el sistema).
+            if (quickMenu.open) { lib.padSound(k === "START" ? "B" : k); quickMenu.pad(k); return }
+            if (k === "START" && !lib.exitConfirmOpen && !api.covered && !vkb.open && !portDialog.open && !lib.addOpen) { lib.padSound("X"); quickMenu.show(); return }
             if (lib.exitConfirmOpen) {
                 if (k === "l" || k === "r") { lib.exitConfirmChoice = lib.exitConfirmChoice === 0 ? 1 : 0; sfx.play("move") }
                 else if (k === "A") lib.finishExitConfirmation()
@@ -564,9 +583,9 @@ Item {
             if (vkb.open) { vkb.pad(k); return }
             if (lib.addOpen) return
             if (ctxMenu.open) { ctxMenu.pad(k); return }
-            if (k === "START" && transferBar.visible && lib.page !== "downloads") { lib.openDownloads(); return }
             if (lib.handleMainNav(k)) return
-            if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(true); return }
+            // Select lleva a la barra superior desde cualquier sección (↑ desde la primera fila también llega).
+            if (k === "SELECT" && lib.mainNavVisible && !home.detail && !bigStoreView.detail) { lib.focusMainNav(); return }
             if (lib.page === "store") { bigStoreView.pad(k); return }
             if (lib.searchFocus) {
                 if (k === "A") lib.openKeyboard()
@@ -576,7 +595,6 @@ Item {
             }
             if (lib.page === "art") { artEditor.pad(k); return }
             if (lib.page === "downloads") { downloads.pad(k); return }
-            if (k === "START" && lib.dlBusy + lib.dlFailed > 0) { lib.openDownloads(); return }
             if (lib.page === "settings") { settings.pad(k); return }
             if (lib.page === "all") { allGames.pad(k); return }
             if (lib.page === "home") {
@@ -684,7 +702,8 @@ Item {
     Item {
         id: gameBackdrop
         anchors.fill: parent
-        opacity: (lib.page === "home" || lib.page === "store") || (lib.page === "all" && allGames.viewMode === "list") ? 0 : 1   // en la lista cada fila lleva su propio hero
+        // El arte del juego elegido solo se ve en la estantería (Biblioteca); las demás pantallas usan el fondo de Omnia.
+        opacity: lib.page === "library" ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.InOutQuad } }
         OmniaBackdrop {
@@ -803,7 +822,7 @@ Item {
         uiScale: lib.s * 1.30
         ink: lib.ink
         accent: lib.ring
-        shortcutHint: lib.padOn ? "START" : "F8"
+        shortcutHint: lib.padOn ? qsTr("Descargas en la barra") : "F8"
         onClicked: if (lib.page !== "downloads") lib.openDownloads()
     }
     Shortcut {
@@ -849,8 +868,10 @@ Item {
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["LT", "RT"] : []; glyph: qsTr("RePág / AvPág"); label: qsTr("Página") }
             Hint { visible: lib.page === "library"; padKeys: lib.padOn ? ["Y"] : []; glyph: "V"; label: qsTr("Ver todos") }
             Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["Y"] : []; glyph: "L"; label: qsTr("Cuadrícula/Lista") }
-            Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["START"] : []; glyph: "G"; label: qsTr("Agrupar") }
-            Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: lib.page === "store" ? qsTr("Barra superior") : qsTr("Ir a Tienda") }
+            Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["LT"] : []; glyph: "O"; label: qsTr("Ordenar") }
+            Hint { visible: lib.page === "all"; padKeys: lib.padOn ? ["RT"] : []; glyph: "G"; label: qsTr("Agrupar") }
+            Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: qsTr("Barra superior") }
+            Hint { visible: lib.padOn; padKeys: ["START"]; label: qsTr("Menú rápido") }
             Hint { visible: (lib.page === "store" && !bigStoreView.detail) || (lib.page === "home" && !home.detail); padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail && !bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
@@ -873,7 +894,7 @@ Item {
         x: lib.contentInset - lib.s * 48; y: lib.s * 92
         width: lib.width - x - lib.s * 40
         height: lib.height - y - lib.s * 112 - (transferBar.visible ? transferBar.height + lib.s * 15 : 0)
-        onCloseRequested: lib.openLibrary()
+        onCloseRequested: lib.backSection()
         onPlayRequested: function(g) { lib.play(g) }
         onDetailsRequested: function(g) { lib.selectById(g.id); lib.openDetails() }
         onSelectionChanged2: function(g) { lib.selectById(g.id) }
@@ -967,6 +988,7 @@ Item {
         ink2: lib.ink2
         surface: lib.surface
         accent: lib.accent
+        onHeaderRequested: lib.focusMainNav()
         onOpenLocalGame: function(id) { lib.openLocalFromHome(id) }
         onPlayLocalGame: function(id) { lib.openLocalFromHome(id, true) }
         onOpenSection: function(section) {

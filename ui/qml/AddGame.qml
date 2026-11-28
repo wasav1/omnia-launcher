@@ -214,19 +214,19 @@ FocusScope {
         Column {
             anchors.fill: parent
             spacing: 12
-            Text { visible: ag.stage === "kind"; width: parent.width; wrapMode: Text.WordWrap; color: "#c9bf8a"; font.pixelSize: 16
+            Text { visible: ag.stage === "kind"; width: parent.width; wrapMode: Text.WordWrap; color: "#C9D6E4"; font.pixelSize: 16
                    text: qsTr("¿Qué tipo de juego quieres añadir? Omnia sabe dónde guardan sus partidas los ports y emuladores compatibles.") }
-            Text { visible: ag.stage === "folder"; width: parent.width; wrapMode: Text.WordWrap; color: "#c9bf8a"; font.pixelSize: 16
+            Text { visible: ag.stage === "folder"; width: parent.width; wrapMode: Text.WordWrap; color: "#C9D6E4"; font.pixelSize: 16
                    text: ag.busy ? qsTr("Revisando archivos compatibles…") : (ag.folderCandidates.length ? qsTr("Elige qué ejecutable quieres añadir. Omnia no lo iniciará durante la detección.") : qsTr("No se encontraron ejecutables compatibles en la carpeta.")) }
-            Text { visible: ag.stage === "name"; width: parent.width; elide: Text.ElideMiddle; color: "#c9bf8a"; font.pixelSize: 16; text: ag.file }
-            Text { visible: ag.stage === "name"; width: parent.width; wrapMode: Text.WordWrap; color: ag.recognized ? "#7fd69f" : "#c9bf8a"; font.pixelSize: 15; text: ag.note }
-            Text { visible: ag.stage === "name" && ag.identity !== ""; width: parent.width; color: "#c9bf8a"; font.pixelSize: 15; text: ag.identity }
+            Text { visible: ag.stage === "name"; width: parent.width; elide: Text.ElideMiddle; color: "#C9D6E4"; font.pixelSize: 16; text: ag.file }
+            Text { visible: ag.stage === "name"; width: parent.width; wrapMode: Text.WordWrap; color: ag.recognized ? "#7fd69f" : "#C9D6E4"; font.pixelSize: 15; text: ag.note }
+            Text { visible: ag.stage === "name" && ag.identity !== ""; width: parent.width; color: "#C9D6E4"; font.pixelSize: 15; text: ag.identity }
             Rectangle {
                 visible: ag.stage === "name"; width: parent.width; height: 52; radius: 26; color: Qt.rgba(1, 1, 1, 0.08)
                 TextInput {
                     id: nameInput
                     anchors { fill: parent; leftMargin: 22; rightMargin: 22 }
-                    verticalAlignment: TextInput.AlignVCenter; color: "#f4efd8"; font.pixelSize: 22; clip: true
+                    verticalAlignment: TextInput.AlignVCenter; color: "#EEF4FB"; font.pixelSize: 22; clip: true
                     text: ag.name
                     onTextChanged: ag.name = text
                     Keys.onPressed: function (e) {

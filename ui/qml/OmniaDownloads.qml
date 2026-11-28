@@ -65,7 +65,8 @@ Item {
         else if (isBad(j)) dl.host.api.dismissInstallations(j.id, dl.after)
     }
     function pad(k) {
-        if (k === "u") selectRow(index - 1)
+        if (k === "u" && index <= 0 && dl.withBar) dl.host.focusMainNav()
+        else if (k === "u") selectRow(index - 1)
         else if (k === "d") selectRow(index + 1)
         else if (k === "A") primary()
         else if (k === "X") secondary()

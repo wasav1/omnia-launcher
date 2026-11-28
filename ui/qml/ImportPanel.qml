@@ -34,7 +34,7 @@ FocusScope {
         })
     }
     function mark(status) { return status === "new" ? "plus" : (status === "existing" ? "check" : "minus") }
-    function color(status) { return status === "new" ? "#7fd69f" : (status === "existing" ? "#c9bf8a" : "#8c8560") }
+    function color(status) { return status === "new" ? "#7fd69f" : (status === "existing" ? "#C9D6E4" : "#A9BDD3") }
 
     Component.onCompleted: { load(); forceActiveFocus() }
     focus: true
@@ -64,7 +64,7 @@ FocusScope {
         Column {
             anchors.fill: parent
             spacing: 10
-            Text { width: parent.width; wrapMode: Text.WordWrap; color: "#c9bf8a"; font.pixelSize: 16
+            Text { width: parent.width; wrapMode: Text.WordWrap; color: "#C9D6E4"; font.pixelSize: 16
             text: ip.plan ? qsTr("%1 nuevos · %2 ya importados · %3 omitidos").arg(ip.plan.summary.new).arg(ip.plan.summary.existing).arg(ip.plan.summary.skip) : qsTr("Leyendo la biblioteca…") }
             Repeater { model: ip.plan ? ip.plan.warnings : []
                        Text { required property string modelData; width: parent.width; wrapMode: Text.WordWrap; text: "⚠ " + modelData; color: "#e6c27a"; font.pixelSize: 15 } }
@@ -82,7 +82,7 @@ FocusScope {
                            text: parent.modelData.name; color: ip.color(parent.modelData.status); font.pixelSize: 16 }
                     Text { x: parent.width * 0.46 + 30; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.54 - 40; elide: Text.ElideRight
                            text: parent.modelData.status === "new" ? parent.modelData.src + (parent.modelData.hasSaves ? "  ·  con carpeta de partidas" : "") : parent.modelData.reason
-                           color: "#a89f74"; font.pixelSize: 14 }
+                           color: "#A9BDD3"; font.pixelSize: 14 }
                 }
             }
         }

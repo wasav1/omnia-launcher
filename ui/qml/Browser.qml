@@ -76,7 +76,7 @@ Modal {
     Column {
         anchors.fill: parent
         spacing: 10
-        Text { width: parent.width; elide: Text.ElideMiddle; text: br.listing.path; color: "#c9bf8a"; font.pixelSize: 16 }
+        Text { width: parent.width; elide: Text.ElideMiddle; text: br.listing.path; color: "#C9D6E4"; font.pixelSize: 16 }
         ListView {
             width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: 8; clip: true
             model: br.listing.shortcuts
@@ -85,7 +85,7 @@ Modal {
                 required property int index
                 height: 34; width: sct.width + 28; radius: 17
                 color: br.listing.path === modelData.path ? "#2e8b57" : Qt.rgba(1, 1, 1, 0.08)
-                Text { id: sct; anchors.centerIn: parent; text: parent.modelData.name; color: "#f4efd8"; font.pixelSize: 15 }
+                Text { id: sct; anchors.centerIn: parent; text: parent.modelData.name; color: "#EEF4FB"; font.pixelSize: 15 }
                 MouseArea { cursorShape: Qt.PointingHandCursor; anchors.fill: parent; onClicked: { br.shortcutIdx = parent.index; br.go(parent.modelData.path) } }
             }
         }

@@ -106,7 +106,7 @@ FocusScope {
             anchors.fill: parent
             spacing: 12
             Text { width: parent.width; wrapMode: Text.WordWrap; text: sp.stage === "confirm" ? qsTr("¿Restaurar «%1»?").arg(sp.pendingFile) : sp.statusText()
-                   color: "#c9bf8a"; font.pixelSize: 16; lineHeight: 1.15 }
+                   color: "#C9D6E4"; font.pixelSize: 16; lineHeight: 1.15 }
             Text { visible: sp.note !== ""; width: parent.width; wrapMode: Text.WordWrap; text: sp.note; color: "#7fd69f"; font.pixelSize: 16 }
             OptionList {
                 id: list

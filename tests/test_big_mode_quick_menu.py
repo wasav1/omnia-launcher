@@ -16,7 +16,7 @@ class BigModeBarSource(unittest.TestCase):
         lib = (QML / 'OmniaLibrary.qml').read_text()
         self.assertIn('label:qsTr("Catálogo")', lib)
         self.assertIn('{key:"downloads", label:qsTr("Descargas")}', lib)
-        self.assertIn('if (k === "MODE" && !lib.exitConfirmOpen && !api.covered)', lib)
+        self.assertIn('if (k === "START" && !lib.exitConfirmOpen && !api.covered', lib)   # Start, no el botón Guía
         self.assertIn('else if (i === menuIndex) quickMenu.show()', lib)
         header = (QML / 'OmniaBigHeader.qml').read_text()
         self.assertNotIn('id: gearBtn', header)
@@ -107,8 +107,8 @@ Window {
         if (!settingsAsked || menu.open) return fail("settings closes the menu and asks the host")
         menu.show(); menu.current = menu.items.length - 1; menu.pad("A"); menu.pad("A")
         if (fakeApi.powered !== "shutdown" || menu.open) return fail("second press powers off: " + fakeApi.powered)
-        menu.show(); menu.pad("MODE")
-        if (menu.open) return fail("Guide closes the menu")
+        menu.show(); menu.pad("START")
+        if (menu.open) return fail("Start closes the menu")
         Qt.exit(CHECKS_OK)
     }
 }

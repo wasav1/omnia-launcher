@@ -329,6 +329,7 @@ Item {
         Flickable {
             id: bodyFlick
             anchors { left: parent.left; right: parent.right; top: rule.bottom; bottom: parent.bottom; topMargin: det.s * 28 }
+            Behavior on contentY { enabled: !bodyFlick.dragging && !bodyFlick.flicking; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             contentWidth: width
             contentHeight: bodyLoader.item ? Number(bodyLoader.item["implicitHeight"] || 0) : 0 // qmllint disable missing-property
             clip: true

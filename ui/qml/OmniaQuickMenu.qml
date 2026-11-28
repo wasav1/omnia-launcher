@@ -3,12 +3,12 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "Theme.js" as Theme
 
-/** Menú rápido de Big Mode (rediseño D, fase 5a). Se abre con el botón Guía del mando, con el
+/** Menú rápido de Big Mode (rediseño D, fase 5a). Se abre con el botón Start del mando, con el
  *  botón de la barra superior o con Ctrl+M. Reúne lo que se cambia sin salir del sofá: volumen,
  *  perfil de energía y límite de FPS (fase 7), HUD de rendimiento, todos los ajustes, volver al escritorio,
  *  suspender y apagar.
  *
- *  Mando: ↑/↓ mueven, ←/→ cambian el volumen o el interruptor, A elige, B o Guía cierran.
+ *  Mando: ↑/↓ mueven, ←/→ cambian el valor, A elige, B o Start cierran.
  *  Apagar pide confirmación: hay que elegirlo dos veces. */
 Item {
     id: menu
@@ -117,7 +117,7 @@ Item {
         else if (k === "l") adjust(-1)
         else if (k === "r") adjust(1)
         else if (k === "A") activate(current)
-        else if (k === "B" || k === "MODE") hide()
+        else if (k === "B" || k === "START") hide()
         return true
     }
     Keys.onPressed: function(e) {

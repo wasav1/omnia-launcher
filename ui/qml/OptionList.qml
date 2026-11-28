@@ -4,7 +4,7 @@ import QtQuick
 ListView {
     id: lv
     property var items: []
-    property color accentColor: "#336599"
+    property color accentColor: "#4DA3FF"
     signal activated(int index)
     model: items
     clip: true
@@ -48,8 +48,8 @@ ListView {
             anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }
             spacing: 2
             Text { width: parent.width; elide: Text.ElideRight; text: row.modelData.text; font.pixelSize: 19
-                   color: row.modelData.accent ? "#7fd69f" : "#f4efd8"; font.bold: row.modelData.accent === true }
-            Text { visible: !!row.modelData.sub; width: parent.width; elide: Text.ElideRight; text: row.modelData.sub || ""; color: "#a89f74"; font.pixelSize: 14 }
+                   color: row.modelData.accent ? "#7fd69f" : "#EEF4FB"; font.bold: row.modelData.accent === true }
+            Text { visible: !!row.modelData.sub; width: parent.width; elide: Text.ElideRight; text: row.modelData.sub || ""; color: "#A9BDD3"; font.pixelSize: 14 }
         }
         MouseArea { cursorShape: Qt.PointingHandCursor; id: hov; anchors.fill: parent; hoverEnabled: true
                     onClicked: { if (row.modelData.disabled) return; lv.setIndex(row.index); lv.activated(row.index) } }

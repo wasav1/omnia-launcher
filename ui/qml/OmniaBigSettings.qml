@@ -124,13 +124,14 @@ Item {
                     : !account ? qsTr("Estado sin consultar.")
                     : !account.available ? qsTr("La tienda no está disponible en este equipo.")
                     : account.logged_in ? (account.account || qsTr("Conectada")) : qsTr("Sin conectar")
+                // Una sola fila por tienda: el botón principal y, si aplica, un segundo botón al lado
+                // (abrir el inicio de sesión en tu navegador, o cancelar el que está en curso). ←/→ eligen el botón.
+                const alt = browser ? { id: "store-cancel", text: qsTr("Cancelar") }
+                    : (id !== "steam" && account?.available && !account.logged_in && !pending) ? { id: "store-browser", text: qsTr("En el navegador") } : null
                 out.push({ id:"store-account", store:id, kind:pending || !account?.available ? "info" : "action",
-                    label:accounts.names[id], desc:desc,
+                    label:accounts.names[id], desc:desc, alt:alt,
                     text:confirm ? qsTr("Confirmar desconexión") : browser ? qsTr("Pegar retorno")
                          : account?.logged_in ? qsTr("Desconectar") : qsTr("Conectar") })
-                if (browser) out.push({id:"store-cancel", kind:"action", label:qsTr("Inicio de sesión del navegador"), text:qsTr("Cancelar")})
-                else if (id !== "steam" && account?.available && !account.logged_in && !pending)
-                    out.push({id:"store-browser", store:id, kind:"action", label:qsTr("Conectar %1 en el navegador").arg(accounts.names[id]), text:qsTr("Abrir")})
             }
             out.push({id:"store-refresh", kind:"action", label:qsTr("Estado de las cuentas"), text:qsTr("Actualizar")})
             if (accounts.message) out.push({id:"store-message", kind:"info", label:accounts.message})
@@ -167,7 +168,10 @@ Item {
 
     // ---------------- acciones ----------------
     function clampStep(r, dir) { return Math.max(r.min, Math.min(r.max, r.value + dir * r.step)) }
+    property bool altFocus: false            // en una fila con dos botones, el foco está en el segundo
+    onCurChanged: altFocus = false
     function adjust(r, dir) {
+        if (r.kind === "action" && r.alt) { set.altFocus = dir < 0; set.play("move"); return }
         if (r.kind === "slider") {
             const v = set.clampStep(r, dir)
             if (v === r.value) return
@@ -211,6 +215,7 @@ Item {
     }
     function activate(r) {
         const a = set.api
+        if (set.altFocus && r.alt) { set.altFocus = false; set.activate({ id: r.alt.id, store: r.store }); return }
         switch (r.id) {
         case "store-root": set.host.chooseStoreInstallRoot(message => set.note(message)); break
         case "store-refresh": set.storeAccounts.refreshStores(); break
@@ -359,7 +364,8 @@ Item {
         currentIndex: set.cur
         boundsBehavior: Flickable.StopAtBounds
         highlightFollowsCurrentItem: false
-        onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+        SmoothScroll { id: smoothList; view: list; margin: set.s * 12 }
+        onCurrentIndexChanged: smoothList.show(currentIndex)
         delegate: Item {
             id: row
             required property var modelData
@@ -390,8 +396,21 @@ Item {
                     fillMode: Image.PreserveAspectFit
                     sourceSize: Qt.size(160, 160)
                 }
+                Rectangle {        // segundo botón de la fila (p. ej. «En el navegador»)
+                    id: altBox
+                    visible: !!row.modelData.alt
+                    anchors { right: ctrl.left; rightMargin: set.s * 12; verticalCenter: parent.verticalCenter }
+                    width: visible ? altText.implicitWidth + set.s * 44 : 0; height: set.s * 52; radius: height / 2
+                    readonly property bool focused: row.focusRow && set.altFocus
+                    color: focused ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(1, 1, 1, 0.08)
+                    border.width: focused ? Math.max(2, set.s * 3) : 1
+                    border.color: focused ? set.host.ink : Qt.rgba(1, 1, 1, 0.20)
+                    Text { id: altText; anchors.centerIn: parent; text: row.modelData.alt ? row.modelData.alt.text : ""; color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 22 }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: { set.cur = row.index; set.altFocus = true; set.activate(row.modelData) } }
+                }
                 Column {
-                    anchors { left: accountLogo.right; right: ctrl.left; verticalCenter: parent.verticalCenter; leftMargin: accountLogo.visible ? set.s * 22 : 0; rightMargin: set.s * 16 }
+                    anchors { left: accountLogo.right; right: altBox.visible ? altBox.left : ctrl.left; verticalCenter: parent.verticalCenter; leftMargin: accountLogo.visible ? set.s * 22 : 0; rightMargin: set.s * 16 }
                     spacing: set.s * 2
                     Text { width: parent.width; text: row.modelData.label; elide: Text.ElideRight; color: set.host.ink; font.family: set.host.uiFont; font.pixelSize: set.s * 26; font.weight: Font.DemiBold }
                     Text { visible: !!row.modelData.desc; width: parent.width; text: row.modelData.desc || ""; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: set.host.ink2; font.family: set.host.uiFont; font.pixelSize: set.s * 19 }
@@ -416,7 +435,8 @@ Item {
                         implicitWidth: Math.min(set.s * 460, choiceRow.implicitWidth + set.s * 44)
                         width: implicitWidth; height: parent.height; radius: height / 2
                         color: row.modelData.kind === "action" ? set.host.accent : Qt.rgba(1, 1, 1, 0.08)
-                        border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.20)
+                        border.width: row.focusRow && row.modelData.alt && !set.altFocus ? Math.max(2, set.s * 3) : 1
+                        border.color: row.focusRow && row.modelData.alt && !set.altFocus ? set.host.ink : Qt.rgba(1, 1, 1, 0.20)
                         Row {
                             id: choiceRow; anchors.centerIn: parent; spacing: set.s * 14
                             Text { visible: row.modelData.kind === "choice"; text: "◀"; color: row.focusRow ? set.host.ink : set.host.ink2; font.pixelSize: set.s * 18; anchors.verticalCenter: parent.verticalCenter }

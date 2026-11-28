@@ -69,6 +69,7 @@ Item {
         Flickable {
             id: scroll
             anchors.fill: parent
+            Behavior on contentY { enabled: !scroll.dragging && !scroll.flicking; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             anchors.margins: menu.uiScale * 18
             clip: true
             contentWidth: width

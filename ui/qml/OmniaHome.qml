@@ -38,6 +38,7 @@ Item {
     signal installRequested(var game)
     signal playLocalGame(string id)
     signal openSection(string section)            // library | favorites | system | settings
+    signal headerRequested()                      // ↑ desde la primera fila: foco a la barra superior
 
     // ---------- novedades de tus tiendas (fase 5c) ----------
     property var deals: []
@@ -242,6 +243,7 @@ Item {
             return
         }
         if (zone === 0) {
+            if (dir === "up") { home.headerRequested(); return }
             if (dir === "left") carousel.advance(-1)
             else if (dir === "right") carousel.advance(1)
             else if (dir === "down") { zone = 1; gridRow = 0; gridCol = cellExists(0, 0) ? 0 : 2 }

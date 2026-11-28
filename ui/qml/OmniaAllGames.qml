@@ -113,7 +113,7 @@ Item {
         sel = Math.max(0, Math.min(items.length - 1, i))
         selId = items[sel].id
         const r = rowOf(sel)
-        if (r >= 0) list.positionViewAtIndex(r, ListView.Contain)
+        if (r >= 0) smoothRows.show(r, all.s * 12)
         selectionChanged2(items[sel])
     }
     function vertical(d) {
@@ -145,10 +145,8 @@ Item {
         else if (k === "B") closeRequested()
         else if (k === "LB") stepRail(-1)
         else if (k === "RB") stepRail(1)
-        else if (k === "LT") setSize(-1)
-        else if (k === "RT") setSize(1)
-        else if (k === "SELECT") cycleSort()
-        else if (k === "START") grouped = !grouped
+        else if (k === "LT") cycleSort()
+        else if (k === "RT") grouped = !grouped
         else if (k === "Y") viewMode = viewMode === "grid" ? "list" : "grid"
     }
     function key(e) {
@@ -244,6 +242,7 @@ Item {
     // ---- contenido
     ListView {
         id: list
+        SmoothScroll { id: smoothRows; view: list }
         x: all.railW + all.s * 20
         y: all.s * 64
         width: all.gridW
