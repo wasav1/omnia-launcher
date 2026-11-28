@@ -94,6 +94,8 @@ integración con Dux (botón con el logo y estado del mando dentro del popout), 
 
 ## 7. Registro de cambios
 
+- 2026-11-28 — Se documentó el plan del rediseño «D · Aurora + Estudio» en `docs/PLAN-REDISENO-D.md`: cristal unificado para Desktop, Big Mode y el panel de Dux; navegación superior en Desktop con tamaños fijos; Biblioteca + Catálogo en tres paneles con buscadores independientes y ficha oculta hasta elegir; Inicio centrado en novedades de las tiendas; Ajustes como menú propio; Big Mode con Menú rápido y la estantería sin cambios. Ocho fases (0–7) y tres decisiones pendientes (botones del mando, fuente de ofertas, coste del cristal). Solo documentación; no cambia código.
+
 - 2026-11-26 — Las pruebas de importación e instalación ya pueden simular la detección de umu-run, y la descarga de ports configura TLS explícitamente en todas las versiones de Python admitidas. Ruff y la suite en Python 3.11–3.14 terminaron sin fallos. Instaladores 0.4.0-5.
 
 - 2026-11-26 — El PR #3 detenía Python en Ruff y QML en la directiva Translator. Se fijaron las reglas de comprobación de código de Ruff, se retiraron importaciones sin uso, se ligó el estado de cada mando a sus funciones y se mantuvo el contexto OmniaLibrary con qsTranslate. La prueba de geometría usa un código de salida explícito. Pasaron las 692 pruebas, Ruff y la compilación de 92 archivos QML. Instaladores 0.4.0-4.
