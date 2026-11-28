@@ -3,7 +3,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 
-/** Fichas superpuestas de catálogo y ofertas; las acciones siguen en el gestor anfitrión. */
+/** Fichas superpuestas de catálogo y ofertas; las acciones siguen en el gestor anfitrión.
+ *  En Biblioteca no se usan: ahí la misma ficha se muestra en el panel derecho (CatalogDetailPanel). */
 Item {
     id: details
     required property var manager
@@ -11,7 +12,7 @@ Item {
     required property var stores
     signal chooseInstallFolder()
 Rectangle {
-    anchors.fill: parent; visible: details.manager.detailGame !== null; z: 10; color: "#99000000"
+    anchors.fill: parent; visible: details.manager.detailGame !== null && details.manager.page !== "library"; z: 10; color: "#99000000"
     MouseArea { anchors.fill: parent; onClicked: details.manager.detailGame = null }
     Rectangle {
         anchors.centerIn: parent; width: Math.min(parent.width * 0.8, details.manager.s * 920); height: details.manager.s * 520; radius: details.manager.s * 24; color: details.manager.surface; clip: true
@@ -67,7 +68,7 @@ Rectangle {
     }
 }
 Rectangle {
-    visible: details.manager.storeDetailItem !== null
+    visible: details.manager.storeDetailItem !== null && details.manager.page !== "library"
     anchors.fill: parent
     z: 12
     color: "#B9000000"

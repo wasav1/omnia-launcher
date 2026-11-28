@@ -19,9 +19,9 @@ class LibraryLayoutSource(unittest.TestCase):
         self.assertIn('width: Theme.size.panelDetail', text)
         self.assertIn('placeholderText: qsTr("Buscar en instalados")', text)
         # La ficha se oculta hasta elegir un juego y flota bajo el punto de reorganización.
-        self.assertIn('readonly property bool detailShown: detailOpen && current !== null', text)
+        self.assertIn('detailShown: (detailOpen && current !== null) || remoteShown', text)
         self.assertIn('width < Theme.breakpoint.threePanels', text)
-        self.assertNotIn('installedGrid', text)
+        self.assertNotIn('qsTr("Juegos instalados")', text)   # la cuadrícula de la ficha se quitó
         self.assertNotIn('ml.s *', text)
 
     def test_explore_page_is_gone_and_catalog_routes_to_library(self):
@@ -30,6 +30,78 @@ class LibraryLayoutSource(unittest.TestCase):
         self.assertNotIn('ManagerExplore', manager)
         self.assertIn('const toCatalog = key === "catalog" || key === "stores"', manager)
         self.assertIn('page = "library"', manager)
+
+
+class Phase2bSource(unittest.TestCase):
+    def test_remote_detail_lives_in_the_right_panel(self):
+        library = (QML / 'ManagerLibrary.qml').read_text()
+        self.assertIn('CatalogDetailPanel {', library)
+        self.assertIn('readonly property bool detailShown: (detailOpen && current !== null) || remoteShown', library)
+        details = (QML / 'ManagerCatalogDetails.qml').read_text()
+        self.assertEqual(details.count('details.manager.page !== "library"'), 2)
+
+    def test_view_all_and_compact_installed(self):
+        library = (QML / 'ManagerLibrary.qml').read_text()
+        self.assertIn('InstalledGrid {', library)
+        self.assertIn('qsTr("Ver todos")', library)
+        self.assertIn('readonly property bool compact: width < Theme.breakpoint.compact', library)
+        self.assertIn('visible: !ml.compact || ml.installedOpen', library)
+
+
+def run_qml(files, body, checks):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        for f in QML.iterdir():
+            if f.suffix in ('.qml', '.js'):
+                shutil.copyfile(f, root / f.name)
+        (root / 'test.qml').write_text(body.replace('CHECKS_OK', str(checks)))
+        env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1', QT_LOGGING_TO_CONSOLE='1',
+                   MANGOHUD='0', DISABLE_MANGOHUD='1')
+        return subprocess.run(['qml6', str(root / 'test.qml')], check=False, env=env,
+                              capture_output=True, text=True, timeout=30)
+
+
+@unittest.skipUnless(shutil.which('qml6'), 'Requiere qml6 para cargar Ver todos')
+class InstalledGridQml(unittest.TestCase):
+    def test_groups_by_origin_console_and_state(self):
+        result = run_qml(None, '''import QtQuick
+import QtQuick.Window
+import "Theme.js" as Theme
+Window {
+    visible: true; width: 1200; height: 800
+    QtObject {
+        id: fake
+        function sourceForGame(g) { return { label: g.src, logo: "" } }
+        function launch(g) {}
+        function openGameMenu(g) {}
+    }
+    InstalledGrid {
+        id: grid
+        width: 900; height: 700
+        manager: fake
+        games: [
+            { id: "rdr2", name: "Red Dead Redemption 2", src: "Steam", platform: "pc", lastPlayed: 10 },
+            { id: "wd2", name: "Watch Dogs 2", src: "Lutris", platform: "pc", updateAvailable: { version: "2" } },
+            { id: "detroit", name: "Detroit", src: "Heroic", sub: "Epic Games", platform: "pc", fav: true },
+            { id: "mk", name: "Mario Kart 64", src: "Omnia", platform: "n64" },
+            { id: "hl", name: "Half-Life", src: "Steam", platform: "pc", running: true }
+        ]
+    }
+    function labels() { return grid.groups.map(g => g.label + ":" + g.games.length).join(",") }
+    function fail(msg) { console.error(msg); Qt.exit(1) }
+    Component.onCompleted: {
+        if (labels() !== "Steam:2,Epic:1,Lutris:1,Omnia · ports:1") return fail("origin " + labels())
+        if (grid.groups[0].games[0].name !== "Half-Life") return fail("sorted by name inside a group")
+        grid.groupBy = "console"
+        if (labels() !== "PC:4,Nintendo 64:1") return fail("console " + labels())
+        grid.groupBy = "state"
+        if (labels() !== "Jugando ahora:1,Con actualización:1,Favoritos:1,Jugados:1,Sin jugar:1") return fail("state " + labels())
+        if (Theme.catalogWidth(860, true) !== 820) return fail("compact catalog width " + Theme.catalogWidth(860, true))
+        Qt.exit(CHECKS_OK)
+    }
+}
+''', CHECKS_OK)
+        self.assertEqual(result.returncode, CHECKS_OK, result.stdout + result.stderr)
 
 
 @unittest.skipUnless(shutil.which('qml6'), 'Requiere qml6 para cargar el Catálogo')

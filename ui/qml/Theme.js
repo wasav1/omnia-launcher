@@ -135,6 +135,8 @@ function posterLayout(width) {
 
 // Ancho del Catálogo según la ventana y si la ficha está abierta.
 function catalogWidth(windowWidth, detailOpen) {
+    if (windowWidth < breakpoint.compact)          // Instalados se abre con un botón: el centro ocupa todo
+        return windowWidth - 2 * size.pageMargin;
     var used = 2 * size.pageMargin + size.panelInstalled + size.panelGap;
     var free = windowWidth - used;
     if (detailOpen && windowWidth >= breakpoint.threePanels)

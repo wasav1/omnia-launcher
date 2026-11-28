@@ -154,6 +154,7 @@ Item {
         page = "library"
         loadOnline(1)
         storesView.open()
+        managerLibrary.showAll = false
         managerLibrary.catalog.focusSearch()
     }
     function cancelCatalogLink() {
@@ -335,11 +336,16 @@ Item {
     function selectPage(key) {
         const toCatalog = key === "catalog" || key === "stores"
         if (toCatalog) key = "library"
+        if (key !== page) { detailGame = null; storeDetailItem = null }   // las fichas emergentes no siguen abiertas en otra sección
         if (key === "home" && onlineGames.length === 0 && !onlineBusy) loadOnline(1)
         if (key !== "library" && catalogLinkTargetId) catalogLinkTargetId = ""
         page = key
         if (key === "library") { loadOnline(); storesView.open() }
-        if (toCatalog) { if (managerLibrary.detailFloating) managerLibrary.closeDetail(); managerLibrary.catalog.focusSearch() }
+        if (toCatalog) {
+            managerLibrary.showAll = false
+            if (managerLibrary.detailFloating) managerLibrary.closeDetail()
+            managerLibrary.catalog.focusSearch()
+        }
         if (key === "installs") loadInstallations()
         if (key === "stats") statsView.open()
         if (key === "settings") loadRoots()
@@ -650,6 +656,7 @@ Item {
             api: api
             stores: storesView
             backdrop: ambient
+            onChooseInstallFolder: folderDialogs.openInstallFolder()
         }
 
         // Estadísticas de juego

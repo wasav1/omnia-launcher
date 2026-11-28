@@ -15,6 +15,8 @@ GlassPanel {
     required property var manager
     required property var stores
     signal localGameChosen(var game)
+    signal installedRequested()
+    property bool showInstalledButton: false   // bajo 900 px, Instalados se abre desde aquí
 
     readonly property real pad: 18
     property alias text: searchField.text
@@ -61,6 +63,16 @@ GlassPanel {
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
+            Rectangle {
+                visible: cat.showInstalledButton
+                anchors.verticalCenter: parent.verticalCenter
+                width: installedRow.implicitWidth + 20; height: 32; radius: Theme.radius.sm
+                color: installedMa.containsMouse ? Theme.color.glassFillStrong : Theme.color.inset; border.color: Theme.color.glassBorder
+                Row { id: installedRow; anchors.centerIn: parent; spacing: 6
+                    LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: "menu"; color: Theme.color.ink }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Instalados"); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.small; font.weight: Font.DemiBold } }
+                MouseArea { id: installedMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: cat.installedRequested() }
+            }
             Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Catálogo"); color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.title + 3; font.weight: Font.Bold }
             Text { anchors.verticalCenter: parent.verticalCenter; text: cat.items.length === 1 ? qsTr("1 juego") : qsTr("%1 juegos").arg(cat.items.length); color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: Theme.font.size.small }
         }

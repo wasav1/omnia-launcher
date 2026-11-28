@@ -15,8 +15,15 @@ Item {
     property var stores: null                // ManagerStores: datos de las tiendas para el Catálogo
     property Item backdrop: null             // fondo ambiental que desenfocan los paneles
     property bool detailOpen: false
-    readonly property bool detailShown: detailOpen && current !== null
+    // Ficha de un juego que no está en la biblioteca (port del catálogo u oferta de una tienda).
+    readonly property bool remoteShown: !!manager && (manager.detailGame !== null || manager.storeDetailItem !== null)
+    readonly property bool detailShown: (detailOpen && current !== null) || remoteShown
     readonly property bool detailFloating: width < Theme.breakpoint.threePanels
+    property bool showAll: false             // «Ver todos»: cuadrícula agrupada en lugar del Catálogo
+    readonly property bool compact: width < Theme.breakpoint.compact
+    property bool installedOpen: false       // bajo 900 px, Instalados se abre con un botón
+    onCompactChanged: installedOpen = false
+    signal chooseInstallFolder()
     property alias catalog: catalog
     property string chosenCollection: ""        // "" (automática) | all | fav | recent
     readonly property string collection: chosenCollection ||
@@ -70,16 +77,26 @@ Item {
     // reveal = false: solo cambia la selección (búsqueda, colecciones) sin abrir la ficha.
     function selectGame(id, reveal) {
         selId = id
-        if (reveal !== false) detailOpen = true
+        if (reveal !== false) {
+            detailOpen = true
+            clearRemote()
+            if (compact) installedOpen = false
+        }
         tab = "summary"
         if (summaryScroll.contentItem) summaryScroll.contentItem.contentY = 0
     }
     onSearchChanged: if (search.trim() && visibleGames.length && !visibleGames.some(row => row.game.id === selId))
         selectGame(visibleGames[0].game.id, false)
-    function closeDetail() { detailOpen = false }
+    function clearRemote() {
+        if (!manager) return
+        manager.detailGame = null
+        manager.storeDetailItem = null
+    }
+    function closeDetail() { detailOpen = false; clearRemote() }
     function backdropRectOf(item) {
         if (!backdrop || !item) return Qt.rect(0, 0, 0, 0)
-        void (item.x + item.y + item.width + item.height + ml.x + ml.y + ml.width + ml.height)
+        void (item.x + item.y + item.width + item.height + ml.x + ml.y + ml.width + ml.height
+              + (item.parent ? item.parent.x + item.parent.y + item.parent.width : 0))
         const p = item.mapToItem(backdrop, 0, 0)
         return Qt.rect(p.x, p.y, item.width, item.height)
     }
@@ -107,15 +124,43 @@ Item {
 
 
     // ---------------- panel izquierdo: Instalados
+    MouseArea {      // bajo 900 px: tocar fuera de Instalados lo cierra
+        anchors.fill: parent
+        visible: ml.compact && ml.installedOpen
+        z: 5
+        onClicked: ml.installedOpen = false
+    }
     GlassPanel {
         id: left
         anchors { left: parent.left; top: parent.top; bottom: parent.bottom
                   leftMargin: Theme.size.pageMargin; topMargin: Theme.size.panelGap; bottomMargin: Theme.size.pageMargin }
         width: Theme.size.panelInstalled
+        visible: !ml.compact || ml.installedOpen
+        z: ml.compact ? 6 : 0
+        strong: ml.compact
+        glass: !ml.compact
+        fill: ml.compact ? "#D90A0F17" : Theme.color.glassFill
         backdrop: ml.backdrop
         backdropRect: ml.backdropRectOf(left)
         Text { x: 18; y: 16; text: qsTr("Instalados"); color: Theme.color.ink; font.family: ml.font; font.pixelSize: Theme.font.size.title + 3; font.weight: Font.Bold }
-        Text { anchors { right: parent.right; rightMargin: 18 } y: 21; text: String(ml.visibleLibrary.length); color: Theme.color.muted; font.family: Theme.font.numeric; font.pixelSize: Theme.font.size.bodyLarge; font.weight: Font.DemiBold }
+        Row {
+            anchors { right: parent.right; rightMargin: 14 }
+            y: 14
+            spacing: 10
+            Text { anchors.verticalCenter: parent.verticalCenter; text: String(ml.visibleLibrary.length); color: Theme.color.muted; font.family: Theme.font.numeric; font.pixelSize: Theme.font.size.bodyLarge; font.weight: Font.DemiBold }
+            Rectangle {      // Ver todos
+                id: viewAll
+                anchors.verticalCenter: parent.verticalCenter
+                width: viewAllRow.implicitWidth + 20; height: 28; radius: 14
+                color: ml.showAll ? Theme.color.accentSoft : (viewAllMa.containsMouse ? Theme.color.glassFill : "transparent")
+                border.color: ml.showAll ? Theme.color.accent : Theme.color.glassBorder
+                Row { id: viewAllRow; anchors.centerIn: parent; spacing: 6
+                    LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; name: "layout-grid"; color: ml.showAll ? Theme.color.accentLight : Theme.color.soft }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Ver todos"); color: ml.showAll ? Theme.color.accentLight : Theme.color.soft; font.family: ml.font; font.pixelSize: Theme.font.size.small; font.weight: Font.DemiBold } }
+                MouseArea { id: viewAllMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: { ml.showAll = !ml.showAll; if (ml.compact) ml.installedOpen = false } }
+            }
+        }
         TextField {
             id: searchField
             anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 14; rightMargin: 14; topMargin: 50 }
@@ -171,7 +216,7 @@ Item {
                 id: row
                 required property var modelData
                 readonly property var g: modelData.game
-                readonly property bool on: g.id === ml.selId && ml.detailShown
+                readonly property bool on: g.id === ml.selId && ml.detailShown && !ml.remoteShown
                 width: gameList.width; height: Theme.size.listRow; radius: Theme.radius.sm
                 color: on ? Theme.color.accentSoft : (rowMa.containsMouse ? Theme.color.glassFill : "transparent")
                 Row {
@@ -218,15 +263,35 @@ Item {
     }
 
     // ---------------- centro: Catálogo
-    CatalogPanel {
-        id: catalog
-        anchors { left: left.right; top: left.top; bottom: left.bottom; leftMargin: Theme.size.panelGap }
+    Item {
+        id: center
+        x: ml.compact ? Theme.size.pageMargin : Theme.size.pageMargin + Theme.size.panelInstalled + Theme.size.panelGap
+        anchors { top: left.top; bottom: left.bottom }
         width: Theme.catalogWidth(ml.width, ml.detailShown)
-        manager: ml.manager
-        stores: ml.stores
-        backdrop: ml.backdrop
-        backdropRect: ml.backdropRectOf(catalog)
-        onLocalGameChosen: game => ml.selectGame(game.id)
+        CatalogPanel {
+            id: catalog
+            anchors.fill: parent
+            visible: !ml.showAll
+            manager: ml.manager
+            stores: ml.stores
+            showInstalledButton: ml.compact
+            backdrop: ml.backdrop
+            backdropRect: ml.backdropRectOf(catalog)
+            onLocalGameChosen: game => ml.selectGame(game.id)
+            onInstalledRequested: ml.installedOpen = true
+        }
+        InstalledGrid {
+            id: installedGrid
+            anchors.fill: parent
+            visible: ml.showAll
+            manager: ml.manager
+            games: ml.visibleGames.map(row => row.game)
+            selectedId: ml.detailShown && !ml.remoteShown ? ml.selId : ""
+            backdrop: ml.backdrop
+            backdropRect: ml.backdropRectOf(installedGrid)
+            onGameChosen: game => ml.selectGame(game.id)
+            onCloseRequested: ml.showAll = false
+        }
     }
 
     // ---------------- derecha: ficha del juego (oculta hasta elegir uno; flotante bajo 1360 px)
@@ -251,9 +316,19 @@ Item {
         backdrop: ml.backdrop
         backdropRect: ml.backdropRectOf(detail)
 
+        CatalogDetailPanel {
+            anchors.fill: parent
+            visible: ml.remoteShown
+            manager: ml.manager
+            api: ml.api
+            stores: ml.stores
+            onCloseRequested: ml.closeDetail()
+            onChooseInstallFolder: ml.chooseInstallFolder()
+        }
         Item {
             id: page
             anchors.fill: parent
+            visible: !ml.remoteShown
             readonly property var g: ml.current
             Item {
                 id: hero
