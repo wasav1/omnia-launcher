@@ -39,6 +39,7 @@ from . import (
     roms,
     saves,
     security,
+    store_deals,
     store_news,
     system,
     templates,
@@ -92,6 +93,7 @@ class Api:
         self.transfer_metrics = TransferMetrics()
         self._installation_actions = threading.Lock()
         self.store_news = store_news.StoreNews()
+        self.store_deals = store_deals.StoreDeals()
         self.steam_root = None                      # solo para pruebas: carpeta de Steam distinta de ~/.local/share/Steam
         self.open_fn = open_fn or (lambda path: subprocess.Popen(["xdg-open", path], start_new_session=True,
                                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
@@ -113,6 +115,7 @@ class Api:
             "/settings/language": ("POST", True, self.settings_language),
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/glass": ("POST", True, self.settings_glass),
+            "/settings/news": ("POST", True, self.settings_news),
             "/settings/install-root": ("POST", True, self.settings_install_root),
             "/settings/update-check": ("POST", True, self.settings_update_check),
             "/settings/mangohud": ("POST", True, self.settings_mangohud),
@@ -131,6 +134,7 @@ class Api:
             "/stores/login": ("POST", True, self.stores_login),
             "/stores/logout": ("POST", True, self.stores_logout),
             "/stores/news": ("GET", True, self.stores_news),
+            "/stores/deals": ("GET", True, self.stores_deals),
             "/stores/library": ("GET", True, self.stores_library),
             "/pads": ("GET", True, self.pads),
             "/pads/settings": ("POST", True, self.pads_settings),
@@ -450,6 +454,7 @@ class Api:
                 "language": language, "install_root": install_root,
                 "animated_background": cfg.get("animated_background", True) is not False,
                 "glass_effect": cfg.get("glass_effect", True) is not False,
+                "news_stores": self._news_stores(cfg),
                 "update_check": cfg.get("update_check", True) is not False,
                 "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
                 "ui_sounds": cfg.get("ui_sounds", True) is not False, "ui_sound_volume": self._sound_volume(cfg),
@@ -767,8 +772,38 @@ class Api:
         except StoreError as e:
             raise ApiError(400, str(e))
 
+    NEWS_STORES = ("omnia", "steam", "epic", "gog", "amazon")
+
+    def _news_stores(self, cfg=None):
+        """Tiendas que muestran novedades (Ajustes → Novedades); por defecto, todas."""
+        if cfg is None:
+            cfg = load_json(self.store.dir / "config.json", {})
+        chosen = cfg.get("news_stores") if isinstance(cfg, dict) else None
+        if not isinstance(chosen, list):
+            return list(self.NEWS_STORES)
+        return [s for s in self.NEWS_STORES if s in chosen]
+
     def stores_news(self, q):
-        return self.store_news.snapshot(self.store.games(), q.get("lang", "es"))
+        allowed = set(self._news_stores())
+        out = self.store_news.snapshot(self.store.games(), q.get("lang", "es"))
+        out["items"] = [item for item in out.get("items", []) if item.get("source") in allowed]
+        return out
+
+    def stores_deals(self, q):
+        """Ofertas, gratis y lanzamientos de Steam, Epic y GOG (caché local; nunca espera a la red)."""
+        return self.store_deals.snapshot(q.get("lang", "es"), set(self._news_stores()))
+
+    def settings_news(self, q):
+        """Elige de qué tiendas se muestran novedades y ofertas."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        stores = body.get("stores")
+        if not isinstance(stores, list) or not all(isinstance(s, str) for s in stores):
+            raise ApiError(400, "stores debe ser una lista de tiendas.")
+        unknown = [s for s in stores if s not in self.NEWS_STORES]
+        if unknown:
+            raise ApiError(400, "tienda desconocida: " + ", ".join(unknown))
+        cfg = self._update_config(news_stores=[s for s in self.NEWS_STORES if s in stores])
+        return {"ok": True, "news_stores": self._news_stores(cfg)}
 
     def stores_library(self, q):
         from .stores.base import StoreError

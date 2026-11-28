@@ -456,6 +456,7 @@ def game_art_urls(game) -> dict:
 
 _NEWS_ART_HOSTS = {
     "cdn.cloudflare.steamstatic.com", "clan.cloudflare.steamstatic.com", "clan.akamai.steamstatic.com",
+    "shared.akamai.steamstatic.com", "cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com",
     "shared.fastly.steamstatic.com", "cdn1.epicgames.com", "cdn2.unrealengine.com",
     "images.gog.com", "images.gog-statics.com", "images-1.gog-statics.com", "images-2.gog-statics.com",
     "www.amazongamestudios.com",

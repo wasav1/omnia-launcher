@@ -646,8 +646,7 @@ Item {
             anchors.fill: parent
             manager: manager
             api: api
-            contentPad: content.pad
-            contentTop: content.top0
+            backdrop: manager.glassBackdrop
         }
 
         // Biblioteca local

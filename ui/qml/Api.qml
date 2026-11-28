@@ -65,6 +65,7 @@ QtObject {
     property bool updateCheck: true         // avisar de «Actualización disponible» de los ports instalados (Ajustes)
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property bool glassEffect: true         // efecto cristal del rediseño D (Ajustes → Apariencia)
+    property var newsStores: ["omnia", "steam", "epic", "gog", "amazon"]   // tiendas con novedades (Ajustes → Novedades)
     property var padBattery: null          // {level, charging} si el sistema expone la batería del mando; si no, null
     property string padFamily: ""          // tipo de mando para los iconos: xbox | ps | switch | deck
     property int padSeq: -1
@@ -285,6 +286,7 @@ QtObject {
                 api.installRoot = body.install_root || ""
                 api.animatedBackground = body.animated_background !== false
                 api.glassEffect = body.glass_effect !== false
+                if (Array.isArray(body.news_stores)) api.newsStores = body.news_stores
                 api.updateCheck = body.update_check !== false
                 api.mangohud = body.mangohud === true
                 api.mangohudInstalled = body.mangohud_installed !== false
@@ -518,6 +520,12 @@ QtObject {
             if (status === 200) api.animatedBackground = body.animated_background !== false
             if (done) done(status, body)
         }, {enabled: enabled})
+    }
+    function setNewsStores(stores, done) {
+        call("POST", "/settings/news", function(status, body) {
+            if (status === 200 && body && Array.isArray(body.news_stores)) api.newsStores = body.news_stores
+            if (done) done(status, body)
+        }, {stores: stores})
     }
     function setGlassEffect(enabled, done) {
         call("POST", "/settings/glass", function(status, body) {

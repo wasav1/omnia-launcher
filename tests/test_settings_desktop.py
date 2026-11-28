@@ -20,7 +20,7 @@ class SettingsSource(unittest.TestCase):
         self.assertIn('checked = Qt.binding(() => sw.value)', text)
         manager = (QML / 'OmniaManager.qml').read_text()
         self.assertIn('readonly property bool glassActive: api.glassEffect && !gameRunning', manager)
-        self.assertEqual(manager.count('backdrop: manager.glassBackdrop'), 3)
+        self.assertEqual(manager.count('backdrop: manager.glassBackdrop'), 4)   # barra, Inicio, Biblioteca y Ajustes
         self.assertNotIn('backdrop: ambient', manager)
 
 
@@ -77,7 +77,7 @@ Window {
     }
     function fail(msg) { console.error(msg); Qt.exit(1) }
     Component.onCompleted: {
-        if (settings.categories.length !== 7) return fail("categories " + settings.categories.length)
+        if (settings.categories.length !== 8) return fail("categories " + settings.categories.length)
         if (settings.currentCategory.l !== "General") return fail("default section")
         fakeManager.settingsSection = "appearance"
         if (settings.section !== "appearance") return fail("section " + settings.section)

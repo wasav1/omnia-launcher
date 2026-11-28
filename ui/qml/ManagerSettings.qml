@@ -24,6 +24,7 @@ Item {
         { k: "library", icon: "folder-open", l: qsTr("Biblioteca y carpetas"), d: qsTr("Dónde se instalan los juegos y qué carpetas revisa Omnia.") },
         { k: "stores", icon: "key-round", l: qsTr("Tiendas y cuentas"), d: qsTr("Conecta Steam, Epic, GOG y Amazon. Omnia nunca ve tus contraseñas.") },
         { k: "games", icon: "gamepad-2", l: qsTr("Juegos y rendimiento"), d: qsTr("Monitor de rendimiento sobre los juegos que lanzas desde Omnia.") },
+        { k: "news", icon: "bell", l: qsTr("Novedades"), d: qsTr("Qué tiendas aparecen en el Inicio y en el panel rápido: ofertas, juegos gratis, lanzamientos y noticias.") },
         { k: "appearance", icon: "image", l: qsTr("Apariencia"), d: qsTr("Aspecto de la app de escritorio.") },
         { k: "bigmode", icon: "monitor", l: qsTr("Big Mode"), d: qsTr("Fondo, sonidos y bienvenida de la interfaz para mando.") },
         { k: "about", icon: "info", l: qsTr("Acerca de"), d: "" }
@@ -257,6 +258,32 @@ Item {
                         value: settings.api.mangohud
                         enabled: settings.api.mangohudInstalled || settings.api.mangohud
                         onChangeRequested: v => settings.api.setMangohud(v, settings.saved)
+                    }
+                }
+
+                // ---- Novedades
+                Repeater {
+                    model: settings.section === "news" ? [
+                        { k: "steam", l: "Steam", d: qsTr("Ofertas, lanzamientos y noticias de tus juegos de Steam.") },
+                        { k: "epic", l: "Epic Games", d: qsTr("Juegos gratis de la semana y los que vienen, y noticias de la tienda.") },
+                        { k: "gog", l: "GOG", d: qsTr("Ofertas del catálogo y noticias de GOG.") },
+                        { k: "amazon", l: "Amazon", d: qsTr("Noticias de Amazon Games.") },
+                        { k: "omnia", l: "Omnia", d: qsTr("Ports nuevos del catálogo y actualizaciones de tus ports.") }
+                    ] : []
+                    delegate: SettingRow {
+                        id: newsRow
+                        required property var modelData
+                        required property int index
+                        title: modelData.l
+                        description: modelData.d
+                        divider: index < 4
+                        SettingSwitch {
+                            value: (settings.api.newsStores || []).indexOf(newsRow.modelData.k) >= 0
+                            onChangeRequested: v => {
+                                const now = (settings.api.newsStores || []).filter(s => s !== newsRow.modelData.k)
+                                settings.api.setNewsStores(v ? now.concat([newsRow.modelData.k]) : now, settings.saved)
+                            }
+                        }
                     }
                 }
 
