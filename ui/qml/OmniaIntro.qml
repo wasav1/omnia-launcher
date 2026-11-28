@@ -1,12 +1,16 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
 import QtMultimedia
+import Qt5Compat.GraphicalEffects as GE
 
 /**
- * Bienvenida de Big Mode («Nace de la constelación», ~5,6 s): los puntos de la constelación convergen y se posan sobre el contorno del
- * logo, las líneas lo unen, el logo se rellena, el aro late, y aparecen el saludo con datos reales y la frase de Omnia; las olas del
- * fondo suben durante toda la escena. Va con su sonido (sounds/omnia/welcome.wav, volumen de los sonidos de la interfaz).
+ * Bienvenida de Big Mode «Trazo que abre la barra» (propuesta G, elegida por el dueño, ~8,7 s):
+ * sobre el fondo azul profundo de Omnia, el aro del logo se dibuja con su degradado, cae el punto con una onda,
+ * aparecen «Omnia» y el saludo con datos reales; al final el logo viaja a su sitio en la barra superior, la barra
+ * se despliega desde él hacia la derecha y la escena se funde dejando ver la barra real y el Inicio.
+ * Va con su sonido (sounds/omnia/welcome.wav, volumen de los sonidos de la interfaz).
  * Se salta con cualquier tecla, botón del mando o clic. Todo se calcula a partir del tiempo `tt`, así que es determinista.
  */
 Item {
@@ -16,21 +20,39 @@ Item {
     property bool active: false
     property bool closing: false
     property real tt: 0
+    readonly property real total: 8.7
     readonly property real u: Math.max(0.4, Math.min(width, height) / 1080)
     readonly property real cx: width / 2
-    readonly property real cy: height * 0.42
-    readonly property real logoSize: 330 * u
-    readonly property real sc: logoSize / 320
-    readonly property var ptsOut: [[151.0, 30.0], [178.4, 31.8], [205.1, 39.4], [228.6, 51.9], [249.8, 69.4], [266.4, 90.1], [279.0, 115.0], [285.9, 140.7], [287.5, 167.9], [283.3, 195.3], [273.6, 220.7], [258.9, 243.3], [239.8, 262.5], [217.0, 277.4], [192.0, 287.0], [164.7, 291.3], [137.7, 289.8], [111.2, 282.5], [87.1, 270.0], [66.1, 252.9], [49.1, 231.8], [36.8, 207.5], [30.0, 181.5], [28.3, 154.5], [32.2, 127.3], [41.7, 102.2], [56.7, 79.0], [75.4, 60.2], [98.6, 44.8], [123.7, 34.8]]
-    readonly property var ptsIn: [[148.0, 94.0], [128.1, 97.7], [110.7, 107.5], [97.3, 122.2], [88.9, 140.3], [86.0, 160.2], [87.9, 179.9], [95.0, 198.7], [107.1, 214.8], [122.7, 226.5], [141.9, 233.6], [161.4, 234.9], [180.8, 229.9], [197.3, 218.5], [209.6, 203.1], [218.0, 185.0], [229.6, 169.9], [214.4, 158.1], [208.0, 139.1], [198.8, 121.2], [185.4, 106.4], [167.8, 96.8]]
+    readonly property real cy: height * 0.40
+    readonly property real logoSize: 300 * u
+    // Longitud del trazo del logo (path del SVG, unidades del viewBox) dividida por su grosor (8): el patrón de guiones
+    // de Qt se mide en grosores de línea.
+    readonly property real strokeUnits: 37.56
+
+    // ---- destino del logo: el logo de la barra superior de Big Mode (y la barra entera, para desplegarla)
+    property rect targetLogo: Qt.rect(48 * u, 22 * u + 5 * u, 44 * u, 44 * u)
+    property rect targetBar: Qt.rect(30 * u, 12 * u, width - 58 * u, 74 * u)
+    function measureTargets() {
+        const head = intro.host.headerBar
+        if (!head || head.width <= 0) return
+        const s = intro.host.s
+        const logo = head.mapToItem(intro, 0, (head.height - 44 * s) / 2)
+        intro.targetLogo = Qt.rect(logo.x, logo.y, 44 * s, 44 * s)
+        const bar = head.mapToItem(intro, -18 * s, -10 * s)
+        intro.targetBar = Qt.rect(bar.x, bar.y, head.width + 30 * s, head.height + 20 * s)
+    }
+
     visible: active
     opacity: 1
     z: 200
 
     function ease(p) { p = Math.max(0, Math.min(1, p)); return 1 - Math.pow(1 - p, 3) }
+    function easeInOut(p) { p = Math.max(0, Math.min(1, p)); return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2 }
     function clamp01(p) { return Math.max(0, Math.min(1, p)) }
+    function lerp(a, b, p) { return a + (b - a) * p }
     function start() {
         if (intro.active) return
+        intro.measureTargets()
         intro.tt = 0
         intro.closing = false
         intro.opacity = 1
@@ -42,11 +64,15 @@ Item {
     }
     function skip() { if (intro.active && !intro.closing) intro.beginExit() }
     function beginExit() { intro.closing = true; fadeOut.restart(); fadeAudio.restart() }
-    onTtChanged: if (intro.tt >= 5.6 && !intro.closing) intro.beginExit()
+    function finish() { intro.active = false; clock.stop(); welcome.stop(); intro.closing = false; intro.opacity = 1; intro.host.lastFocus() }
+    onTtChanged: {
+        if (intro.tt > 5.6 && intro.tt < 5.7) intro.measureTargets()      // por si la ventana cambió de tamaño
+        if (intro.tt >= intro.total && !intro.closing) intro.finish()
+    }
 
-    NumberAnimation { id: clock; target: intro; property: "tt"; from: 0; to: 6.2; duration: 6200 }
+    NumberAnimation { id: clock; target: intro; property: "tt"; from: 0; to: intro.total + 0.1; duration: (intro.total + 0.1) * 1000 }
     NumberAnimation { id: fadeOut; target: intro; property: "opacity"; to: 0; duration: 450; easing.type: Easing.InOutQuad
-        onFinished: { intro.active = false; clock.stop(); welcome.stop(); intro.closing = false; intro.host.lastFocus() } }
+        onFinished: intro.finish() }
     NumberAnimation { id: fadeAudio; target: welcome; property: "volume"; to: 0; duration: 400 }
     // SoundEffect y no MediaPlayer: el reproductor de vídeo (FFmpeg) abre un dispositivo Vulkan y con la capa global de MangoHud tumbaba Big Mode.
     SoundEffect { id: welcome; source: Qt.resolvedUrl("sounds/omnia/welcome.wav") }
@@ -54,136 +80,145 @@ Item {
     Keys.onPressed: function(e) { intro.skip(); e.accepted = true }
     MouseArea { anchors.fill: parent; onClicked: intro.skip() }
 
-    Rectangle { anchors.fill: parent; color: intro.host.base }
+    // ---- escena: fondo, barra desplegándose y textos. Se funde al final para dejar ver la barra real y el Inicio.
+    Item {
+        id: scene
+        anchors.fill: parent
+        opacity: 1 - intro.ease((intro.tt - 7.7) / 0.9)
 
-    // olas del fondo
-    Repeater {
-        model: [ { y: 0.74, amp: 9, ph: 0, col: "#336599", a: 0.22, d: 0.1 }, { y: 0.82, amp: 11, ph: 2, col: "#5B9BE0", a: 0.13, d: 0.35 }, { y: 0.90, amp: 8, ph: 4, col: "#8aa4bd", a: 0.10, d: 0.6 } ]
-        delegate: Canvas {
-            id: wave
-            required property var modelData
-            width: intro.width; height: intro.height * 0.3
-            y: intro.height * wave.modelData.y + (1 - intro.ease((intro.tt - wave.modelData.d) / 1.4)) * 90 * intro.u
-            opacity: intro.ease((intro.tt - wave.modelData.d) / 1.4)
-            onWidthChanged: requestPaint()
-            onPaint: {
-                const c = getContext("2d"); c.reset(); c.fillStyle = Qt.rgba(Qt.color(wave.modelData.col).r, Qt.color(wave.modelData.col).g, Qt.color(wave.modelData.col).b, wave.modelData.a)
-                c.beginPath(); c.moveTo(0, height); c.lineTo(0, 0)
-                for (let x = 0; x <= width; x += 12) c.lineTo(x, wave.modelData.amp * intro.u * Math.sin(x / (58 * intro.u) + wave.modelData.ph))
-                c.lineTo(width, height); c.closePath(); c.fill()
+        Rectangle { anchors.fill: parent; color: "#070B12" }
+        GE.RadialGradient {        // luz azul abajo a la izquierda
+            x: -120 * intro.u * 2; y: intro.height * 0.48
+            width: 1040 * intro.u; height: width
+            gradient: Gradient { GradientStop { position: 0.0; color: "#731C4E8A" } GradientStop { position: 0.5; color: "#00070B12" } }
+        }
+        GE.RadialGradient {        // luz violeta arriba a la derecha
+            x: intro.width - 840 * intro.u; y: -360 * intro.u
+            width: 1120 * intro.u; height: width
+            gradient: Gradient { GradientStop { position: 0.0; color: "#596779DA" } GradientStop { position: 0.5; color: "#00070B12" } }
+        }
+
+        // la barra superior se despliega desde el logo hacia la derecha
+        Rectangle {        // el panel crece (no se recorta) para que su borde derecho siga redondeado
+            readonly property real p: intro.easeInOut((intro.tt - 6.75) / 1.0)
+            x: intro.targetBar.x; y: intro.targetBar.y
+            height: intro.targetBar.height
+            width: intro.lerp(intro.targetLogo.x + intro.targetLogo.width + 14 * intro.u - intro.targetBar.x, intro.targetBar.width, p)
+            visible: intro.tt > 6.6
+            opacity: intro.ease((intro.tt - 6.6) / 0.3)
+            radius: 26 * intro.host.s
+            color: "#14FFFFFF"; border.width: 1; border.color: "#29FFFFFF"
+        }
+
+        // onda que sale cuando cae el punto
+        Rectangle {
+            readonly property real p: intro.clamp01((intro.tt - 2.9) / 1.6)
+            width: intro.logoSize * (0.75 + 1.9 * p); height: width; radius: width / 2
+            x: intro.cx - width / 2; y: intro.cy - height / 2
+            color: "transparent"; border.width: Math.max(1.5, 2.5 * intro.u); border.color: "#78DFEF"
+            opacity: intro.tt > 2.9 ? 0.8 * (1 - p) : 0
+        }
+        // brillo detrás del logo
+        GE.RadialGradient {
+            readonly property real p: intro.clamp01((intro.tt - 2.8) / 0.9)
+            width: intro.logoSize * 1.35; height: width
+            x: intro.cx - width / 2; y: intro.cy - height / 2
+            opacity: (intro.tt < 2.8 ? 0 : p < 0.6 ? p / 0.6 * 0.55 : 0.55 - (p - 0.6) * 0.75) * (1 - intro.ease((intro.tt - 5.6) / 0.5))
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#8C78DFEF" }
+                GradientStop { position: 0.3; color: "#406779DA" }
+                GradientStop { position: 0.5; color: "#00070B12" }
+            }
+        }
+
+        // «Omnia» y el saludo con datos reales
+        Text {
+            id: word
+            x: 0; width: intro.width; horizontalAlignment: Text.AlignHCenter
+            y: intro.cy + intro.logoSize / 2 + 34 * intro.u
+            readonly property real pin: intro.ease((intro.tt - 3.6) / 0.9)
+            readonly property real pout: intro.ease((intro.tt - 5.6) / 0.5)
+            text: "Omnia"
+            color: intro.host.ink; font.family: intro.host.uiFont; font.pixelSize: 84 * intro.u; font.weight: Font.Bold
+            font.letterSpacing: (0.32 - 0.28 * pin) * font.pixelSize
+            opacity: pin * (1 - pout)
+            transform: Translate { y: (1 - word.pin) * 20 * intro.u - word.pout * 12 * intro.u }
+        }
+        Column {
+            id: hello
+            x: 0; width: intro.width
+            y: intro.cy + intro.logoSize / 2 + 150 * intro.u
+            spacing: 8 * intro.u
+            readonly property real pin: intro.ease((intro.tt - 4.3) / 0.6)
+            readonly property real pout: intro.ease((intro.tt - 5.6) / 0.45)
+            opacity: pin * (1 - pout)
+            transform: Translate { y: (1 - hello.pin) * 12 * intro.u }
+            Text {
+                width: parent.width; horizontalAlignment: Text.AlignHCenter
+                text: intro.api.userName ? qsTr("Bienvenido de nuevo, %1").arg(intro.api.userName) : qsTr("Bienvenido de nuevo")
+                color: "#C9D6E4"; font.family: intro.host.uiFont; font.pixelSize: 32 * intro.u; font.weight: Font.DemiBold
+            }
+            Text {
+                width: parent.width; horizontalAlignment: Text.AlignHCenter
+                readonly property var games: (intro.api.games || []).filter(function(g) { return !g.hidden })
+                readonly property int updates: games.filter(function(g) { return !!g.updateAvailable }).length
+                readonly property var fam: ({ xbox: "Xbox", ps: "PlayStation", "switch": "Switch", deck: "Steam Deck" })
+                text: [qsTr("%n juego(s)", "", games.length), updates > 0 ? qsTr("%n actualización(es)", "", updates) : "",
+                       intro.api.padOn ? ((fam[intro.api.padFamily] || qsTr("Mando")) + (intro.api.padBattery && intro.api.padBattery.level !== undefined ? " " + qsTr("al %1 %").arg(intro.api.padBattery.level) : "")) : ""]
+                      .filter(function(x) { return x }).join("  ·  ")
+                color: "#A9BDD3"; font.family: intro.host.uiFont; font.pixelSize: 22 * intro.u
             }
         }
     }
-    // puntos sueltos del fondo
-    Repeater {
-        model: 14
-        delegate: Rectangle {
-            id: bgDot
-            required property int index
-            width: (index % 4 === 0 ? 5 : 3.4) * intro.u; height: width; radius: width / 2
-            color: index % 3 === 0 ? "#5B9BE0" : "#8aa4bd"
-            x: ((index * 89) % 1000) / 1000 * intro.width + Math.sin(intro.tt * 0.7 + index) * 8 * intro.u
-            y: (0.12 + ((index * 53) % 70) / 100) * intro.height + Math.cos(intro.tt * 0.6 + index) * 8 * intro.u
-            opacity: 0.45 * intro.ease((intro.tt - index * 0.06) / 0.8)
-        }
-    }
 
-    // líneas que unen los puntos del contorno (se dibujan de un extremo al otro)
-    Repeater {
-        model: intro.ptsOut.length + intro.ptsIn.length
-        delegate: Rectangle {
-            id: ln
-            required property int index
-            readonly property bool outer: index < intro.ptsOut.length
-            readonly property var ring: outer ? intro.ptsOut : intro.ptsIn
-            readonly property int i: outer ? index : index - intro.ptsOut.length
-            readonly property var p: ring[i]
-            readonly property var q: ring[(i + 1) % ring.length]
-            readonly property real x1: intro.cx + (p[0] - 160) * intro.sc
-            readonly property real y1: intro.cy + (p[1] - 160) * intro.sc
-            readonly property real len: Math.hypot((q[0] - p[0]) * intro.sc, (q[1] - p[1]) * intro.sc)
-            x: x1; y: y1 - height / 2
-            height: Math.max(1.5, 2 * intro.u); width: len * intro.clamp01((intro.tt - (1.3 + i * 0.03 + (outer ? 0 : 0.2))) / 0.35)
-            transformOrigin: Item.Left
-            rotation: Math.atan2((q[1] - p[1]), (q[0] - p[0])) * 180 / Math.PI
-            color: "#5B9BE0"
-            opacity: 0.9 - 0.45 * intro.ease((intro.tt - 4.0) / 1.0)
-        }
-    }
-    // puntos de la constelación: llegan desde lejos y se posan sobre el contorno; después se desvanecen
-    Repeater {
-        model: intro.ptsOut.length + intro.ptsIn.length
-        delegate: Rectangle {
-            id: dot
-            required property int index
-            readonly property bool outer: index < intro.ptsOut.length
-            readonly property var ring: outer ? intro.ptsOut : intro.ptsIn
-            readonly property int i: outer ? index : index - intro.ptsOut.length
-            readonly property var p: ring[i]
-            readonly property real ang: ((i * 47 + (outer ? 0 : 19)) % 360) * Math.PI / 180
-            readonly property real prog: intro.ease((intro.tt - (i * 0.025 + (outer ? 0 : 0.1))) / 1.3)
-            readonly property bool big: i % 5 === 0
-            width: (big ? 6.4 : 4.4) * intro.u; height: width; radius: width / 2
-            color: big ? "#F0F3F7" : "#8aa4bd"
-            x: intro.cx + (p[0] - 160) * intro.sc - width / 2 + (1 - prog) * Math.cos(ang) * 150 * intro.u
-            y: intro.cy + (p[1] - 160) * intro.sc - height / 2 + (1 - prog) * Math.sin(ang) * 110 * intro.u
-            opacity: Math.min(1, prog * 4) * (1 - intro.ease((intro.tt - 2.6) / 0.5))
-        }
-    }
-
-    // logo
-    Image {
+    // ---- logo: se dibuja en el centro y viaja hasta el logo de la barra (encima de todo, llega exacto a su sitio)
+    Item {
         id: logo
-        width: intro.logoSize; height: intro.logoSize
-        x: intro.cx - width / 2; y: intro.cy - height / 2
-        source: Qt.resolvedUrl("../../assets/branding/omnia-logo.svg")
-        sourceSize: Qt.size(Math.round(intro.logoSize * 2), Math.round(intro.logoSize * 2))
-        smooth: true
-        opacity: intro.ease((intro.tt - 2.3) / 0.8)
-        scale: 0.96 + 0.04 * opacity
-    }
-    // pulsos del aro
-    Repeater {
-        model: [2.9, 4.5]
-        delegate: Rectangle {
-            id: ring
-            required property real modelData
-            readonly property real p: intro.clamp01((intro.tt - ring.modelData) / 1.6)
-            width: intro.logoSize * 0.62 * (0.5 + 1.2 * p) * 2; height: width; radius: width / 2
-            x: intro.cx - width / 2; y: intro.cy - height / 2
-            color: "transparent"; border.width: Math.max(1.5, 2 * intro.u); border.color: "#5B9BE0"
-            opacity: intro.tt > ring.modelData ? 0.45 * (1 - p) : 0
+        readonly property real travel: intro.easeInOut((intro.tt - 5.8) / 1.1)
+        readonly property real size: intro.lerp(intro.logoSize, intro.targetLogo.width, travel)
+        width: size; height: size
+        x: intro.lerp(intro.cx - intro.logoSize / 2, intro.targetLogo.x, travel)
+        y: intro.lerp(intro.cy - intro.logoSize / 2, intro.targetLogo.y, travel)
+        opacity: 1 - intro.ease((intro.tt - 8.2) / 0.4)
+        // El dibujo va en coordenadas del SVG original (viewBox 25 20 104 104) y se escala al tamaño actual.
+        Item {
+            width: 104; height: 104
+            transform: Scale { xScale: logo.size / 104; yScale: logo.size / 104 }
+            Shape {
+                x: -25; y: -20
+                width: 154; height: 144
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {         // pista del aro
+                    fillColor: "transparent"
+                    strokeColor: Qt.rgba(36 / 255, 59 / 255, 81 / 255, intro.ease(intro.tt / 0.5))
+                    strokeWidth: 13
+                    PathAngleArc { centerX: 77; centerY: 72; radiusX: 36; radiusY: 36; startAngle: 0; sweepAngle: 360 }
+                }
+                ShapePath {         // aro con flecha que se dibuja
+                    fillColor: "transparent"
+                    strokeWidth: 8
+                    capStyle: ShapePath.RoundCap
+                    joinStyle: ShapePath.RoundJoin
+                    strokeStyle: ShapePath.DashLine
+                    dashPattern: [intro.strokeUnits + 1, intro.strokeUnits + 1]
+                    dashOffset: (intro.strokeUnits + 1) * (1 - intro.easeInOut((intro.tt - 0.35) / 2.5))
+                    strokeGradient: LinearGradient {
+                        x1: 41; y1: 108; x2: 113; y2: 36
+                        GradientStop { position: 0; color: "#6779DA" }
+                        GradientStop { position: 1; color: "#78DFEF" }
+                    }
+                    PathSvg { path: "M44 87a36 36 0 0 1 57-42l14-8-1 26-25-9 10-4a29 29 0 1 0-12 49" }
+                }
+            }
+            Rectangle {             // el punto cae con un pequeño rebote
+                readonly property real p: intro.clamp01((intro.tt - 2.85) / 0.45)
+                readonly property real k: p < 0.6 ? p / 0.6 * 1.6 : 1.6 - (p - 0.6) / 0.4 * 0.6
+                width: 8; height: 8; radius: 4
+                x: 102 - 25 - 4; y: 96 - 20 - 4
+                color: "#80DDEA"
+                scale: intro.tt < 2.85 ? 0 : k
+                opacity: intro.tt < 2.85 ? 0 : 1
+            }
         }
-    }
-
-    // textos
-    Column {
-        x: 0; width: intro.width
-        y: intro.cy - intro.logoSize / 2 - 120 * intro.u
-        spacing: 8 * intro.u
-        Text {
-            width: parent.width; horizontalAlignment: Text.AlignHCenter
-            text: intro.api.userName ? qsTr("Bienvenido de nuevo, %1").arg(intro.api.userName) : qsTr("Bienvenido de nuevo")
-            color: intro.host.ink; font.family: intro.host.uiFont; font.pixelSize: 38 * intro.u; font.weight: Font.DemiBold
-            opacity: intro.ease((intro.tt - 3.5) / 0.6); transform: Translate { y: (1 - intro.ease((intro.tt - 3.5) / 0.6)) * 12 * intro.u }
-        }
-        Text {
-            width: parent.width; horizontalAlignment: Text.AlignHCenter
-            readonly property var games: (intro.api.games || []).filter(function(g) { return !g.hidden })
-            readonly property int updates: games.filter(function(g) { return !!g.updateAvailable }).length
-            readonly property var fam: ({ xbox: "Xbox", ps: "PlayStation", "switch": "Switch", deck: "Steam Deck" })
-            text: [qsTr("%n juego(s)", "", games.length), updates > 0 ? qsTr("%n actualización(es)", "", updates) : "",
-                   intro.api.padOn ? ((fam[intro.api.padFamily] || qsTr("Mando")) + (intro.api.padBattery && intro.api.padBattery.level !== undefined ? " " + qsTr("al %1 %").arg(intro.api.padBattery.level) : "")) : ""]
-                  .filter(function(x) { return x }).join("  ·  ")
-            color: intro.host.ink2; font.family: intro.host.uiFont; font.pixelSize: 22 * intro.u
-            opacity: intro.ease((intro.tt - 3.9) / 0.6); transform: Translate { y: (1 - intro.ease((intro.tt - 3.9) / 0.6)) * 12 * intro.u }
-        }
-    }
-    Text {
-        x: 0; width: intro.width; horizontalAlignment: Text.AlignHCenter
-        y: intro.cy + intro.logoSize / 2 + 70 * intro.u
-        text: qsTr("TU BIBLIOTECA UNIFICADA")
-        color: intro.host.ink2; font.family: intro.host.uiFont; font.pixelSize: 21 * intro.u; font.letterSpacing: 5 * intro.u
-        opacity: intro.ease((intro.tt - 3.1) / 0.6)
     }
 }

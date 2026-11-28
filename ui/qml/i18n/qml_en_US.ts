@@ -4340,7 +4340,7 @@
 <context>
     <name>OmniaIntro</name>
     <message>
-        <location filename="../OmniaIntro.qml" line="+166"/>
+        <location filename="../OmniaIntro.qml" line="+158"/>
         <source>Bienvenido de nuevo, %1</source>
         <translation>Welcome back, %1</translation>
     </message>
@@ -4350,7 +4350,7 @@
         <translation>Welcome back</translation>
     </message>
     <message numerus="yes">
-        <location line="+9"/>
+        <location line="+8"/>
         <source>%n juego(s)</source>
         <translation>
             <numerusform>%n game</numerusform>
@@ -4375,16 +4375,11 @@
         <source>al %1 %</source>
         <translation>at %1%</translation>
     </message>
-    <message>
-        <location line="+9"/>
-        <source>TU BIBLIOTECA UNIFICADA</source>
-        <translation>YOUR UNIFIED LIBRARY</translation>
-    </message>
 </context>
 <context>
     <name>OmniaLibrary</name>
     <message>
-        <location filename="../OmniaLibrary.qml" line="+869"/>
+        <location filename="../OmniaLibrary.qml" line="+870"/>
         <source>Desplazar ficha · Cambiar acción</source>
         <translation>Scroll details · Change action</translation>
     </message>
@@ -4613,7 +4608,7 @@
         <translation>Retry</translation>
     </message>
     <message>
-        <location line="-942"/>
+        <location line="-943"/>
         <source>Carpeta de instalación guardada.</source>
         <translation>Installation folder saved.</translation>
     </message>
@@ -4623,7 +4618,7 @@
         <translation>Could not save the folder.</translation>
     </message>
     <message>
-        <location line="+127"/>
+        <location line="+128"/>
         <source>Actualizado: %1</source>
         <translation>Updated: %1</translation>
     </message>

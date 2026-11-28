@@ -148,6 +148,7 @@ Item {
     // Efecto cristal de la barra (Ajustes → Apariencia); se apaga mientras haya un juego abierto.
     readonly property Item glassBackdrop: api.glassEffect && !api.gameRunning ? gameBackdrop : null
     readonly property alias suiteUpdateNotice: suiteNotice
+    readonly property Item headerBar: header        // la bienvenida lleva el logo hasta aquí
     SuiteUpdateNotice {
         id: suiteNotice
         anchors.fill: parent
