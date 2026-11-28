@@ -157,7 +157,7 @@ Item {
                 id: topRow
                 readonly property bool side: width >= 1100
                 width: parent.width
-                height: side ? 300 : 300 + 20 + 140
+                height: side ? 300 : 300 + 20 + sideCol.implicitHeight
 
                 Rectangle {
                     id: hero
@@ -264,24 +264,46 @@ Item {
                     GlassPanel {
                         id: continueCard
                         readonly property var g: (home.manager.recentGames || [])[0] || null
-                        width: sideCol.cellWidth; height: 140
+                        // Alto: lo que deja libre la tarjeta de abajo (que solo mide lo que necesita su contenido).
+                        width: sideCol.cellWidth
+                        height: topRow.side ? 300 - sideCol.spacing - dlCard.height : 190
                         visible: !!g
                         backdrop: home.backdrop
                         backdropRect: home.backdropRectOf(continueCard)
+                        FadedImage {        // arte de fondo: nítido a la derecha, se desvanece hacia la izquierda
+                            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                            width: parent.width * 0.78
+                            source: continueCard.g ? (continueCard.g.fondo || continueCard.g.portada || "") : ""
+                            cornerRadius: Theme.radius.xl
+                            fadeLeft: 0.75
+                            alignX: 0.7
+                            opacity: 0.85
+                        }
+                        Rectangle {         // sombra suave detrás del texto para que el título se lea sobre el arte
+                            anchors.fill: parent
+                            radius: Theme.radius.xl
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.30; color: "#CC0A0F17" }
+                                GradientStop { position: 0.80; color: "#000A0F17" }
+                            }
+                        }
                         Rectangle {
                             id: continueArt
-                            x: 14; anchors.verticalCenter: parent.verticalCenter
-                            width: 84; height: 112; radius: 12; color: Theme.color.inset
+                            x: 16; anchors.verticalCenter: parent.verticalCenter
+                            height: Math.min(parent.height - 32, 172); width: Math.round(height * 0.75); radius: 12; color: Theme.color.inset
+                            border.color: Theme.color.glassBorderStrong
                             FadedImage { anchors.fill: parent; source: continueCard.g ? (continueCard.g.portada || continueCard.g.fondo || "") : ""; cornerRadius: 12 }
                         }
                         Column {
-                            anchors { left: continueArt.right; leftMargin: 14; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                            spacing: 5
+                            anchors { left: continueArt.right; leftMargin: 18; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                            spacing: 6
                             Text { text: qsTr("Seguir jugando").toUpperCase(); color: Theme.color.accentLight; font.family: Theme.font.family; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 1.2 }
-                            Text { width: parent.width; text: continueCard.g ? continueCard.g.name : ""; elide: Text.ElideRight; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 17; font.weight: Font.Bold }
+                            Text { width: parent.width; text: continueCard.g ? continueCard.g.name : ""; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: Theme.color.inkStrong; font.family: Theme.font.family; font.pixelSize: 21; font.weight: Font.Bold }
                             Text { width: parent.width; text: continueCard.g ? (home.manager.sourceForGame(continueCard.g).label + (continueCard.g.lastPlayed ? " · " + home.dateText(continueCard.g.lastPlayed) : "")) : ""; elide: Text.ElideRight; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 13 }
+                            Item { width: 1; height: 4 }
                             Rectangle {
-                                width: playText.implicitWidth + 36; height: 34; radius: 12
+                                width: playText.implicitWidth + 44; height: 38; radius: 12
                                 color: playMa.containsMouse ? Theme.color.accentLight : Theme.color.accent
                                 Text { id: playText; anchors.centerIn: parent; text: continueCard.g && continueCard.g.running ? qsTr("Jugando") : qsTr("Jugar"); color: Theme.color.accentInk; font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold }
                                 MouseArea { id: playMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; enabled: !!continueCard.g && !continueCard.g.running; onClicked: home.manager.launch(continueCard.g) }
@@ -292,19 +314,44 @@ Item {
                     GlassPanel {
                         id: dlCard
                         readonly property var jobs: home.manager.activeInstalls || []
-                        width: sideCol.cellWidth; height: topRow.side ? (continueCard.visible ? 140 : 300) : 140
+                        // Solo mide lo que necesita: una fila (biblioteca) o la cabecera y hasta dos descargas.
+                        width: sideCol.cellWidth
+                        height: !continueCard.visible && topRow.side ? 300 : dlColumn.implicitHeight + 2 * 16
                         backdrop: home.backdrop
                         backdropRect: home.backdropRectOf(dlCard)
+                        Item {          // sin descargas: «n juegos · n favoritos   Ver todo» en una sola fila
+                            visible: !dlCard.jobs.length
+                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 18 }
+                            height: 24
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 8
+                                LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; name: "gamepad-2"; color: Theme.color.soft }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("%1 juegos · %2 favoritos").arg((home.api.games || []).filter(g => !g.hidden).length).arg((home.api.games || []).filter(g => g.fav && !g.hidden).length)
+                                    color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 15; font.weight: Font.DemiBold
+                                }
+                            }
+                            Text {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                text: qsTr("Ver todo"); color: libMa.containsMouse ? Theme.color.ink : Theme.color.accentLight
+                                font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold
+                                MouseArea { id: libMa; anchors.fill: parent; anchors.margins: -6; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.manager.selectPage("library") }
+                            }
+                        }
                         Column {
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
+                            id: dlColumn
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16; leftMargin: 18; rightMargin: 18 }
                             spacing: 9
                             Item {
+                                visible: dlCard.jobs.length > 0
                                 width: parent.width; height: 18
-                                Text { text: dlCard.jobs.length ? qsTr("Descargas") : qsTr("Tu biblioteca"); color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 13 }
+                                Text { text: qsTr("Descargas"); color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 13 }
                                 Text {
                                     anchors.right: parent.right
-                                    text: qsTr("Ver todo"); color: Theme.color.accentLight; font.family: Theme.font.family; font.pixelSize: 13
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.manager.selectPage(dlCard.jobs.length ? "installs" : "library") }
+                                    text: qsTr("Ver todo"); color: Theme.color.accentLight; font.family: Theme.font.family; font.pixelSize: 13; font.weight: Font.Bold
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.manager.selectPage("installs") }
                                 }
                             }
                             Repeater {
@@ -324,12 +371,7 @@ Item {
                                     }
                                 }
                             }
-                            Text {
-                                visible: !dlCard.jobs.length
-                                width: parent.width; wrapMode: Text.WordWrap
-                                text: qsTr("%1 juegos · %2 favoritos").arg((home.api.games || []).filter(g => !g.hidden).length).arg((home.api.games || []).filter(g => g.fav && !g.hidden).length)
-                                color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 15; font.weight: Font.DemiBold
-                            }
+                            Item { visible: !dlCard.jobs.length; width: 1; height: 24 }     // alto de la fila de la biblioteca
                         }
                     }
                 }
