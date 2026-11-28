@@ -1,6 +1,6 @@
 # Plan — rediseño «D · Aurora + Estudio»
 
-Creado: 2026-11-28. Estado: **en implementación**. Fases 0–7 hechas (2026-11-28): el rediseño D está completo. Pendiente: pruebas con mando físico, traducciones al inglés y PR/merge.
+Creado: 2026-11-28. Estado: **en implementación**. Fases 0–7 hechas (2026-11-28): el rediseño D está completo. Traducciones al inglés completas (0.4.0-21). Pendiente: pruebas con mando físico y PR/merge.
 
 Prototipos navegables (lienzo de diseño, privado del dueño del proyecto):
 <https://claude.ai/artifact/YNhRvAo7xdX8NK55TC4XqC> — fila **D** (Desktop y panel rápido) y fila **D · Big Mode**.

@@ -548,7 +548,7 @@ Item {
         }
         Hint { padKeys: det.host.padOn ? ["A"] : []; glyph: "Enter"; label: qsTr("Aceptar") }
         Hint { visible: det.host.padOn && det.menuItems.length > 0; padKeys: ["X"]; label: qsTr("Menú") }
-        Hint { padKeys: det.host.padOn ? ["LB", "RB"] : []; glyph: "RePág / AvPág"; label: qsTr("Cambiar pestaña") }
+        Hint { padKeys: det.host.padOn ? ["LB", "RB"] : []; glyph: qsTr("RePág / AvPág"); label: qsTr("Cambiar pestaña") }
         Hint { visible: !det.host.padOn; icon: "mouse"; label: qsTr("Clic en una pestaña") }
         Hint { padKeys: det.host.padOn ? ["B"] : []; glyph: "Esc"; label: qsTr("Volver") }
     }

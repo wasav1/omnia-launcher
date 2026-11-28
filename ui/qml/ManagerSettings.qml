@@ -303,8 +303,8 @@ Item {
                     description: qsTr("Lo pone tu script de control térmico al jugar; Omnia solo lo muestra.")
                     Text {
                         text: settings.api.cpuCap.capped
-                              ? qsTr("%1 GHz de %2 GHz").arg((settings.api.cpuCap.limit_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1)).arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1))
-                              : qsTr("Sin tope · %1 GHz").arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale("es_CO"), "f", 1))
+                              ? qsTr("%1 GHz de %2 GHz").arg((settings.api.cpuCap.limit_mhz / 1000).toLocaleString(Qt.locale(settings.api.language === "en" ? "en_US" : "es_CO"), "f", 1)).arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale(settings.api.language === "en" ? "en_US" : "es_CO"), "f", 1))
+                              : qsTr("Sin tope · %1 GHz").arg((settings.api.cpuCap.max_mhz / 1000).toLocaleString(Qt.locale(settings.api.language === "en" ? "en_US" : "es_CO"), "f", 1))
                         color: settings.api.cpuCap.capped ? Theme.color.warning : Theme.color.soft
                         font.family: Theme.font.family; font.pixelSize: Theme.font.size.bodyLarge; font.weight: Font.DemiBold
                     }
