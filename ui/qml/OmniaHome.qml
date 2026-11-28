@@ -56,6 +56,7 @@ Item {
         })
     }
     Timer { id: dealsRetry; interval: 5000; onTriggered: home.loadDeals() }
+    Connections { target: home.api; ignoreUnknownSignals: true; function onCurrencyChanged() { home.loadDeals() } }
     function stepStore(d) {
         const i = storeKeys.indexOf(storeFilter)
         storeFilter = storeKeys[(i + d + storeKeys.length) % storeKeys.length]
@@ -696,10 +697,13 @@ Item {
                                     Text { width: parent.width; text: home.dealSubtitle(dealCard.modelData); elide: Text.ElideRight; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17 }
                                 }
                                 Row {
-                                    anchors { left: parent.left; bottom: parent.bottom; margins: home.u * 18 }
+                                    id: dealPriceRow
+                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: home.u * 18 }
                                     spacing: home.u * 8
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: dealCard.modelData.price || ""; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 22; font.weight: Font.Bold }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; visible: dealCard.modelData.kind === "deal" && !!dealCard.modelData.originalPrice; text: dealCard.modelData.originalPrice || ""; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16; font.strikeout: true }
+                                    clip: true
+                                    Text { id: dealNow; anchors.verticalCenter: parent.verticalCenter; text: dealCard.modelData.price || ""; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 22; font.weight: Font.Bold }
+                                    Text { anchors.verticalCenter: parent.verticalCenter
+                                           visible: dealCard.modelData.kind === "deal" && !!dealCard.modelData.originalPrice && dealNow.implicitWidth + dealPriceRow.spacing + implicitWidth <= dealPriceRow.width; text: dealCard.modelData.originalPrice || ""; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16; font.strikeout: true }
                                 }
                                 MouseArea {
                                     id: cardMa

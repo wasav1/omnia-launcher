@@ -20,7 +20,7 @@ Item {
     visible: settings.manager.page === "settings"
 
     readonly property var categories: [
-        { k: "general", icon: "settings", l: qsTr("General"), d: qsTr("Idioma y avisos de actualización de los ports.") },
+        { k: "general", icon: "settings", l: qsTr("General"), d: qsTr("Idioma, moneda de los precios y avisos de actualización de los ports.") },
         { k: "library", icon: "folder-open", l: qsTr("Biblioteca y carpetas"), d: qsTr("Dónde se instalan los juegos y qué carpetas revisa Omnia.") },
         { k: "stores", icon: "key-round", l: qsTr("Tiendas y cuentas"), d: qsTr("Conecta Steam, Epic, GOG y Amazon. Omnia nunca ve tus contraseñas.") },
         { k: "games", icon: "gamepad-2", l: qsTr("Juegos y rendimiento"), d: qsTr("HUD de MangoHud, límite de FPS y perfil de energía del equipo.") },
@@ -45,6 +45,41 @@ Item {
     // ---------------- controles comunes
     // Interruptor que siempre muestra el valor guardado (`value`): al tocarlo pide el cambio con
     // `changeRequested` y vuelve a seguir `value`, así un fallo al guardar no lo deja mintiendo.
+    // Lista desplegable de Desktop: campo hundido y menú de cristal oscuro con la fila elegida en el acento.
+    component SettingCombo: ComboBox {
+        id: combo
+        height: 34
+        contentItem: Text { leftPadding: 12; rightPadding: 26; text: combo.displayText; elide: Text.ElideRight; color: Theme.color.ink
+                            font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
+        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: combo.activeFocus || combo.popup.visible ? Theme.color.accent : Theme.color.glassBorder }
+        indicator: LucideIcon { x: combo.width - width - 10; anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; name: "chevron-down"; color: Theme.color.muted }
+        delegate: ItemDelegate {
+            id: option
+            required property var modelData
+            required property int index
+            width: combo.width - 8; height: 32
+            highlighted: combo.highlightedIndex === index
+            contentItem: Text { text: option.modelData; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; leftPadding: 4
+                                color: option.index === combo.currentIndex ? Theme.color.accentLight : Theme.color.ink
+                                font.family: Theme.font.family; font.pixelSize: Theme.font.size.body
+                                font.weight: option.index === combo.currentIndex ? Font.DemiBold : Font.Normal }
+            background: Rectangle { radius: Theme.radius.sm - 4; color: option.highlighted ? Theme.color.accentSoft : "transparent" }
+        }
+        popup: Popup {
+            y: combo.height + 4
+            width: combo.width
+            height: Math.min(contentItem.implicitHeight + 8, 380)
+            padding: 4
+            contentItem: ListView {
+                clip: true; implicitHeight: contentHeight
+                model: combo.popup.visible ? combo.delegateModel : null
+                currentIndex: combo.highlightedIndex
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            }
+            background: Rectangle { radius: Theme.radius.md; color: "#F70E1622"; border.color: Theme.color.glassBorderStrong }
+        }
+    }
     component SettingSwitch: Switch {
         id: sw
         property bool value: false
@@ -169,7 +204,7 @@ Item {
                     visible: settings.section === "general"
                     title: qsTr("Idioma de Omnia")
                     description: qsTr("Se aplica a Desktop, Big Mode y el panel rápido.")
-                    ComboBox {
+                    SettingCombo {
                         id: languageBox
                         width: 200; height: 34
                         model: [qsTr("Español"), qsTr("English")]
@@ -178,8 +213,25 @@ Item {
                             if (status === 200) settings.api.notify(qsTr("Idioma actualizado."))
                             else settings.saved(status, body)
                         })
-                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: languageBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: languageBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
+                    }
+                }
+                SettingRow {
+                    visible: settings.section === "general"
+                    title: qsTr("Moneda de los precios")
+                    description: settings.api.currencyAuto
+                        ? qsTr("Automática: la de la región del sistema. Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».")
+                        : qsTr("Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».")
+                    SettingCombo {
+                        id: currencyBox
+                        // primero «Automática», luego las principales (COP, MXN, USD) y el resto
+                        readonly property var codes: [""].concat((settings.api.currencies || []).map(c => c.code))
+                        width: 260; height: 34
+                        model: codes.map(c => c === "" ? qsTr("Automática (%1)").arg(settings.api.currencySystem) : settings.api.currencyName(c))
+                        currentIndex: settings.api.currencyAuto ? 0 : Math.max(0, codes.indexOf(settings.api.currency))
+                        onActivated: index => settings.api.setCurrency(currencyBox.codes[index], function(status, body) {
+                            if (status === 200) settings.api.notify(qsTr("Los precios se muestran en %1.").arg(settings.api.currency))
+                            else settings.saved(status, body)
+                        })
                     }
                 }
                 SettingRow {
@@ -222,7 +274,6 @@ Item {
                             onTextEdited: settings.manager.rootPath = text
                             onAccepted: if (settings.manager.rootPath.trim()) settings.manager.changeRoot("add", settings.manager.rootPath.trim())
                             color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body
-                            background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: rootInput.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
                         }
                         PillButton { id: browse; icon: "folder-open"; implicitWidth: Theme.size.control; onClicked: libraryFolderDialog.open() }
                         PillButton { id: addRoot; primary: true; text: qsTr("Añadir carpeta"); enabled: settings.manager.rootPath.trim().length > 0
@@ -269,14 +320,12 @@ Item {
                     visible: settings.section === "games"
                     title: qsTr("Límite de FPS")
                     description: qsTr("Se aplica a los juegos con MangoHud (también los de Steam y Lutris). En el juego, Shift izquierdo + F1 lo quita y lo vuelve a poner.")
-                    ComboBox {
+                    SettingCombo {
                         id: fpsBox
                         width: 200; height: 34
                         model: settings.api.fpsLimits.map(v => settings.api.fpsLabel(v))
                         currentIndex: Math.max(0, settings.api.fpsLimits.indexOf(settings.api.fpsLimit))
                         onActivated: index => settings.api.setPerformance({ fps_limit: settings.api.fpsLimits[index] }, settings.saved)
-                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: fpsBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: fpsBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
                     }
                 }
                 SettingRow {
@@ -285,15 +334,13 @@ Item {
                     description: settings.api.powerProfile.available
                         ? qsTr("El perfil del sistema (power-profiles-daemon). Tu control térmico puede cambiarlo solo mientras juegas.")
                         : (settings.api.powerProfile.error || qsTr("Consultando…"))
-                    ComboBox {
+                    SettingCombo {
                         id: profileBox
                         visible: settings.api.powerProfile.available === true
                         width: 200; height: 34
                         model: (settings.api.powerProfile.profiles || []).map(p => settings.api.profileLabel(p))
                         currentIndex: Math.max(0, (settings.api.powerProfile.profiles || []).indexOf(settings.api.powerProfile.current))
                         onActivated: index => settings.api.setPowerProfile(settings.api.powerProfile.profiles[index], settings.saved)
-                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: profileBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: profileBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
                     }
                 }
                 SettingRow {
@@ -404,14 +451,12 @@ Item {
                 SettingRow {
                     visible: settings.section === "bigmode" && settings.api.uiSoundPacks.length > 1
                     title: qsTr("Paquete de sonidos")
-                    ComboBox {
+                    SettingCombo {
                         id: packBox
                         width: 200; height: 34
                         model: settings.api.uiSoundPacks.map(p => p.label || p.id)
                         currentIndex: Math.max(0, settings.api.uiSoundPacks.findIndex(p => p.id === settings.api.uiSoundPack))
                         onActivated: index => settings.api.setSounds({ pack: settings.api.uiSoundPacks[index].id }, settings.saved)
-                        contentItem: Text { leftPadding: 12; rightPadding: 26; text: packBox.displayText; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: Theme.font.size.body; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-                        background: Rectangle { radius: Theme.radius.sm; color: Theme.color.inset; border.color: packBox.activeFocus ? Theme.color.accent : Theme.color.glassBorder }
                     }
                 }
                 SettingRow {

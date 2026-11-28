@@ -52,6 +52,7 @@ Item {
     onVisibleChanged: if (visible) refresh()
     Component.onCompleted: if (visible) refresh()
     Connections { target: home.api; function onOkChanged() { if (home.api.ok && home.visible) home.refresh() } }
+    Connections { target: home.api; function onCurrencyChanged() { home.refresh() } }     // otra moneda: precios nuevos
 
     // Ports de Omnia recién publicados (el catálogo ya viene ordenado por actualización).
     readonly property var omniaReleases: (home.manager.onlineGames || []).slice(0, 8).map(g => ({
@@ -491,11 +492,14 @@ Item {
                                     Text { width: parent.width; text: home.subtitle(card.modelData); elide: Text.ElideRight; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 12 }
                                 }
                                 Row {
+                                    id: priceRow
                                     anchors { left: parent.left; right: action.left; rightMargin: 8; bottom: parent.bottom; margins: 14 }
                                     spacing: 6
                                     clip: true
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: card.modelData.price || ""; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; visible: card.modelData.kind === "deal" && !!card.modelData.originalPrice; text: card.modelData.originalPrice || ""; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 11; font.strikeout: true }
+                                    Text { id: nowPrice; anchors.verticalCenter: parent.verticalCenter; text: card.modelData.price || ""; color: Theme.color.ink; font.family: Theme.font.family; font.pixelSize: 14; font.weight: Font.Bold }
+                                    // el precio anterior solo si cabe entero (con monedas de textos largos no se corta a medias)
+                                    Text { anchors.verticalCenter: parent.verticalCenter; visible: card.modelData.kind === "deal" && !!card.modelData.originalPrice && nowPrice.implicitWidth + 6 + implicitWidth <= priceRow.width
+                                           text: card.modelData.originalPrice || ""; color: Theme.color.muted; font.family: Theme.font.family; font.pixelSize: 11; font.strikeout: true }
                                 }
                                 Rectangle {
                                     id: action

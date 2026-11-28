@@ -232,7 +232,7 @@
 <context>
     <name>Api</name>
     <message>
-        <location filename="../Api.qml" line="+421"/>
+        <location filename="../Api.qml" line="+426"/>
         <source>Lanzando %1…</source>
         <translation>Launching %1…</translation>
     </message>
@@ -268,12 +268,12 @@
         <translation>No limit</translation>
     </message>
     <message>
-        <location line="+91"/>
+        <location line="+109"/>
         <source>No se pudo ejecutar la acción</source>
         <translation>Could not perform the action</translation>
     </message>
     <message>
-        <location line="-136"/>
+        <location line="-154"/>
         <source>%1 · ID %2</source>
         <translation>%1 · ID %2</translation>
     </message>
@@ -1400,7 +1400,7 @@
         <translation>All</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+37"/>
         <source>Versión %1 disponible</source>
         <translation>Version %1 available</translation>
     </message>
@@ -1881,8 +1881,8 @@
     </message>
     <message>
         <location line="+0"/>
-        <source>Idioma y avisos de actualización de los ports.</source>
-        <translation>Language and port update notices.</translation>
+        <source>Idioma, moneda de los precios y avisos de actualización de los ports.</source>
+        <translation>Language, price currency and port update notices.</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1955,7 +1955,7 @@
         <translation>Could not save the setting.</translation>
     </message>
     <message>
-        <location line="+60"/>
+        <location line="+95"/>
         <source>Ajustes</source>
         <translation>Settings</translation>
     </message>
@@ -1985,7 +1985,32 @@
         <translation>Language updated.</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+7"/>
+        <source>Moneda de los precios</source>
+        <translation>Price currency</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Automática: la de la región del sistema. Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».</source>
+        <translation>Automatic: your system region's currency. Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».</source>
+        <translation>Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”.</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Automática (%1)</source>
+        <translation>Automatic (%1)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Los precios se muestran en %1.</source>
+        <translation>Prices are shown in %1.</translation>
+    </message>
+    <message>
+        <location line="+8"/>
         <source>Buscar actualizaciones de ports</source>
         <translation>Check for port updates</translation>
     </message>
@@ -2035,7 +2060,7 @@
         <translation>Path, for example /mnt/GAMES/Ports</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+8"/>
         <source>Añadir carpeta</source>
         <translation>Add folder</translation>
     </message>
@@ -2085,7 +2110,7 @@
         <translation>Applies to games running with MangoHud (Steam and Lutris games too). In game, Left Shift + F1 turns it off and on.</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+11"/>
         <source>Perfil de energía</source>
         <translation>Power profile</translation>
     </message>
@@ -2100,7 +2125,7 @@
         <translation>Checking…</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+13"/>
         <source>Tope de la CPU</source>
         <translation>CPU cap</translation>
     </message>
@@ -2200,7 +2225,7 @@
         <translation>Sound pack</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+12"/>
         <source>Abrir Big Mode</source>
         <translation>Open Big Mode</translation>
     </message>
@@ -2869,7 +2894,7 @@
 <context>
     <name>OmniaBigSettings</name>
     <message>
-        <location filename="../OmniaBigSettings.qml" line="+321"/>
+        <location filename="../OmniaBigSettings.qml" line="+330"/>
         <location line="+183"/>
         <source>Volver</source>
         <translation>Back</translation>
@@ -2880,7 +2905,7 @@
         <translation>Settings</translation>
     </message>
     <message>
-        <location line="-284"/>
+        <location line="-293"/>
         <source>Aplicación</source>
         <translation>Application</translation>
     </message>
@@ -2895,7 +2920,7 @@
         <translation>Omnia will display text in the selected language.</translation>
     </message>
     <message>
-        <location line="+455"/>
+        <location line="+464"/>
         <source>Mover y ajustar</source>
         <translation>Move and adjust</translation>
     </message>
@@ -2910,12 +2935,12 @@
         <translation>Change category</translation>
     </message>
     <message>
-        <location line="-457"/>
+        <location line="-466"/>
         <source>Español</source>
         <translation>Spanish</translation>
     </message>
     <message>
-        <location line="+147"/>
+        <location line="+150"/>
         <source>Idioma guardado.</source>
         <translation>Language saved.</translation>
     </message>
@@ -2940,7 +2965,7 @@
         <translation>Scan for games</translation>
     </message>
     <message>
-        <location line="+186"/>
+        <location line="+192"/>
         <source>Biblioteca actualizada.</source>
         <translation>Library updated.</translation>
     </message>
@@ -2950,7 +2975,7 @@
         <translation>Could not update the library.</translation>
     </message>
     <message>
-        <location line="-212"/>
+        <location line="-221"/>
         <source>General</source>
         <translation>General</translation>
     </message>
@@ -2976,12 +3001,12 @@
     </message>
     <message>
         <location line="+0"/>
-        <location line="+87"/>
+        <location line="+90"/>
         <source>Cuentas de tiendas</source>
         <translation>Store accounts</translation>
     </message>
     <message>
-        <location line="-86"/>
+        <location line="-89"/>
         <source>Automático</source>
         <translation>Automatic</translation>
     </message>
@@ -2997,6 +3022,21 @@
     </message>
     <message>
         <location line="+12"/>
+        <source>Moneda de los precios</source>
+        <translation>Price currency</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈». ←/→ cambia.</source>
+        <translation>Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”. ←/→ changes it.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Automática (%1)</source>
+        <translation>Automatic (%1)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>Fondo animado</source>
         <translation>Animated background</translation>
     </message>
@@ -3435,7 +3475,12 @@
         <translation>Update</translation>
     </message>
     <message>
-        <location line="+60"/>
+        <location line="+63"/>
+        <source>Moneda guardada.</source>
+        <translation>Currency saved.</translation>
+    </message>
+    <message>
+        <location line="+3"/>
         <source>No hay otros paquetes instalados.</source>
         <translation>No other packages installed.</translation>
     </message>
@@ -3961,7 +4006,7 @@
 <context>
     <name>OmniaHome</name>
     <message>
-        <location filename="../OmniaHome.qml" line="+106"/>
+        <location filename="../OmniaHome.qml" line="+107"/>
         <source>No se pudo conectar con el catálogo de Omnia.</source>
         <translation>Could not connect to the Omnia catalog.</translation>
     </message>
@@ -4019,12 +4064,12 @@
     <message>
         <location line="-2"/>
         <location line="+286"/>
-        <location line="+233"/>
+        <location line="+236"/>
         <source>Jugar</source>
         <translation>Play</translation>
     </message>
     <message>
-        <location line="-411"/>
+        <location line="-414"/>
         <source>En tu biblioteca</source>
         <translation>In your library</translation>
     </message>
@@ -4069,7 +4114,7 @@
         <translation>Loading news…</translation>
     </message>
     <message>
-        <location line="+110"/>
+        <location line="+113"/>
         <source>Todavía no hay una descripción para este juego.</source>
         <translation>There is no description for this game yet.</translation>
     </message>
@@ -4129,7 +4174,7 @@
         <translation>Default destination</translation>
     </message>
     <message>
-        <location line="-176"/>
+        <location line="-179"/>
         <source>Novedades de tus tiendas</source>
         <translation>News from your stores</translation>
     </message>
@@ -4139,7 +4184,7 @@
         <translation>No news from this store right now.</translation>
     </message>
     <message>
-        <location line="+161"/>
+        <location line="+164"/>
         <source>Carpeta de instalación guardada.</source>
         <translation>Installation folder saved.</translation>
     </message>
@@ -4149,18 +4194,18 @@
         <translation>Could not save the installation folder.</translation>
     </message>
     <message>
-        <location line="-538"/>
+        <location line="-541"/>
         <location line="+286"/>
         <source>Instalar port</source>
         <translation>Install port</translation>
     </message>
     <message>
-        <location line="-492"/>
+        <location line="-493"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
     <message>
-        <location line="+22"/>
+        <location line="+23"/>
         <location line="+21"/>
         <source>Gratis por tiempo limitado</source>
         <translation>Free for a limited time</translation>

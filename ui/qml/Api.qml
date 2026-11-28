@@ -66,6 +66,10 @@ QtObject {
     property bool animatedBackground: true  // fondo de constelación de BigMode (Ajustes)
     property bool glassEffect: true         // efecto cristal del rediseño D (Ajustes → Apariencia)
     property var newsStores: ["omnia", "steam", "epic", "gog", "amazon"]   // tiendas con novedades (Ajustes → Novedades)
+    property string currency: "USD"         // moneda de los precios (Ajustes → General); la del sistema si `currencyAuto`
+    property bool currencyAuto: true
+    property string currencySystem: "USD"
+    property var currencies: []             // [{code, name}], principales primero
     property int fpsLimit: 0                // límite de FPS en el MangoHud.conf de Omnia (0 = sin límite)
     property bool hudVisible: true          // el HUD empieza visible (Shift derecho + F12 lo alterna en el juego)
     readonly property var fpsLimits: [0, 30, 40, 45, 50, 60, 75, 90, 120, 144]
@@ -292,6 +296,7 @@ QtObject {
                 api.animatedBackground = body.animated_background !== false
                 api.glassEffect = body.glass_effect !== false
                 if (Array.isArray(body.news_stores)) api.newsStores = body.news_stores
+                api.applyCurrency(body)
                 api.fpsLimit = Number(body.fps_limit) || 0
                 api.hudVisible = body.hud_visible !== false
                 api.updateCheck = body.update_check !== false
@@ -564,6 +569,24 @@ QtObject {
             if (status === 200 && body && Array.isArray(body.news_stores)) api.newsStores = body.news_stores
             if (done) done(status, body)
         }, {stores: stores})
+    }
+    function applyCurrency(body) {
+        if (!body || !body.currency) return
+        api.currencyAuto = body.currency_auto !== false
+        api.currencySystem = body.currency_system || body.currency
+        if (Array.isArray(body.currencies)) api.currencies = body.currencies
+        api.currency = body.currency
+    }
+    // code: "" = la de la región del sistema
+    function setCurrency(code, done) {
+        call("POST", "/settings/currency", function(status, body) {
+            if (status === 200) api.applyCurrency(body)
+            if (done) done(status, body)
+        }, {code: code})
+    }
+    function currencyName(code) {
+        const row = (api.currencies || []).find(c => c.code === code)
+        return row && row.name !== code ? code + " · " + row.name : code
     }
     function setGlassEffect(enabled, done) {
         call("POST", "/settings/glass", function(status, body) {

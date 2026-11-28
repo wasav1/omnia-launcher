@@ -32,7 +32,7 @@ EPIC = {"data": {"Catalog": {"searchStore": {"elements": [
     {"title": "Bread and Fred", "productSlug": None,
      "catalogNs": {"mappings": [{"pageSlug": "bread-and-fred-1db362", "pageType": "productHome"}]},
      "keyImages": [{"type": "OfferImageWide", "url": "https://cdn1.epicgames.com/spt-assets/b/bread.jpg"}],
-     "price": {"totalPrice": {"fmtPrice": {"originalPrice": "31.099\xa0COP"}}},
+     "price": {"totalPrice": {"originalPrice": 3109900, "currencyCode": "COP", "currencyInfo": {"decimals": 2}}},
      "promotions": {"promotionalOffers": [{"promotionalOffers": [{"startDate": "2026-11-26T16:00:00.000Z",
         "endDate": "2026-12-03T16:00:00.000Z", "discountSetting": {"discountPercentage": 0}}]}], "upcomingPromotionalOffers": []}},
     {"title": "Strange Antiquities", "productSlug": "strange-antiquities/home",
@@ -73,7 +73,8 @@ class Readers(unittest.TestCase):
         items = store_deals._steam("es")
         by_title = {i["title"]: i for i in items}
         deal = by_title["Cyberpunk 2077"]
-        self.assertEqual((deal["kind"], deal["discount"], deal["price"], deal["originalPrice"]), ("deal", 70, "$ 59.700", "$ 199.000"))
+        self.assertEqual((deal["kind"], deal["discount"], deal["priceValue"], deal["originalValue"], deal["currency"]),
+                         ("deal", 70, 59700, 199000, "COP"))
         self.assertEqual(deal["url"], "https://store.steampowered.com/app/1091500/")
         self.assertTrue(deal["artwork"].startswith("https://shared.akamai.steamstatic.com/"))
         self.assertEqual(by_title["Juego regalado"]["kind"], "free")
@@ -89,13 +90,43 @@ class Readers(unittest.TestCase):
         self.assertEqual(items[0]["url"], "https://store.epicgames.com/es-ES/p/bread-and-fred-1db362")
         self.assertEqual(items[1]["url"], "https://store.epicgames.com/es-ES/p/strange-antiquities")
         self.assertGreater(items[0]["endsAt"], items[0]["startsAt"])
+        self.assertEqual((items[0]["originalValue"], items[0]["currency"]), (31099, "COP"))
 
     def test_gog_deals_and_untrusted_links(self):
         items = store_deals._gog("es")
         self.assertEqual([(i["title"], i["kind"], i["discount"]) for i in items],
                          [("Heroes of Might and Magic 3", "deal", 76), ("Regalo de GOG", "free", 100)])
-        self.assertEqual((items[0]["price"], items[0]["originalPrice"]), ("US$ 0,99", "US$ 4,09"))
-        self.assertEqual(store_deals._gog("en")[0]["price"], "US$ 0.99")
+        self.assertEqual((items[0]["priceValue"], items[0]["originalValue"], items[0]["currency"]), (0.99, 4.09, "USD"))
+
+    def test_each_store_is_asked_for_the_region_of_the_currency(self):
+        urls = []
+        with mock.patch.object(store_deals, "_fetch", side_effect=lambda url: urls.append(url) or fake_fetch(url)):
+            store_deals._steam("es", "MXN")
+            store_deals._epic("es", "MXN")
+            store_deals._gog("es", "EUR")
+            store_deals._gog("es", "COP")
+        self.assertIn("cc=mx", urls[0])
+        self.assertIn("country=MX", urls[1])
+        self.assertIn("currencyCode=EUR", urls[2])
+        self.assertIn("currencyCode=USD", urls[3])                 # GOG no vende en COP: se pide en USD y se convierte
+
+
+class FakeRates:
+    """Tipo de cambio fijo y sin red: 1 USD = 4000 COP = 20 MXN."""
+    RATES = {"USD": 1, "COP": 4000, "MXN": 20}
+
+    def __init__(self, empty=False):
+        self.empty = empty
+
+    def refresh(self, wait=False):
+        pass
+
+    def convert(self, value, source, target):
+        if source == target:
+            return value
+        if self.empty or source not in self.RATES or target not in self.RATES:
+            return None
+        return value / self.RATES[source] * self.RATES[target]
 
 
 class Cache(unittest.TestCase):
@@ -103,11 +134,48 @@ class Cache(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
+    def deals(self, readers, **kw):
+        return store_deals.StoreDeals(readers=readers, cache_path=self.tmp / "d.json", rates=kw.get("rates") or FakeRates())
+
+    def test_prices_in_the_chosen_currency_or_converted_with_a_mark(self):
+        rows = {"steam": [{"source": "steam", "kind": "deal", "title": "a", "url": "", "priceValue": 59700, "originalValue": 199000, "currency": "COP"}],
+                "gog": [{"source": "gog", "kind": "deal", "title": "b", "url": "", "priceValue": 0.99, "originalValue": 4.09, "currency": "USD"}],
+                "epic": []}
+        readers = {s: (lambda lang, money, s=s: [dict(r) for r in rows[s]]) for s in store_deals.SOURCES}
+        out = self.deals(readers).snapshot("es", wait=True, money="COP")
+        by = {i["title"]: i for i in out["items"]}
+        self.assertEqual((by["a"]["price"], by["a"]["originalPrice"], by["a"]["approx"]), ("$ 59.700", "$ 199.000", False))
+        self.assertEqual((by["b"]["price"], by["b"]["originalPrice"], by["b"]["approx"]), ("≈ $ 3.960", "≈ $ 16.360", True))
+        self.assertEqual(out["currency"], "COP")
+        self.assertNotIn("priceValue", by["a"])
+        raw = self.deals(readers, rates=FakeRates(empty=True)).snapshot("en", wait=True, money="COP")
+        self.assertEqual({i["title"]: i["price"] for i in raw["items"]}["b"], "US$ 0.99")   # sin tipo de cambio: el de la tienda
+
+    def test_changing_currency_asks_the_stores_for_the_new_region(self):
+        asked = []
+        readers = {s: (lambda lang, money, s=s: asked.append((s, money)) or [{"source": s, "kind": "deal", "title": s, "url": ""}])
+                   for s in store_deals.SOURCES}
+        deals = self.deals(readers)
+        deals.snapshot("es", stores={"steam"}, wait=True, money="COP")
+        deals.snapshot("es", stores={"steam"}, wait=True, money="COP")
+        deals.snapshot("es", stores={"steam"}, wait=True, money="MXN")
+        self.assertEqual(asked, [("steam", "COP"), ("steam", "MXN")])
+
+    def test_while_the_new_region_loads_the_previous_prices_are_shown_converted(self):
+        gate = []
+        readers = {s: (lambda lang, money, s=s: [] if gate else [{"source": s, "kind": "deal", "title": s, "url": "", "priceValue": 40000,
+                                                                     "originalValue": 0, "currency": "COP"}]) for s in store_deals.SOURCES}
+        deals = self.deals(readers)
+        deals.snapshot("es", stores={"steam"}, wait=True, money="COP")
+        gate.append(1)                                                    # la nueva región aún no trae nada
+        out = deals.snapshot("es", stores={"steam"}, wait=True, money="MXN")
+        self.assertEqual([i["price"] for i in out["items"]], ["≈ MX$ 200"])
+
     def test_snapshot_filters_stores_and_keeps_cache(self):
         calls = []
-        readers = {s: (lambda lang, s=s: calls.append(s) or [{"source": s, "kind": "deal", "title": s, "url": "", "artwork": ""}])
+        readers = {s: (lambda lang, money, s=s: calls.append(s) or [{"source": s, "kind": "deal", "title": s, "url": "", "artwork": ""}])
                    for s in store_deals.SOURCES}
-        deals = store_deals.StoreDeals(readers=readers, cache_path=self.tmp / "d.json")
+        deals = self.deals(readers)
         out = deals.snapshot("es", stores={"steam", "gog"}, wait=True)
         self.assertEqual(sorted(calls), ["gog", "steam"])
         self.assertEqual(sorted(i["source"] for i in out["items"]), ["gog", "steam"])
@@ -118,10 +186,10 @@ class Cache(unittest.TestCase):
         self.assertEqual(len(again["items"]), 2)
 
     def test_a_failing_source_does_not_break_the_others(self):
-        def broken(lang):
+        def broken(lang, money):
             raise OSError("caída")
-        readers = {"steam": broken, "epic": lambda lang: [{"source": "epic", "kind": "free", "title": "x", "url": ""}], "gog": broken}
-        out = store_deals.StoreDeals(readers=readers, cache_path=self.tmp / "d.json").snapshot("es", wait=True)
+        readers = {"steam": broken, "epic": lambda lang, money: [{"source": "epic", "kind": "free", "title": "x", "url": ""}], "gog": broken}
+        out = self.deals(readers).snapshot("es", wait=True)
         self.assertEqual([i["source"] for i in out["items"]], ["epic"])
 
 

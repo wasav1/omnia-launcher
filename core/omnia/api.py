@@ -21,6 +21,7 @@ from . import (
     apps,
     art,
     audio_out,
+    currency,
     executable_identity,
     fsbrowse,
     importer,
@@ -118,6 +119,7 @@ class Api:
             "/settings/animated-background": ("POST", True, self.settings_animated_background),
             "/settings/glass": ("POST", True, self.settings_glass),
             "/settings/news": ("POST", True, self.settings_news),
+            "/settings/currency": ("POST", True, self.settings_currency),
             "/settings/performance": ("POST", True, self.settings_performance),
             "/settings/power-profile": ("POST", True, self.settings_power_profile),
             "/system/power": ("GET", True, self.system_power),
@@ -463,6 +465,7 @@ class Api:
                 "animated_background": cfg.get("animated_background", True) is not False,
                 "glass_effect": cfg.get("glass_effect", True) is not False,
                 "news_stores": self._news_stores(cfg),
+                **self._currency_settings(cfg, language),
                 **mangohud.options_from(self.store.dir),
                 "update_check": cfg.get("update_check", True) is not False,
                 "mangohud": cfg.get("mangohud_enabled", False) is True, "mangohud_installed": bool(shutil.which("mangohud")),
@@ -860,8 +863,34 @@ class Api:
         return out
 
     def stores_deals(self, q):
-        """Ofertas, gratis y lanzamientos de Steam, Epic y GOG (caché local; nunca espera a la red)."""
-        return self.store_deals.snapshot(q.get("lang", "es"), set(self._news_stores()))
+        """Ofertas, gratis y lanzamientos de Steam, Epic y GOG (caché local; nunca espera a la red), en la moneda elegida."""
+        return self.store_deals.snapshot(q.get("lang", "es"), set(self._news_stores()), money=self._currency())
+
+    def _currency(self, cfg=None) -> str:
+        """Moneda de los precios: la elegida en Ajustes o, en automático, la de la región del sistema."""
+        if cfg is None:
+            cfg = load_json(self.store.dir / "config.json", {})
+        chosen = cfg.get("currency") if isinstance(cfg, dict) else ""
+        return chosen if currency.known(chosen) else currency.from_locale()
+
+    def _currency_settings(self, cfg, language) -> dict:
+        chosen = cfg.get("currency") if isinstance(cfg, dict) else ""
+        return {"currency": self._currency(cfg), "currency_auto": not currency.known(chosen),
+                "currency_system": currency.from_locale(),
+                "currencies": currency.options(language, self.store_deals.rates.codes()),
+                "currency_rates_updated": self.store_deals.rates.updated()}
+
+    def settings_currency(self, q):
+        """Elige la moneda de los precios (`code`: un código ISO de tres letras, o "" para la de la región del sistema)."""
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        code = body.get("code")
+        if code != "" and not currency.known(code):
+            raise ApiError(400, "code debe ser un código de moneda de tres letras o vacío.")
+        if code and code not in currency.CURRENCIES and code not in self.store_deals.rates.codes():
+            raise ApiError(400, "moneda desconocida: " + code)
+        cfg = self._update_config(currency=code)
+        self.store_deals.rates.refresh()
+        return {"ok": True, **self._currency_settings(cfg, cfg.get("language", "es") if cfg.get("language") in ("es", "en") else "es")}
 
     def settings_news(self, q):
         """Elige de qué tiendas se muestran novedades y ofertas."""

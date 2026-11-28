@@ -44,6 +44,9 @@ Item {
         if (set.tab === 0) {
             H(qsTr("Aplicación"))
             out.push({ id: "lang", kind: "choice", label: qsTr("Idioma"), desc: qsTr("Los textos de Omnia se mostrarán en el idioma seleccionado."), text: a.language === "en" ? "English" : qsTr("Español") })
+            out.push({ id: "cur", kind: "choice", label: qsTr("Moneda de los precios"),
+                       desc: qsTr("Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈». ←/→ cambia."),
+                       text: a.currencyAuto ? qsTr("Automática (%1)").arg(a.currencySystem) : a.currencyName(a.currency) })
             out.push({ id: "anim", kind: "toggle", label: qsTr("Fondo animado"), desc: qsTr("Puntos y líneas con los colores del juego. Se detiene mientras juegas."), on: a.animatedBackground })
             out.push({ id: "upd", kind: "toggle", label: qsTr("Buscar actualizaciones de ports"), desc: qsTr("Avisa cuando un port instalado desde el catálogo tiene una versión nueva. Nunca se actualiza sin que lo confirmes."), on: a.updateCheck })
             out.push(a.mangohudInstalled || a.mangohud
@@ -191,7 +194,13 @@ Item {
     function cycle(r, dir) {
         const a = set.api
         if (r.id === "lang") a.setLanguage(a.language === "en" ? "es" : "en", function(st, b) { set.saved(st, b, qsTr("Idioma guardado.")) })
-        else if (r.id === "pack") {
+        else if (r.id === "cur") {
+            // «Automática» y luego las monedas, las principales primero (COP, MXN, USD)
+            const codes = [""].concat((a.currencies || []).map(function(c) { return c.code }))
+            const i = a.currencyAuto ? 0 : Math.max(0, codes.indexOf(a.currency))
+            const next = codes[(i + dir + codes.length) % codes.length]
+            a.setCurrency(next, function(st, b) { set.saved(st, b, qsTr("Moneda guardada.")); if (st === 200) set.play("move") })
+        } else if (r.id === "pack") {
             const packs = a.uiSoundPacks || []
             if (packs.length < 2) { set.note(qsTr("No hay otros paquetes instalados.")); return }
             const i = Math.max(0, set.indexOfId(packs, "id", a.uiSoundPack))
@@ -240,7 +249,7 @@ Item {
         case "mango": a.setMangohud(!r.on, function(st, b) { set.saved(st, b) }); set.play("toggle"); break
         case "scan": a.call("POST", "/library/refresh", function(st) { a.refresh(); a.notify(st === 200 ? qsTr("Biblioteca actualizada.") : qsTr("No se pudo actualizar la biblioteca.")) }); set.play("confirm"); break
         case "snd": a.uiSounds = !r.on; a.setSounds({ enabled: !r.on }, function(st, b) { set.saved(st, b); set.play("toggle") }); break
-        case "pack": case "lang": case "out": case "in": case "pfam": set.cycle(r, 1); break
+        case "pack": case "lang": case "cur": case "out": case "in": case "pfam": set.cycle(r, 1); break
         case "sndtest": set.runSoundTest(); break
         case "myname": {
             let pending = a.displayName
