@@ -163,7 +163,8 @@ Item {
         selectById(addedGameId)
         addedGameId = ""
     }
-    readonly property bool mainNavVisible: page === "home" || page === "library" || page === "all" || page === "store"
+    readonly property bool mainNavVisible: page === "home" || page === "library" || page === "all" || page === "store" || page === "downloads"
+    readonly property bool footerVisible: mainNavVisible && page !== "downloads"      // Descargas tiene su propia ayuda de botones
     readonly property var mainNavTabs: [
         {key:"home", label:qsTr("Inicio")}, {key:"library", label:qsTr("Biblioteca")}, {key:"store", label:qsTr("Catálogo")},
         {key:"downloads", label:qsTr("Descargas")}
@@ -171,7 +172,7 @@ Item {
     onPageChanged: { mainNavIndex = -1; searchFocus = false; searchOpen = false }
     function focusMainNav(preferStore) {
         searchFocus = false
-        mainNavIndex = preferStore === true || page === "store" ? 2 : page === "home" ? 0 : 1
+        mainNavIndex = page === "downloads" ? 3 : preferStore === true || page === "store" ? 2 : page === "home" ? 0 : 1
         lib.forceActiveFocus()
     }
     function activateMainNav(i) {
@@ -790,8 +791,8 @@ Item {
         z: 15
         anchors {
             left: parent.left; right: parent.right
-            bottom: lib.mainNavVisible ? footer.top : parent.bottom
-            margins: lib.s * 48; bottomMargin: lib.mainNavVisible ? lib.s * 23 : lib.s * 12
+            bottom: lib.footerVisible ? footer.top : parent.bottom
+            margins: lib.s * 48; bottomMargin: lib.footerVisible ? lib.s * 23 : lib.s * 12
         }
         visible: !!current && !intro.active && !ctxMenu.open && !vkb.open && !portDialog.open && !lib.addOpen
         jobs: lib.dlJobs
@@ -810,7 +811,7 @@ Item {
     // ================= pie con la guía de botones =================
     Item {
         id: footer
-        visible: lib.mainNavVisible
+        visible: lib.footerVisible
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: lib.s * 48; rightMargin: lib.s * 48; bottomMargin: lib.s * 34 }
         height: lib.s * 42
         Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: -lib.s * 18 } height: 1; color: Qt.rgba(1, 1, 1, 0.12) }

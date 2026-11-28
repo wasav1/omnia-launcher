@@ -1,18 +1,20 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "Theme.js" as Theme
 
 /**
- * Ficha de un juego en BigMode (pantalla completa): volver a Biblioteca, banner con degradado, título, plataforma y
- * origen, «Jugar» y «⋯», y las pestañas Descripción · Partidas · Actividad con datos reales del núcleo.
+ * Ficha de un juego en BigMode (pantalla completa, estilo D desde la fase 5b): volver a Biblioteca, banner con
+ * degradado, origen, título, «Jugar», «Favorito» y «⋯», y las pestañas Resumen · Partidas · Actividad con datos
+ * reales del núcleo; a la derecha, un panel de cristal con tu partida.
  * Teclado: ←→ botones/pestañas · ↑↓ zonas y scroll · Enter acepta · Esc atrás.  Mando: A, B, LB/RB (pestañas).
  */
 Item {
     id: det
     required property var host                // OmniaLibrary (paleta, escala, api y acciones)
     property var game: null
-    property int tab: 0                       // 0 Descripción · 1 Partidas · 2 Actividad
-    property string zone: "play"              // play | more | tabs | body
+    property int tab: 0                       // 0 Resumen · 1 Partidas · 2 Actividad
+    property string zone: "play"              // back | play | fav | more | tabs | body
     property bool menuOpen: false
     property int menuIdx: 0
     property var activity: null               // /game/activity
@@ -84,12 +86,18 @@ Item {
             else if (k === "down") zone = "play"
             return
         }
-        if (zone === "play" || zone === "more") {
-            if (k === "right") zone = "more"
-            else if (k === "left") zone = "play"
+        if (zone === "play" || zone === "fav" || zone === "more") {
+            const row = ["play", "fav", "more"]
+            const at = row.indexOf(zone)
+            if (k === "right") zone = row[Math.min(row.length - 1, at + 1)]
+            else if (k === "left") zone = row[Math.max(0, at - 1)]
             else if (k === "up") zone = "back"
             else if (k === "down") zone = "tabs"
-            else if (k === "accept") { if (zone === "play") det.host.play(game); else if (menuItems.length) { menuIdx = 0; menuOpen = true } }
+            else if (k === "accept") {
+                if (zone === "play") det.host.play(game)
+                else if (zone === "fav") { if (game) det.host.api.toggleFav(game) }
+                else if (menuItems.length) { menuIdx = 0; menuOpen = true }
+            }
         } else if (zone === "tabs") {
             if (k === "left") tab = (tab + 2) % 3
             else if (k === "right") tab = (tab + 1) % 3
@@ -168,9 +176,9 @@ Item {
         id: backB
         x: det.host.contentInset; y: det.s * 27
         width: backRow.implicitWidth + det.s * 44; height: det.s * 54; radius: height / 2
-        color: backMa.containsMouse ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0.05, 0.08, 0.12, 0.70)
+        color: backMa.containsMouse ? Theme.color.glassFillStrong : Qt.rgba(0.05, 0.08, 0.12, 0.70)
         border.width: det.zone === "back" ? 3 : 1
-        border.color: det.zone === "back" ? det.host.ring : Qt.rgba(1, 1, 1, 0.26)
+        border.color: det.zone === "back" ? Theme.color.accent : Theme.color.glassBorderStrong
         Row {
             id: backRow
             anchors.centerIn: parent
@@ -210,6 +218,22 @@ Item {
         x: det.host.contentInset
         y: det.bannerH - height - det.s * 38
         spacing: det.s * 12
+        Row {       // origen, en mayúsculas con el acento (estilo D)
+            spacing: det.s * 10
+            PlatIcon {
+                visible: key.length > 0
+                key: det.game?.platform || ""
+                size: det.s * 20
+                color: Theme.color.accentLight
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: det.game ? det.host.subtitle(det.game).toUpperCase() : ""
+                color: Theme.color.accentLight
+                font.family: det.host.uiFont; font.pixelSize: det.s * 17; font.weight: Font.ExtraBold; font.letterSpacing: det.s * 2
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
         Image {
             id: detailLogo
             width: det.s * 520
@@ -230,49 +254,46 @@ Item {
             font.weight: Font.Bold
             elide: Text.ElideRight
         }
-        Rectangle { width: det.s * 46; height: det.s * 3; radius: 2; color: det.host.ring }
-        Row {
-            spacing: det.s * 10
-            PlatIcon {
-                visible: key.length > 0
-                key: det.game?.platform || ""
-                size: det.s * 20
-                color: det.host.platformColor(key)
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text: det.game ? det.host.subtitle(det.game) : ""
-                color: det.ink2
-                font.family: det.host.uiFont
-                font.pixelSize: det.s * 22
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
         Row {
             topPadding: det.s * 10
             spacing: det.s * 16
             Rectangle {
                 id: playB
                 readonly property bool running: det.game && det.game.running
-                width: det.s * 280; height: det.s * 58; radius: det.s * 13
+                width: det.s * 280; height: det.s * 58; radius: det.s * 14
                 opacity: running ? 0.7 : 1
-                color: playMa.containsMouse ? Qt.lighter(det.host.accent, 1.2) : det.host.accent
+                color: playMa.containsMouse ? Theme.color.accentLight : Theme.color.accent
                 border.width: det.zone === "play" && !det.menuOpen ? 3 : 0
-                border.color: det.host.ring
+                border.color: Theme.color.ink
                 Row {
                     anchors.centerIn: parent
                     spacing: det.s * 14
-                    LucideIcon { width: det.s * 26; height: det.s * 26; name: det.game && det.game.portAvailable ? "download" : "play"; color: det.ink; visible: !playB.running; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: playB.running ? qsTr("En ejecución") : (det.game && det.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 28; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                    LucideIcon { width: det.s * 26; height: det.s * 26; name: det.game && det.game.portAvailable ? "download" : "play"; color: Theme.color.accentInk; visible: !playB.running; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: playB.running ? qsTr("En ejecución") : (det.game && det.game.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")); color: Theme.color.accentInk; font.family: det.host.uiFont; font.pixelSize: det.s * 26; font.weight: Font.ExtraBold; anchors.verticalCenter: parent.verticalCenter }
                 }
                 MouseArea { id: playMa; anchors.fill: parent; enabled: !!det.game && !det.game.running; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { det.zone = "play"; det.host.play(det.game) } }
+            }
+            Rectangle {
+                id: favB
+                readonly property bool on: !!det.game && !!det.game.fav
+                width: favRow.implicitWidth + det.s * 44; height: det.s * 58; radius: det.s * 14
+                color: favMa.containsMouse ? Theme.color.glassFillStrong : Qt.rgba(1, 1, 1, 0.08)
+                border.width: det.zone === "fav" ? 3 : 1
+                border.color: det.zone === "fav" ? Theme.color.accent : Qt.rgba(1, 1, 1, 0.30)
+                Row {
+                    id: favRow
+                    anchors.centerIn: parent; spacing: det.s * 10
+                    LucideIcon { width: det.s * 24; height: width; name: "star"; color: favB.on ? Theme.color.favorite : det.ink; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: favB.on ? qsTr("En favoritos") : qsTr("Favorito"); color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 22; anchors.verticalCenter: parent.verticalCenter }
+                }
+                MouseArea { id: favMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { det.zone = "fav"; if (det.game) det.host.api.toggleFav(det.game) } }
             }
             Rectangle {
                 id: moreB
                 width: det.s * 58; height: det.s * 58; radius: width / 2
                 color: moreMa.containsMouse || det.menuOpen ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(1, 1, 1, 0.10)
                 border.width: det.zone === "more" ? 3 : 0
-                border.color: det.host.ring
+                border.color: Theme.color.accent
                 LucideIcon { anchors.centerIn: parent; width: det.s * 30; height: det.s * 30; name: "ellipsis"; color: det.ink }
                 MouseArea { id: moreMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { det.zone = "more"; det.menuIdx = 0; det.menuOpen = !det.menuOpen } }
             }
@@ -285,28 +306,25 @@ Item {
 
         Row {
             id: tabs
-            spacing: det.s * 40
+            spacing: det.s * 8
+            bottomPadding: det.s * 12
             Repeater {
-                model: [qsTr("Descripción"), qsTr("Partidas"), qsTr("Actividad")]
-                delegate: Item {
+                model: [qsTr("Resumen"), qsTr("Partidas"), qsTr("Actividad")]
+                delegate: Rectangle {
                     id: tb
                     required property string modelData
                     required property int index
                     readonly property bool on: det.tab === index
-                    width: tx.implicitWidth + det.s * 14; height: det.s * 54
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: det.s * 3
-                        color: det.host.ring
-                        visible: tb.on
-                        opacity: det.zone === "tabs" ? 1 : 0.78
-                    }
-                    Text { id: tx; anchors.centerIn: parent; text: tb.modelData; color: tb.on || tma.containsMouse ? det.ink : det.ink2; font.family: det.host.uiFont; font.pixelSize: det.s * 24; font.weight: tb.on ? Font.Medium : Font.Normal }
+                    width: tx.implicitWidth + det.s * 40; height: det.s * 48; radius: height / 2
+                    color: on ? Theme.color.accentSoft : (tma.containsMouse ? Theme.color.glassFill : "transparent")
+                    border.width: on && det.zone === "tabs" ? 3 : 1
+                    border.color: on ? Theme.color.accent : Theme.color.glassBorder
+                    Text { id: tx; anchors.centerIn: parent; text: tb.modelData; color: tb.on ? Theme.color.accentLight : (tma.containsMouse ? det.ink : det.ink2); font.family: det.host.uiFont; font.pixelSize: det.s * 22; font.weight: tb.on ? Font.DemiBold : Font.Normal }
                     MouseArea { id: tma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { det.tab = tb.index; det.zone = "tabs" } }
                 }
             }
         }
-        Rectangle { id: rule; anchors { left: parent.left; right: parent.right; top: tabs.bottom; topMargin: -1 } height: 1; color: Qt.rgba(1, 1, 1, 0.14) }
+        Rectangle { id: rule; anchors { left: parent.left; right: parent.right; top: tabs.bottom; topMargin: -1 } height: 1; color: Theme.color.glassBorder }
 
         Flickable {
             id: bodyFlick
@@ -323,7 +341,7 @@ Item {
         }
     }
 
-    // ---------- pestaña Descripción ----------
+    // ---------- pestaña Resumen ----------
     Component {
         id: descComp
         Item {
@@ -360,9 +378,10 @@ Item {
                 x: parent.width * 0.60
                 width: parent.width * 0.40
                 height: stats.implicitHeight + det.s * 40
-                radius: det.s * 18
-                color: det.host.surface
-                border.color: Qt.rgba(1, 1, 1, 0.12)
+                radius: det.s * 24
+                color: Qt.rgba(1, 1, 1, 0.08)
+                border.color: Theme.color.glassBorderStrong
+                Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.radius; rightMargin: parent.radius } height: 1; color: Theme.color.glassHighlight }
             }
             Column {
                 id: stats
@@ -376,7 +395,8 @@ Item {
                         { icon: "clock", label: qsTr("Tiempo jugado"), value: det.activity && det.activity.totalSecs > 0 ? det.host.duration(det.activity.totalSecs) : qsTr("Sin datos") },
                         { icon: "calendar", label: qsTr("Última sesión"), value: det.activity && det.activity.lastPlayed > 0 ? det.relDate(det.activity.lastPlayed) : qsTr("Sin datos") },
                         { icon: "save", label: qsTr("Respaldo"), value: det.game?.lastBackup > 0 ? det.relDate(det.game.lastBackup)
-                            : det.saves?.backups?.length > 0 ? qsTr("Disponible") : det.saves?.configured ? qsTr("Sin respaldo") : qsTr("Sin configurar") }
+                            : det.saves?.backups?.length > 0 ? qsTr("Disponible") : det.saves?.configured ? qsTr("Sin respaldo") : qsTr("Sin configurar") },
+                        { icon: "hard-drive", label: qsTr("Origen"), value: det.game ? (det.game.variant || det.game.sub || det.game.src || qsTr("Sin datos")) : qsTr("Sin datos") }
                     ]
                     delegate: Item {
                         id: st
@@ -384,8 +404,8 @@ Item {
                         width: stats.width; height: det.s * 48
                         LucideIcon { width: det.s * 30; height: det.s * 30; name: st.modelData.icon; color: det.ink2; anchors.verticalCenter: parent.verticalCenter }
                         Text { x: det.s * 44; anchors.verticalCenter: parent.verticalCenter; text: st.modelData.label; color: det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 21 }
-                        Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 1; color: "#20ffffff" }
-                        Text { anchors { right: parent.right; verticalCenter: parent.verticalCenter } text: st.modelData.value; color: st.modelData.value === "Sin datos" ? det.ink2 : det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 21 }
+                        Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 1; color: Theme.color.glassBorder }
+                        Text { anchors { right: parent.right; verticalCenter: parent.verticalCenter } text: st.modelData.value; color: st.modelData.value === qsTr("Sin datos") ? det.ink2 : det.ink; font.family: det.host.uiFont; font.pixelSize: det.s * 21; font.weight: Font.DemiBold }
                     }
                 }
             }

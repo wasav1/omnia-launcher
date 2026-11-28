@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "Theme.js" as Theme
 
 /** Descargas de Big Mode: lo que se descarga o instala ahora y lo que falló. Se maneja con mando:
  *  ↑/↓ elegir · A acción principal (pausar/reanudar, reintentar, abrir ficha) · X cancelar o descartar · Y descartar las fallidas · B volver.
@@ -10,6 +11,8 @@ Item {
     required property var host
     signal back()
     readonly property real s: dl.host.s
+    // Con la barra superior de Big Mode visible (rediseño D, fase 5b) no hace falta el botón Volver.
+    readonly property bool withBar: dl.host.mainNavVisible === true
     property int index: 0
     property string selectedJobId: ""
     function selectRow(row) {
@@ -86,8 +89,10 @@ Item {
     Rectangle { anchors.fill: parent; color: dl.host.pageShade }
     Rectangle {
         id: backB
-        x: dl.s * 48; y: dl.s * 30
-        width: bRow.implicitWidth + dl.s * 44; height: dl.s * 54; radius: height / 2
+        visible: !dl.withBar
+        x: dl.withBar ? dl.s * 34 : dl.s * 48; y: dl.withBar ? dl.s * 108 : dl.s * 30
+        width: dl.withBar ? 0 : bRow.implicitWidth + dl.s * 44
+        height: dl.s * 54; radius: height / 2
         color: Qt.rgba(0.05, 0.08, 0.12, 0.70); border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.26)
         Row {
             id: bRow; anchors.centerIn: parent; spacing: dl.s * 10
@@ -96,7 +101,7 @@ Item {
         }
         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dl.back() }
     }
-    Text { anchors { left: backB.right; leftMargin: dl.s * 22; verticalCenter: backB.verticalCenter } text: qsTr("Descargas"); color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 40; font.weight: Font.Medium }
+    Text { anchors { left: backB.right; leftMargin: dl.s * 22; verticalCenter: backB.verticalCenter } text: qsTr("Descargas"); color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 40; font.weight: dl.withBar ? Font.Bold : Font.Medium }
 
     TransferMonitor {
         id: monitor
@@ -128,23 +133,42 @@ Item {
             required property int index
             readonly property bool sel: index === dl.index
             readonly property bool bad: dl.isBad(modelData)
-            width: ListView.view.width; height: dl.s * 112; radius: dl.s * 20
-            color: sel ? dl.host.surfaceFocus : dl.host.surface
-            border.width: sel ? 2 : 1
-            border.color: sel ? dl.host.accent : (bad ? "#6A3F3F" : (modelData.status === "completed" ? "#2E6B4A" : Qt.rgba(1, 1, 1, 0.10)))
+            readonly property var game: (dl.host.api.games || []).find(g => g.id === modelData.gameId) || null
+            readonly property int pct: Math.round(Math.max(0, Math.min(100, Number(modelData.progress || 0))))
+            width: ListView.view.width; height: dl.s * 132; radius: dl.s * 24
+            color: sel ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
+            border.width: sel ? dl.s * 3 : 1
+            border.color: sel ? Theme.color.accent : (bad ? "#6A3F3F" : (modelData.status === "completed" ? "#2E6B4A" : Theme.color.glassBorder))
+            Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.radius; rightMargin: parent.radius } height: 1; color: Theme.color.glassHighlight }
+            Rectangle {      // carátula
+                id: thumb
+                x: dl.s * 16; anchors.verticalCenter: parent.verticalCenter
+                width: dl.s * 75; height: dl.s * 100; radius: dl.s * 12
+                color: Qt.rgba(0, 0, 0, 0.3)
+                FadedImage { anchors.fill: parent; source: card.game ? (card.game.portada || card.game.fondo || "") : ""; cornerRadius: dl.s * 12 }
+                LucideIcon { visible: !card.game || !(card.game.portada || card.game.fondo); anchors.centerIn: parent; width: dl.s * 30; height: width; name: "download"; color: dl.host.ink2 }
+            }
+            Text {          // porcentaje
+                id: pctText
+                visible: !card.bad
+                anchors { right: parent.right; rightMargin: dl.s * 28; top: parent.top; topMargin: dl.s * 20 }
+                text: card.modelData.status === "completed" ? "✓" : card.pct + " %"
+                color: card.modelData.status === "completed" ? "#4FBF86" : Theme.color.accentLight
+                font.family: dl.host.uiFont; font.pixelSize: dl.s * 32; font.weight: Font.ExtraBold
+            }
             Column {
-                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: dl.s * 28; rightMargin: dl.s * 28 }
+                anchors { left: thumb.right; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: dl.s * 22; rightMargin: dl.s * 28 }
                 spacing: dl.s * 10
-                Text { width: parent.width; elide: Text.ElideRight; color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 25; font.weight: Font.DemiBold
-                       text: card.modelData.name + (card.modelData.external ? "  ·  Steam" : "") + "  ·  " + dl.statusLabel(card.modelData.status) }
+                Text { width: parent.width - (pctText.visible ? pctText.width + dl.s * 16 : 0); elide: Text.ElideRight; color: dl.host.ink; font.family: dl.host.uiFont; font.pixelSize: dl.s * 25; font.weight: Font.Bold
+                       text: card.modelData.name + (card.modelData.external ? "  ·  Steam" : "") }
                 Rectangle {
                     visible: !card.bad
-                    width: parent.width; height: dl.s * 9; radius: height / 2; color: Qt.rgba(1, 1, 1, 0.10)
+                    width: parent.width; height: dl.s * 12; radius: height / 2; color: Qt.rgba(1, 1, 1, 0.14)
                     Rectangle { width: parent.width * Math.max(0, Math.min(1, Number(card.modelData.progress || 0) / 100)); height: parent.height; radius: height / 2
-                                color: card.modelData.status === "completed" ? "#4FBF86" : dl.host.accent; Behavior on width { NumberAnimation { duration: 200 } } }
+                                color: card.modelData.status === "completed" ? "#4FBF86" : Theme.color.accent; Behavior on width { NumberAnimation { duration: 200 } } }
                 }
                 Text { width: parent.width; elide: Text.ElideRight; color: card.bad ? "#E8B86D" : dl.host.ink2; font.family: dl.host.uiFont; font.pixelSize: dl.s * 18
-                       text: card.bad ? (card.modelData.error || qsTr("No terminó.")) : (card.modelData.destination || "") }
+                       text: dl.statusLabel(card.modelData.status) + "  ·  " + (card.bad ? (card.modelData.error || qsTr("No terminó.")) : (card.modelData.destination || "")) }
             }
             MouseArea { anchors.fill: parent; onClicked: dl.selectRow(card.index); onDoubleClicked: { dl.selectRow(card.index); dl.primary() } }
         }

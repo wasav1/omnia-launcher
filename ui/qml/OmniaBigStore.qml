@@ -2,8 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import "Theme.js" as Theme
 
-/** Tienda de Big Mode. El foco se conserva por tarjeta al volver de una ficha. */
+/** Catálogo de Big Mode (antes «Tienda»; estilo D desde la fase 5b). El foco se conserva por tarjeta al volver de una ficha. */
 Item {
     id: bigStore
     required property var host
@@ -354,17 +355,17 @@ Item {
         signal choose()
         width: labelRow.implicitWidth + bigStore.s * 30
         height: bigStore.s * 38; radius: height / 2
-        color: selected ? bigStore.host.accent : bigStore.host.surface
-        border { width: focused ? 3 : 1; color: focused ? bigStore.host.ring : "#46586A" }
+        color: selected ? Theme.color.accentSoft : (actionMa.containsMouse ? Theme.color.glassFillStrong : Qt.rgba(1, 1, 1, 0.06))
+        border { width: focused ? 3 : 1; color: focused ? Theme.color.accent : (selected ? Theme.color.accent : Theme.color.glassBorderStrong) }
         Row {
             id: labelRow
             anchors.centerIn: parent
             spacing: bigStore.s * 7
             LucideIcon { visible: !!button.icon; name: button.icon; width: bigStore.s * 19; height: width; color: bigStore.host.ink; anchors.verticalCenter: parent.verticalCenter }
             Image { visible: !!button.logo.toString(); source: button.logo; width: bigStore.s * 25; height: width; fillMode: Image.PreserveAspectFit; anchors.verticalCenter: parent.verticalCenter }
-            Text { text: button.label; color: bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18; anchors.verticalCenter: parent.verticalCenter }
+            Text { text: button.label; color: button.selected ? Theme.color.accentLight : bigStore.host.ink; font.family: bigStore.host.uiFont; font.pixelSize: bigStore.s * 18; font.weight: button.selected ? Font.DemiBold : Font.Normal; anchors.verticalCenter: parent.verticalCenter }
         }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: button.choose() }
+        MouseArea { id: actionMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: button.choose() }
     }
     component FilterBar: Row {
         spacing: bigStore.s * 12
@@ -438,8 +439,8 @@ Item {
                 width: parent.width; height: bigStore.s * 43
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Tienda"); color: bigStore.host.ink; font.family: bigStore.host.uiFont
-                    font.pixelSize: bigStore.s * 32; font.weight: Font.DemiBold
+                    text: qsTr("Catálogo"); color: bigStore.host.ink; font.family: bigStore.host.uiFont
+                    font.pixelSize: bigStore.s * 34; font.weight: Font.Bold
                 }
                 Action {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
