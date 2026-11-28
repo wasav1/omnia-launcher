@@ -3531,7 +3531,7 @@
 <context>
     <name>OmniaBigStore</name>
     <message>
-        <location filename="../OmniaBigStore.qml" line="+629"/>
+        <location filename="../OmniaBigStore.qml" line="+540"/>
         <source>En tu biblioteca</source>
         <translation>In your library</translation>
     </message>
@@ -3541,7 +3541,7 @@
         <translation>Not installed</translation>
     </message>
     <message>
-        <location line="-614"/>
+        <location line="-525"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
@@ -3551,12 +3551,12 @@
         <translation>Omnia</translation>
     </message>
     <message>
-        <location line="+122"/>
+        <location line="+112"/>
         <source>No se pudo cargar el catálogo. Pulsa A en el filtro actual para reintentar.</source>
         <translation>Could not load the catalog. Press A on the current filter to retry.</translation>
     </message>
     <message>
-        <location line="+90"/>
+        <location line="+84"/>
         <source>No hay un paquete instalable publicado.</source>
         <translation>No installable package has been published.</translation>
     </message>
@@ -3611,7 +3611,12 @@
         <translation>Could not start installation.</translation>
     </message>
     <message>
-        <location line="+164"/>
+        <location line="+107"/>
+        <source>Consola</source>
+        <translation>Console</translation>
+    </message>
+    <message>
+        <location line="+30"/>
         <source>Catálogo</source>
         <translation>Catalog</translation>
     </message>
@@ -3626,27 +3631,7 @@
         <translation>Search</translation>
     </message>
     <message>
-        <location line="+23"/>
-        <source>Últimos instalados</source>
-        <translation>Recently installed</translation>
-    </message>
-    <message>
-        <location line="+5"/>
-        <source>Ver más</source>
-        <translation>See more</translation>
-    </message>
-    <message>
-        <location line="+32"/>
-        <source>Tus juegos instalados aparecerán aquí.</source>
-        <translation>Your installed games will appear here.</translation>
-    </message>
-    <message>
-        <location line="+6"/>
-        <source>Todos los juegos</source>
-        <translation>All games</translation>
-    </message>
-    <message>
-        <location line="+13"/>
+        <location line="+42"/>
         <source>Cargando catálogo…</source>
         <translation>Loading catalog…</translation>
     </message>
@@ -3656,7 +3641,7 @@
         <translation>No games match this filter.</translation>
     </message>
     <message>
-        <location line="+44"/>
+        <location line="+35"/>
         <source>Local</source>
         <translation>Local</translation>
     </message>
@@ -3676,7 +3661,7 @@
         <translation>Destination: %1</translation>
     </message>
     <message>
-        <location line="-267"/>
+        <location line="-201"/>
         <location line="+0"/>
         <source>Todas las consolas</source>
         <translation>All consoles</translation>
@@ -4034,7 +4019,7 @@
 <context>
     <name>OmniaHome</name>
     <message>
-        <location filename="../OmniaHome.qml" line="+105"/>
+        <location filename="../OmniaHome.qml" line="+106"/>
         <source>No se pudo conectar con el catálogo de Omnia.</source>
         <translation>Could not connect to the Omnia catalog.</translation>
     </message>
@@ -4084,34 +4069,65 @@
         <translation>Could not start installation.</translation>
     </message>
     <message>
-        <location line="+169"/>
-        <source>Inicio</source>
-        <translation>Home</translation>
-    </message>
-    <message>
+        <location line="+30"/>
         <location line="+23"/>
-        <source>Sin conexión · catálogo guardado desactualizado</source>
-        <translation>Offline · saved catalog is out of date</translation>
-    </message>
-    <message>
-        <location line="-172"/>
-        <location line="+1"/>
         <source>Ver ficha</source>
         <translation>View details</translation>
     </message>
     <message>
-        <location line="-12"/>
-        <location line="+518"/>
+        <location line="-2"/>
+        <location line="+286"/>
+        <location line="+233"/>
         <source>Jugar</source>
         <translation>Play</translation>
     </message>
     <message>
-        <location line="-395"/>
+        <location line="-411"/>
         <source>En tu biblioteca</source>
         <translation>In your library</translation>
     </message>
     <message>
-        <location line="+362"/>
+        <location line="+112"/>
+        <source>Buscando novedades de tus tiendas…</source>
+        <translation>Looking for news from your stores…</translation>
+    </message>
+    <message>
+        <location line="+58"/>
+        <source>Seguir jugando</source>
+        <translation>Continue playing</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Tu biblioteca</source>
+        <translation>Your library</translation>
+    </message>
+    <message>
+        <location line="+22"/>
+        <source>1 juego</source>
+        <translation>1 game</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>%1 juegos</source>
+        <translation>%1 games</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Catálogo</source>
+        <translation>Catalog</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Ports y tiendas</source>
+        <translation>Ports and stores</translation>
+    </message>
+    <message>
+        <location line="+75"/>
+        <source>Cargando novedades…</source>
+        <translation>Loading news…</translation>
+    </message>
+    <message>
+        <location line="+110"/>
         <source>Todavía no hay una descripción para este juego.</source>
         <translation>There is no description for this game yet.</translation>
     </message>
@@ -4171,12 +4187,7 @@
         <translation>Default destination</translation>
     </message>
     <message>
-        <location line="-341"/>
-        <source>Novedades de tus tiendas y tus partidas</source>
-        <translation>News from your stores and your games</translation>
-    </message>
-    <message>
-        <location line="+161"/>
+        <location line="-176"/>
         <source>Novedades de tus tiendas</source>
         <translation>News from your stores</translation>
     </message>
@@ -4186,7 +4197,7 @@
         <translation>No news from this store right now.</translation>
     </message>
     <message>
-        <location line="+165"/>
+        <location line="+161"/>
         <source>Carpeta de instalación guardada.</source>
         <translation>Installation folder saved.</translation>
     </message>
@@ -4196,12 +4207,13 @@
         <translation>Could not save the installation folder.</translation>
     </message>
     <message>
-        <location line="-537"/>
+        <location line="-538"/>
+        <location line="+286"/>
         <source>Instalar port</source>
         <translation>Install port</translation>
     </message>
     <message>
-        <location line="-164"/>
+        <location line="-492"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
@@ -4272,84 +4284,40 @@
         <translation>Native Linux port</translation>
     </message>
     <message>
-        <location line="+118"/>
+        <location line="+161"/>
+        <location line="+287"/>
         <source>Detalles</source>
         <translation>Details</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>Abrir biblioteca</source>
-        <translation>Open library</translation>
-    </message>
-    <message>
-        <location line="+4"/>
+        <location line="+12"/>
         <source>Biblioteca</source>
         <translation>Library</translation>
     </message>
     <message>
-        <location line="+0"/>
-        <location line="+1"/>
-        <source>juego</source>
-        <translation>game</translation>
-    </message>
-    <message>
-        <location line="-1"/>
-        <location line="+1"/>
-        <source>juegos</source>
-        <translation>games</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Favoritos</source>
-        <translation>Favorites</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Aún no hay favoritos</source>
-        <translation>No favorites yet</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Sistema</source>
-        <translation>System</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Estado del equipo</source>
-        <translation>System status</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>Ajustes</source>
-        <translation>Settings</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>Mando, idioma y biblioteca</source>
-        <translation>Controller, language, and library</translation>
-    </message>
-    <message>
-        <location line="+3"/>
+        <location line="-318"/>
         <source>Leer noticia</source>
         <translation>Read article</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-2"/>
+        <location line="+22"/>
         <source>Obtener</source>
         <translation>Get</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="-21"/>
+        <location line="+21"/>
         <source>Ver oferta</source>
         <translation>View deal</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+1"/>
         <source>Abrir</source>
         <translation>Open</translation>
     </message>
     <message>
-        <location line="+111"/>
+        <location line="+107"/>
         <source>Jugado hoy</source>
         <translation>Played today</translation>
     </message>
@@ -4359,32 +4327,12 @@
         <translation>Played yesterday</translation>
     </message>
     <message>
-        <location line="+58"/>
-        <source>Catálogo sin conexión · datos guardados</source>
-        <translation>Catalog offline · cached data</translation>
-    </message>
-    <message>
-        <location line="+5"/>
-        <source>Reintentar</source>
-        <translation>Retry</translation>
-    </message>
-    <message>
-        <location line="+58"/>
-        <source>SEGUIR JUGANDO</source>
-        <translation>CONTINUE PLAYING</translation>
-    </message>
-    <message>
-        <location line="+0"/>
-        <source>TU BIBLIOTECA</source>
-        <translation>YOUR LIBRARY</translation>
-    </message>
-    <message>
-        <location line="+6"/>
+        <location line="+169"/>
         <source>Aún no has jugado</source>
         <translation>You haven’t played yet</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+1"/>
         <source>Abre la biblioteca para empezar.</source>
         <translation>Open the library to get started.</translation>
     </message>
@@ -4436,12 +4384,12 @@
 <context>
     <name>OmniaLibrary</name>
     <message>
-        <location filename="../OmniaLibrary.qml" line="+865"/>
+        <location filename="../OmniaLibrary.qml" line="+869"/>
         <source>Desplazar ficha · Cambiar acción</source>
         <translation>Scroll details · Change action</translation>
     </message>
     <message>
-        <location line="-426"/>
+        <location line="-430"/>
         <source>Nintendo 64</source>
         <translation>Nintendo 64</translation>
     </message>
@@ -4552,14 +4500,14 @@
         <translation>Search games…</translation>
     </message>
     <message>
-        <location filename="../OmniaLibrary.qml" line="+969"/>
+        <location filename="../OmniaLibrary.qml" line="+975"/>
         <source>Cerrar Big Mode</source>
         <translation>Close Big Mode</translation>
     </message>
     <message>
         <location filename="../OmniaBigHeader.qml" line="+72"/>
         <location line="+6"/>
-        <location filename="../OmniaLibrary.qml" line="-265"/>
+        <location filename="../OmniaLibrary.qml" line="-267"/>
         <source>Menú rápido</source>
         <translation>Quick menu</translation>
     </message>
@@ -4610,7 +4558,12 @@
         <translation>Sort</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+5"/>
+        <source>Destacado</source>
+        <translation>Featured</translation>
+    </message>
+    <message>
+        <location line="+4"/>
         <source>Clic para seleccionar</source>
         <translation>Click to select</translation>
     </message>
@@ -4620,7 +4573,7 @@
         <translation>Back</translation>
     </message>
     <message>
-        <location line="+133"/>
+        <location line="+134"/>
         <source>No se pudo cargar la biblioteca</source>
         <translation>Could not load the library</translation>
     </message>
@@ -4660,7 +4613,7 @@
         <translation>Retry</translation>
     </message>
     <message>
-        <location line="-936"/>
+        <location line="-942"/>
         <source>Carpeta de instalación guardada.</source>
         <translation>Installation folder saved.</translation>
     </message>
@@ -4680,7 +4633,7 @@
         <translation>Installed: %1</translation>
     </message>
     <message>
-        <location line="+604"/>
+        <location line="+608"/>
         <source>Descargas en la barra</source>
         <translation>Downloads in the top bar</translation>
     </message>
@@ -4732,12 +4685,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+15"/>
+        <location line="+16"/>
         <source>Menú</source>
         <translation>Menu</translation>
     </message>
     <message>
-        <location line="-12"/>
+        <location line="-13"/>
         <source>Navegar</source>
         <translation>Navigate</translation>
     </message>
@@ -4758,13 +4711,14 @@
     </message>
     <message>
         <location line="+0"/>
+        <location line="+8"/>
         <source>RePág / AvPág</source>
         <translation>PgUp / PgDn</translation>
     </message>
     <message>
         <location filename="../OmniaBigHeader.qml" line="-182"/>
         <location line="+6"/>
-        <location filename="../OmniaLibrary.qml" line="+1"/>
+        <location filename="../OmniaLibrary.qml" line="-7"/>
         <source>Ver todos</source>
         <translation>View all</translation>
     </message>
@@ -4789,13 +4743,13 @@
         <translation>Stores</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+2"/>
         <source>Buscar</source>
         <translation>Search</translation>
     </message>
     <message>
-        <location line="-705"/>
-        <location line="+706"/>
+        <location line="-710"/>
+        <location line="+711"/>
         <source>Descargas</source>
         <translation>Downloads</translation>
     </message>
@@ -4810,7 +4764,7 @@
         <translation>Installation started: %1</translation>
     </message>
     <message>
-        <location line="+212"/>
+        <location line="+213"/>
         <source>¿Cerrar Big Mode?</source>
         <translation>Close Big Mode?</translation>
     </message>
@@ -4820,19 +4774,19 @@
         <translation>You&apos;ll return to the desktop. Do you want to close Big Mode?</translation>
     </message>
     <message>
-        <location line="-832"/>
+        <location line="-838"/>
         <source>Desinstalar juego</source>
         <translation>Uninstall game</translation>
     </message>
     <message>
         <location line="-1"/>
         <location line="+11"/>
-        <location line="+827"/>
+        <location line="+833"/>
         <source>Cancelar</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location line="-841"/>
+        <location line="-847"/>
         <source>Desinstalar %1</source>
         <translation>Uninstall %1</translation>
     </message>

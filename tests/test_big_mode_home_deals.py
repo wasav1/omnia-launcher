@@ -38,6 +38,7 @@ Window {
         property string opened: ""
         property var games: []
         function call(method, path, done) {
+            if (path.indexOf("/stores/news") === 0) { done(200, { items: [] }); return }
             if (path.indexOf("/stores/deals") === 0) done(200, { loading: false, items: [
                 { source: "steam", kind: "deal", title: "Cyberpunk", url: "https://store.steampowered.com/app/1/", discount: 70, price: "$ 1", endsAt: 0 },
                 { source: "gog", kind: "deal", title: "Heroes 3", url: "https://www.gog.com/x", discount: 76, price: "US$ 0,99" },
@@ -58,19 +59,29 @@ Window {
         home.loadDeals()
         const keys = home.dealSections.map(s => s.key + ":" + s.items.length).join(",")
         if (keys !== "free:1,deal:2,release:1") return fail("sections " + keys)
-        home.zone = 1; home.gridRow = 1; home.gridCol = 2
+        // el destacado usa las mismas novedades que Desktop: primero el juego gratis
+        if (!home.currentFeatured || home.currentFeatured.title !== "Bread and Fred") return fail("featured " + JSON.stringify(home.currentFeatured))
+        home.zone = "hero"
+        home.nav("right")
+        if (home.zone !== "library") return fail("without a recent game, right from the hero goes to Library: " + home.zone)
+        home.nav("right")
+        if (home.zone !== "catalog") return fail("right from Library goes to Catalog")
         home.nav("down")
-        if (home.zone !== 2 || home.sectionIndex !== 0) return fail("down from the tiles goes to the deals")
-        home.nav("down"); home.nav("right")
+        if (home.zone !== "deals" || home.sectionIndex !== 0) return fail("down from the tiles goes to the deals: " + home.zone)
+        home.nav("down")
+        if (home.sectionIndex !== 1 || home.itemIndex !== 0) return fail("down crosses to the next section: " + home.sectionIndex + "/" + home.itemIndex)
+        home.nav("right")
         if (home.focusedDeal.title !== "Heroes 3") return fail("focused " + JSON.stringify(home.focusedDeal))
         home.nav("right")
         if (home.itemIndex !== 1) return fail("stays on the last card")
+        home.nav("up"); home.nav("up")
+        if (home.zone !== "hero") return fail("up from the first row goes back to the hero: " + home.zone)
         home.nav("tabnext")
         if (home.storeFilter !== "steam") return fail("RB changes the store: " + home.storeFilter)
         if (home.dealSections.map(s => s.key).join(",") !== "deal,release") return fail("steam filter " + home.dealSections.map(s => s.key))
         home.nav("tabprev"); home.nav("tabprev")
         if (home.storeFilter !== "omnia") return fail("LB wraps around: " + home.storeFilter)
-        if (home.zone !== 1) return fail("an empty filter returns the focus to the tiles")
+        if (home.dealColumns < 2 || home.dealColumns > 5) return fail("columns " + home.dealColumns)
         Qt.exit(CHECKS_OK)
     }
 }

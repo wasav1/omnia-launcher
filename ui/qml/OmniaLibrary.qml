@@ -606,6 +606,8 @@ Item {
                 else if (k === "A") home.accept()
                 else if (k === "LB") home.nav("tabprev")
                 else if (k === "RB") home.nav("tabnext")
+                else if (k === "LT") home.nav("featprev")
+                else if (k === "RT") home.nav("featnext")
                 else if (k === "B") lib.back()
                 return
             }
@@ -669,6 +671,8 @@ Item {
             else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) home.accept()
             else if (e.key === Qt.Key_Tab) home.nav(e.modifiers & Qt.ShiftModifier ? "tabprev" : "tabnext")
             else if (e.key === Qt.Key_Backtab) home.nav("tabprev")
+            else if (e.key === Qt.Key_PageUp) home.nav("featprev")
+            else if (e.key === Qt.Key_PageDown) home.nav("featnext")
             else if (e.key === Qt.Key_Escape) back()
             else { e.accepted = false; return }
             e.accepted = true
@@ -873,6 +877,7 @@ Item {
             Hint { visible: lib.padOn && !bigStoreView.detail; padKeys: ["SELECT"]; label: qsTr("Barra superior") }
             Hint { visible: lib.padOn; padKeys: ["START"]; label: qsTr("Menú rápido") }
             Hint { visible: (lib.page === "store" && !bigStoreView.detail) || (lib.page === "home" && !home.detail); padKeys: lib.padOn ? ["LB", "RB"] : []; glyph: "Tab"; label: qsTr("Tiendas") }
+            Hint { visible: lib.page === "home" && !home.detail && home.featured.length > 1; padKeys: lib.padOn ? ["LT", "RT"] : []; glyph: qsTr("RePág / AvPág"); label: qsTr("Destacado") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail; padKeys: lib.padOn ? ["X"] : []; glyph: "/"; label: qsTr("Buscar") }
             Hint { visible: lib.page === "store" && !bigStoreView.detail && !bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "Y"; label: qsTr("Descargas") }
             Hint { visible: lib.page === "store" && !!bigStoreView.contextGame; padKeys: lib.padOn ? ["Y"] : []; glyph: "M"; label: qsTr("Menú") }
@@ -994,6 +999,7 @@ Item {
         onOpenSection: function(section) {
             if (section === "settings") lib.openSettings()
             else if (section === "system") lib.showSystem = true
+            else if (section === "store") lib.openStore()
             else if (section === "favorites" && api.games.some(g => g.fav && !g.hidden)) { lib.openLibrary(); lib.setFilter("fav") }
             else lib.openLibrary()
         }

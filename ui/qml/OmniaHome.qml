@@ -4,9 +4,10 @@ import QtQuick
 import QtQuick.Dialogs
 import "Theme.js" as Theme
 
-/** Inicio de Big Mode: noticias, tu última partida, accesos y (rediseño D, fase 5c) «Novedades de tus tiendas»:
- *  ofertas, juegos gratis y lanzamientos de Steam, Epic, GOG y Omnia en filas que se recorren con el mando.
- *  LB/RB cambian de tienda. Datos: /stores/deals del núcleo y el catálogo de Omnia (ports nuevos). */
+/** Inicio de Big Mode, con la misma estructura que el Inicio de Desktop: arriba el destacado (las mismas novedades:
+ *  juegos gratis, la novedad de Omnia y las ofertas grandes) junto a «Seguir jugando» y los accesos a Biblioteca y
+ *  Catálogo; debajo, «Novedades de tus tiendas» en cuadrícula (columnas según el ancho, desplazamiento vertical).
+ *  Mando: flechas entre zonas y tarjetas, A abre, LB/RB cambian de tienda, LT/RT cambian el destacado. */
 Item {
     id: home
     property var api
@@ -59,7 +60,7 @@ Item {
         const i = storeKeys.indexOf(storeFilter)
         storeFilter = storeKeys[(i + d + storeKeys.length) % storeKeys.length]
         sectionIndex = 0; itemIndex = 0
-        if (zone === 2 && !dealSections.length) zone = 1
+        if (zone === "deals" && !dealSections.length) zone = "hero"
     }
     readonly property var omniaReleases: (catalog || []).slice(useCatalogFeatured ? 1 : 0, 10).map(g => ({
         source: "omnia", kind: "release", title: g.name || "", game: g, artwork: artwork(g, ["hero", "grid"]), price: "", discount: 0 }))
@@ -73,7 +74,7 @@ Item {
     }
     property int sectionIndex: 0
     property int itemIndex: 0
-    readonly property var focusedDeal: zone === 2 && dealSections[sectionIndex] ? dealSections[sectionIndex].items[itemIndex] || null : null
+    readonly property var focusedDeal: zone === "deals" && dealSections[sectionIndex] ? dealSections[sectionIndex].items[itemIndex] || null : null
     function kindBadge(item) {
         if (item.kind === "deal") return item.discount > 0 ? "−" + item.discount + " %" : qsTr("Oferta")
         if (item.kind === "free") return qsTr("Gratis")
@@ -203,79 +204,128 @@ Item {
         })
     }
     function closeCatalogDetails() { detail = null; detailLoading = false }
-    // ---------- carrusel automático, juego actual y mosaico de accesos ----------
-    property int zone: 1                    // 0 carrusel, 1 «seguir jugando» + mosaico, 2 novedades de tus tiendas
-    property int gridRow: 0
-    property int gridCol: 0
-    readonly property var heroLocal: localFeaturedGame()
-    readonly property var heroActions: heroLocal ? [{ id: "play", label: heroLocal.portAvailable ? qsTr("Instalar port") : qsTr("Jugar") }, { id: "library", label: qsTr("Detalles") }]
-                                                 : [{ id: "library", label: qsTr("Abrir biblioteca") }]
-    readonly property int favoriteCount: (localGames || []).filter(g => g.fav && !g.hidden).length
-    readonly property int gameCount: (localGames || []).filter(g => !g.hidden).length
-    readonly property var tiles: [
-        { id: "library", icon: "layout-grid", title: qsTr("Biblioteca"), sub: gameCount + " " + (gameCount === 1 ? qsTr("juego") : qsTr("juegos")) },
-        { id: "favorites", icon: "star", title: qsTr("Favoritos"), sub: favoriteCount > 0 ? favoriteCount + " " + (favoriteCount === 1 ? qsTr("juego") : qsTr("juegos")) : qsTr("Aún no hay favoritos") },
-        { id: "system", icon: "activity", title: qsTr("Sistema"), sub: qsTr("Estado del equipo") },
-        { id: "settings", icon: "settings", title: qsTr("Ajustes"), sub: qsTr("Mando, idioma y biblioteca") }
-    ]
-    readonly property string acceptLabel: {
-        if (zone === 0) return carousel.current?.slug ? qsTr("Ver ficha") : qsTr("Leer noticia")
-        if (zone === 2) return focusedDeal && focusedDeal.game ? qsTr("Ver ficha") : focusedDeal && focusedDeal.kind === "free" ? qsTr("Obtener") : qsTr("Ver oferta")
-        if (gridCol < 2) return heroActions[Math.min(gridCol, heroActions.length - 1)].label
-        return qsTr("Abrir")
+    // ---------- destacado, seguir jugando y accesos (como el Inicio de Desktop) ----------
+    // Zonas de foco: "hero" (destacado), "play" / "details" (Seguir jugando), "library" / "catalog" (accesos) y "deals" (cuadrícula).
+    property string zone: "hero"
+    property var news: []
+    function loadNews() {
+        if (!api || !api.call) return
+        api.call("GET", "/stores/news?lang=" + (api.language === "en" ? "en" : "es"), function(status, body) {
+            if (status === 200 && body && Array.isArray(body.items)) home.news = body.items
+        })
     }
+    // Mismo destacado que Desktop: juegos gratis, la novedad de Omnia, las ofertas grandes y un port nuevo.
+    readonly property var featured: {
+        const out = []
+        const free = deals.filter(i => i.kind === "free")
+        const big = deals.filter(i => i.kind === "deal" && i.artwork).sort((a, b) => (b.discount || 0) - (a.discount || 0))
+        const omnia = news.filter(n => n.source === "omnia" && n.artwork).map(n => Object.assign({ kind: "news" }, n))
+        for (const list of [free.slice(0, 2), omnia.slice(0, 1), big.slice(0, 3), omniaReleases.filter(i => i.artwork).slice(0, 1)])
+            for (const i of list) out.push(i)
+        return out.slice(0, 6)
+    }
+    property int featuredIndex: 0
+    readonly property var currentFeatured: featured.length ? featured[featuredIndex % featured.length] : null
+    function stepFeatured(d) { if (featured.length) featuredIndex = (featuredIndex + d + featured.length) % featured.length }
+    Timer { interval: 9000; repeat: true; running: home.visible && home.featured.length > 1 && home.zone !== "hero"; onTriggered: home.stepFeatured(1) }
+    function featuredAction(item) {
+        if (!item) return ""
+        if (item.game || item.slug) return qsTr("Ver ficha")
+        if (item.kind === "free") return qsTr("Obtener")
+        if (item.kind === "deal") return qsTr("Ver oferta")
+        return qsTr("Leer noticia")
+    }
+    function openFeatured(item) {
+        if (!item) return
+        if (item.game) { openCatalogDetails(item.game); return }
+        if (item.slug) {
+            api.catalogGame(item.slug, function(status, body) {
+                if (status === 200 && body && body.data) home.openCatalogDetails(body.data)
+                else if (item.url) Qt.openUrlExternally(item.url)
+            })
+            return
+        }
+        if (item.url) Qt.openUrlExternally(item.url)
+    }
+
+    readonly property var heroLocal: localFeaturedGame()
+    readonly property int gameCount: (localGames || []).filter(g => !g.hidden).length
+    readonly property string acceptLabel: zone === "hero" ? featuredAction(currentFeatured)
+        : zone === "play" ? (heroLocal && heroLocal.portAvailable ? qsTr("Instalar port") : qsTr("Jugar"))
+        : zone === "details" ? qsTr("Detalles")
+        : zone === "deals" ? (focusedDeal && focusedDeal.game ? qsTr("Ver ficha") : focusedDeal && focusedDeal.kind === "free" ? qsTr("Obtener") : qsTr("Ver oferta"))
+        : qsTr("Abrir")
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
-    function cellExists(r, c) { return c < 2 ? (r === 0 && c < heroActions.length) : true }
-    onZoneChanged: Qt.callLater(function() { page.reveal(zone === 0 ? carousel : zone === 1 ? bottomRow : dealRows.itemAt(sectionIndex)) })
-    onSectionIndexChanged: if (zone === 2) Qt.callLater(function() { page.reveal(dealRows.itemAt(sectionIndex)) })
+
+    // ---------- cuadrícula de novedades: columnas fijas por ancho, tarjetas que crecen, máx. 5 por fila ----------
+    readonly property int dealColumns: Math.max(2, Math.min(5, Math.floor((stack.width + u * 20) / (u * 330 + u * 20))))
+    readonly property real dealCardWidth: (stack.width - (dealColumns - 1) * u * 20) / dealColumns
+    readonly property real dealCardHeight: Math.round(dealCardWidth * 0.46) + u * 128
+    function enterDeals(col) {
+        if (!dealSections.length) return false
+        zone = "deals"; sectionIndex = 0
+        itemIndex = clamp(col === undefined ? 0 : col, 0, dealSections[0].items.length - 1)
+        return true
+    }
+
     function nav(dir) {
         if (dir === "tabprev" || dir === "tabnext") { stepStore(dir === "tabprev" ? -1 : 1); return }
-        if (zone === 2) {
+        if (dir === "featprev" || dir === "featnext") { stepFeatured(dir === "featprev" ? -1 : 1); return }
+        const z = zone
+        if (z === "hero") {
+            if (dir === "up") headerRequested()
+            else if (dir === "right") zone = heroLocal ? "play" : "library"
+            else if (dir === "left") stepFeatured(-1)
+            else if (dir === "down") enterDeals(0)
+        } else if (z === "play" || z === "details") {
+            if (dir === "up") headerRequested()
+            else if (dir === "left") zone = z === "details" ? "play" : "hero"
+            else if (dir === "right" && z === "play") zone = "details"
+            else if (dir === "down") zone = z === "play" ? "library" : "catalog"
+        } else if (z === "library" || z === "catalog") {
+            if (dir === "up") zone = heroLocal ? (z === "library" ? "play" : "details") : "hero"
+            else if (dir === "left") zone = z === "catalog" ? "library" : "hero"
+            else if (dir === "right" && z === "library") zone = "catalog"
+            else if (dir === "down") enterDeals(dealColumns - 1)
+        } else if (z === "deals") {
             const sec = dealSections[sectionIndex]
-            if (dir === "up") {
-                if (sectionIndex > 0) { sectionIndex--; itemIndex = Math.min(itemIndex, dealSections[sectionIndex].items.length - 1) }
-                else zone = 1
-            } else if (dir === "down") {
-                if (sectionIndex < dealSections.length - 1) { sectionIndex++; itemIndex = Math.min(itemIndex, dealSections[sectionIndex].items.length - 1) }
-            } else if (sec) {
-                itemIndex = clamp(itemIndex + (dir === "left" ? -1 : 1), 0, sec.items.length - 1)
+            if (!sec) { zone = "hero"; return }
+            const cols = dealColumns
+            const col = itemIndex % cols
+            if (dir === "left") itemIndex = Math.max(0, itemIndex - 1)
+            else if (dir === "right") itemIndex = Math.min(sec.items.length - 1, itemIndex + 1)
+            else if (dir === "down") {
+                if (itemIndex + cols < sec.items.length) itemIndex += cols
+                else if (Math.floor(itemIndex / cols) < Math.floor((sec.items.length - 1) / cols)) itemIndex = sec.items.length - 1
+                else if (sectionIndex < dealSections.length - 1) { sectionIndex++; itemIndex = Math.min(col, dealSections[sectionIndex].items.length - 1) }
+            } else if (dir === "up") {
+                if (itemIndex - cols >= 0) itemIndex -= cols
+                else if (sectionIndex > 0) {
+                    sectionIndex--
+                    const prev = dealSections[sectionIndex].items.length
+                    const lastRow = Math.floor((prev - 1) / cols) * cols
+                    itemIndex = Math.min(prev - 1, lastRow + col)
+                } else zone = "hero"
             }
-            return
-        }
-        if (zone === 0) {
-            if (dir === "up") { home.headerRequested(); return }
-            if (dir === "left") carousel.advance(-1)
-            else if (dir === "right") carousel.advance(1)
-            else if (dir === "down") { zone = 1; gridRow = 0; gridCol = cellExists(0, 0) ? 0 : 2 }
-            return
-        }
-        if (dir === "up") {
-            if (gridRow === 1) gridRow = 0
-            else if (carousel.current) zone = 0
-        } else if (dir === "down") {
-            if (gridRow === 0 && cellExists(1, gridCol)) gridRow = 1
-            else if (dealSections.length) { zone = 2; sectionIndex = 0; itemIndex = 0 }
-        } else {
-            const d = dir === "left" ? -1 : 1
-            let c = gridCol + d
-            while (c >= 0 && c <= 3 && !cellExists(gridRow, c)) c += d
-            if (c >= 0 && c <= 3) gridCol = c
         }
     }
     function accept() {
-        if (zone === 2) { openDeal(focusedDeal); return }
-        if (zone === 0) {
-            carousel.openCurrent()
-            return
-        }
-        if (gridCol < 2) {
-            const action = heroActions[Math.min(gridCol, heroActions.length - 1)].id
-            if (action === "play" && heroLocal) playLocalGame(heroLocal.id)
-            else if (heroLocal) openLocalGame(heroLocal.id)
-            else openSection("library")
-        } else {
-            openSection(tiles[(gridCol - 2) + gridRow * 2].id)
-        }
+        if (zone === "hero") openFeatured(currentFeatured)
+        else if (zone === "play") { if (heroLocal) playLocalGame(heroLocal.id); else openSection("library") }
+        else if (zone === "details") { if (heroLocal) openLocalGame(heroLocal.id) }
+        else if (zone === "library") openSection("library")
+        else if (zone === "catalog") openSection("store")
+        else if (zone === "deals") openDeal(focusedDeal)
+    }
+    onZoneChanged: Qt.callLater(home.revealFocus)
+    onSectionIndexChanged: Qt.callLater(home.revealFocus)
+    onItemIndexChanged: Qt.callLater(home.revealFocus)
+    function revealFocus() {
+        if (zone !== "deals") { page.scrollTo(0); return }
+        const sec = dealRows.itemAt(sectionIndex)
+        if (!sec) return
+        const card = sec["cardAt"](itemIndex)                 // qmllint disable missing-property
+        if (card) page.reveal(card, itemIndex < dealColumns ? Number(sec["titleHeight"]) : 0)   // qmllint disable missing-property
     }
     Keys.onPressed: function(event) {
         if (detail) {
@@ -296,39 +346,17 @@ Item {
 
     Timer { interval: 15 * 60 * 1000; repeat: true; running: home.visible; onTriggered: home.refresh() }
     Timer { id: initialRefresh; interval: 360; repeat: false; onTriggered: home.refresh() }
-    onVisibleChanged: if (visible) { initialRefresh.start(); loadDeals() }
+    onVisibleChanged: if (visible) { initialRefresh.start(); loadDeals(); loadNews() }
     // Si Inicio nace visible no hay cambio de visibilidad: sin esto el catálogo no se pedía nunca.
-    Component.onCompleted: { initialRefresh.start(); loadDeals() }
-    Timer { interval: 10 * 60 * 1000; repeat: true; running: home.visible; onTriggered: home.loadDeals() }
+    Component.onCompleted: { initialRefresh.start(); loadDeals(); loadNews() }
+    Timer { interval: 10 * 60 * 1000; repeat: true; running: home.visible; onTriggered: { home.loadDeals(); home.loadNews() } }
     onSearchTextChanged: searchDelay.restart()
     Timer { id: searchDelay; interval: 420; repeat: false; onTriggered: home.refresh() }
 
     // ---------- datos de presentación ----------
     readonly property real u: uiScale
-    // color del fondo animado: el de la consola de la novedad que muestra el carrusel (o del juego actual); azul de Omnia por defecto
-    readonly property var platformTints: ({ pc: "#3a8f8a", switch: "#d9544a", sw1: "#d9544a", switch2: "#4a8fe0", sw2: "#4a8fe0", n64: "#d9a441",
-        ps1: "#4a6fd0", ps2: "#4a6fd0", ps3: "#4a6fd0", ps4: "#4a6fd0", ps5: "#4a6fd0", psp: "#4a6fd0",
-        xbox: "#4aa54a", x360: "#4aa54a", xseries: "#4aa54a", gba: "#8a6bd0", gb: "#8a6bd0", gbc: "#8a6bd0", nds: "#8a6bd0", "3ds": "#8a6bd0",
-        gamecube: "#7a6bd0", wii: "#6bb0d0", wiiu: "#6bb0d0", snes: "#b0907a", nes: "#b0907a", genesis: "#4a8fd9", saturn: "#4a8fd9", dreamcast: "#e08a4a" })
-    readonly property color effectTint: {
-        const slug = carousel.current?.slug ? "sw2" : platformSlug(heroLocal)
-        return platformTints[slug] || "#336599"
-    }
-    readonly property var catalogIcons: ({ switch: "sw1", switch2: "sw2", n64: "n64", pc: "pc", ps3: "ps3", ps4: "ps4", ps5: "ps5", sw1: "sw1", sw2: "sw2" })
-    function platformSlug(game) {
-        if (!game) return ""
-        if (game.platforms) { const list = Array.from(game.platforms); return list.length ? String(list[0].slug || "").toLowerCase() : "" }
-        return String(game.platform || "").toLowerCase()
-    }
-    function tint(slug, light) {
-        let h = 0
-        for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360
-        return Qt.hsla(h / 360, 0.30, light === undefined ? 0.3 : light, 1)
-    }
-    function initials(name) {
-        const words = String(name || "").split(/\s+/).filter(w => /^[A-Za-z0-9À-ɏ]/.test(w))
-        return words.slice(0, 3).map(w => w[0]).join("").toUpperCase()
-    }
+    // color del fondo animado: el de la tienda del destacado; azul de Omnia por defecto
+    readonly property color effectTint: currentFeatured ? (Theme.color.store[currentFeatured.source] || "#336599") : "#336599"
     function lastPlayedText(game) {
         const ts = Number(game && (game.lastPlayed || (game.played || {}).last) || 0)
         if (!ts) return qsTr("En tu biblioteca")
@@ -340,204 +368,224 @@ Item {
         return text
     }
 
-    // El contenido solo se desplaza (rueda o arrastre) cuando no cabe en la pantalla.
+    // Botón de Big Mode (foco con mando: borde blanco y un poco más grande)
+    component PadButton: Rectangle {
+        id: pb
+        property string text: ""
+        property string icon: ""
+        property bool primary: false
+        property bool focused: false
+        signal clicked()
+        width: pbRow.implicitWidth + home.u * 44; height: home.u * 52; radius: home.u * 14
+        scale: focused ? 1.05 : 1
+        color: primary ? (pbMa.containsMouse ? Theme.color.accentLight : Theme.color.accent) : (pbMa.containsMouse ? "#2EFFFFFF" : "#1AFFFFFF")
+        border.width: focused ? home.u * 3 : 1
+        border.color: focused ? "#FFFFFF" : (primary ? "transparent" : "#40FFFFFF")
+        Behavior on scale { NumberAnimation { duration: 120 } }
+        Row {
+            id: pbRow
+            anchors.centerIn: parent; spacing: home.u * 10
+            LucideIcon { visible: !!pb.icon; anchors.verticalCenter: parent.verticalCenter; width: home.u * 22; height: width; name: pb.icon; color: pb.primary ? Theme.color.accentInk : home.ink }
+            Text { anchors.verticalCenter: parent.verticalCenter; text: pb.text; color: pb.primary ? Theme.color.accentInk : home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 20; font.weight: Font.Bold }
+        }
+        MouseArea { id: pbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pb.clicked() }
+    }
+
     Flickable {
         id: page
         anchors { fill: parent; topMargin: home.u * 100; bottomMargin: home.u * 96 + home.footerSpace }
         contentWidth: width
-        contentHeight: stack.height
-        interactive: contentHeight > height + 1
+        contentHeight: stack.height + home.u * 40
         boundsBehavior: Flickable.StopAtBounds
         clip: true
-        Behavior on contentY { enabled: !page.dragging && !page.flicking; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-        function reveal(item) {
-            if (!item || !interactive) return
-            const top = item.mapToItem(page.contentItem, 0, 0).y - home.u * 20
-            const bottom = top + item.height + home.u * 40
-            if (top < contentY) contentY = Math.max(0, top)
-            else if (bottom > contentY + height) contentY = Math.min(contentHeight - height, bottom - height)
+        Behavior on contentY { enabled: !page.dragging && !page.flicking; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+        function scrollTo(y) { contentY = Math.max(0, Math.min(Math.max(0, contentHeight - height), y)) }
+        function reveal(item, extraTop) {
+            if (!item) return
+            const top = item.mapToItem(page.contentItem, 0, 0).y - home.u * 24 - (extraTop || 0)
+            const bottom = item.mapToItem(page.contentItem, 0, 0).y + item.height + home.u * 30
+            if (top < contentY) scrollTo(top)
+            else if (bottom > contentY + height) scrollTo(bottom - height)
         }
 
         Column {
             id: stack
             x: home.u * 96
             width: page.width - home.u * 192
-            spacing: home.u * 22
+            spacing: home.u * 30
 
-            // ---- cabecera ----
+            // ---- fila superior: destacado + (seguir jugando, accesos)
             Item {
-                width: parent.width; height: home.u * 80
-                Text {
-                    text: qsTr("Inicio")
-                    color: home.ink
-                    font.family: "Hanken Grotesk"; font.pixelSize: home.u * 34; font.weight: Font.DemiBold
-                }
-                Text {
-                    visible: !home.offline
-                    anchors { left: parent.left; bottom: parent.bottom }
-                    text: qsTr("Novedades de tus tiendas y tus partidas")
-                    color: home.ink2
-                    font.family: "Hanken Grotesk"; font.pixelSize: home.u * 18
-                }
-                Rectangle {          // aviso sin conexión discreto, con reintento
-                    visible: home.offline
-                    anchors { left: parent.left; bottom: parent.bottom }
-                    height: home.u * 32; width: offlineRow.width + home.u * 28; radius: height / 2
-                    color: "#26E8B86D"; border.width: 1; border.color: "#59E8B86D"
-                    Row {
-                        id: offlineRow
-                        anchors.centerIn: parent
-                        spacing: home.u * 10
-                        LucideIcon { anchors.verticalCenter: parent.verticalCenter; width: home.u * 16; height: width; name: "triangle-alert"; color: "#E8B86D" }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: home.cacheExpired ? qsTr("Sin conexión · catálogo guardado desactualizado") : qsTr("Catálogo sin conexión · datos guardados")
-                            color: "#E8B86D"; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Reintentar")
-                            color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15; font.weight: Font.DemiBold
-                            font.underline: true
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.refresh() }
-                        }
-                    }
-                }
-            }
-
-            ManagerStoreNews {
-                id: carousel
+                id: topRow
                 width: parent.width
-                manager: QtObject {
-                    readonly property real s: home.u
-                    readonly property color ink: home.ink
-                    readonly property color ring: home.accent
-                    function storeLogo(source) { return Qt.resolvedUrl("images/stores/" + source + ".svg") }
-                }
-                api: home.api
-                active: home.visible
-                bannerHeight: home.u * 326
-                controllerFocused: home.zone === 0
-                onOpenGame: game => home.openCatalogDetails(game)
-            }
-
-            Row {
-                id: bottomRow
-                width: parent.width; spacing: home.u * 22
-                // juego actual
+                height: home.u * 420
                 Rectangle {
-                    id: currentCard
-                    width: parent.width * 0.47; height: home.u * 310
-                    radius: home.u * 24
-                    color: "#16ffffff"          // translúcida, como el resto de tarjetas
-                    clip: true
-                    border.width: 1; border.color: "#26FFFFFF"
-                    readonly property string slug: home.platformSlug(home.heroLocal)
-                    Item {
-                        id: coverBox
-                        x: home.u * 22; y: home.u * 22
-                        width: home.u * 168; height: parent.height - home.u * 44
-                        Rectangle {
-                            anchors.fill: parent; radius: home.u * 14
-                            color: home.tint(currentCard.slug || "inicio", 0.24)
-                            Text { anchors.centerIn: parent; text: home.initials(home.heroLocal ? home.heroLocal.name : ""); color: "#FFFFFF"; opacity: 0.85
-                                font.family: "Hanken Grotesk"; font.pixelSize: home.u * 40; font.weight: Font.Bold }
-                        }
-                        FadedImage {
-                            anchors.fill: parent
-                            source: home.heroLocal ? (home.heroLocal.portada || "") : ""
-                            cornerRadius: home.u * 14      // portada con esquinas redondeadas
+                    id: hero
+                    readonly property bool focused: home.zone === "hero"
+                    width: parent.width - side.width - home.u * 26; height: parent.height
+                    radius: home.u * 28; color: "#111A26"; clip: true
+                    border.width: focused ? home.u * 4 : 1
+                    border.color: focused ? "#FFFFFF" : "#33FFFFFF"
+                    FadedImage { anchors.fill: parent; anchors.margins: hero.border.width; source: home.currentFeatured ? (home.currentFeatured.artwork || "") : ""; cornerRadius: home.u * 25; alignX: 0.7 }
+                    Rectangle {
+                        anchors.fill: parent; radius: hero.radius
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "#EB060A10" }
+                            GradientStop { position: 0.7; color: "#30060A10" }
                         }
                     }
                     Column {
-                        x: coverBox.x + coverBox.width + home.u * 24
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - x - home.u * 22; spacing: home.u * 8
-                        Text {
-                            text: home.heroLocal ? qsTr("SEGUIR JUGANDO") : qsTr("TU BIBLIOTECA")
-                            color: "#9CC8F4"
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 14; font.weight: Font.Bold; font.letterSpacing: home.u * 2
-                        }
-                        Text {
-                            width: parent.width
-                            text: home.heroLocal ? (home.heroLocal.name || "") : qsTr("Aún no has jugado")
-                            color: home.ink
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 30; font.weight: Font.Bold
-                            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            text: home.heroLocal ? [home.heroLocal.sub || home.heroLocal.platform || "", home.lastPlayedText(home.heroLocal)].filter(x => x).join(" · ")
-                                                 : qsTr("Abre la biblioteca para empezar.")
-                            color: home.ink2
-                            font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17
-                            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                        }
+                        visible: !!home.currentFeatured
+                        anchors { left: parent.left; bottom: parent.bottom; margins: home.u * 40 }
+                        width: Math.min(hero.width * 0.6, home.u * 760)
+                        spacing: home.u * 14
                         Row {
                             spacing: home.u * 10
-                            topPadding: home.u * 8
-                            Repeater {
-                                model: home.heroActions
-                                delegate: Rectangle {
-                                    id: heroBtn
-                                    required property var modelData
-                                    required property int index
-                                    readonly property bool focused: home.zone === 1 && home.gridRow === 0 && home.gridCol === index
-                                    width: home.u * 138; height: home.u * 46; radius: height / 2
-                                    scale: focused ? 1.05 : 1
-                                    color: index === 0 ? home.accent : "#B3151D27"
-                                    border.width: focused ? home.u * 3 : 1
-                                    border.color: focused ? "#FFFFFF" : (index === 0 ? home.accent : "#66FFFFFF")
-                                    Behavior on scale { NumberAnimation { duration: 120 } }
-                                    Text { anchors.centerIn: parent; text: heroBtn.modelData.label; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.DemiBold }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: { home.zone = 1; home.gridRow = 0; home.gridCol = heroBtn.index; home.accept() } }
-                                }
+                            Rectangle {
+                                height: home.u * 36; width: heroStore.implicitWidth + home.u * 30; radius: height / 2; color: "#2EFFFFFF"; border.color: "#40FFFFFF"
+                                Row { id: heroStore; anchors.centerIn: parent; spacing: home.u * 8
+                                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: home.u * 10; height: width; radius: home.u * 3; color: home.currentFeatured ? (Theme.color.store[home.currentFeatured.source] || Theme.color.accent) : "transparent" }
+                                    Text { text: home.currentFeatured ? home.storeName(home.currentFeatured.source) : ""; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.Bold } }
+                            }
+                            Rectangle {
+                                visible: !!home.currentFeatured && home.currentFeatured.kind !== "news"
+                                height: home.u * 36; width: heroKind.implicitWidth + home.u * 28; radius: height / 2
+                                color: home.currentFeatured ? home.kindColor(home.currentFeatured) : "transparent"
+                                Text { id: heroKind; anchors.centerIn: parent; text: home.currentFeatured ? home.kindBadge(home.currentFeatured) : ""; color: Theme.color.accentInk; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: Font.ExtraBold }
+                            }
+                        }
+                        Text { width: parent.width; text: home.currentFeatured ? home.currentFeatured.title : ""; color: "#FFFFFF"; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 50; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; lineHeight: 1.05 }
+                        Text { width: parent.width; visible: !!text; text: home.currentFeatured ? (home.currentFeatured.kind === "news" ? (home.currentFeatured.summary || "") : home.dealSubtitle(home.currentFeatured)) : ""; color: Theme.color.soft; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 20; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                        Row {
+                            spacing: home.u * 16
+                            PadButton {
+                                primary: true; focused: hero.focused
+                                text: home.featuredAction(home.currentFeatured)
+                                onClicked: { home.zone = "hero"; home.openFeatured(home.currentFeatured) }
+                            }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: home.currentFeatured && home.currentFeatured.price ? home.currentFeatured.price : ""; color: "#FFFFFF"; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 24; font.weight: Font.Bold }
+                            Text { anchors.verticalCenter: parent.verticalCenter; visible: !!home.currentFeatured && home.currentFeatured.kind === "deal" && !!home.currentFeatured.originalPrice; text: home.currentFeatured ? (home.currentFeatured.originalPrice || "") : ""; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 18; font.strikeout: true }
+                        }
+                    }
+                    Text {
+                        visible: !home.currentFeatured
+                        anchors.centerIn: parent
+                        text: qsTr("Buscando novedades de tus tiendas…")
+                        color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 22
+                    }
+                    Row {        // puntos: cuál destacado se ve (←/→ con el foco en el destacado)
+                        anchors { right: parent.right; bottom: parent.bottom; margins: home.u * 30 }
+                        spacing: home.u * 10
+                        Repeater {
+                            model: home.featured.length > 1 ? home.featured.length : 0
+                            delegate: Rectangle {
+                                id: dot
+                                required property int index
+                                readonly property bool on: home.featuredIndex % home.featured.length === index
+                                width: on ? home.u * 34 : home.u * 12; height: home.u * 12; radius: height / 2
+                                color: on ? "#FFFFFF" : "#66FFFFFF"
+                                Behavior on width { NumberAnimation { duration: 160 } }
+                                MouseArea { anchors.fill: parent; anchors.margins: -home.u * 8; cursorShape: Qt.PointingHandCursor; onClicked: home.featuredIndex = dot.index }
                             }
                         }
                     }
+                    MouseArea { anchors.fill: parent; z: -1; onClicked: home.zone = "hero" }
                 }
-                // mosaico de accesos 2×2
-                Grid {
-                    id: mosaic
-                    width: parent.width - currentCard.width - parent.spacing
-                    columns: 2; spacing: home.u * 16
-                    Repeater {
-                        model: home.tiles
-                        delegate: Rectangle {
-                            id: tile
-                            required property var modelData
-                            required property int index
-                            readonly property bool focused: home.zone === 1 && home.gridRow === Math.floor(index / 2) && home.gridCol === 2 + (index % 2)
-                            width: (mosaic.width - mosaic.spacing) / 2; height: (currentCard.height - mosaic.spacing) / 2
-                            radius: home.u * 22
-                            color: focused ? "#2effffff" : "#16ffffff"      // sin arte: translúcida
-                            scale: focused ? 1.03 : 1
-                            border.width: focused ? home.u * 3 : 1
-                            border.color: focused ? "#5B9BE0" : "#26FFFFFF"
-                            Behavior on scale { NumberAnimation { duration: 120 } }
-                            Column {
-                                anchors { left: parent.left; leftMargin: home.u * 24; verticalCenter: parent.verticalCenter }
-                                spacing: home.u * 8
-                                LucideIcon { width: home.u * 30; height: width; name: tile.modelData.icon; color: tile.focused ? "#9CC8F4" : home.ink2 }
-                                Text { text: tile.modelData.title; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 24; font.weight: Font.DemiBold }
-                                Text { text: tile.modelData.sub; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16 }
+
+                Column {
+                    id: side
+                    anchors.right: parent.right
+                    width: Math.min(home.u * 640, parent.width * 0.38)
+                    height: parent.height
+                    spacing: home.u * 20
+                    // seguir jugando: arte de fondo desvanecido hacia la izquierda
+                    Rectangle {
+                        id: continueCard
+                        width: parent.width; height: parent.height - tiles.height - parent.spacing
+                        radius: home.u * 26; color: "#141D28"; clip: true
+                        border.width: 1; border.color: "#33FFFFFF"
+                        FadedImage {
+                            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                            width: parent.width * 0.8
+                            source: home.heroLocal ? (home.heroLocal.fondo || home.heroLocal.portada || "") : ""
+                            cornerRadius: home.u * 26; fadeLeft: 0.75; alignX: 0.7; opacity: 0.85
+                        }
+                        Rectangle {
+                            anchors.fill: parent; radius: parent.radius
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.30; color: "#D90A0F17" }
+                                GradientStop { position: 0.85; color: "#000A0F17" }
                             }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: { home.zone = 1; home.gridRow = Math.floor(tile.index / 2); home.gridCol = 2 + (tile.index % 2); home.accept() } }
+                        }
+                        Rectangle {
+                            id: cover
+                            x: home.u * 22; anchors.verticalCenter: parent.verticalCenter
+                            height: parent.height - home.u * 44; width: Math.round(height * 0.75); radius: home.u * 16
+                            color: "#22FFFFFF"; border.color: "#40FFFFFF"
+                            FadedImage { anchors.fill: parent; source: home.heroLocal ? (home.heroLocal.portada || "") : ""; cornerRadius: home.u * 16 }
+                        }
+                        Column {
+                            anchors { left: cover.right; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: home.u * 24; rightMargin: home.u * 20 }
+                            spacing: home.u * 8
+                            Text { text: (home.heroLocal ? qsTr("Seguir jugando") : qsTr("Tu biblioteca")).toUpperCase(); color: Theme.color.accentLight; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15; font.weight: Font.Bold; font.letterSpacing: home.u * 2 }
+                            Text { width: parent.width; text: home.heroLocal ? home.heroLocal.name : qsTr("Aún no has jugado"); color: "#FFFFFF"; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 30; font.weight: Font.Bold; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                            Text { width: parent.width; text: home.heroLocal ? [home.heroLocal.sub || home.heroLocal.platform || "", home.lastPlayedText(home.heroLocal)].filter(x => x).join(" · ") : qsTr("Abre la biblioteca para empezar."); color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; elide: Text.ElideRight }
+                            Item { width: 1; height: home.u * 6 }
+                            Row {
+                                visible: !!home.heroLocal
+                                spacing: home.u * 12
+                                PadButton { primary: true; icon: "play"; focused: home.zone === "play"
+                                    text: home.heroLocal && home.heroLocal.portAvailable ? qsTr("Instalar port") : qsTr("Jugar")
+                                    onClicked: { home.zone = "play"; home.accept() } }
+                                PadButton { text: qsTr("Detalles"); focused: home.zone === "details"
+                                    onClicked: { home.zone = "details"; home.accept() } }
+                            }
+                        }
+                    }
+                    // accesos: Biblioteca y Catálogo
+                    Row {
+                        id: tiles
+                        width: parent.width; height: home.u * 112
+                        spacing: home.u * 20
+                        Repeater {
+                            model: [
+                                { id: "library", icon: "layout-grid", title: qsTr("Biblioteca"), sub: home.gameCount === 1 ? qsTr("1 juego") : qsTr("%1 juegos").arg(home.gameCount) },
+                                { id: "catalog", icon: "package-plus", title: qsTr("Catálogo"), sub: qsTr("Ports y tiendas") }
+                            ]
+                            delegate: Rectangle {
+                                id: tile
+                                required property var modelData
+                                readonly property bool focused: home.zone === modelData.id
+                                width: (tiles.width - tiles.spacing) / 2; height: tiles.height
+                                radius: home.u * 22
+                                color: focused || tileMa.containsMouse ? "#2EFFFFFF" : "#16FFFFFF"
+                                scale: focused ? 1.03 : 1
+                                border.width: focused ? home.u * 4 : 1
+                                border.color: focused ? "#FFFFFF" : "#33FFFFFF"
+                                Behavior on scale { NumberAnimation { duration: 120 } }
+                                LucideIcon { x: home.u * 22; anchors.verticalCenter: parent.verticalCenter; width: home.u * 34; height: width; name: tile.modelData.icon; color: tile.focused ? Theme.color.accentLight : home.ink2 }
+                                Column {
+                                    anchors { left: parent.left; leftMargin: home.u * 74; right: parent.right; rightMargin: home.u * 12; verticalCenter: parent.verticalCenter }
+                                    spacing: home.u * 2
+                                    Text { text: tile.modelData.title; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 24; font.weight: Font.DemiBold }
+                                    Text { width: parent.width; text: tile.modelData.sub; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16; elide: Text.ElideRight }
+                                }
+                                MouseArea { id: tileMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { home.zone = tile.modelData.id; home.accept() } }
+                            }
                         }
                     }
                 }
             }
 
-            // ---- novedades de tus tiendas ----
+            // ---- novedades de tus tiendas: filtro por tienda y secciones en cuadrícula
             Item {
-                visible: home.deals.length > 0 || home.omniaReleases.length > 0
                 width: parent.width; height: home.u * 56
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                     text: qsTr("Novedades de tus tiendas")
-                    color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 30; font.weight: Font.Bold
+                    color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 32; font.weight: Font.Bold
                 }
                 Row {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -555,17 +603,17 @@ Item {
                             id: storeChip
                             required property string modelData
                             readonly property bool on: home.storeFilter === modelData
-                            height: home.u * 40; width: storeLabel.implicitWidth + home.u * 34; radius: height / 2
-                            color: on ? Theme.color.accentSoft : "#14FFFFFF"
+                            height: home.u * 42; width: storeLabel.implicitWidth + home.u * 34; radius: height / 2
+                            color: on ? Theme.color.accentSoft : (chipMa.containsMouse ? "#24FFFFFF" : "#14FFFFFF")
                             border.width: on ? home.u * 2 : 1
                             border.color: on ? Theme.color.accent : "#26FFFFFF"
                             Row {
                                 id: storeLabel
                                 anchors.centerIn: parent; spacing: home.u * 8
                                 Rectangle { visible: storeChip.modelData !== "all"; anchors.verticalCenter: parent.verticalCenter; width: home.u * 9; height: width; radius: home.u * 3; color: Theme.color.store[storeChip.modelData] || Theme.color.accent }
-                                Text { text: home.storeName(storeChip.modelData); color: storeChip.on ? Theme.color.accentLight : home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17; font.weight: storeChip.on ? Font.DemiBold : Font.Normal }
+                                Text { text: home.storeName(storeChip.modelData); color: storeChip.on ? Theme.color.accentLight : home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 18; font.weight: storeChip.on ? Font.DemiBold : Font.Normal }
                             }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { home.storeFilter = storeChip.modelData; home.sectionIndex = 0; home.itemIndex = 0 } }
+                            MouseArea { id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { home.storeFilter = storeChip.modelData; home.sectionIndex = 0; home.itemIndex = 0 } }
                         }
                     }
                     OmniaControlHint {
@@ -578,9 +626,9 @@ Item {
                 }
             }
             Text {
-                visible: home.deals.length > 0 && home.dealSections.length === 0
-                text: qsTr("No hay novedades de esta tienda por ahora.")
-                color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 19
+                visible: home.dealSections.length === 0
+                text: home.deals.length ? qsTr("No hay novedades de esta tienda por ahora.") : qsTr("Cargando novedades…")
+                color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 20
             }
             Repeater {
                 id: dealRows
@@ -589,79 +637,75 @@ Item {
                     id: dealSection
                     required property var modelData
                     required property int index
-                    readonly property bool active: home.zone === 2 && home.sectionIndex === index
+                    readonly property bool active: home.zone === "deals" && home.sectionIndex === index
+                    readonly property real titleHeight: sectionTitleRow.height + spacing
+                    function cardAt(i) { return cards.itemAt(i) }
                     width: stack.width
-                    spacing: home.u * 12
+                    spacing: home.u * 16
                     Row {
+                        id: sectionTitleRow
                         spacing: home.u * 12
-                        Text { id: dealTitle; text: dealSection.modelData.title; color: dealSection.active ? home.ink : home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 24; font.weight: Font.DemiBold }
-                        Text { anchors.baseline: dealTitle.baseline; text: String(dealSection.modelData.items.length); color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 18 }
+                        Text { id: dealTitle; text: dealSection.modelData.title; color: dealSection.active ? home.ink : home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 26; font.weight: Font.DemiBold }
+                        Text { anchors.baseline: dealTitle.baseline; text: String(dealSection.modelData.items.length); color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 19 }
                     }
-                    ListView {
-                        id: dealList
-                        width: parent.width
-                        height: home.u * 292
-                        orientation: ListView.Horizontal
-                        spacing: home.u * 20
-                        clip: false
-                        interactive: false
-                        model: dealSection.modelData.items
-                        currentIndex: dealSection.active ? home.itemIndex : -1
-                        highlightFollowsCurrentItem: false
-                        preferredHighlightBegin: home.u * 40
-                        preferredHighlightEnd: width - home.u * 40
-                        highlightRangeMode: ListView.ApplyRange
-                        highlightMoveDuration: 180
-                        delegate: Rectangle {
-                            id: dealCard
-                            required property var modelData
-                            required property int index
-                            readonly property bool focused: dealSection.active && home.itemIndex === index
-                            width: home.u * 340; height: home.u * 280
-                            y: home.u * 6
-                            radius: home.u * 22
-                            color: focused ? "#24FFFFFF" : "#14FFFFFF"
-                            border.width: focused ? home.u * 4 : 1
-                            border.color: focused ? Theme.color.accent : "#26FFFFFF"
-                            scale: focused ? 1.04 : 1
-                            z: focused ? 2 : 0
-                            Behavior on scale { NumberAnimation { duration: 120 } }
-                            Item {      // arte con las esquinas de arriba redondeadas
-                                id: dealArt
-                                x: dealCard.border.width; y: dealCard.border.width
-                                width: parent.width - 2 * x; height: home.u * 150
-                                clip: true
-                                Rectangle { width: parent.width; height: parent.height + home.u * 20; radius: home.u * 19; color: "#141E2B" }
-                                FadedImage { width: parent.width; height: parent.height + home.u * 20; source: dealCard.modelData.artwork || ""; cornerRadius: home.u * 19 }
-                                Rectangle {
-                                    x: home.u * 10; y: home.u * 10; height: home.u * 28; width: dealStore.implicitWidth + home.u * 20; radius: height / 2
-                                    color: "#B305090F"; border.color: "#33FFFFFF"
-                                    Row { id: dealStore; anchors.centerIn: parent; spacing: home.u * 7
-                                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: home.u * 8; height: width; radius: home.u * 2; color: Theme.color.store[dealCard.modelData.source] || Theme.color.accent }
-                                        Text { text: home.storeName(dealCard.modelData.source); color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 14; font.weight: Font.Bold } }
+                    Grid {
+                        columns: home.dealColumns
+                        columnSpacing: home.u * 20; rowSpacing: home.u * 20
+                        Repeater {
+                            id: cards
+                            model: dealSection.modelData.items
+                            delegate: Rectangle {
+                                id: dealCard
+                                required property var modelData
+                                required property int index
+                                readonly property bool focused: dealSection.active && home.itemIndex === index
+                                readonly property real artHeight: Math.round(width * 0.46)
+                                width: home.dealCardWidth; height: home.dealCardHeight
+                                radius: home.u * 22
+                                color: focused || cardMa.containsMouse ? "#24FFFFFF" : "#14FFFFFF"
+                                border.width: focused ? home.u * 4 : 1
+                                border.color: focused ? "#FFFFFF" : (cardMa.containsMouse ? Theme.color.accent : "#26FFFFFF")
+                                scale: focused ? 1.03 : 1
+                                z: focused ? 2 : 0
+                                Behavior on scale { NumberAnimation { duration: 120 } }
+                                Item {      // arte con las esquinas de arriba redondeadas
+                                    id: dealArt
+                                    x: dealCard.border.width; y: dealCard.border.width
+                                    width: parent.width - 2 * x; height: dealCard.artHeight
+                                    clip: true
+                                    Rectangle { width: parent.width; height: parent.height + home.u * 20; radius: home.u * 19; color: "#141E2B" }
+                                    FadedImage { width: parent.width; height: parent.height + home.u * 20; source: dealCard.modelData.artwork || ""; cornerRadius: home.u * 19 }
+                                    Rectangle {
+                                        x: home.u * 10; y: home.u * 10; height: home.u * 30; width: dealStore.implicitWidth + home.u * 22; radius: height / 2
+                                        color: "#B305090F"; border.color: "#33FFFFFF"
+                                        Row { id: dealStore; anchors.centerIn: parent; spacing: home.u * 7
+                                            Rectangle { anchors.verticalCenter: parent.verticalCenter; width: home.u * 8; height: width; radius: home.u * 2; color: Theme.color.store[dealCard.modelData.source] || Theme.color.accent }
+                                            Text { text: home.storeName(dealCard.modelData.source); color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15; font.weight: Font.Bold } }
+                                    }
+                                    Rectangle {
+                                        anchors { right: parent.right; top: parent.top; margins: home.u * 10 }
+                                        height: home.u * 30; width: dealBadge.implicitWidth + home.u * 22; radius: height / 2
+                                        color: home.kindColor(dealCard.modelData)
+                                        Text { id: dealBadge; anchors.centerIn: parent; text: home.kindBadge(dealCard.modelData); color: Theme.color.accentInk; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15; font.weight: Font.ExtraBold }
+                                    }
                                 }
-                                Rectangle {
-                                    anchors { right: parent.right; top: parent.top; margins: home.u * 10 }
-                                    height: home.u * 28; width: dealBadge.implicitWidth + home.u * 20; radius: height / 2
-                                    color: home.kindColor(dealCard.modelData)
-                                    Text { id: dealBadge; anchors.centerIn: parent; text: home.kindBadge(dealCard.modelData); color: Theme.color.accentInk; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 14; font.weight: Font.ExtraBold }
+                                Column {
+                                    anchors { left: parent.left; right: parent.right; top: dealArt.bottom; margins: home.u * 18; topMargin: home.u * 14 }
+                                    spacing: home.u * 5
+                                    Text { width: parent.width; text: dealCard.modelData.title; elide: Text.ElideRight; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 22; font.weight: Font.Bold }
+                                    Text { width: parent.width; text: home.dealSubtitle(dealCard.modelData); elide: Text.ElideRight; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 17 }
                                 }
-                            }
-                            Column {
-                                anchors { left: parent.left; right: parent.right; top: dealArt.bottom; margins: home.u * 16; topMargin: home.u * 14 }
-                                spacing: home.u * 5
-                                Text { width: parent.width; text: dealCard.modelData.title; elide: Text.ElideRight; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 21; font.weight: Font.Bold }
-                                Text { width: parent.width; text: home.dealSubtitle(dealCard.modelData); elide: Text.ElideRight; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16 }
-                            }
-                            Row {
-                                anchors { left: parent.left; bottom: parent.bottom; margins: home.u * 16 }
-                                spacing: home.u * 8
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: dealCard.modelData.price || ""; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 20; font.weight: Font.Bold }
-                                Text { anchors.verticalCenter: parent.verticalCenter; visible: dealCard.modelData.kind === "deal" && !!dealCard.modelData.originalPrice; text: dealCard.modelData.originalPrice || ""; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 15; font.strikeout: true }
-                            }
-                            MouseArea {
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: { home.zone = 2; home.sectionIndex = dealSection.index; home.itemIndex = dealCard.index; home.openDeal(dealCard.modelData) }
+                                Row {
+                                    anchors { left: parent.left; bottom: parent.bottom; margins: home.u * 18 }
+                                    spacing: home.u * 8
+                                    Text { anchors.verticalCenter: parent.verticalCenter; text: dealCard.modelData.price || ""; color: home.ink; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 22; font.weight: Font.Bold }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; visible: dealCard.modelData.kind === "deal" && !!dealCard.modelData.originalPrice; text: dealCard.modelData.originalPrice || ""; color: home.ink2; font.family: "Hanken Grotesk"; font.pixelSize: home.u * 16; font.strikeout: true }
+                                }
+                                MouseArea {
+                                    id: cardMa
+                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { home.zone = "deals"; home.sectionIndex = dealSection.index; home.itemIndex = dealCard.index; home.openDeal(dealCard.modelData) }
+                                }
                             }
                         }
                     }

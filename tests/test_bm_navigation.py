@@ -23,7 +23,8 @@ class BigModeNavigation(unittest.TestCase):
         self.assertIn('if (key === "B") { host.back(); return }', (QML / "OmniaBigStore.qml").read_text())
 
     def test_up_from_the_first_row_reaches_the_bar(self):
-        self.assertIn('if (dir === "up") { home.headerRequested(); return }', (QML / "OmniaHome.qml").read_text())
+        self.assertIn('if (dir === "up") headerRequested()', (QML / "OmniaHome.qml").read_text())
+        self.assertIn('else if (zone === 2 && key === "u") host.focusMainNav()', (QML / "OmniaBigStore.qml").read_text())
         self.assertIn("onTopReached: lib.searchFocus = true", (QML / "OmniaLibrary.qml").read_text())
         self.assertIn("dl.host.focusMainNav()", (QML / "OmniaDownloads.qml").read_text())
 
