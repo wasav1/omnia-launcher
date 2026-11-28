@@ -1,6 +1,6 @@
 # Plan — rediseño «D · Aurora + Estudio»
 
-Creado: 2026-11-28. Estado: **aprobado el diseño, pendiente de implementar**. Ninguna fase ha empezado.
+Creado: 2026-11-28. Estado: **en implementación**. Fase 0 hecha (2026-11-28, `ui/qml/Theme.js` y `ui/qml/GlassPanel.qml`); siguiente: fase 1.
 
 Prototipos navegables (lienzo de diseño, privado del dueño del proyecto):
 <https://claude.ai/artifact/YNhRvAo7xdX8NK55TC4XqC> — fila **D** (Desktop y panel rápido) y fila **D · Big Mode**.
@@ -34,7 +34,7 @@ Cada fase: rama propia, pruebas (`PYTHONPATH=core python3 -m unittest discover -
 
 | Fase | Contenido | Archivos principales | Tamaño |
 |---|---|---|---|
-| **0 · Base** | `Theme.qml` (singleton): colores, radios, espaciados y **tamaños fijos** (paneles 300 / 688 / 380 px, carátulas 152 × 203 px, puntos de reorganización 1360 y 900 px). `GlassPanel.qml` sobre `FrostedSurface`, con opción para desactivar el cristal. Sin cambios visibles. | nuevos `ui/qml/Theme.qml`, `ui/qml/GlassPanel.qml` | Pequeña |
+| **0 · Base** ✅ | `Theme.js` (`.pragma library`, sin `qmldir` para no alterar la importación implícita de la carpeta): colores, radios, espaciados y **tamaños fijos** (paneles 300 / 688 / 380 px, carátulas 152 × 203 px, puntos de reorganización 1360 y 900 px). `GlassPanel.qml` sobre `FrostedSurface`, con opción para desactivar el cristal. Sin cambios visibles. | `ui/qml/Theme.js`, `ui/qml/GlassPanel.qml`, `tests/test_theme_glass.py` | Pequeña |
 | **1 · Barra superior de Desktop** | Quitar la barra lateral; barra de cristal arriba; Ctrl K; eliminar el escalado `cs`; reorganización por anchos fijos. | `OmniaManager.qml` | Media |
 | **2 · Biblioteca + Catálogo** | Vista de tres paneles con buscadores independientes, Ver todos agrupado, ficha oculta hasta elegir y flotante bajo 1360 px. «Explorar» sale del menú. Partir en 2–3 entregas. | `ManagerLibrary` + `ManagerExplore` → `ManagerLibraryView` (+ `InstalledPanel`, `CatalogPanel`, `DetailPanel`); reutilizar `OmniaAllGames` | Grande |
 | **3 · Ajustes** | Pantalla con categorías; al principio solo los ajustes que ya existen. | `ManagerSettings.qml` | Media |
@@ -51,10 +51,8 @@ Orden recomendado: **0 → 1 → 2**, luego **3 → 5 → 6 → 4 → 7** (la 4 
 
 1. **Botones del mando en la Biblioteca de Big Mode** (2026-11-28): se mantiene lo actual. LB/RB = filtro, LT/RT = página de la estantería; las secciones (Inicio, Biblioteca, Catálogo, Descargas) se cambian con el botón **Vista**. Los prototipos que muestran LB/RB en el menú y LT/RT en el filtro quedan superados en este punto.
 
-**Pendientes del dueño**
-
-2. **Fuente de ofertas y gratis.** Recomendado: agregarlas en `omnia-backend` (Cloudflare) con caché, empezando por Steam, Epic, GOG y Omnia; Prime Gaming, Ubisoft y EA quedan pendientes hasta tener una fuente fiable. El núcleo sigue sin dependencias externas.
-3. **Coste del cristal.** Propuesta: Ajustes → Apariencia permite desactivarlo, y se apaga solo mientras haya un juego abierto.
+2. **Fuente de ofertas y gratis** (2026-11-28): se agregan en `omnia-backend` (Cloudflare) con caché, empezando por Steam, Epic, GOG y Omnia; Prime Gaming, Ubisoft y EA quedan pendientes hasta tener una fuente fiable. El núcleo sigue sin dependencias externas.
+3. **Coste del cristal** (2026-11-28): Ajustes → Apariencia permite desactivarlo, y se apaga solo mientras haya un juego abierto (`GlassPanel.glass`).
 
 ## 5. Riesgos
 
@@ -62,3 +60,7 @@ Orden recomendado: **0 → 1 → 2**, luego **3 → 5 → 6 → 4 → 7** (la 4 
 - Las fuentes de ofertas pueden cambiar sin aviso (de ahí la caché en el backend).
 - Los precios y juegos gratis se muestran solo con datos reales; los prototipos usan marcadores (`[PRECIO]`, `−[XX] %`).
 - Fases 2 y 5 grandes: entregarlas en partes para poder validar cada una.
+
+## 6. Notas de implementación
+
+- **Fase 0.** `Theme.js` reúne colores (texto, acento, cristal, estados, tiendas), radios, espaciados, fuentes del proyecto (Hanken Grotesk; Rajdhani para números) y tamaños fijos; `posterColumns(ancho)` y `catalogWidth(ventana, fichaAbierta)` calculan columnas y ancho del Catálogo sin escalar nada. `GlassPanel` desenfoca su `backdrop` con `FrostedSurface`, añade velo, borde y brillo superior, y cae a un panel casi opaco sin `backdrop` o con `glass: false`. En Qt sin pantalla (`QT_QPA_PLATFORM=offscreen`) el desenfoque no se dibuja; la prueba automática comprueba la lógica y la apariencia se revisa en una ventana real con GPU.
