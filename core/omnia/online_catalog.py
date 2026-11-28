@@ -444,6 +444,11 @@ _STORE_ART_RE = re.compile(
     r"|https://cdn1\.epicgames\.com/[A-Za-z0-9_./-]{1,200}")
 _AMAZON_ART_RE = re.compile(
     r"https://[a-z0-9.-]+\.(?:media-amazon|ssl-images-amazon)\.com/[A-Za-z0-9._~%/-]{1,900}(?:\?[A-Za-z0-9._~%=&-]{0,300})?")
+# Entrega 6: carátulas de las bibliotecas de Ubisoft Connect y de la EA app (solo sus CDN públicos, HTTPS y sin credenciales).
+_UBI_EA_ART_RE = re.compile(
+    r"https://(?:ubiservices\.cdn\.ubi\.com|staticctf\.ubisoft\.com|static[0-9]?\.cdn\.ubi\.com|"
+    r"drh[0-9]?\.img\.ea\.com|eaassets-a\.akamaihd\.net|media\.contentapi\.ea\.com)/[A-Za-z0-9._~%/-]{1,500}"
+    r"(?:\?[A-Za-z0-9._~%=&-]{0,300})?")
 _STORE_ART_KEYS = {"portada": ("art_square", "art_cover"), "fondo": ("art_background", "art_cover")}
 
 
@@ -452,7 +457,8 @@ def _is_steam_art_url(url) -> bool:
 
 
 def _is_store_art_url(url) -> bool:
-    return _is_steam_art_url(url) or (isinstance(url, str) and _AMAZON_ART_RE.fullmatch(url) is not None)
+    return _is_steam_art_url(url) or (isinstance(url, str) and (_AMAZON_ART_RE.fullmatch(url) is not None
+                                                                or _UBI_EA_ART_RE.fullmatch(url) is not None))
 
 
 def store_art_from_heroic(entry) -> dict:

@@ -81,7 +81,9 @@ Item {
         { k: "steam", label: "Steam", logo: "images/stores/steam.svg" },
         { k: "epic", label: "Epic", logo: "images/stores/epic.svg" },
         { k: "gog", label: "GOG", logo: "images/stores/gog.svg" },
-        { k: "amazon", label: "Amazon", logo: "images/stores/amazon.svg" }
+        { k: "amazon", label: "Amazon", logo: "images/stores/amazon.svg" },
+        { k: "ubisoft", label: "Ubisoft", logo: "images/stores/ubisoft.svg" },
+        { k: "ea", label: "EA", logo: "images/stores/ea.svg" }
     ]
     readonly property var exploreItems: {
         const q = String(query || "").trim().toLowerCase()
@@ -339,7 +341,8 @@ Item {
         return { label: qsTr("Omnia · ports"), logo: "images/stores/omnia.svg" }
     }
     function storeLogo(key) {
-        return ({ steam: "images/stores/steam.svg", epic: "images/stores/epic.svg", gog: "images/stores/gog.svg", amazon: "images/stores/amazon.svg" })[key] || ""
+        return ({ steam: "images/stores/steam.svg", epic: "images/stores/epic.svg", gog: "images/stores/gog.svg", amazon: "images/stores/amazon.svg",
+                  ubisoft: "images/stores/ubisoft.svg", ea: "images/stores/ea.svg" })[key] || ""
     }
     // Desde la fase 2 el Catálogo vive dentro de Biblioteca: «catalog» y «stores» llevan ahí y
     // ponen el foco en el buscador del Catálogo.

@@ -117,7 +117,7 @@ Item {
         } else {
             const accounts = set.storeAccounts
             H(qsTr("Cuentas de tiendas"))
-            for (const id of ["steam", "epic", "gog", "amazon"]) {
+            for (const id of accounts.allStores) {
                 const account = accounts.status(id)
                 const pending = accounts.requesting === id || accounts.connecting === id
                 const confirm = set.pendingDisconnect === id
@@ -130,11 +130,19 @@ Item {
                 // Una sola fila por tienda: el botón principal y, si aplica, un segundo botón al lado
                 // (abrir el inicio de sesión en tu navegador, o cancelar el que está en curso). ←/→ eligen el botón.
                 const alt = browser ? { id: "store-cancel", text: qsTr("Cancelar") }
-                    : (id !== "steam" && account?.available && !account.logged_in && !pending) ? { id: "store-browser", text: qsTr("En el navegador") } : null
+                    : (id !== "steam" && !account?.web_login && account?.available && !account.logged_in && !pending) ? { id: "store-browser", text: qsTr("En el navegador") } : null
                 out.push({ id:"store-account", store:id, kind:pending || !account?.available ? "info" : "action",
                     label:accounts.names[id], desc:desc, alt:alt,
                     text:confirm ? qsTr("Confirmar desconexión") : browser ? qsTr("Pegar retorno")
                          : account?.logged_in ? qsTr("Desconectar") : qsTr("Conectar") })
+            }
+            // Ubisoft y EA (entrega 6): su lanzador oficial en Wine — dónde está, o instalarlo en la ruta de instalación
+            for (const lid of ["ubisoft", "ea"]) {
+                const l = accounts.launchers[lid]
+                if (!l) continue
+                const busy = !!(l.job && (l.job.state === "downloading" || l.job.state === "installing"))
+                out.push({ id: "store-launcher", store: lid, kind: busy ? "info" : "action", label: l.name, desc: accounts.launcherText(lid),
+                           text: l.installed ? qsTr("Abrir") : qsTr("Instalar") })
             }
             out.push({id:"store-refresh", kind:"action", label:qsTr("Estado de las cuentas"), text:qsTr("Actualizar")})
             if (accounts.message) out.push({id:"store-message", kind:"info", label:accounts.message})
@@ -228,6 +236,11 @@ Item {
         switch (r.id) {
         case "store-root": set.host.chooseStoreInstallRoot(message => set.note(message)); break
         case "store-refresh": set.storeAccounts.refreshStores(); break
+        case "store-launcher": {
+            const l = set.storeAccounts.launchers[r.store]
+            if (l && l.installed) set.storeAccounts.openLauncher(r.store); else set.storeAccounts.installLauncher(r.store)
+            break
+        }
         case "store-browser": set.storeAccounts.startLink(r.store, true); break
         case "store-cancel": set.storeAccounts.linking = ""; set.storeAccounts.pasted = ""; break
         case "store-account": {

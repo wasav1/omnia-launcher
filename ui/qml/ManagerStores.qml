@@ -39,7 +39,45 @@ Item {
     property string connecting: ""                        // tienda que se está conectando (muestra el indicador)
     readonly property var loginWindow: webLoader.item
     readonly property real s: manager ? manager.s : 1
-    readonly property var names: ({ steam: "Steam", epic: "Epic", gog: "GOG", amazon: "Amazon" })
+    readonly property var names: ({ steam: "Steam", epic: "Epic", gog: "GOG", amazon: "Amazon", ubisoft: "Ubisoft", ea: "EA" })
+    readonly property var allStores: ["steam", "epic", "gog", "amazon", "ubisoft", "ea"]
+    // Ubisoft y EA (entrega 6): se instalan con su lanzador oficial en un prefijo de Wine; aquí, si está y dónde.
+    property var launchers: ({})                          // id -> estado de /stores/launcher
+    property bool eaRefreshTried: false
+    readonly property string eaTokenUrl: "https://accounts.ea.com/connect/auth?client_id=ORIGIN_JS_SDK&response_type=token&redirect_uri=nucleus:rest&prompt=none"
+    function loadLauncher(sid, fresh) {
+        api.call("GET", "/stores/launcher?store=" + sid + (fresh ? "&fresh=1" : ""), function(code, body) {
+            if (code !== 200 || !body) return
+            const l = Object.assign({}, st.launchers); l[sid] = body; st.launchers = l
+            if (body.job && (body.job.state === "downloading" || body.job.state === "installing")) launcherPoll.restart()
+        })
+    }
+    Timer { id: launcherPoll; interval: 3000; onTriggered: { st.loadLauncher("ubisoft"); st.loadLauncher("ea") } }
+    function installLauncher(sid) {
+        api.call("POST", "/stores/launcher/install", function(code, body) {
+            if (code !== 200) { st.message = (body && body.error) || qsTr("No se pudo instalar el lanzador."); return }
+            const l = Object.assign({}, st.launchers); l[sid] = body; st.launchers = l
+            launcherPoll.restart()
+        }, { store: sid })
+    }
+    function openLauncher(sid, gameId, title) {
+        api.call("POST", "/stores/launcher/open", function(code, body) {
+            if (code !== 200) { st.message = (body && body.error) || qsTr("No se pudo abrir el lanzador."); st.api.notify(st.message); return }
+            st.api.notify(title ? qsTr("Se abrió %1: instala «%2» desde allí y Omnia lo añadirá a la biblioteca.").arg(body.name).arg(title)
+                                : qsTr("Se abrió %1.").arg(body.name))
+        }, { store: sid, id: gameId || "" })
+    }
+    function launcherText(sid) {
+        const l = st.launchers[sid]
+        if (!l) return "…"
+        const job = l.job || {}
+        if (job.state === "downloading") return qsTr("Descargando %1…").arg(l.name)
+        if (job.state === "installing") return qsTr("Instalando %1 (puede pedirte confirmar en su ventana)…").arg(l.name)
+        if (job.state === "failed" && !l.installed) return job.error
+        if (!l.installed) return qsTr("%1 no está instalado. Se instalará en %2.").arg(l.name).arg(l.target)
+        const w = l.found[0]
+        return qsTr("%1 instalado%2 · %3").arg(l.name).arg(w.inRoute ? qsTr(" en tu ruta de instalación") : "").arg(w.prefix)
+    }
 
     function storeOf(g) {
         if (g.src === "Steam") return "steam"
@@ -47,6 +85,8 @@ Item {
         if (sub.indexOf("Epic") >= 0) return "epic"
         if (sub.indexOf("GOG") >= 0) return "gog"
         if (sub.indexOf("Amazon") >= 0) return "amazon"
+        if (g.src === "Ubisoft Connect") return "ubisoft"
+        if (g.src === "EA app") return "ea"
         return ""
     }
     readonly property var localGames: (api && api.games ? api.games : []).filter(function(g) { return !g.hidden && storeOf(g) !== "" })
@@ -66,7 +106,7 @@ Item {
     readonly property var items: allItems.filter(function(i) { return filter === "all" || i.store === filter })
     function count(sid) { return allItems.filter(function(i) { return i.store === sid }).length }
     function status(sid) { return stores.find(function(x) { return x.id === sid }) || null }
-    readonly property var disconnected: ["steam", "epic", "gog", "amazon"].filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
+    readonly property var disconnected: allStores.filter(function(sid) { const x = status(sid); return x && x.available && !x.logged_in })
 
     Connections {
         target: st.api
@@ -85,7 +125,10 @@ Item {
         Qt.openUrlExternally("steam://install/" + item.rawId)
         st.api.notify(qsTr("Steam abrió el diálogo para instalar «%1»; confírmalo allí.").arg(item.name))
     }
-    function askInstall(item) { st.installTarget = item; installFolder.open() }
+    function askInstall(item) {
+        if (item.store === "ubisoft" || item.store === "ea") { st.openLauncher(item.store, item.store === "ea" ? item.rawId : "", item.name); return }
+        st.installTarget = item; installFolder.open()
+    }
     FolderDialog {
         id: installFolder
         title: st.installTarget ? qsTr("Elige dónde instalar %1").arg(st.installTarget.name) : ""
@@ -112,6 +155,13 @@ Item {
             else {
                 st.stores = body.stores || []
                 st.stores.forEach(function(x) { if (x.logged_in && !st.remote[x.id] && !st.loading[x.id]) st.loadLibrary(x.id) })
+                st.loadLauncher("ubisoft"); st.loadLauncher("ea")
+                // EA: el token dura una hora; con la sesión web de la ventana se pide otro sin mostrarla (una vez por sesión)
+                const eaState = st.status("ea")
+                if (eaState && eaState.logged_in && eaState.token_expired && !st.eaRefreshTried) {
+                    st.eaRefreshTried = true
+                    st.webLogin("ea", st.eaTokenUrl)
+                }
             }
             st.checking = false
             st.publishBatch()
@@ -153,7 +203,7 @@ Item {
                 else st.message = qsTr("Inicia sesión en la ventana de %1; Omnia te conecta sola.").arg(st.names[sid])
                 return
             }
-            if (sid === "steam") { st.message = qsTr("Steam necesita el componente qt6-webengine para conectarse desde Omnia."); return }
+            if (sid === "steam" || sid === "ubisoft" || sid === "ea") { st.message = qsTr("%1 necesita el componente qt6-webengine para conectarse desde Omnia.").arg(st.names[sid]); return }
             st.linking = sid
             Qt.openUrlExternally(body.url)
         })
@@ -226,7 +276,8 @@ Item {
         anchors { left: parent.left; right: accountsBtn.left; top: parent.top; leftMargin: st.s * 32; rightMargin: st.s * 16; topMargin: st.s * 22 }
         spacing: st.s * 10
         Repeater {
-            model: [{ k: "all", l: qsTr("Todas") }, { k: "steam", l: "Steam" }, { k: "epic", l: "Epic" }, { k: "gog", l: "GOG" }, { k: "amazon", l: "Amazon" }]
+            model: [{ k: "all", l: qsTr("Todas") }, { k: "steam", l: "Steam" }, { k: "epic", l: "Epic" }, { k: "gog", l: "GOG" }, { k: "amazon", l: "Amazon" },
+                    { k: "ubisoft", l: "Ubisoft" }, { k: "ea", l: "EA" }]
             delegate: Rectangle {
                 id: chip
                 required property var modelData
@@ -336,7 +387,7 @@ Item {
                        visible: !st.accountsContainer
                        text: qsTr("Inicias sesión en el navegador de cada tienda. Omnia nunca ve tu contraseña: solo guarda la sesión en este equipo.") }
                 Repeater {
-                    model: ["steam", "epic", "gog", "amazon"]
+                    model: st.allStores
                     delegate: Rectangle {
                         id: acc
                         required property string modelData
@@ -368,9 +419,25 @@ Item {
                                 visible: st.connecting !== acc.modelData
                                 spacing: st.s * 8
                                 AccountButton { primary: true; visible: acc.info && acc.info.available && !acc.info.logged_in; text: qsTr("Abrir inicio de sesión"); onClicked: st.startLink(acc.modelData) }
-                                AccountButton { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "steam" && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
+                                AccountButton { text: qsTr("Usar mi navegador"); visible: acc.modelData !== "steam" && !(acc.info && acc.info.web_login) && acc.info && acc.info.available && !acc.info.logged_in; onClicked: st.startLink(acc.modelData, true) }
                                 AccountButton { visible: acc.modelData === "steam" && acc.info && acc.info.logged_in; text: qsTr("Actualizar"); onClicked: st.startLink("steam") }
                                 AccountButton { visible: acc.info && acc.info.logged_in; text: qsTr("Cerrar sesión"); onClicked: st.unlink(acc.modelData) }
+                            }
+                            // Ubisoft y EA: su lanzador en Wine (dónde está, o instalarlo en la ruta de instalación)
+                            Row {
+                                visible: acc.modelData === "ubisoft" || acc.modelData === "ea"
+                                width: parent.width; spacing: st.s * 8
+                                readonly property var l: st.launchers[acc.modelData] || null
+                                Text { width: parent.width - launcherBtn.width - st.s * 8; anchors.verticalCenter: parent.verticalCenter; wrapMode: Text.Wrap
+                                       color: st.manager.muted; font.family: "Hanken Grotesk"; font.pixelSize: st.s * 12; text: st.launcherText(acc.modelData) }
+                                AccountButton {
+                                    id: launcherBtn
+                                    readonly property var l: st.launchers[acc.modelData] || null
+                                    readonly property bool working: !!(l && l.job && (l.job.state === "downloading" || l.job.state === "installing"))
+                                    visible: !!l && !working
+                                    text: l && l.installed ? qsTr("Abrir") : qsTr("Instalar %1").arg(l ? l.name : "")
+                                    onClicked: l.installed ? st.openLauncher(acc.modelData) : st.installLauncher(acc.modelData)
+                                }
                             }
                             Column {
                                 visible: st.linking === acc.modelData

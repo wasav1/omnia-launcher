@@ -2,10 +2,12 @@
 from .bedrock import BedrockDetector
 from .gfn import GeForceNowDetector
 from .heroic import HeroicDetector
+from .launcher_games import LauncherGamesDetector
 from .lutris import LutrisDetector
 from .rom_folders import RomFolderDetector
 from .steam import SteamDetector
 
 
 def default_detectors(store=None) -> list:
-    return [SteamDetector(), HeroicDetector(), LutrisDetector(), GeForceNowDetector(), RomFolderDetector(store), BedrockDetector(store)]
+    return [SteamDetector(), HeroicDetector(), LutrisDetector(), GeForceNowDetector(), RomFolderDetector(store), BedrockDetector(store),
+            LauncherGamesDetector(store)]

@@ -13,7 +13,8 @@ Item {
     readonly property real s: host.s
     readonly property var sources: [
         {id:"all", name:qsTr("Todas")}, {id:"omnia", name:qsTr("Omnia")},
-        {id:"steam", name:"Steam"}, {id:"epic", name:"Epic"}, {id:"gog", name:"GOG"}, {id:"amazon", name:"Amazon"}
+        {id:"steam", name:"Steam"}, {id:"epic", name:"Epic"}, {id:"gog", name:"GOG"}, {id:"amazon", name:"Amazon"},
+        {id:"ubisoft", name:"Ubisoft"}, {id:"ea", name:"EA"}
     ]
     property int filter: 0
     property string query: ""
@@ -258,7 +259,8 @@ Item {
             detailMessage = qsTr("Añadiendo a la cola…")
             api.storeInstall(item.store, item.rawId, item.name, api.installRoot, function(status, body) {
                 bigStore.installing = false
-                if (status === 200) { bigStore.closeDetail(); host.openDownloads() }
+                if (status === 200 && body.launcher) bigStore.detailMessage = qsTr("Se abrió %1: instala «%2» desde allí y Omnia lo añadirá a la biblioteca.").arg(body.name).arg(item.name)
+                else if (status === 200) { bigStore.closeDetail(); host.openDownloads() }
                 else bigStore.detailMessage = body.error || qsTr("No se pudo iniciar la instalación.")
             })
         }

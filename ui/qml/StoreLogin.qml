@@ -14,12 +14,15 @@ Window {
     signal abandoned(string store)
     width: 520; height: 720; minimumWidth: 420; minimumHeight: 560
     color: "#0B0F14"
-    title: store === "steam" ? "Steam" : store === "epic" ? "Epic Games" : (store === "gog" ? "GOG" : "Amazon")
+    title: ({ steam: "Steam", epic: "Epic Games", gog: "GOG", amazon: "Amazon", ubisoft: "Ubisoft Connect", ea: "EA" })[store] || store
+    // EA (entrega 6): tras iniciar sesión en ea.com, la ventana pide el token de la cuenta con su propia sesión web.
+    readonly property string eaTokenUrl: "https://accounts.ea.com/connect/auth?client_id=ORIGIN_JS_SDK&response_type=token&redirect_uri=nucleus:rest&prompt=none"
 
     function begin(sid, url) {
         store = sid; captured = false; attempts = 0
         view.url = url
-        if (sid === "steam") { visible = false; showTimer.restart(); return }     // si ya hay sesión web, se actualiza sin mostrar la ventana
+        // si ya hay sesión web, se actualiza sin mostrar la ventana (Steam, y EA al renovar el token)
+        if (sid === "steam" || (sid === "ea" && String(url) === eaTokenUrl)) { visible = false; showTimer.restart(); return }
         visible = true; raise(); requestActivate()
     }
     function reveal() { showTimer.stop(); if (!captured) { visible = true; raise(); requestActivate() } }
@@ -68,6 +71,22 @@ Window {
                                       win.attempts += 1
                                       if (t) win.deliver(String(t))
                                   })
+            }
+            const here = String(url)
+            if (win.store === "ubisoft" && /^https:\/\/connect\.ubisoft\.com\/(ready|change_domain)/.test(here))
+                // Ubisoft guarda la sesión en el localStorage de su página: se entrega a Omnia (ticket, sesión y «recordarme»)
+                runJavaScript("JSON.stringify({loginData:localStorage.getItem('PRODloginData'),rememberMe:localStorage.getItem('PRODrememberMe'),"
+                              + "lastProfile:localStorage.getItem('PRODlastProfile')})",
+                              function(t) { try { if (JSON.parse(t).loginData) win.deliver(String(t)) } catch (e) {} })
+            if (win.store === "ea") {
+                if (here.indexOf("https://accounts.ea.com/connect/auth") === 0)
+                    runJavaScript("document.body ? document.body.innerText : ''", function(t) {
+                        if (t && t.indexOf("access_token") >= 0) win.deliver(String(t))
+                        else { win.reveal(); view.url = "https://www.ea.com/login" }      // sin sesión web: hay que iniciarla
+                    })
+                else if (/^https:\/\/(www\.)?ea\.com\//.test(here) && here.indexOf("/login") < 0 && !win.captured)
+                    view.url = win.eaTokenUrl                                             // ya inició sesión: se pide el token
+                else if (here.indexOf("signin.ea.com") >= 0 || here.indexOf("/login") >= 0) win.reveal()
             }
             if (win.store === "epic" && String(url).indexOf("https://www.epicgames.com/id/api/redirect") === 0)
                 runJavaScript("document.body ? document.body.innerText : ''", function(t) { if (t) win.deliver(String(t)) })

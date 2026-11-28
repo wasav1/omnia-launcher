@@ -22,7 +22,7 @@ Item {
     readonly property var categories: [
         { k: "general", icon: "settings", l: qsTr("General"), d: qsTr("Idioma, moneda de los precios y avisos de actualización de los ports.") },
         { k: "library", icon: "folder-open", l: qsTr("Biblioteca y carpetas"), d: qsTr("Dónde se instalan los juegos y qué carpetas revisa Omnia.") },
-        { k: "stores", icon: "key-round", l: qsTr("Tiendas y cuentas"), d: qsTr("Conecta Steam, Epic, GOG y Amazon. Omnia nunca ve tus contraseñas.") },
+        { k: "stores", icon: "key-round", l: qsTr("Tiendas y cuentas"), d: qsTr("Conecta Steam, Epic, GOG, Amazon, Ubisoft y EA. Omnia nunca ve tus contraseñas.") },
         { k: "games", icon: "gamepad-2", l: qsTr("Juegos y rendimiento"), d: qsTr("HUD de MangoHud, límite de FPS y perfil de energía del equipo.") },
         { k: "news", icon: "bell", l: qsTr("Novedades"), d: qsTr("Qué tiendas aparecen en el Inicio y en el panel rápido: ofertas, juegos gratis, lanzamientos y noticias.") },
         { k: "appearance", icon: "image", l: qsTr("Apariencia"), d: qsTr("Aspecto de la app de escritorio.") },

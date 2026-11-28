@@ -198,6 +198,9 @@ class Api:
             "/catalog/install-packages": ("GET", True, self.catalog_install_packages),
             "/installations": ("GET", True, self.installations_snapshot),
             "/stores/install": ("POST", True, self.stores_install),
+            "/stores/launcher": ("GET", True, self.stores_launcher),
+            "/stores/launcher/install": ("POST", True, self.stores_launcher_install),
+            "/stores/launcher/open": ("POST", True, self.stores_launcher_open),
             "/installations/start": ("POST", True, self.installation_start),
             "/installations/cancel": ("POST", True, self.installation_cancel),
             "/installations/pause": ("POST", True, self.installation_pause),
@@ -920,8 +923,11 @@ class Api:
         identities = [library_metadata.store_identity(g) for g in installed]
         mine = {str(identity.get("id")) for identity in identities if identity.get("store") == store.id}
         local_ids = {g.get("id") for g in installed}
+        # Ubisoft y EA: la biblioteca usa otros ids que el registro del prefijo; se comparan por nombre parecido.
+        local_names = {online_catalog._name_key(g.get("name")) for g in installed} if store.id in ("ubisoft", "ea") else set()
         for g in games:
-            if g["id"] in mine or (store.id == "steam" and "steam-" + g["id"] in local_ids):
+            if g["id"] in mine or (store.id == "steam" and "steam-" + g["id"] in local_ids) \
+                    or (local_names and online_catalog._name_key(g.get("title")) in local_names):
                 g["installed"] = True
         return {"games": games}
 
@@ -937,10 +943,115 @@ class Api:
         snap["jobs"] = self.transfer_metrics.observe(jobs)
         return snap
 
+    # ── Ubisoft Connect y EA app (entrega 6): el lanzador oficial en un prefijo de Wine ──
+    def _launcher_state(self, sid) -> dict:
+        from .stores import launchers
+        spec = launchers.LAUNCHERS[sid]
+        cfg = load_json(self.store.dir / "config.json", {})
+        route = cfg.get("install_root", "") if isinstance(cfg, dict) and isinstance(cfg.get("install_root"), str) else ""
+        found = launchers.find(sid, launchers.search_roots(self.store.dir))
+        route_real = os.path.realpath(route) if route else ""
+        for where in found:
+            where["inRoute"] = bool(route_real) and (where["prefix"] == route_real or where["prefix"].startswith(route_real.rstrip("/") + "/"))
+            where["games"] = len(launchers.installed_games(sid, where["prefix"]))
+        found.sort(key=lambda w: (not w["inRoute"], w["source"] != "lutris"))       # primero el de la ruta elegida
+        job = dict(getattr(self, "_launcher_jobs", {}).get(sid) or {})
+        return {"store": sid, "name": spec["name"], "installed": bool(found), "found": found, "route": route,
+                "target": self._launcher_prefix(sid, route), "umu": bool(shutil.which("umu-run")), "job": job}
+
+    @staticmethod
+    def _launcher_prefix(sid, route) -> str:
+        base = route or str(Path.home() / "Juegos/PC")
+        return os.path.join(base, "_Prefijos", "ubisoft-connect" if sid == "ubisoft" else "ea-app")
+
+    def _launcher_id(self, q) -> str:
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        sid = body.get("store", q.get("store"))
+        if sid not in ("ubisoft", "ea"):
+            raise ApiError(404, "tienda desconocida")
+        return sid
+
+    def stores_launcher(self, q):
+        """¿Está Ubisoft Connect / la EA app instalada? Dónde (primero en la ruta de instalación elegida) y con cuántos juegos."""
+        from .stores import launchers
+        sid = self._launcher_id(q)
+        if q.get("fresh") == "1":
+            launchers.forget()
+        return self._launcher_state(sid)
+
+    def stores_launcher_install(self, q):
+        """Descarga el instalador oficial y lo ejecuta con umu-run en un prefijo nuevo dentro de la ruta de instalación."""
+        from .stores import launchers
+        sid = self._launcher_id(q)
+        state = self._launcher_state(sid)
+        if state["installed"]:
+            return {"ok": True, **state}
+        if not state["umu"]:
+            raise ApiError(409, "Falta umu-launcher para instalar " + state["name"] + ".")
+        jobs = self.__dict__.setdefault("_launcher_jobs", {})
+        if (jobs.get(sid) or {}).get("state") in ("downloading", "installing"):
+            return {"ok": True, **state}
+        prefix = state["target"]
+        jobs[sid] = {"state": "downloading", "prefix": prefix, "error": ""}
+        threading.Thread(target=self._install_launcher, args=(sid, prefix), name="omnia-launcher-" + sid, daemon=True).start()
+        return {"ok": True, **self._launcher_state(sid)}
+
+    def _install_launcher(self, sid, prefix):
+        from .stores import launchers
+        import urllib.request
+        spec, job = launchers.LAUNCHERS[sid], self._launcher_jobs[sid]
+        try:
+            folder = paths.ensure(paths.cache_dir() / "launchers")
+            installer = folder / spec["installer"].rsplit("/", 1)[-1]
+            req = urllib.request.Request(spec["installer"], headers={"User-Agent": "Omnia/0.4"})
+            with urllib.request.urlopen(req, timeout=60) as response, open(installer, "wb") as out:
+                total = 0
+                while chunk := response.read(1 << 20):
+                    total += len(chunk)
+                    if total > 600 * 1024 * 1024:
+                        raise OSError("el instalador es demasiado grande")
+                    out.write(chunk)
+            os.makedirs(prefix, exist_ok=True)
+            job["state"] = "installing"
+            argv = ["env", "WINEPREFIX=" + prefix, "GAMEID=umu-0", "PROTONPATH=GE-Proton", "umu-run", str(installer),
+                    *spec["installer_args"]]
+            code = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  timeout=3600).returncode
+            launchers.forget()
+            if launchers.find(sid, [prefix], fresh=True):
+                job.update(state="done")
+                self.bus.games_changed()
+            else:
+                job.update(state="failed", error="El instalador terminó (código %d) pero no se encontró %s." % (code, spec["name"]))
+        except (OSError, subprocess.SubprocessError) as exc:
+            job.update(state="failed", error="No se pudo instalar " + spec["name"] + ": " + str(exc))
+
+    def stores_launcher_open(self, q):
+        """Abre el lanzador (y, con `id`, el juego para instalarlo o jugarlo) en el prefijo donde está instalado."""
+        from .stores import launchers
+        sid = self._launcher_id(q)
+        body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
+        state = self._launcher_state(sid)
+        if not state["installed"]:
+            raise ApiError(409, state["name"] + " no está instalado. Instálalo primero.")
+        where = state["found"][0]
+        gid = body.get("id")
+        uri = ""
+        if sid == "ea" and isinstance(gid, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", gid):
+            uri = launchers.launch_uri("ea", gid)          # la EA app abre el juego y ofrece instalarlo
+        try:
+            launcher.launch({"launch": launchers.launch_argv(where["prefix"], where["exe"], uri), "cwd": os.path.dirname(where["exe"])},
+                            sid + "-launcher")
+        except (OSError, ValueError) as exc:
+            raise ApiError(500, "No se pudo abrir " + state["name"] + ": " + str(exc))
+        return {"ok": True, "prefix": where["prefix"], "name": state["name"]}
+
     def stores_install(self, q):
         from .stores.base import StoreError
         body = q.get("_body") if isinstance(q.get("_body"), dict) else {}
         store = body.get("store")
+        if store in ("ubisoft", "ea"):              # sin descargador libre: se instala desde el lanzador oficial
+            return {"launcher": True, **self.stores_launcher_open(q)}
         if not isinstance(store, str) or store not in self._stores():
             raise ApiError(404, "tienda desconocida")
         try:

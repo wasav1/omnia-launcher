@@ -1901,8 +1901,8 @@
     </message>
     <message>
         <location line="+0"/>
-        <source>Conecta Steam, Epic, GOG y Amazon. Omnia nunca ve tus contraseñas.</source>
-        <translation>Connect Steam, Epic, GOG and Amazon. Omnia never sees your passwords.</translation>
+        <source>Conecta Steam, Epic, GOG, Amazon, Ubisoft y EA. Omnia nunca ve tus contraseñas.</source>
+        <translation>Connect Steam, Epic, GOG, Amazon, Ubisoft and EA. Omnia never sees your passwords.</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1992,12 +1992,12 @@
     <message>
         <location line="+2"/>
         <source>Automática: la de la región del sistema. Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».</source>
-        <translation>Automatic: your system region's currency. Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”.</translation>
+        <translation>Automatic: your system region&apos;s currency. Steam shows your country&apos;s price; anything in another currency is converted at today&apos;s rate and marked “≈”.</translation>
     </message>
     <message>
         <location line="+1"/>
         <source>Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈».</source>
-        <translation>Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”.</translation>
+        <translation>Steam shows your country&apos;s price; anything in another currency is converted at today&apos;s rate and marked “≈”.</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -2434,12 +2434,12 @@
 <context>
     <name>ManagerStores</name>
     <message>
-        <location filename="../ManagerStores.qml" line="+86"/>
+        <location filename="../ManagerStores.qml" line="+126"/>
         <source>Steam abrió el diálogo para instalar «%1»; confírmalo allí.</source>
         <translation>Steam opened the installation dialog for “%1”. Confirm there.</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+8"/>
         <source>Elige dónde instalar %1</source>
         <translation>Choose where to install %1</translation>
     </message>
@@ -2459,7 +2459,7 @@
         <translation>Could not check the stores.</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+27"/>
         <source>No se pudo leer la biblioteca de %1.</source>
         <translation>Could not read the %1 library.</translation>
     </message>
@@ -2479,9 +2479,54 @@
         <translation>Sign in in the %1 window to connect Omnia automatically.</translation>
     </message>
     <message>
-        <location line="+3"/>
-        <source>Steam necesita el componente qt6-webengine para conectarse desde Omnia.</source>
-        <translation>Steam requires qt6-webengine to connect from Omnia.</translation>
+        <location line="-145"/>
+        <source>No se pudo instalar el lanzador.</source>
+        <translation>Couldn't install the launcher.</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>No se pudo abrir el lanzador.</source>
+        <translation>Couldn't open the launcher.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Se abrió %1: instala «%2» desde allí y Omnia lo añadirá a la biblioteca.</source>
+        <translation>%1 opened: install “%2” from there and Omnia will add it to the library.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Se abrió %1.</source>
+        <translation>%1 opened.</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>Descargando %1…</source>
+        <translation>Downloading %1…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Instalando %1 (puede pedirte confirmar en su ventana)…</source>
+        <translation>Installing %1 (it may ask you to confirm in its window)…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>%1 no está instalado. Se instalará en %2.</source>
+        <translation>%1 is not installed. It will be installed in %2.</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>%1 instalado%2 · %3</source>
+        <translation>%1 installed%2 · %3</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source> en tu ruta de instalación</source>
+        <translation> in your install location</translation>
+    </message>
+    <message>
+        <location line="+127"/>
+        <source>%1 necesita el componente qt6-webengine para conectarse desde Omnia.</source>
+        <translation>%1 needs the qt6-webengine component to connect from Omnia.</translation>
     </message>
     <message>
         <location line="+48"/>
@@ -2509,7 +2554,7 @@
         <translation>All</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+21"/>
         <source>Cuentas</source>
         <translation>Accounts</translation>
     </message>
@@ -2520,12 +2565,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+122"/>
+        <location line="+138"/>
         <source>Conectar</source>
         <translation>Connect</translation>
     </message>
     <message>
-        <location line="-79"/>
+        <location line="-95"/>
         <source>Cargando tus bibliotecas…</source>
         <translation>Loading your libraries…</translation>
     </message>
@@ -2561,12 +2606,12 @@
     </message>
     <message>
         <location line="+6"/>
-        <location line="+19"/>
+        <location line="+35"/>
         <source>Conectando…</source>
         <translation>Connecting…</translation>
     </message>
     <message>
-        <location line="-14"/>
+        <location line="-30"/>
         <source>Abrir inicio de sesión</source>
         <translation>Open sign-in</translation>
     </message>
@@ -2577,17 +2622,27 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+23"/>
+        <location line="+39"/>
         <source>Actualizar</source>
         <translation>Update</translation>
     </message>
     <message>
-        <location line="-22"/>
+        <location line="-38"/>
         <source>Cerrar sesión</source>
         <translation>Sign out</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+14"/>
+        <source>Abrir</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Instalar %1</source>
+        <translation>Install %1</translation>
+    </message>
+    <message>
+        <location line="+8"/>
         <source>Inicia sesión; cuando veas el texto con el código, pulsa Ctrl+A y Ctrl+C y vuelve a Omnia: se conecta sola.</source>
         <translation>Sign in. When the code appears, press Ctrl+A then Ctrl+C and return to Omnia to connect automatically.</translation>
     </message>
@@ -2894,7 +2949,7 @@
 <context>
     <name>OmniaBigSettings</name>
     <message>
-        <location filename="../OmniaBigSettings.qml" line="+330"/>
+        <location filename="../OmniaBigSettings.qml" line="+343"/>
         <location line="+183"/>
         <source>Volver</source>
         <translation>Back</translation>
@@ -2905,7 +2960,7 @@
         <translation>Settings</translation>
     </message>
     <message>
-        <location line="-293"/>
+        <location line="-306"/>
         <source>Aplicación</source>
         <translation>Application</translation>
     </message>
@@ -2920,7 +2975,7 @@
         <translation>Omnia will display text in the selected language.</translation>
     </message>
     <message>
-        <location line="+464"/>
+        <location line="+477"/>
         <source>Mover y ajustar</source>
         <translation>Move and adjust</translation>
     </message>
@@ -2935,17 +2990,17 @@
         <translation>Change category</translation>
     </message>
     <message>
-        <location line="-466"/>
+        <location line="-479"/>
         <source>Español</source>
         <translation>Spanish</translation>
     </message>
     <message>
-        <location line="+150"/>
+        <location line="+158"/>
         <source>Idioma guardado.</source>
         <translation>Language saved.</translation>
     </message>
     <message>
-        <location line="-141"/>
+        <location line="-149"/>
         <source>Biblioteca</source>
         <translation>Library</translation>
     </message>
@@ -2965,7 +3020,7 @@
         <translation>Scan for games</translation>
     </message>
     <message>
-        <location line="+192"/>
+        <location line="+205"/>
         <source>Biblioteca actualizada.</source>
         <translation>Library updated.</translation>
     </message>
@@ -2975,7 +3030,7 @@
         <translation>Could not update the library.</translation>
     </message>
     <message>
-        <location line="-221"/>
+        <location line="-234"/>
         <source>General</source>
         <translation>General</translation>
     </message>
@@ -3028,7 +3083,7 @@
     <message>
         <location line="+1"/>
         <source>Steam muestra el precio de tu país; lo que llega en otra moneda se convierte con el cambio del día y lleva «≈». ←/→ cambia.</source>
-        <translation>Steam shows your country's price; anything in another currency is converted at today's rate and marked “≈”. ←/→ changes it.</translation>
+        <translation>Steam shows your country&apos;s price; anything in another currency is converted at today&apos;s rate and marked “≈”. ←/→ changes it.</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3271,11 +3326,12 @@
     </message>
     <message>
         <location line="+0"/>
+        <location line="+49"/>
         <source>Abrir</source>
         <translation>Open</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-48"/>
         <source>Probar la vibración</source>
         <translation>Test vibration</translation>
     </message>
@@ -3465,7 +3521,12 @@
         <translation>Cancel</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+13"/>
+        <source>Instalar</source>
+        <translation>Install</translation>
+    </message>
+    <message>
+        <location line="+2"/>
         <source>Estado de las cuentas</source>
         <translation>Account status</translation>
     </message>
@@ -3490,7 +3551,7 @@
         <translation>Sound pack changed.</translation>
     </message>
     <message>
-        <location line="+28"/>
+        <location line="+33"/>
         <source>Todavía no hay una dirección de retorno válida en el portapapeles.</source>
         <translation>There is no valid return URL on the clipboard yet.</translation>
     </message>
@@ -3518,7 +3579,7 @@
 <context>
     <name>OmniaBigStore</name>
     <message>
-        <location filename="../OmniaBigStore.qml" line="+540"/>
+        <location filename="../OmniaBigStore.qml" line="+542"/>
         <source>En tu biblioteca</source>
         <translation>In your library</translation>
     </message>
@@ -3528,7 +3589,7 @@
         <translation>Not installed</translation>
     </message>
     <message>
-        <location line="-525"/>
+        <location line="-527"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
@@ -3538,7 +3599,7 @@
         <translation>Omnia</translation>
     </message>
     <message>
-        <location line="+112"/>
+        <location line="+113"/>
         <source>No se pudo cargar el catálogo. Pulsa A en el filtro actual para reintentar.</source>
         <translation>Could not load the catalog. Press A on the current filter to retry.</translation>
     </message>
@@ -3593,7 +3654,12 @@
         <translation>Adding to the queue…</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+3"/>
+        <source>Se abrió %1: instala «%2» desde allí y Omnia lo añadirá a la biblioteca.</source>
+        <translation>%1 opened: install “%2” from there and Omnia will add it to the library.</translation>
+    </message>
+    <message>
+        <location line="+2"/>
         <source>No se pudo iniciar la instalación.</source>
         <translation>Could not start installation.</translation>
     </message>
@@ -4796,12 +4862,12 @@
 <context>
     <name>OmniaManager</name>
     <message>
-        <location filename="../OmniaManager.qml" line="+138"/>
+        <location filename="../OmniaManager.qml" line="+140"/>
         <source>No se pudo cargar el catálogo.</source>
         <translation>Could not load the catalog.</translation>
     </message>
     <message>
-        <location line="+237"/>
+        <location line="+238"/>
         <source>Sin conexión: los paquetes en caché no se pueden instalar.</source>
         <translation>Offline: cached packages cannot be installed.</translation>
     </message>
@@ -4861,13 +4927,13 @@
         <translation>Folder removed; files remain on disk.</translation>
     </message>
     <message>
-        <location line="-221"/>
-        <location line="+222"/>
+        <location line="-222"/>
+        <location line="+223"/>
         <source>No se pudo actualizar la biblioteca.</source>
         <translation>Could not update the library.</translation>
     </message>
     <message>
-        <location line="-144"/>
+        <location line="-145"/>
         <source>Listo: %1 ahora lanza con el número de producto %2 de Ubisoft. La configuración anterior quedó en una copia .omnia.bak.</source>
         <translation>Done: %1 now launches with Ubisoft product number %2. The previous configuration was saved as a .omnia.bak copy.</translation>
     </message>
@@ -4877,7 +4943,7 @@
         <translation>Could not fix the launch.</translation>
     </message>
     <message>
-        <location line="+156"/>
+        <location line="+157"/>
         <source>No se pudo analizar la carpeta.</source>
         <translation>Could not scan the folder.</translation>
     </message>
@@ -4953,7 +5019,7 @@
         <translation>Play</translation>
     </message>
     <message>
-        <location filename="../OmniaManager.qml" line="-353"/>
+        <location filename="../OmniaManager.qml" line="-354"/>
         <source>No se pudo actualizar el juego.</source>
         <translation>Could not update the game.</translation>
     </message>
@@ -5095,7 +5161,7 @@
         <translation>Could not remove the catalog link.</translation>
     </message>
     <message>
-        <location line="-199"/>
+        <location line="-201"/>
         <source>Todas</source>
         <translation>All</translation>
     </message>
@@ -5105,7 +5171,7 @@
         <translation>Omnia (ports)</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+12"/>
         <location line="+249"/>
         <source>Omnia · ports</source>
         <translation>Omnia · ports</translation>
@@ -5121,7 +5187,7 @@
         <translation>Available to install</translation>
     </message>
     <message>
-        <location line="+292"/>
+        <location line="+293"/>
         <source>Actualizado: %1</source>
         <translation>Updated: %1</translation>
     </message>
@@ -5178,7 +5244,7 @@ The SHA-256 is verified and the update is applied to the current folder. Your sa
         <translation>No emulator selected. Choose one when you play.</translation>
     </message>
     <message>
-        <location filename="../OmniaManager.qml" line="-413"/>
+        <location filename="../OmniaManager.qml" line="-414"/>
         <source>Ver opciones de instalación</source>
         <translation>View installation options</translation>
     </message>
